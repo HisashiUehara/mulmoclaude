@@ -175,6 +175,31 @@
         </button>
       </div>
       <div class="flex items-center gap-2">
+        <!-- Flag filter chips (table view only): one tri-state chip per
+             `flag` field (all → hide → only), plus a synthesized "done"
+             chip for legacy completion-pair schemas. State is a shared
+             per-collection localStorage preference, like the table sort. -->
+        <div
+          v-if="activeView === 'table' && flagChips.length > 0 && items.length > 0"
+          class="flex items-center gap-0.5"
+          role="group"
+          :aria-label="t('collectionsView.flagFilterGroup')"
+        >
+          <button
+            v-for="chip in flagChips"
+            :key="chip.key"
+            type="button"
+            class="h-8 px-2.5 flex items-center gap-1 rounded text-xs font-bold transition-colors"
+            :class="flagChipClass(chip.key)"
+            :title="flagChipTitle(chip)"
+            :aria-pressed="flagFilters[chip.key] !== undefined"
+            :data-testid="`collections-flag-chip-${chip.key}`"
+            @click="cycleFlagFilter(chip.key)"
+          >
+            <span class="material-icons text-sm">{{ flagChipIcon(chip.key) }}</span>
+            <span>{{ chip.label }}</span>
+          </button>
+        </div>
         <!-- View toggle: table ↔ calendar ↔ kanban. Calendar shows only when
              the schema has a `date` field, kanban only with an `enum` field;
              local UI state, never persisted. -->
@@ -310,7 +335,7 @@
           <option v-for="key in enumFields" :key="key" :value="key">{{ collection?.schema.fields[key]?.label ?? key }}</option>
         </select>
         <div v-if="items.length > 0" class="text-[10px] text-slate-400 font-bold uppercase tracking-wider select-none">
-          {{ t("collectionsView.searchSummary", { shown: filteredItems.length, total: items.length }) }}
+          {{ t("collectionsView.searchSummary", { shown: activeView === "table" ? tableFilteredItems.length : filteredItems.length, total: items.length }) }}
         </div>
       </div>
     </div>
@@ -480,12 +505,14 @@
       </div>
 
       <div
-        v-else-if="filteredItems.length === 0 && editing?.mode !== 'create'"
+        v-else-if="tableFilteredItems.length === 0 && editing?.mode !== 'create'"
         class="flex flex-col items-center justify-center py-20 text-sm text-slate-400 gap-2"
       >
         <span class="material-icons text-4xl text-slate-300">search_off</span>
         <p class="font-semibold text-slate-600">{{ t("collectionsView.noMatchingItems") }}</p>
-        <button type="button" class="text-xs text-indigo-600 font-semibold hover:underline" @click="searchQuery = ''">
+        <!-- Clears the flag chips too — either narrowing can be the one
+             that emptied the table. -->
+        <button type="button" class="text-xs text-indigo-600 font-semibold hover:underline" @click="((searchQuery = ''), (flagFilters = {}))">
           {{ t("collectionsView.clearSearch") }}
         </button>
       </div>
@@ -584,6 +611,19 @@
                       @click.stop
                       @change="commitInlineEdit(item, String(key), field, ($event.target as HTMLInputElement).checked)"
                     />
+
+                    <!-- Flag (computed boolean predicate) → read-only check.
+                         Never stored; recomputed by deriveAll, so there is
+                         nothing to edit inline. -->
+                    <span
+                      v-else-if="field.type === 'flag'"
+                      class="material-icons text-lg align-middle"
+                      :class="chipValue(String(key), item) ? 'text-emerald-600' : 'text-slate-300'"
+                      :data-testid="`collections-flag-${key}-${item[collection.schema.primaryKey]}`"
+                      :aria-label="field.label"
+                      role="img"
+                      >{{ chipValue(String(key), item) ? "check_circle" : "radio_button_unchecked" }}</span
+                    >
 
                     <!-- Ref link badge (binding-driven nav, router-optional) -->
                     <span v-else-if="field.type === 'ref' && field.to && typeof item[key] === 'string' && item[key]" class="block truncate">
@@ -835,9 +875,13 @@ import {
   writeCollectionViewMode,
   readCollectionSort,
   writeCollectionSort,
+  readCollectionFlagFilters,
+  writeCollectionFlagFilters,
   customViewKey,
   type CollectionViewMode,
   type BuiltInViewMode,
+  type FlagFilterMode,
+  type FlagFilterState,
 } from "../collectionViewMode";
 import { collectionUi } from "../uiContext";
 import { activateRefLink, activatePathLink } from "../refLink";
@@ -856,6 +900,7 @@ import {
   actionVisible,
   agentActionRunKey,
   COMPUTED_TYPES,
+  itemIsDone,
   fieldVisible,
   resolveEnumColor,
   buildUpdatedRecord,
@@ -1069,6 +1114,90 @@ const filteredItems = computed<CollectionItem[]>(() => {
   return items.value.filter((item) => itemMatchesQuery(item, query));
 });
 
+// ── Flag filter chips (table view only) ───────────────────────────
+// One tri-state chip per `flag` field (all → hide → only), ANDed with the
+// text search. Schemas with only the legacy completion pair (no flag) get
+// a synthesized "done" chip driven by the shared `itemIsDone`, so #2174's
+// hide-completed works without a schema edit. Calendar / kanban / custom
+// views deliberately see the UNfiltered list (plan scope —
+// plans/feat-collection-flag-fields.md). Chip state is a SHARED
+// per-collection localStorage preference, exactly like the table sort.
+
+/** Chip key for the synthesized legacy-completion chip. `__` keeps it
+ *  disjoint from field names (schema keys are user-declared). */
+const COMPLETION_CHIP_KEY = "__completion";
+
+function storedFlagFiltersFor(slug: string | undefined): FlagFilterState {
+  return slug ? readCollectionFlagFilters(slug) : {};
+}
+const flagFilters = ref<FlagFilterState>(storedFlagFiltersFor(activeSlug.value));
+
+interface FlagChip {
+  key: string;
+  label: string;
+}
+
+const flagChips = computed<FlagChip[]>(() => {
+  const schema = collection.value?.schema;
+  if (!schema) return [];
+  const chips: FlagChip[] = Object.entries(schema.fields)
+    .filter(([, field]) => field.type === "flag")
+    .map(([key, field]) => ({ key, label: field.label ?? key }));
+  // Legacy completion pair (completionField NOT naming a flag) → one
+  // synthesized done chip; a flag-form completion is already covered by
+  // that flag's own chip.
+  if (schema.completionField && schema.completionDoneValues && schema.fields[schema.completionField]?.type !== "flag") {
+    chips.push({ key: COMPLETION_CHIP_KEY, label: t("collectionsView.flagDoneChip") });
+  }
+  return chips;
+});
+
+/** The chip's boolean for one row: the enriched record's computed flag
+ *  value, or `itemIsDone` for the synthesized completion chip. */
+function chipValue(key: string, item: CollectionItem): boolean {
+  const schema = collection.value?.schema;
+  if (!schema) return false;
+  if (key === COMPLETION_CHIP_KEY) return itemIsDone(schema, item);
+  return render.deriveRecord(item)[key] === true;
+}
+
+/** `filteredItems` further narrowed by every ACTIVE chip (AND). Consumed
+ *  only by the table (sortedItems / count summary / empty state). */
+const tableFilteredItems = computed<CollectionItem[]>(() => {
+  const active = flagChips.value.filter((chip) => flagFilters.value[chip.key] !== undefined);
+  if (active.length === 0) return filteredItems.value;
+  return filteredItems.value.filter((item) => active.every((chip) => chipValue(chip.key, item) === (flagFilters.value[chip.key] === "only")));
+});
+
+/** Cycle a chip all → hide → only → all. */
+function cycleFlagFilter(key: string): void {
+  const current = flagFilters.value[key];
+  const next: FlagFilterMode | undefined = current === undefined ? "hide" : current === "hide" ? "only" : undefined;
+  const rest = Object.fromEntries(Object.entries(flagFilters.value).filter(([entry]) => entry !== key));
+  flagFilters.value = next ? { ...rest, [key]: next } : rest;
+}
+
+function flagChipIcon(key: string): string {
+  const mode = flagFilters.value[key];
+  return mode === "hide" ? "visibility_off" : mode === "only" ? "filter_alt" : "visibility";
+}
+
+// Mirrors the view-toggle button states: neutral when inactive; slate for
+// "hide" (rows removed), indigo for "only" (rows isolated).
+function flagChipClass(key: string): string {
+  const mode = flagFilters.value[key];
+  if (mode === "hide") return "bg-slate-600 text-white";
+  if (mode === "only") return "bg-indigo-600 text-white";
+  return "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50";
+}
+
+function flagChipTitle(chip: FlagChip): string {
+  const mode = flagFilters.value[chip.key];
+  if (mode === "hide") return t("collectionsView.flagFilterHide", { label: chip.label });
+  if (mode === "only") return t("collectionsView.flagFilterOnly", { label: chip.label });
+  return t("collectionsView.flagFilterAll", { label: chip.label });
+}
+
 // ── List-table sort (single active column, header toggle) ─────────
 // Calendar / kanban keep their own ordering; only the table consumes
 // `sortedItems`. The active sort is a single SHARED per-collection
@@ -1138,10 +1267,11 @@ function scalarSortValue(field: FieldSpec, raw: unknown): SortValue {
   }
 }
 
-/** Comparable value for one row under the active field. Toggle and derived
- *  need the whole record; every other type keys off the raw cell. */
+/** Comparable value for one row under the active field. Toggle, flag, and
+ *  derived need the whole record; every other type keys off the raw cell. */
 function sortValueOf(field: FieldSpec, key: string, item: CollectionItem): SortValue {
   if (field.type === "toggle") return boolSortValue(toggleChecked(item, field));
+  if (field.type === "flag") return boolSortValue(chipValue(key, item));
   if (field.type === "derived") return derivedSortValue(field, key, item);
   return scalarSortValue(field, item[key]);
 }
@@ -1161,8 +1291,8 @@ function derivedSortValue(field: FieldSpec, key: string, item: CollectionItem): 
 const sortedItems = computed<CollectionItem[]>(() => {
   const state = sortState.value;
   const field = state ? collection.value?.schema.fields[state.field] : undefined;
-  if (!state || !field) return filteredItems.value;
-  return sortItems(filteredItems.value, state.direction, (item) => sortValueOf(field, state.field, item));
+  if (!state || !field) return tableFilteredItems.value;
+  return sortItems(tableFilteredItems.value, state.direction, (item) => sortValueOf(field, state.field, item));
 });
 
 // ────────────────────────────────────────────────────────────────
@@ -2412,8 +2542,10 @@ watch(
       kanbanOverride.value = null;
       addMenuOpen.value = false;
       // A sort belongs to a collection's own schema, so don't carry it across —
-      // restore the new collection's stored (shared) sort instead.
+      // restore the new collection's stored (shared) sort instead. Same for
+      // the flag filter chips.
       sortState.value = storedSortFor(slug);
+      flagFilters.value = storedFlagFiltersFor(slug);
     }
     if (slug) {
       loadCollection(slug);
@@ -2503,7 +2635,7 @@ onUnmounted(() => {
 // loading: that's the point where a stored mode unsupported by this schema
 // (its date/enum field gone) has collapsed to "table" and must be normalized
 // back into storage — otherwise no other dependency changes and it lingers.
-watch([activeView, calendarAnchorField, kanbanGroupField, sortState, loading], () => {
+watch([activeView, calendarAnchorField, kanbanGroupField, sortState, flagFilters, loading], () => {
   // Persist the EFFECTIVE view (activeView), not the raw `view` ref — a
   // stale "calendar"/"kanban" that has fallen back to "table" (its enabling
   // field gone) must not be saved as an impossible mode.
@@ -2523,6 +2655,9 @@ watch([activeView, calendarAnchorField, kanbanGroupField, sortState, loading], (
     // there's no per-card value to go stale and clobber the store.
     if (!embedded.value) writeCollectionViewMode(activeSlug.value, activeView.value);
     writeCollectionSort(activeSlug.value, sortState.value);
+    // Flag chips share the sort's both-ways model: a card re-reads them on
+    // mount, so there's no per-card value to go stale and clobber the store.
+    writeCollectionFlagFilters(activeSlug.value, flagFilters.value);
   }
 });
 
