@@ -40,6 +40,41 @@ export const WhenZ = z.object({
   in: z.array(z.string().trim().min(1)).min(1),
 });
 
+// `where` — a richer AND-of-conditions predicate than the single-field
+// `WhenZ` above: typed comparison ops (`eq/ne/in/contains/gt/gte/lt/lte`)
+// evaluated by `./where`'s `matchesWhere`. Consumed by `flag` fields
+// (below) and `dynamicIcon` (further down). Defined here, ahead of the
+// field specs, so `FlagFieldZ` can reference it.
+//
+// A condition's comparison value is either a literal `value` or a
+// `valueFrom` reference to another record's field (e.g. a `_config`
+// singleton's `defaultCity`, resolved at compute time against the source
+// collection's own records — see the server's `dynamicIcon.ts`
+// `recordsById`). Exactly one of the two is required: neither (nothing to
+// compare against) and both (ambiguous which wins) are equally meaningless.
+// `record` omitted → the SAME record being matched (field-to-field compare,
+// e.g. `spent > budget`); set → another record by primaryKey (e.g. `_config`).
+export const ValueRefZ = z.object({
+  record: z.string().trim().min(1).optional(),
+  field: z.string().trim().min(1),
+});
+export const WhereCondZ = z
+  .object({
+    field: z.string().trim().min(1),
+    op: z.enum(["eq", "ne", "in", "gt", "gte", "lt", "lte", "contains"]),
+    value: z.union([z.string(), z.array(z.string())]).optional(),
+    valueFrom: ValueRefZ.optional(),
+  })
+  .refine((cond) => (cond.value !== undefined) !== (cond.valueFrom !== undefined), {
+    message: "a where condition must declare exactly one of `value` (a literal) or `valueFrom` (a reference to another record's field), never both or neither",
+    path: ["value"],
+  })
+  .refine((cond) => cond.value === undefined || (cond.op === "in") === Array.isArray(cond.value), {
+    message: "`in` requires an array `value` (the allowed set); every other op requires a single string `value`",
+    path: ["value"],
+  });
+export const WhereZ = z.array(WhereCondZ);
+
 // ---------------------------------------------------------------------------
 // Field specs — a discriminated union on `type`
 // ---------------------------------------------------------------------------
@@ -264,6 +299,34 @@ const ToggleFieldZ = z.object({
   offValue: z.string().trim().min(1),
 });
 
+/** A computed boolean: the record matched against a `where` predicate
+ *  (the same AND-of-conditions shape `dynamicIcon` uses; evaluated by
+ *  `./where`'s `matchesWhere`). Generic state summaries — isDone,
+ *  isPassed, isQualified — become declared fields, so every
+ *  field-driven mechanism (table cells, detail view, completion via
+ *  `completionField`) picks them up without special cases. Never
+ *  stored; computed by `deriveAll` on both server and client in the
+ *  same saturation loop as `derived`, so a flag may read derived /
+ *  rollup values — and other flags (`matchesWhere` stringifies, so
+ *  `eq "true"` composes). Deliberately a STRUCTURED field, not formula
+ *  syntax — the derived evaluator's no-string-literals boundary stays
+ *  untouched (same reasoning as `rollup`). Cross-record
+ *  `valueFrom.record` is rejected here: per-record evaluation has no
+ *  `recordsById`, so it could only ever silently never-match.
+ *  `where` condition fields are validated to exist by a schema-level
+ *  refine below (a field can't see its siblings). */
+const FlagFieldZ = z
+  .object({
+    type: z.literal("flag"),
+    ...fieldBase,
+    where: WhereZ.min(1),
+  })
+  .refine((spec) => spec.where.every((cond) => cond.valueFrom?.record === undefined), {
+    message:
+      "a flag's `where` cannot use `valueFrom.record` (cross-record references are unresolvable in per-record evaluation); use a literal `value` or a same-record `valueFrom` (field-to-field)",
+    path: ["where"],
+  });
+
 export const FieldSpecZ = z.discriminatedUnion("type", [
   ScalarFieldZ,
   RefFieldZ,
@@ -275,6 +338,7 @@ export const FieldSpecZ = z.discriminatedUnion("type", [
   BacklinksFieldZ,
   RollupFieldZ,
   ToggleFieldZ,
+  FlagFieldZ,
 ]);
 
 // ---------------------------------------------------------------------------
@@ -505,37 +569,9 @@ export const IngestZ = z.discriminatedUnion("kind", [DeclarativeIngestZ, AgentIn
 // time instead (`computeCollectionIcon`), matching this feature's locked
 // design (see plans/feat-dynamic-collection-icons.md "Open questions").
 //
-// `where` is a richer AND-of-conditions predicate than the single-field
-// `WhenZ` used elsewhere (fields/actions) — see `./where`.
-//
-// A condition's comparison value is either a literal `value` or a
-// `valueFrom` reference to another record's field (e.g. a `_config`
-// singleton's `defaultCity`, resolved at compute time against the source
-// collection's own records — see the server's `dynamicIcon.ts`
-// `recordsById`). Exactly one of the two is required: neither (nothing to
-// compare against) and both (ambiguous which wins) are equally meaningless.
-// `record` omitted → the SAME record being matched (field-to-field compare,
-// e.g. `spent > budget`); set → another record by primaryKey (e.g. `_config`).
-export const ValueRefZ = z.object({
-  record: z.string().trim().min(1).optional(),
-  field: z.string().trim().min(1),
-});
-export const WhereCondZ = z
-  .object({
-    field: z.string().trim().min(1),
-    op: z.enum(["eq", "ne", "in", "gt", "gte", "lt", "lte", "contains"]),
-    value: z.union([z.string(), z.array(z.string())]).optional(),
-    valueFrom: ValueRefZ.optional(),
-  })
-  .refine((cond) => (cond.value !== undefined) !== (cond.valueFrom !== undefined), {
-    message: "a where condition must declare exactly one of `value` (a literal) or `valueFrom` (a reference to another record's field), never both or neither",
-    path: ["value"],
-  })
-  .refine((cond) => cond.value === undefined || (cond.op === "in") === Array.isArray(cond.value), {
-    message: "`in` requires an array `value` (the allowed set); every other op requires a single string `value`",
-    path: ["value"],
-  });
-export const WhereZ = z.array(WhereCondZ);
+// `where` is the AND-of-conditions predicate defined at the top of this
+// file (`WhereZ`, shared with `flag` fields) — see `./where` for the
+// evaluator.
 export const DynamicIconSourceZ = z.object({
   collection: z.string().trim().min(1),
   from: z.enum(["latest", "first", "when"]).optional(),
@@ -899,10 +935,21 @@ export const CollectionSchemaZ = z
   // is meaningless — the host would either never fire (no done values
   // to compare against) or never clear (no field to read). Bound
   // together so the misconfiguration fails loudly at load time.
-  .refine((schema) => (schema.completionField === undefined) === (schema.completionDoneValues === undefined), {
-    message: "schema `completionField` and `completionDoneValues` must be declared together (both set, or both omitted)",
-    path: ["completionField"],
-  })
+  // EXCEPTION: when `completionField` names a `flag` field, done ⇔ the
+  // flag's `where` matches, so `completionDoneValues` carries no
+  // information and MUST be omitted (declaring it would invite a
+  // contradictory second source of truth).
+  .refine(
+    (schema) => {
+      if (schema.completionField !== undefined && schema.fields[schema.completionField]?.type === "flag") return schema.completionDoneValues === undefined;
+      return (schema.completionField === undefined) === (schema.completionDoneValues === undefined);
+    },
+    {
+      message:
+        "schema `completionField` and `completionDoneValues` must be declared together (both set, or both omitted) — unless `completionField` names a `flag` field, in which case `completionDoneValues` must be omitted (done ⇔ the flag matches)",
+      path: ["completionField"],
+    },
+  )
   // `completionField` must name a real top-level field — a typo would
   // silently disable the notification mechanism otherwise.
   .refine((schema) => schema.completionField === undefined || schema.fields[schema.completionField] !== undefined, {
@@ -922,6 +969,36 @@ export const CollectionSchemaZ = z
   .refine((schema) => Object.values(schema.fields).every((field) => field.when === undefined || schema.fields[field.when.field] !== undefined), {
     message: "a field's `when.field` must name a top-level field declared in `fields`",
     path: ["fields"],
+  })
+  // A flag's `where` reads sibling fields (both `cond.field` and a
+  // same-record `valueFrom.field`), so each must name a real top-level
+  // field — a typo would silently pin the flag false forever (`ne`:
+  // true forever). Checked at the schema level because a field can't
+  // see its siblings.
+  .refine(
+    (schema) =>
+      Object.values(schema.fields).every(
+        (field) =>
+          field.type !== "flag" ||
+          field.where.every(
+            (cond) => schema.fields[cond.field] !== undefined && (cond.valueFrom === undefined || schema.fields[cond.valueFrom.field] !== undefined),
+          ),
+      ),
+    {
+      message: "a flag field's `where` conditions must name top-level fields declared in `fields` (both `field` and a same-record `valueFrom.field`)",
+      path: ["fields"],
+    },
+  )
+  // The spawn-inert guard (`spawnSuccessorStartsInert`) statically
+  // checks that a successor is not born already matching the spawn
+  // predicate; it cannot see through a flag's `where` (the predicate
+  // would need full record evaluation against `set`/`carry`). So a
+  // schema whose completion is flag-form may only spawn with an
+  // explicit `spawn.when` — which the guard CAN check.
+  .refine((schema) => schema.spawn === undefined || schema.spawn.when !== undefined || schema.fields[schema.completionField ?? ""]?.type !== "flag", {
+    message:
+      "a schema whose `completionField` names a `flag` field must declare an explicit `spawn.when` (the spawn-inert check cannot statically evaluate a flag's `where`)",
+    path: ["spawn"],
   })
   // An `embed`'s `idField` resolves the target record id from a sibling's
   // value, so it must name a real top-level field — and one whose stored

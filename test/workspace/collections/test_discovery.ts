@@ -1687,6 +1687,111 @@ describe("discoverCollections — toggle field validation", () => {
   });
 });
 
+describe("discoverCollections — flag field validation", () => {
+  // An enum status + numeric score/budget with flag fields over them,
+  // cloned + mutated per case. `dueOn` supports the spawn cases.
+  function flagSchema(extra: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      title: "Applicants",
+      icon: "person",
+      dataPath: "data/applicants/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        status: { type: "enum", label: "Status", values: ["todo", "doing", "done", "canceled"] },
+        score: { type: "number", label: "Score" },
+        budget: { type: "number", label: "Budget" },
+        dueOn: { type: "date", label: "Due" },
+        isDone: { type: "flag", label: "Done", where: [{ field: "status", op: "in", value: ["done", "canceled"] }] },
+      },
+      ...extra,
+    };
+  }
+
+  /** Replace the `isDone` flag's spec (keeping the surrounding fields). */
+  function withFlag(flag: Record<string, unknown>, extra: Record<string, unknown> = {}): Record<string, unknown> {
+    const schema = flagSchema(extra);
+    (schema.fields as Record<string, unknown>).isDone = { type: "flag", label: "Done", ...flag };
+    return schema;
+  }
+
+  it("accepts a membership flag and preserves it through parsing", async () => {
+    writeSkill("test-flag-ok", flagSchema());
+    const collection = await loadCollection("test-flag-ok", { workspaceRoot: workdir, userSkillsDir: emptyUserDir });
+    const flag = fieldAs(collection?.schema.fields.isDone, "flag");
+    assert.deepEqual(flag?.where, [{ field: "status", op: "in", value: ["done", "canceled"] }]);
+  });
+
+  it("accepts a numeric-compare flag (gte)", async () => {
+    writeSkill("test-flag-gte", withFlag({ where: [{ field: "score", op: "gte", value: "60" }] }));
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("accepts a same-record valueFrom (field-to-field compare)", async () => {
+    writeSkill("test-flag-value-from", withFlag({ where: [{ field: "score", op: "gt", valueFrom: { field: "budget" } }] }));
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("rejects an empty where", async () => {
+    writeSkill("test-flag-empty", withFlag({ where: [] }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a condition naming a missing field", async () => {
+    writeSkill("test-flag-missing-field", withFlag({ where: [{ field: "nope", op: "eq", value: "x" }] }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a cross-record valueFrom.record", async () => {
+    writeSkill("test-flag-cross-record", withFlag({ where: [{ field: "score", op: "gt", valueFrom: { record: "_config", field: "budget" } }] }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a valueFrom.field naming a missing field", async () => {
+    writeSkill("test-flag-value-from-missing", withFlag({ where: [{ field: "score", op: "gt", valueFrom: { field: "nope" } }] }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("accepts completionField naming a flag (completionDoneValues omitted)", async () => {
+    writeSkill("test-flag-completion", flagSchema({ completionField: "isDone" }));
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("rejects completionField naming a flag WITH completionDoneValues", async () => {
+    writeSkill("test-flag-completion-values", flagSchema({ completionField: "isDone", completionDoneValues: ["true"] }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a mutate action writing a flag (computed, never stored)", async () => {
+    writeSkill("test-flag-mutate", flagSchema({ actions: [{ kind: "mutate", id: "finish", label: "Finish", set: { isDone: "true" } }] }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects spawn under flag completion without an explicit spawn.when", async () => {
+    writeSkill(
+      "test-flag-spawn-implicit",
+      flagSchema({
+        completionField: "isDone",
+        triggerField: "dueOn",
+        spawn: { every: { unit: "month", interval: 1, dayOfMonth: 10 }, set: { status: "todo" } },
+      }),
+    );
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("accepts spawn under flag completion with an explicit spawn.when", async () => {
+    writeSkill(
+      "test-flag-spawn-explicit",
+      flagSchema({
+        completionField: "isDone",
+        triggerField: "dueOn",
+        spawn: { when: { field: "status", in: ["done"] }, every: { unit: "month", interval: 1, dayOfMonth: 10 }, set: { status: "todo" } },
+      }),
+    );
+    assert.equal((await listCollections()).length, 1);
+  });
+});
+
 describe("discoverCollections — notifyWhen validation", () => {
   function notifySchema(extra: Record<string, unknown>): Record<string, unknown> {
     return {

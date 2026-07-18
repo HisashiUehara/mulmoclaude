@@ -22,7 +22,7 @@
 // without a side state file.
 
 import { clear as notifierClear, listAll, publish as notifierPublish, updateForPlugin as notifierUpdate, type NotifierEntry } from "../notifier";
-import { whenMatches, type CollectionItem, type CollectionSchema } from "../collection";
+import { itemIsDone, whenMatches, type CollectionItem, type CollectionSchema } from "../collection";
 import { type DiscoveryOptions, listItems, readItem, type IoOptions, isTriggerDue, maybeSpawnSuccessor, loadCollection } from "../collection/server";
 import { type CompletionPriority, errMsg, log, requireAdapter } from "./config.js";
 import { evalNow } from "./clock.js";
@@ -62,15 +62,10 @@ export function resolveDisplayLabel(schema: CollectionSchema, item: CollectionIt
   return label.length > 0 ? label : itemId;
 }
 
-/** True iff the schema declares completion tracking AND the item's
- *  `completionField` value (stringified) is in `completionDoneValues`. */
-export function itemIsDone(schema: CollectionSchema, item: CollectionItem): boolean {
-  const { completionField, completionDoneValues } = schema;
-  if (!completionField || !completionDoneValues) return false;
-  const raw = item[completionField];
-  if (raw === undefined || raw === null) return false;
-  return completionDoneValues.includes(String(raw));
-}
+// The done predicate moved to `../collection/core/completion` (flag-aware,
+// browser-safe, shared with spawn and view filters). Re-exported so the
+// `collection-watchers` barrel keeps its public surface (MulmoTerminal).
+export { itemIsDone };
 
 /** Every active bell entry whose key matches this (slug, itemId).
  *  Returns multiple when defensive cleanup is needed. Scans `listAll()`
