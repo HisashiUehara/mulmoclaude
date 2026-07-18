@@ -261,7 +261,8 @@ Every field spec needs a `type` and a `label`. Extra keys by type:
   boolean (`{ "field": "isDone", "op": "eq", "value": "true" }`). Use it for
   generic state summaries — done-ness, pass/fail, qualification:
   `{ "type": "flag", "label": "Passed", "where": [{ "field": "score", "op": "gte", "value": "60" }] }`.
-  A flag can also drive completion tracking — see `completionField` above.
+  A flag can also drive completion tracking (stored-field conditions only) —
+  see `completionField` above and the "Completion tracking" section below.
 
 ### Conditional field visibility (`when`)
 
@@ -486,6 +487,16 @@ with any field type whose stringified value is comparable (`enum`, `string`,
 `boolean`, …) — e.g. `completionField: "status"` + `completionDoneValues:
 ["paid", "void"]` on an invoice, or `completionField: "shipped"` +
 `completionDoneValues: ["true"]` on an order.
+
+**Flag-form alternative**: `completionField` may instead name a **`flag`
+field** — then done ⇔ the flag's `where` matches, and `completionDoneValues`
+must be **omitted** (declaring it fails validation). Use it when done-ness is
+richer than one field's membership (e.g. `"isDone": { "type": "flag", "where":
+[{ "field": "score", "op": "gte", "value": "60" }] }` + `"completionField":
+"isDone"`). Two extra rules apply only to a completion flag: its `where` may
+reference **stored fields only** (no derived/rollup/toggle/flag/embed/backlinks
+— completion is checked against the raw record), and combining it with `spawn`
+requires an explicit `spawn.when`.
 
 Set `displayField` to make the bell title readable: with `displayField:
 "title"` the notification reads `Todos: Buy milk` instead of `Todos: t-0042`.

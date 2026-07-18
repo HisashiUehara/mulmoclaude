@@ -192,11 +192,12 @@
             class="h-8 px-2.5 flex items-center gap-1 rounded text-xs font-bold transition-colors"
             :class="flagChipClass(chip.key)"
             :title="flagChipTitle(chip)"
+            :aria-label="flagChipTitle(chip)"
             :aria-pressed="flagFilters[chip.key] !== undefined"
             :data-testid="`collections-flag-chip-${chip.key}`"
             @click="cycleFlagFilter(chip.key)"
           >
-            <span class="material-icons text-sm">{{ flagChipIcon(chip.key) }}</span>
+            <span class="material-icons text-sm" aria-hidden="true">{{ flagChipIcon(chip.key) }}</span>
             <span>{{ chip.label }}</span>
           </button>
         </div>
@@ -618,11 +619,11 @@
                     <span
                       v-else-if="field.type === 'flag'"
                       class="material-icons text-lg align-middle"
-                      :class="chipValue(String(key), item) ? 'text-emerald-600' : 'text-slate-300'"
+                      :class="flagValueOf(String(key), item) ? 'text-emerald-600' : 'text-slate-300'"
                       :data-testid="`collections-flag-${key}-${item[collection.schema.primaryKey]}`"
-                      :aria-label="field.label"
+                      :aria-label="`${field.label}: ${t(flagValueOf(String(key), item) ? 'common.yes' : 'common.no')}`"
                       role="img"
-                      >{{ chipValue(String(key), item) ? "check_circle" : "radio_button_unchecked" }}</span
+                      >{{ flagValueOf(String(key), item) ? "check_circle" : "radio_button_unchecked" }}</span
                     >
 
                     <!-- Ref link badge (binding-driven nav, router-optional) -->
@@ -1123,8 +1124,11 @@ const filteredItems = computed<CollectionItem[]>(() => {
 // plans/feat-collection-flag-fields.md). Chip state is a SHARED
 // per-collection localStorage preference, exactly like the table sort.
 
-/** Chip key for the synthesized legacy-completion chip. `__` keeps it
- *  disjoint from field names (schema keys are user-declared). */
+/** Chip key (state/testid/localStorage) for the synthesized
+ *  legacy-completion chip. Field names are unrestricted strings, so a
+ *  schema COULD declare a field with this exact name — the chip list
+ *  below skips synthesizing in that case, and the predicate dispatch
+ *  keys off the structural `synthetic` marker, never this string. */
 const COMPLETION_CHIP_KEY = "__completion";
 
 function storedFlagFiltersFor(slug: string | undefined): FlagFilterState {
@@ -1135,6 +1139,9 @@ const flagFilters = ref<FlagFilterState>(storedFlagFiltersFor(activeSlug.value))
 interface FlagChip {
   key: string;
   label: string;
+  /** Set on the synthesized legacy-completion chip (predicate =
+   *  `itemIsDone`); absent on chips backed by a real flag field. */
+  synthetic?: boolean;
 }
 
 const flagChips = computed<FlagChip[]>(() => {
@@ -1145,20 +1152,33 @@ const flagChips = computed<FlagChip[]>(() => {
     .map(([key, field]) => ({ key, label: field.label ?? key }));
   // Legacy completion pair (completionField NOT naming a flag) → one
   // synthesized done chip; a flag-form completion is already covered by
-  // that flag's own chip.
-  if (schema.completionField && schema.completionDoneValues && schema.fields[schema.completionField]?.type !== "flag") {
-    chips.push({ key: COMPLETION_CHIP_KEY, label: t("collectionsView.flagDoneChip") });
+  // that flag's own chip. Skipped when a field happens to be named
+  // `__completion`, so the chip key (filter state / testid / Vue :key)
+  // can never collide with a real field's.
+  if (
+    schema.completionField &&
+    schema.completionDoneValues &&
+    schema.fields[schema.completionField]?.type !== "flag" &&
+    schema.fields[COMPLETION_CHIP_KEY] === undefined
+  ) {
+    chips.push({ key: COMPLETION_CHIP_KEY, label: t("collectionsView.flagDoneChip"), synthetic: true });
   }
   return chips;
 });
 
-/** The chip's boolean for one row: the enriched record's computed flag
- *  value, or `itemIsDone` for the synthesized completion chip. */
-function chipValue(key: string, item: CollectionItem): boolean {
+/** A flag FIELD's computed boolean for one row (list cells + sort):
+ *  the enriched record's value, so a flag over derived/rollup inputs
+ *  reads correctly. */
+function flagValueOf(key: string, item: CollectionItem): boolean {
+  return render.deriveRecord(item)[key] === true;
+}
+
+/** The chip's boolean for one row — `itemIsDone` for the synthesized
+ *  completion chip, the computed flag value otherwise. */
+function chipMatches(chip: FlagChip, item: CollectionItem): boolean {
   const schema = collection.value?.schema;
   if (!schema) return false;
-  if (key === COMPLETION_CHIP_KEY) return itemIsDone(schema, item);
-  return render.deriveRecord(item)[key] === true;
+  return chip.synthetic ? itemIsDone(schema, item) : flagValueOf(chip.key, item);
 }
 
 /** `filteredItems` further narrowed by every ACTIVE chip (AND). Consumed
@@ -1166,7 +1186,7 @@ function chipValue(key: string, item: CollectionItem): boolean {
 const tableFilteredItems = computed<CollectionItem[]>(() => {
   const active = flagChips.value.filter((chip) => flagFilters.value[chip.key] !== undefined);
   if (active.length === 0) return filteredItems.value;
-  return filteredItems.value.filter((item) => active.every((chip) => chipValue(chip.key, item) === (flagFilters.value[chip.key] === "only")));
+  return filteredItems.value.filter((item) => active.every((chip) => chipMatches(chip, item) === (flagFilters.value[chip.key] === "only")));
 });
 
 /** Cycle a chip all → hide → only → all. */
@@ -1271,7 +1291,7 @@ function scalarSortValue(field: FieldSpec, raw: unknown): SortValue {
  *  derived need the whole record; every other type keys off the raw cell. */
 function sortValueOf(field: FieldSpec, key: string, item: CollectionItem): SortValue {
   if (field.type === "toggle") return boolSortValue(toggleChecked(item, field));
-  if (field.type === "flag") return boolSortValue(chipValue(key, item));
+  if (field.type === "flag") return boolSortValue(flagValueOf(key, item));
   if (field.type === "derived") return derivedSortValue(field, key, item);
   return scalarSortValue(field, item[key]);
 }

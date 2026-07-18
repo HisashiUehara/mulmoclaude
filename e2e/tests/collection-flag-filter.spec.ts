@@ -125,4 +125,5 @@ test("legacy completion pair gets a synthesized done chip (no schema edit)", asy
   // hide → the done todo disappears; the count summary reflects it.
   await page.getByTestId("collections-flag-chip-__completion").click();
   await expectRows(page, ["t1"]);
+  await expect(page.getByText("Showing 1 of 2")).toBeVisible();
 });

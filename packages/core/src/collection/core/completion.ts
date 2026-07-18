@@ -13,7 +13,9 @@
 //    matches. Evaluated directly against the raw record here (NOT read
 //    from a materialized value) because callers like the reconciler and
 //    spawn work on records straight off disk, before any `deriveAll`
-//    enrichment.
+//    enrichment. That raw evaluation is CORRECT BY CONSTRUCTION: a
+//    schema-level refine rejects a completion flag whose `where`
+//    references computed fields, so every condition reads stored data.
 
 import { matchesWhere, type Where } from "./where";
 

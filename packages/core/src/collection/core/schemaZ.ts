@@ -989,6 +989,31 @@ export const CollectionSchemaZ = z
       path: ["fields"],
     },
   )
+  // A flag named by `completionField` is evaluated against the RAW
+  // record — the reconciler (and spawn's fallback) read items straight
+  // off disk, BEFORE any `deriveAll` enrichment — so its `where` may
+  // only reference STORED fields. A condition over a computed sibling
+  // (derived/rollup/toggle/flag/embed/backlinks) would see an absent
+  // key: `ne` matches vacuously, every other op reads false, and the
+  // bell would clear wrongly / never. General (non-completion) flags
+  // keep the full vocabulary — the UI evaluates them post-enrichment.
+  .refine(
+    (schema) => {
+      const spec = schema.completionField === undefined ? undefined : schema.fields[schema.completionField];
+      if (spec?.type !== "flag") return true;
+      return spec.where.every((cond) =>
+        [cond.field, ...(cond.valueFrom ? [cond.valueFrom.field] : [])].every((name) => {
+          const target = schema.fields[name];
+          return target !== undefined && !COMPUTED_TYPES.has(target.type);
+        }),
+      );
+    },
+    {
+      message:
+        "a `flag` named by `completionField` may only reference STORED fields in its `where` — completion is evaluated against the raw record (before deriveAll), where computed values (derived/rollup/toggle/flag/embed/backlinks) are absent",
+      path: ["completionField"],
+    },
+  )
   // The spawn-inert guard (`spawnSuccessorStartsInert`) statically
   // checks that a successor is not born already matching the spawn
   // predicate; it cannot see through a flag's `where` (the predicate

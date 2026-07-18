@@ -1702,6 +1702,7 @@ describe("discoverCollections — flag field validation", () => {
         score: { type: "number", label: "Score" },
         budget: { type: "number", label: "Budget" },
         dueOn: { type: "date", label: "Due" },
+        total: { type: "derived", label: "Total", formula: "score * 2" },
         isDone: { type: "flag", label: "Done", where: [{ field: "status", op: "in", value: ["done", "canceled"] }] },
       },
       ...extra,
@@ -1759,6 +1760,24 @@ describe("discoverCollections — flag field validation", () => {
 
   it("rejects completionField naming a flag WITH completionDoneValues", async () => {
     writeSkill("test-flag-completion-values", flagSchema({ completionField: "isDone", completionDoneValues: ["true"] }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("accepts a general flag over a derived field", async () => {
+    writeSkill("test-flag-over-derived", withFlag({ where: [{ field: "total", op: "gt", value: "100" }] }));
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("rejects a COMPLETION flag whose where references a derived field", async () => {
+    writeSkill("test-flag-completion-derived", withFlag({ where: [{ field: "total", op: "gt", value: "100" }] }, { completionField: "isDone" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a COMPLETION flag whose valueFrom.field is computed", async () => {
+    writeSkill(
+      "test-flag-completion-value-from-computed",
+      withFlag({ where: [{ field: "score", op: "gt", valueFrom: { field: "total" } }] }, { completionField: "isDone" }),
+    );
     assert.equal((await listCollections()).length, 0);
   });
 
