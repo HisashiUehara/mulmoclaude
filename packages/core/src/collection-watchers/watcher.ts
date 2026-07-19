@@ -1,14 +1,23 @@
 // Filesystem watchers that drive collection-completion bell
-// notifications. One `fs.watch` per discovered collection's `dataDir`,
-// fanned out from a single boot call + a 30-second re-discovery interval
-// that catches newly-created / deleted collections (there is no
-// in-process "collections changed" event broadcast).
+// notifications AND the live-refresh change event. One `fs.watch` per
+// discovered collection's `dataDir`, fanned out from a single boot call
+// + a 30-second re-discovery interval that catches newly-created /
+// deleted collections (there is no in-process "collections changed"
+// event broadcast).
 //
 // Why a watcher, not just route hooks: the canonical pattern for
 // collection-skills has the agent Write records directly with the Write
 // tool — that path never hits the REST API, so a route-level hook would
 // miss most of the traffic the user generates. The watcher catches every
 // mutation regardless of who wrote the file.
+//
+// That same reasoning is why the watcher publishes change events: a
+// write through `io.ts` publishes its own (immediately, and reliably
+// even where fs.watch is unavailable), but a direct file write has no
+// other producer, so open views would never refresh. Both producers
+// firing for one `io.ts` write is intentional — the payload carries no
+// bodies, so a duplicate costs one redundant refetch, whereas a missed
+// event leaves the UI silently stale.
 //
 // All decisions live in `reconciler.ts`; this module is pure plumbing:
 // discover, mkdir, fs.watch, forward events into the reconciler. Every
@@ -17,9 +26,9 @@
 // platforms) don't need special handling.
 
 import { watch, type FSWatcher } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { access, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { discoverCollections, loadCollection, publishCollectionChange, type DiscoveryOptions, type LoadedCollection } from "../collection/server";
+import { discoverCollections, itemFilePath, loadCollection, publishCollectionChange, type DiscoveryOptions, type LoadedCollection } from "../collection/server";
 import type { CollectionSchema } from "../collection";
 import { errMsg, log } from "./config.js";
 import { evalNow } from "./clock.js";
@@ -443,7 +452,12 @@ export function _scheduleItemReconcileForTesting(collection: LoadedCollection, i
 }
 
 function scheduleItemReconcile(collection: LoadedCollection, itemId: string): Promise<void> {
-  return runSingleFlight(itemSlots, `${collection.slug}\x00${itemId}`, () => reconcileItem(collection, itemId, discoveryOpts));
+  return runSingleFlight(
+    itemSlots,
+    `${collection.slug}\x00${itemId}`,
+    () => reconcileItem(collection, itemId, discoveryOpts),
+    () => publishItemChange(collection, itemId),
+  );
 }
 
 /** The shared single-flight loop behind both schedulers. Re-runs `pass`
@@ -451,8 +465,10 @@ function scheduleItemReconcile(collection: LoadedCollection, itemId: string): Pr
  *  change that landed during a prior pass. After each pass we read
  *  `pending` and zero it before the next iteration, so an event that
  *  fires *during* the last pass's await still triggers one more pass
- *  before the slot is freed. */
-function runSingleFlight(slots: Map<string, ReconcileSlot>, key: string, pass: () => Promise<void>): Promise<void> {
+ *  before the slot is freed. `onSettled`, if given, runs once in the
+ *  `finally` after the slot is freed — the item scheduler uses it to
+ *  publish exactly one live-refresh event per burst. */
+function runSingleFlight(slots: Map<string, ReconcileSlot>, key: string, pass: () => Promise<void>, onSettled?: () => Promise<void>): Promise<void> {
   const existing = slots.get(key);
   if (existing) {
     existing.pending = true;
@@ -469,10 +485,44 @@ function runSingleFlight(slots: Map<string, ReconcileSlot>, key: string, pass: (
       }
     } finally {
       slots.delete(key);
+      // `onSettled` runs once after the slot is freed — the slot is the
+      // coalescing primitive, so one burst yields one call. It's in the
+      // `finally` because a failed reconcile still means a file changed,
+      // and open views must be told to refetch either way.
+      if (onSettled) await onSettled();
     }
   })();
   slots.set(key, slot);
   return slot.running;
+}
+
+/** Emit the live-refresh event for one record. `op` is derived from
+ *  whether the file is still there — `fs.watch` reports neither the kind
+ *  of change nor, reliably, which of `rename`/`change` means what. Only
+ *  file-backed collections reach here; a `storage` (db) collection has no
+ *  per-record file and publishes wholesale in `scheduleStorageReconcile`. */
+async function publishItemChange(collection: LoadedCollection, itemId: string): Promise<void> {
+  const changeOp = (await itemFileExists(collection.dataDir, itemId)) ? "upsert" : "delete";
+  safePublish({ slug: collection.slug, ids: [itemId], op: changeOp });
+}
+
+async function itemFileExists(dataDir: string, itemId: string): Promise<boolean> {
+  try {
+    await access(itemFilePath(dataDir, itemId));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The publisher is host-supplied, so treat it as untrusted: a throw here
+ *  runs inside a `finally` and would mask the reconcile's own error. */
+function safePublish(payload: { slug: string; ids?: string[]; op?: "upsert" | "delete" }): void {
+  try {
+    publishCollectionChange(payload);
+  } catch (err) {
+    log().warn("collection change publish failed", { slug: payload.slug, error: errMsg(err) });
+  }
 }
 
 /** Handle a single fs.watch event. Re-loads the collection (schema may
@@ -487,8 +537,15 @@ async function onEvent(slug: string, filename: string | Buffer | null): Promise<
     // which record changed. `reconcileAllItems` covers items whose file
     // still exists; pair it with a sweep so any record deleted inside the
     // same opaque event has its stale bell entry cleared too.
-    await reconcileAllItems(collection, discoveryOpts);
-    await sweepStaleActiveEntries(discoveryOpts);
+    try {
+      await reconcileAllItems(collection, discoveryOpts);
+      await sweepStaleActiveEntries(discoveryOpts);
+    } finally {
+      // In `finally` for the same reason as the per-item path: a failed
+      // reconcile still means a file changed. No id and no op — subscribers
+      // refetch the whole collection anyway, and guessing either would lie.
+      safePublish({ slug });
+    }
     return;
   }
   const name = typeof filename === "string" ? filename : filename.toString("utf-8");
