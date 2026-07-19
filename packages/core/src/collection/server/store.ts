@@ -108,7 +108,12 @@ export interface CollectionStore {
  *  compare — locale-independent). `listItems` returns readdir order, which
  *  is filesystem-dependent; paging needs determinism. */
 function sortByRecordId(items: CollectionItem[], primaryKey: string): CollectionItem[] {
-  return [...items].sort((left, right) => (String(left[primaryKey] ?? "") < String(right[primaryKey] ?? "") ? -1 : 1));
+  return [...items].sort((left, right) => {
+    const leftId = String(left[primaryKey] ?? "");
+    const rightId = String(right[primaryKey] ?? "");
+    if (leftId < rightId) return -1;
+    return leftId > rightId ? 1 : 0; // 0 on equality — a comparator that never ties breaks sort's contract
+  });
 }
 
 /** True when the collection accepts UI/tool writes. A `dataSource`

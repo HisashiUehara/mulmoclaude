@@ -163,10 +163,10 @@ async function updateViaView(
   if (offending) return { kind: "field-not-editable", field: offending };
   // Classify a bad id BEFORE the store read — which returns null for an unsafe
   // id, a path-escape, AND a genuinely-missing record alike — so update reports
-  // the same explicit `invalid-id` the delete path does (via deleteItem) instead
-  // of masking it as a 404. (A valid id whose dataDir escapes the workspace can
-  // hold no record, so it still resolves to item-not-found; a real write is
-  // additionally refused by writeItem's own containment guard below.)
+  // the same explicit `invalid-id` the delete path does (via `store.delete`)
+  // instead of masking it as a 404. (A valid id whose data location escapes the
+  // workspace can hold no record, so it still resolves to item-not-found; a
+  // real write is additionally refused by the store's own containment guard.)
   if (safeRecordId(request.id) === null) return { kind: "invalid-id", id: request.id };
   const existing = await store.read(request.id);
   if (!existing) return { kind: "item-not-found", id: request.id };

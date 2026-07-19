@@ -5,6 +5,7 @@
 // public `@mulmoclaude/core/collection/server` surface is unchanged.
 
 import type { CollectionItem } from "../core/schema";
+import { projectRecordFields } from "../core/project";
 
 /** Options for `page`. STORED fields only — computed fields (`derived` /
  *  `toggle` / `embed` / rollups) never reach the store; project them at the
@@ -32,12 +33,11 @@ export interface WriteOptions {
   refuseOverwrite?: boolean;
 }
 
-/** Project `fields` (+ the primary key, always) out of each record. No
- *  `fields` ⇒ records pass through untouched. Pure, exported for tests. */
+/** Project `fields` (+ the primary key, always) out of each record. Thin
+ *  server-typed alias over the shared isomorphic `projectRecordFields`
+ *  (../core/project.ts) — kept as the store layer's exported name. */
 export function projectItemFields(items: CollectionItem[], fields: readonly string[] | undefined, primaryKey: string): CollectionItem[] {
-  if (!fields) return items;
-  const keep = new Set([primaryKey, ...fields]);
-  return items.map((item) => Object.fromEntries(Object.entries(item).filter(([key]) => keep.has(key))));
+  return projectRecordFields(items, fields, primaryKey);
 }
 
 /** Slice + project an already-ordered full read into a `ListPage` — the

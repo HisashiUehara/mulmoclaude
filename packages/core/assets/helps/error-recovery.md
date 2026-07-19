@@ -238,7 +238,8 @@ Diagnosis + fixes, in order:
    empty, not migrate it.
 
 Known v1 limits of sqlite storage (by design, not bugs to fix in place):
-`spawn` is schema-rejected, the record Repair/validation pass sees no
+`spawn`, `completionField`, and `triggerField` are schema-rejected (those
+paths still read record files), the record Repair/validation pass sees no
 records (it scans record files), and deleting the collection archives the
 skill + phantom data dir but leaves the `.db` file in place.
 

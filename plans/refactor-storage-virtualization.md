@@ -234,11 +234,14 @@ point.
   backends; remote-view preflights keep holding); symlinked db refused
   (io.ts parity); write publishes its own `publishCollectionChange` (io.ts
   is not in the path here).
-- **Known v1 gaps** (documented in error-recovery.md): `spawn`
-  schema-rejected (raw-io writer); record Repair/validation scans record
-  FILES so it sees no sqlite records (no false errors, just no repair);
-  `deleteCollection` archives skill + phantom dataDir but leaves the `.db`
-  file; external edits to the db don't fire change events (no watcher).
+- **Known v1 gaps** (documented in error-recovery.md +
+  collection-skills.md): `spawn`, `completionField`, and `triggerField`
+  schema-rejected (spawn writes raw record files; the collection watcher's
+  reconcilers scan the dataDir's .json files — PR #2203 review finding);
+  record Repair/validation scans record FILES so it sees no sqlite records
+  (no false errors, just no repair); `deleteCollection` archives skill +
+  phantom dataDir but leaves the `.db` file; external edits to the db
+  don't fire change events (no watcher).
 
 ## Later stages (sketch, not in scope here)
 

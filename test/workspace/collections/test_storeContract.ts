@@ -240,9 +240,13 @@ describe("storage schema gates (sqlite)", () => {
     assert.equal(parsed.success, false);
     if (parsed.success) return;
     assert.ok(
-      parsed.error.issues.some((issue) => issue.message.includes("cannot declare `spawn` yet")),
+      parsed.error.issues.some((issue) => issue.message.includes("cannot declare `spawn`")),
       `expected the storage+spawn refine, got: ${parsed.error.issues.map((issue) => issue.message).join(" | ")}`,
     );
+    // The same refine also rejects the watcher-reconciled fields — their
+    // reconcilers scan record files and would silently see zero records.
+    const withCompletion = CollectionSchemaZ.safeParse({ ...SQLITE_SCHEMA, completionField: "title", completionDoneValues: ["done"] });
+    assert.equal(withCompletion.success, false);
   });
 
   it("rejects a storage.path escaping the workspace", async () => {

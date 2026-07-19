@@ -67,60 +67,89 @@ function loadSqlite(): Promise<SqliteModule> {
   return sqliteModule;
 }
 
-/** True when the database file exists as a REGULAR file. A symlink is refused
- *  (file-disclosure defense, same rule as io.ts record files); missing is
- *  just "no records yet". */
+/** The db file's on-disk state. A symlink or non-regular file is refused
+ *  (file-disclosure defense, same rule as io.ts record files); ENOENT is
+ *  just "no records yet". Any OTHER lstat failure (EACCES, EIO, …) is
+ *  rethrown so reads surface a real filesystem problem instead of
+ *  silently reporting an empty collection. */
 async function dbFileState(absPath: string): Promise<"missing" | "file" | "refused"> {
   try {
     const info = await lstat(absPath);
     return info.isFile() ? "file" : "refused";
-  } catch {
-    return "missing";
+  } catch (err) {
+    if ((err as { code?: string }).code === "ENOENT") return "missing";
+    throw err;
   }
 }
 
 const CREATE_TABLE = "CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, record TEXT NOT NULL)";
 
-/** Open the database for one operation. Read mode returns null when the file is
- *  absent (empty collection) or refused; write mode creates parent dir +
- *  file, with the same pre/post containment re-check as io.ts writes. */
-async function openDb(absPath: string, workspaceRoot: string, mode: "read" | "write"): Promise<SqliteDatabase | null> {
+type DbHandle = { kind: "ok"; database: SqliteDatabase } | { kind: "missing" } | { kind: "refused" };
+
+/** Open the database for one operation, classifying the two unavailable
+ *  states so callers can map them honestly (`refused` ⇒ path-escape,
+ *  `missing` ⇒ empty / not-found — conflating them would misreport a
+ *  containment escape as "item not found"). The containment pre-check runs
+ *  BEFORE mkdir even when the file is missing — `isContainedInRoot`
+ *  resolves through the closest existing ancestor, so a symlinked-away
+ *  parent can never make the recursive mkdir create directories outside
+ *  the workspace (same pre/post belt-and-suspenders as io.ts writes). */
+async function openDb(absPath: string, workspaceRoot: string, mode: "read" | "write"): Promise<DbHandle> {
   const state = await dbFileState(absPath);
   if (state === "refused") {
     log.warn("collections", "sqlite database refused: not a regular file", { path: absPath });
-    return null;
+    return { kind: "refused" };
   }
-  if (mode === "read" && state === "missing") return null;
-  if (!isContainedInRoot(path.dirname(absPath), workspaceRoot) && state !== "missing") return null;
+  if (!isContainedInRoot(path.dirname(absPath), workspaceRoot)) {
+    log.warn("collections", "sqlite refused: database dir escapes workspace via symlink", { path: absPath });
+    return { kind: "refused" };
+  }
+  if (mode === "read" && state === "missing") return { kind: "missing" };
   if (mode === "write") {
     await mkdir(path.dirname(absPath), { recursive: true });
     if (!isContainedInRoot(path.dirname(absPath), workspaceRoot)) {
-      log.warn("collections", "sqlite write refused: database dir escapes workspace via symlink", { path: absPath });
-      return null;
+      log.warn("collections", "sqlite write refused: database dir escapes workspace via symlink (post-mkdir)", { path: absPath });
+      return { kind: "refused" };
     }
   }
   const { DatabaseSync } = await loadSqlite();
   const database = new DatabaseSync(absPath);
+  // Wait for a concurrent writer's lock instead of failing fast with
+  // SQLITE_BUSY. PRAGMA (not the constructor's `timeout` option, which
+  // only exists on Node >= 22.16 — our sqlite floor is 22.5).
+  database.exec("PRAGMA busy_timeout = 5000");
   database.exec(CREATE_TABLE);
-  return database;
+  return { kind: "ok", database };
 }
 
-/** Run `operation` against the database and always close it. Read mode resolves
- *  `missing` to the provided empty value instead of opening. */
+/** Run `operation` against the database and always close it; unavailable
+ *  states resolve through `onUnavailable` so each caller maps `missing`
+ *  vs `refused` to its own result kind. */
 async function withDb<T>(
   absPath: string,
   workspaceRoot: string,
   mode: "read" | "write",
-  empty: T,
+  onUnavailable: (reason: "missing" | "refused") => T,
   operation: (database: SqliteDatabase) => T | Promise<T>,
 ): Promise<T> {
-  const database = await openDb(absPath, workspaceRoot, mode);
-  if (database === null) return empty;
+  const handle = await openDb(absPath, workspaceRoot, mode);
+  if (handle.kind !== "ok") return onUnavailable(handle.kind);
   try {
-    return await operation(database);
+    return await operation(handle.database);
   } finally {
-    database.close();
+    handle.database.close();
   }
+}
+
+/** node:sqlite throws ERR_SQLITE_ERROR with the SQLite extended result
+ *  code on `errcode`. Our INSERT's duplicate-id failure is
+ *  SQLITE_CONSTRAINT_PRIMARYKEY (1555); SQLITE_CONSTRAINT_UNIQUE (2067)
+ *  covers a plain UNIQUE index. Checked structurally (message text kept
+ *  only as a fallback for runtimes that don't expose `errcode`). */
+function isUniqueConstraintError(err: unknown): boolean {
+  const { errcode } = err as { errcode?: number };
+  if (errcode !== undefined) return errcode === 1555 || errcode === 2067;
+  return String(err).includes("UNIQUE constraint");
 }
 
 function parseRow(raw: unknown): CollectionItem | null {
@@ -138,29 +167,45 @@ function rowsToItems(rows: unknown[]): CollectionItem[] {
 }
 
 async function sqliteList(absPath: string, workspaceRoot: string): Promise<CollectionItem[]> {
-  return withDb(absPath, workspaceRoot, "read", [] as CollectionItem[], (database) =>
-    rowsToItems(database.prepare("SELECT record FROM records ORDER BY id").all()),
+  return withDb(
+    absPath,
+    workspaceRoot,
+    "read",
+    () => [] as CollectionItem[],
+    (database) => rowsToItems(database.prepare("SELECT record FROM records ORDER BY id").all()),
   );
 }
 
 async function sqlitePage(absPath: string, primaryKey: string, opts: ListOptions, workspaceRoot: string): Promise<ListPage> {
   const emptyPage: ListPage = { items: [], total: 0, truncated: false };
-  return withDb(absPath, workspaceRoot, "read", emptyPage, (database) => {
-    const total = Number((database.prepare("SELECT COUNT(*) AS n FROM records").get() as { n: number | bigint }).n);
-    const offset = Math.max(0, opts.offset ?? 0);
-    const limit = opts.limit === undefined ? -1 : Math.max(0, opts.limit); // LIMIT -1 = unbounded in SQLite
-    const rows = database.prepare("SELECT record FROM records ORDER BY id LIMIT ? OFFSET ?").all(limit, offset);
-    return { items: projectItemFields(rowsToItems(rows), opts.fields, primaryKey), total, truncated: false };
-  });
+  return withDb(
+    absPath,
+    workspaceRoot,
+    "read",
+    () => emptyPage,
+    (database) => {
+      const total = Number((database.prepare("SELECT COUNT(*) AS n FROM records").get() as { n: number | bigint }).n);
+      const offset = Math.max(0, opts.offset ?? 0);
+      const limit = opts.limit === undefined ? -1 : Math.max(0, opts.limit); // LIMIT -1 = unbounded in SQLite
+      const rows = database.prepare("SELECT record FROM records ORDER BY id LIMIT ? OFFSET ?").all(limit, offset);
+      return { items: projectItemFields(rowsToItems(rows), opts.fields, primaryKey), total, truncated: false };
+    },
+  );
 }
 
 async function sqliteRead(absPath: string, itemId: string, workspaceRoot: string): Promise<CollectionItem | null> {
   const safeId = safeRecordId(itemId);
   if (safeId === null) return null;
-  return withDb(absPath, workspaceRoot, "read", null as CollectionItem | null, (database) => {
-    const row = database.prepare("SELECT record FROM records WHERE id = ?").get(safeId);
-    return row === undefined ? null : parseRow((row as { record?: unknown }).record);
-  });
+  return withDb(
+    absPath,
+    workspaceRoot,
+    "read",
+    () => null as CollectionItem | null,
+    (database) => {
+      const row = database.prepare("SELECT record FROM records WHERE id = ?").get(safeId);
+      return row === undefined ? null : parseRow((row as { record?: unknown }).record);
+    },
+  );
 }
 
 async function sqliteWrite(
@@ -171,22 +216,28 @@ async function sqliteWrite(
 ): Promise<WriteItemResult> {
   const safeId = safeRecordId(itemId);
   if (safeId === null) return { kind: "invalid-id", itemId };
-  const outcome = await withDb<WriteItemResult>(absPath, opts.workspaceRoot, "write", { kind: "path-escape", itemId: safeId }, (database) => {
-    const payload = JSON.stringify(item);
-    if (opts.refuseOverwrite) {
-      // The PRIMARY KEY constraint is the race-safe create gate — the
-      // sqlite twin of the file store's O_EXCL open.
-      try {
-        database.prepare("INSERT INTO records (id, record) VALUES (?, ?)").run(safeId, payload);
-      } catch (err) {
-        if (String(err).includes("UNIQUE constraint")) return { kind: "conflict", itemId: safeId };
-        throw err;
+  const outcome = await withDb<WriteItemResult>(
+    absPath,
+    opts.workspaceRoot,
+    "write",
+    () => ({ kind: "path-escape", itemId: safeId }),
+    (database) => {
+      const payload = JSON.stringify(item);
+      if (opts.refuseOverwrite) {
+        // The PRIMARY KEY constraint is the race-safe create gate — the
+        // sqlite twin of the file store's O_EXCL open.
+        try {
+          database.prepare("INSERT INTO records (id, record) VALUES (?, ?)").run(safeId, payload);
+        } catch (err) {
+          if (isUniqueConstraintError(err)) return { kind: "conflict", itemId: safeId };
+          throw err;
+        }
+      } else {
+        database.prepare("INSERT INTO records (id, record) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET record = excluded.record").run(safeId, payload);
       }
-    } else {
-      database.prepare("INSERT INTO records (id, record) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET record = excluded.record").run(safeId, payload);
-    }
-    return { kind: "ok", itemId: safeId, item };
-  });
+      return { kind: "ok", itemId: safeId, item };
+    },
+  );
   // Publish AFTER the write lands (same ordering rule as io.ts) so a live
   // subscriber that refetches always sees the new record.
   if (outcome.kind === "ok" && opts.slug) publishCollectionChange({ slug: opts.slug, ids: [safeId], op: "upsert" });
@@ -196,10 +247,18 @@ async function sqliteWrite(
 async function sqliteDelete(absPath: string, itemId: string, opts: { workspaceRoot: string; slug?: string }): Promise<DeleteItemResult> {
   const safeId = safeRecordId(itemId);
   if (safeId === null) return { kind: "invalid-id", itemId };
-  const outcome = await withDb<DeleteItemResult>(absPath, opts.workspaceRoot, "read", { kind: "not-found", itemId: safeId }, (database) => {
-    const { changes } = database.prepare("DELETE FROM records WHERE id = ?").run(safeId);
-    return Number(changes) === 0 ? { kind: "not-found", itemId: safeId } : { kind: "ok", itemId: safeId };
-  });
+  // `missing` db = nothing was ever written ⇒ not-found; `refused`
+  // (containment/symlink) must surface as path-escape, never as a 404.
+  const outcome = await withDb<DeleteItemResult>(
+    absPath,
+    opts.workspaceRoot,
+    "read",
+    (reason) => (reason === "refused" ? { kind: "path-escape", itemId: safeId } : { kind: "not-found", itemId: safeId }),
+    (database) => {
+      const { changes } = database.prepare("DELETE FROM records WHERE id = ?").run(safeId);
+      return Number(changes) === 0 ? { kind: "not-found", itemId: safeId } : { kind: "ok", itemId: safeId };
+    },
+  );
   if (outcome.kind === "ok" && opts.slug) publishCollectionChange({ slug: opts.slug, ids: [safeId], op: "delete" });
   return outcome;
 }

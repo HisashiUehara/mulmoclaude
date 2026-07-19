@@ -20,6 +20,8 @@
 // (`{ items, total, offset, limit }`), or tighten limits a shipped view may
 // already rely on.
 
+import { projectRecordFields } from "../collection/core/project";
+
 /** Bump when the bootstrap/message contract changes shape; the bootstrap
  *  exposes it as `__MC_VIEW.protocol` so a parent can refuse a stale view.
  *  v2 (phase 4) adds the mutate pair below — a backward-compatible superset,
@@ -140,11 +142,12 @@ export interface RemoteViewPageRequest {
 /** Keep only `fields` (+ always the primary key) on each record. Parents apply
  *  this uniformly — the desktop preview via `pageFromItems`, the phone parent
  *  over the page it fetched through the channel — so a view sees the same
- *  projection everywhere. No-op without `fields`. */
+ *  projection everywhere. No-op without `fields`; an EMPTY `fields` array is
+ *  also a no-op here (frozen bridge behavior — the shared helper would
+ *  project down to the primary key alone). */
 export function projectItems(items: RemoteViewItem[], fields: string[] | undefined, primaryKey: string): RemoteViewItem[] {
   if (!fields || fields.length === 0) return items;
-  const keep = new Set([primaryKey, ...fields]);
-  return items.map((item) => Object.fromEntries(Object.entries(item).filter(([key]) => keep.has(key))));
+  return projectRecordFields(items, fields, primaryKey);
 }
 
 /** Answer a page request from an already-loaded record array (the desktop
