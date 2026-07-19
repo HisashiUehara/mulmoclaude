@@ -10,6 +10,29 @@ import vuePlugin from "eslint-plugin-vue";
 import vueParser from "vue-eslint-parser";
 import vueI18n from "@intlify/eslint-plugin-vue-i18n";
 
+// sonarjs ships type-aware rules of its own. They sit dormant without a
+// TypeScript program, so enabling `projectService` below wakes them — at the
+// `error` severity sonarjs's preset sets, on code they had never linted before.
+//
+// Derived from the plugin's own `requiresTypeChecking` metadata rather than a
+// hand-listed set, so a sonarjs upgrade that adds type-aware rules can't
+// silently start failing CI. Intersected with what `recommended` actually turns
+// on: 14 of the 70 type-aware rules are `off` there, and naming them here would
+// ENABLE them rather than downgrade them (`strings-comparison` alone adds 32
+// findings that way). This set is exactly what `projectService` wakes — every
+// rule in it is dormant today, so it weakens no gate that currently runs.
+const sonarRecommendedRules = sonarjs.configs.recommended?.rules ?? {};
+const isEnabled = (level) => {
+  const severity = Array.isArray(level) ? level[0] : level;
+  return severity !== undefined && severity !== "off" && severity !== 0;
+};
+
+const sonarTypeAwareRulesAsWarn = Object.fromEntries(
+  Object.entries(sonarjs.rules ?? {})
+    .filter(([name, rule]) => rule?.meta?.docs?.requiresTypeChecking && isEnabled(sonarRecommendedRules[`sonarjs/${name}`]))
+    .map(([name]) => [`sonarjs/${name}`, "warn"]),
+);
+
 export default [
   {
     files: ["{src,test}/**/*.{js,ts,yaml,yml,vue}", "assets/html/js/**/*.js"],
@@ -510,22 +533,8 @@ export default [
       "@typescript-eslint/no-floating-promises": "warn",
       "@typescript-eslint/no-misused-promises": "warn",
       "@typescript-eslint/await-thenable": "warn",
-      // sonarjs ships type-aware rules of its own. They sit dormant without a
-      // TypeScript program, so `projectService` wakes them — and they'd land at
-      // the `error` severity the sonarjs preset sets above, failing CI on code
-      // that was never linted by them before. Same backlog treatment as the
-      // typescript-eslint set: surface them, don't gate on them.
-      "sonarjs/no-alphabetical-sort": "warn",
-      "sonarjs/prefer-regexp-exec": "warn",
-      "sonarjs/different-types-comparison": "warn",
-      "sonarjs/function-return-type": "warn",
-      "sonarjs/no-misleading-array-reverse": "warn",
-      "sonarjs/reduce-initial-value": "warn",
-      "sonarjs/deprecation": "warn",
-      "sonarjs/no-selector-parameter": "warn",
-      "sonarjs/no-undefined-argument": "warn",
-      "sonarjs/post-message": "warn",
-      "sonarjs/no-redundant-optional": "warn",
+      // Same backlog treatment for the sonarjs rules this block wakes.
+      ...sonarTypeAwareRulesAsWarn,
     },
   },
   eslintConfigPrettier,
