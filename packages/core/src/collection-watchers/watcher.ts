@@ -361,7 +361,11 @@ async function startStorageWatcher(collection: LoadedCollection): Promise<void> 
   try {
     await mkdir(dir, { recursive: true });
     await reconcileAllItems(collection, discoveryOpts);
-    const watcher = watch(dir, { persistent: false }, (_eventType, filename) => {
+    const watcher = watch(dir, { persistent: false }, (_eventType, rawFilename) => {
+      // fs.watch can hand back a Buffer on some platforms despite the
+      // string typing — stringify defensively (a Buffer has no startsWith,
+      // so calling it directly would throw inside the callback and crash).
+      const filename = rawFilename === null ? null : String(rawFilename);
       // Null filename (platform quirk) counts as a hit; otherwise accept
       // the db itself plus its sqlite sidecars (`<db>-wal`, `<db>-journal`).
       if (filename !== null && !filename.startsWith(base)) return;
