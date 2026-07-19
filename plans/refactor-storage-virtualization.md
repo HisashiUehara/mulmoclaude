@@ -1,7 +1,7 @@
 # Collection storage virtualization — Stage 0–1
 
-**Status**: Stage 0 done; Stage 1 done in REVISED (additive) form — see
-"Stage 1 revision" below
+**Status**: Stages 0–2 done (Stage 1 in REVISED additive form — see
+"Stage 1 revision"; Stage 2 notes below)
 **Owner**: TBD
 **Last updated**: 2026-07-19
 
@@ -179,12 +179,29 @@ matching `capabilities`. This is what makes a future third backend cheap.
 - **PR-C**: `readPage` / `queryRunner`; move manageTool, routes, remoteView
   onto them (remote view's in-memory paging replaced by `readPage`).
 
-## Later stages (sketch, not in scope here)
+## Stage 2 — writes into the store (done)
 
-- **Stage 2**: writes into the store as presence-based capability
-  (`write?` / `delete?` exist only on writable stores; `readOnlyRefusal`
-  semantics preserved; `publishCollectionChange` moves in — feeds pruning and
-  google calendar-sync deletes then publish change events too).
+Shipped as designed, with two deviations from the sketch:
+
+- **Presence encodes writability**: `write?(itemId, item, { refuseOverwrite? })`
+  / `delete?(itemId)` exist only on writable stores; every entry point's guard
+  became "method absent ⇒ `readOnlyRefusal`" with its refusal text unchanged
+  (manageCollection putItems, HTTP POST/PUT/DELETE 405s, remote-view
+  `read-only-collection`).
+- **`publishCollectionChange` did NOT move out of io.ts** (deviation): io's
+  write/delete remain the event choke point so no transitional direct caller
+  can lose events; the store instead ALWAYS threads `collection.slug` into the
+  publish hook, so store-mediated writers can't forget it.
+- **Still on raw io by design**: `spawn.ts#maybeSpawnSuccessor` (its signature
+  carries slug/schema/dataDir, not a `LoadedCollection`) — fold it in whenever
+  its signature is next touched. Everything else (manageTool, mutate actions,
+  feeds upsert+prune, google calendar sync, HTTP routes, remote-view mutate)
+  goes through the store; the ESLint restriction now covers
+  `writeItem`/`deleteItem` too.
+- Contract tests grew write/delete presence + round-trip (conflict on
+  create-overwrite, delete → not-found) assertions.
+
+## Later stages (sketch, not in scope here)
 - **Stage 3**: explicit `storage` discriminated union in the schema + store
   factory registry in core (factories live in core, per the dependency-
   direction rule — no plugin-registered backends).

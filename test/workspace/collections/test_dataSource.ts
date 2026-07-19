@@ -34,6 +34,7 @@ import {
   normalizeCsvValue,
   storeFor,
   toSummary,
+  type LoadedCollection,
 } from "@mulmoclaude/core/collection/server";
 import { createMutateRemoteView, type MutateRemoteViewDeps } from "../../../server/workspace/collections/remoteView.js";
 
@@ -264,14 +265,10 @@ describe("read-only write guards", () => {
   it("remote-view mutate refuses with read-only-collection before any policy check", async () => {
     writeSkill("students", { ...CSV_SCHEMA, views: [{ id: "cards", label: "Cards", file: "views/cards.html", target: "mobile", editableFields: ["name"] }] });
     const collection = await loadCollection("students", discoveryOpts());
+    // The REAL store: a dataSource collection's store has no write/delete,
+    // which is exactly what must drive the read-only classification.
     const deps = {
-      readItem: async () => ({ student_id: "S-001" }),
-      writeItem: async () => {
-        throw new Error("must not be called");
-      },
-      deleteItem: async () => {
-        throw new Error("must not be called");
-      },
+      storeFor: (target: LoadedCollection) => storeFor(target, { workspaceRoot: workdir }),
       enrichItems: async (_collection: unknown, items: unknown[]) => items,
       resolveThumbnail: async () => null,
     } as unknown as MutateRemoteViewDeps;

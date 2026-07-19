@@ -47,8 +47,8 @@ import { CollectionQueryZ } from "../core/queryZ";
 import { defangForPrompt } from "../core/promptSafety";
 import { loadCollection, type DiscoveryOptions } from "./discovery";
 import type { LoadedCollection } from "./discoveredCollection";
-import { readItem, resolveCreateItemId, writeItem } from "./io";
-import { collectionWritable, readOnlyRefusal, storeFor } from "./store";
+import { resolveCreateItemId } from "./io";
+import { readOnlyRefusal, storeFor, type CollectionStore } from "./store";
 import { runCollectionQuery } from "./queryRunner";
 import { enrichItems } from "./derive";
 import { validateCollectionRecords, validateRecordObject } from "./validate";
@@ -230,18 +230,18 @@ interface RejectedRow {
  *  `toggle` value, and re-writing it would perpetuate a forged
  *  host-computed value. A merge heals the record instead.
  *
- *  readItem THROWS on a malformed stored file (only ENOENT is null) —
+ *  the store read THROWS on a malformed stored file (only ENOENT is null) —
  *  downgraded to a per-row rejection here, like loadRequestedItems'
  *  `missing`, so one broken file can't abort the whole putItems batch. */
 async function mergeWithExisting(
   collection: LoadedCollection,
+  store: CollectionStore,
   record: CollectionItem,
   itemId: string,
-  deps: ManageCollectionDeps,
 ): Promise<CollectionItem | string> {
   let existing: CollectionItem | null;
   try {
-    existing = await readItem(collection.dataDir, itemId, { workspaceRoot: deps.workspaceRoot });
+    existing = await store.read(itemId);
   } catch {
     return `'${itemId}' has a malformed stored file — mode "merge" needs to read it; fix the file (Read → correct → Write) or replace it whole with "upsert"`;
   }
@@ -255,6 +255,8 @@ async function mergeWithExisting(
 
 async function putOneItem(
   collection: LoadedCollection,
+  store: CollectionStore,
+  write: NonNullable<CollectionStore["write"]>,
   record: CollectionItem,
   mode: PutMode,
   deps: ManageCollectionDeps,
@@ -269,7 +271,7 @@ async function putOneItem(
   if (computed) return reject(itemId, computed);
   let toWrite = record;
   if (mode === "merge") {
-    const merged = await mergeWithExisting(collection, record, itemId, deps);
+    const merged = await mergeWithExisting(collection, store, record, itemId);
     if (typeof merged === "string") return reject(itemId, merged);
     toWrite = merged;
   }
@@ -277,11 +279,7 @@ async function putOneItem(
     const invalid = validateRecordObject(toWrite, itemId, schema);
     if (invalid) return reject(itemId, invalid);
   }
-  const result = await writeItem(collection.dataDir, itemId, toWrite, {
-    refuseOverwrite: mode === "create",
-    workspaceRoot: deps.workspaceRoot,
-    slug: collection.slug,
-  });
+  const result = await write(itemId, toWrite, { refuseOverwrite: mode === "create" });
   if (result.kind === "ok") return { written: result.itemId };
   if (result.kind === "invalid-id")
     return reject(itemId, `'${itemId}' is not a valid record id (letters/digits at the ends; -, _, or . inside; no '..' or path characters)`);
@@ -310,14 +308,17 @@ async function handleQueryItems(collection: LoadedCollection, queryArg: unknown,
 async function handlePutItems(collection: LoadedCollection, args: PutItemsArgs, deps: ManageCollectionDeps): Promise<string> {
   // Server-enforced read-only: a `dataSource` collection's rows live in
   // the external data file — point the agent at the real update path
-  // instead of writing phantom record files.
-  if (!collectionWritable(collection)) {
+  // instead of writing phantom record files. The store encodes this as an
+  // absent `write` method.
+  const store = storeFor(collection, { workspaceRoot: deps.workspaceRoot });
+  const { write } = store;
+  if (!write) {
     return `manageCollection: ${readOnlyRefusal(collection.slug)} (its records are the rows of '${collection.schema.dataSource?.path}'; edit that file to change the data).`;
   }
   const written: string[] = [];
   const rejected: RejectedRow[] = [];
   for (const record of args.items) {
-    const outcome = await putOneItem(collection, record, args.mode, deps);
+    const outcome = await putOneItem(collection, store, write, record, args.mode, deps);
     if (outcome.written) written.push(outcome.written);
     if (outcome.rejected) rejected.push(outcome.rejected);
   }

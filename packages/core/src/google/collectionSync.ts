@@ -13,7 +13,8 @@ import type { SystemTaskDef } from "../scheduler/adapter.js";
 import { discoverCollections } from "../collection/server/discovery.js";
 import { getWorkspaceRoot } from "../collection/server/host.js";
 import type { LoadedCollection } from "../collection/server/discoveredCollection.js";
-import { deleteItem, writeItem, type DeleteItemResult, type WriteItemResult } from "../collection/server/io.js";
+import type { DeleteItemResult, WriteItemResult } from "../collection/server/io.js";
+import { storeFor } from "../collection/server/store.js";
 import type { CollectionItem } from "../collection/core/schema.js";
 import type { GOOGLE_CALENDAR_SOURCE_FIELDS } from "../collection/core/schemaZ.js";
 import { getGoogleAccessToken } from "./auth.js";
@@ -79,16 +80,19 @@ export function classifyDelete(eventId: string, kind: DeleteItemResult["kind"]):
 }
 
 async function applyEvent(collection: LoadedCollection, event: CalendarEventSummary, workspaceRoot: string): Promise<ApplyOutcome> {
-  const { slug, dataDir, schema } = collection;
+  const { schema } = collection;
   try {
+    // Discovery rejects googleCalendar on a read-only (dataSource) schema,
+    // so absent write/delete is defense in depth, not a live path. The store
+    // threads the slug into the change publish, so an open view updates live.
+    const store = storeFor(collection, { workspaceRoot });
+    if (!store.write || !store.delete) return { kind: "unwritable", message: `collection '${collection.slug}' is read-only` };
     if (event.status === CANCELLED_STATUS) {
-      const deleted = await deleteItem(dataDir, event.id, { workspaceRoot, slug });
+      const deleted = await store.delete(event.id);
       return classifyDelete(event.id, deleted.kind);
     }
     const record = toCollectionRecord(event, schema.googleCalendar?.map ?? {}, schema.primaryKey);
-    // `slug` is load-bearing: it publishes the change so an open view updates
-    // live instead of waiting for a refresh.
-    const written = await writeItem(dataDir, event.id, record, { refuseOverwrite: false, workspaceRoot, slug });
+    const written = await store.write(event.id, record);
     return classifyWrite(event.id, written.kind);
   } catch (error) {
     // A thrown IO error (EACCES, ENOSPC, …) must not abort the remaining events

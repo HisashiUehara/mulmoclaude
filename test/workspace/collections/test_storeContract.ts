@@ -160,6 +160,26 @@ for (const fixture of FIXTURES) {
       const page = await store.page();
       assert.deepEqual(all.map((item) => item.id).sort(), page.items.map((item) => item.id).sort());
     });
+
+    it("exposes write/delete iff writable — absence IS the read-only refusal", async () => {
+      const store = await fixture.make();
+      assert.equal(store.write !== undefined, fixture.writable);
+      assert.equal(store.delete !== undefined, fixture.writable);
+    });
+
+    if (fixture.writable) {
+      it("write() round-trips through read(), refuses create-overwrite, delete() removes", async () => {
+        const store = await fixture.make();
+        assert.ok(store.write && store.delete);
+        const written = await store.write("n9", { id: "n9", title: "T-n9", score: 9 });
+        assert.equal(written.kind, "ok");
+        assert.equal((await store.read("n9"))?.title, "T-n9");
+        assert.equal((await store.write("n9", { id: "n9", title: "again" }, { refuseOverwrite: true })).kind, "conflict");
+        assert.equal((await store.delete("n9")).kind, "ok");
+        assert.equal(await store.read("n9"), null);
+        assert.equal((await store.delete("n9")).kind, "not-found");
+      });
+    }
   });
 }
 

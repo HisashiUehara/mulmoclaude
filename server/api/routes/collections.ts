@@ -19,7 +19,6 @@ import {
   deleteCollection,
   deleteCollectionRefusalMessage,
   deleteCustomView,
-  deleteItem,
   loadCollection,
   readSkillTemplate,
   readCustomViewHtml,
@@ -34,7 +33,6 @@ import {
   toSummary,
   applyMutateAction,
   validateCollectionRecords,
-  writeItem,
 } from "../../workspace/collections/index.js";
 import type {
   CollectionMutateAction,
@@ -243,7 +241,8 @@ function extractRecord(body: unknown): CollectionItem | null {
 router.post(API_ROUTES.collections.items, async (req: Request<{ slug: string }>, res: Response<ItemMutationResponse>) => {
   const collection = await loadCollectionOr404(req.params.slug, res);
   if (!collection) return;
-  if (!collectionWritable(collection)) {
+  const createStore = storeFor(collection).write;
+  if (!createStore) {
     methodNotAllowed(res, readOnlyRefusal(collection.slug));
     return;
   }
@@ -262,7 +261,7 @@ router.post(API_ROUTES.collections.items, async (req: Request<{ slug: string }>,
   const itemId = resolveCreateItemId(collection.schema, record) ?? generateItemId();
   const recordWithId: CollectionItem = { ...record, [collection.schema.primaryKey]: itemId };
   try {
-    const result = await writeItem(collection.dataDir, itemId, recordWithId, { refuseOverwrite: true, slug: collection.slug });
+    const result = await createStore(itemId, recordWithId, { refuseOverwrite: true });
     if (result.kind === "invalid-id") {
       badRequest(res, `invalid item id: ${result.itemId}`);
       return;
@@ -286,7 +285,8 @@ router.post(API_ROUTES.collections.items, async (req: Request<{ slug: string }>,
 router.put(API_ROUTES.collections.item, async (req: Request<{ slug: string; itemId: string }>, res: Response<ItemMutationResponse>) => {
   const collection = await loadCollectionOr404(req.params.slug, res);
   if (!collection) return;
-  if (!collectionWritable(collection)) {
+  const updateStore = storeFor(collection).write;
+  if (!updateStore) {
     methodNotAllowed(res, readOnlyRefusal(collection.slug));
     return;
   }
@@ -307,7 +307,7 @@ router.put(API_ROUTES.collections.item, async (req: Request<{ slug: string; item
   // record id never drift.
   const recordWithId: CollectionItem = { ...record, [primaryKey]: req.params.itemId };
   try {
-    const result = await writeItem(collection.dataDir, req.params.itemId, recordWithId, { slug: collection.slug });
+    const result = await updateStore(req.params.itemId, recordWithId);
     if (result.kind === "invalid-id") {
       badRequest(res, `invalid item id: ${result.itemId}`);
       return;
@@ -333,12 +333,13 @@ router.put(API_ROUTES.collections.item, async (req: Request<{ slug: string; item
 router.delete(API_ROUTES.collections.item, async (req: Request<{ slug: string; itemId: string }>, res: Response<DeleteResponse>) => {
   const collection = await loadCollectionOr404(req.params.slug, res);
   if (!collection) return;
-  if (!collectionWritable(collection)) {
+  const deleteStore = storeFor(collection).delete;
+  if (!deleteStore) {
     methodNotAllowed(res, readOnlyRefusal(collection.slug));
     return;
   }
   try {
-    const result = await deleteItem(collection.dataDir, req.params.itemId, { slug: collection.slug });
+    const result = await deleteStore(req.params.itemId);
     if (result.kind === "invalid-id") {
       badRequest(res, `invalid item id: ${result.itemId}`);
       return;

@@ -513,8 +513,9 @@ export default [
           paths: [
             {
               name: "@mulmoclaude/core/collection/server",
-              importNames: ["listItems", "readItem"],
-              message: "Read records through `storeFor(collection).list()` / `.read(id)` — the raw io readers bypass the storage seam (plans/refactor-storage-virtualization.md).",
+              importNames: ["listItems", "readItem", "writeItem", "deleteItem"],
+              message:
+                "Access records through `storeFor(collection)` — `.list()`/`.page()`/`.read()`, and `.write()`/`.delete()` (present only on writable stores). The raw io functions bypass the storage seam (plans/refactor-storage-virtualization.md).",
             },
           ],
         },

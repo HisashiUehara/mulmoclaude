@@ -23,16 +23,14 @@ import {
 } from "@mulmoclaude/core/remote-view";
 import { enrichItems } from "@mulmoclaude/core/collection/server";
 import {
-  collectionWritable,
-  deleteItem,
   readCustomViewHtml,
   readCustomViewI18n,
   safeRecordId,
   storeFor,
-  writeItem,
   type CollectionCustomView,
   type CollectionItem,
   type CollectionSchema,
+  type CollectionStore,
   type LoadedCollection,
 } from "./index.js";
 import { resolveThumbnail } from "../../utils/files/thumbnail-store.js";
@@ -117,9 +115,7 @@ export type MutateRemoteViewResult =
   | { kind: "path-escape" };
 
 export interface MutateRemoteViewDeps {
-  readRecord: (collection: LoadedCollection, itemId: string) => Promise<CollectionItem | null>;
-  writeItem: typeof writeItem;
-  deleteItem: typeof deleteItem;
+  storeFor: (collection: LoadedCollection) => CollectionStore;
   enrichItems: typeof enrichItems;
   resolveThumbnail: typeof resolveThumbnail;
 }
@@ -131,15 +127,17 @@ export const createMutateRemoteView =
     if (!view) return { kind: "view-not-found", viewId };
     if (view.target !== "mobile") return { kind: "not-mobile", viewId };
     // A dataSource collection is read-only regardless of what write surface
-    // the view declares — the collection-level rule outranks the view's.
-    if (!collectionWritable(collection)) return { kind: "read-only-collection" };
+    // the view declares — the collection-level rule outranks the view's. The
+    // store encodes it as absent write/delete methods.
+    const store = deps.storeFor(collection);
+    if (!store.write || !store.delete) return { kind: "read-only-collection" };
     if (!isWritableView(view)) return { kind: "not-writable", viewId };
-    return request.op === "delete" ? deleteViaView(deps, collection, view.allowDelete === true, request.id) : updateViaView(deps, collection, view, request);
+    return request.op === "delete" ? deleteViaView(store.delete, view.allowDelete === true, request.id) : updateViaView(deps, store, collection, view, request);
   };
 
-async function deleteViaView(deps: MutateRemoteViewDeps, collection: LoadedCollection, allowDelete: boolean, itemId: string): Promise<MutateRemoteViewResult> {
+async function deleteViaView(remove: NonNullable<CollectionStore["delete"]>, allowDelete: boolean, itemId: string): Promise<MutateRemoteViewResult> {
   if (!allowDelete) return { kind: "delete-not-allowed" };
-  const result = await deps.deleteItem(collection.dataDir, itemId, { slug: collection.slug });
+  const result = await remove(itemId);
   if (result.kind === "invalid-id") return { kind: "invalid-id", id: result.itemId };
   if (result.kind === "path-escape") return { kind: "path-escape" };
   if (result.kind === "not-found") return { kind: "item-not-found", id: result.itemId };
@@ -148,10 +146,13 @@ async function deleteViaView(deps: MutateRemoteViewDeps, collection: LoadedColle
 
 async function updateViaView(
   deps: MutateRemoteViewDeps,
+  store: CollectionStore,
   collection: LoadedCollection,
   view: CollectionCustomView,
   request: Extract<RemoteViewMutateRequest, { op: "update" }>,
 ): Promise<MutateRemoteViewResult> {
+  const { write } = store;
+  if (!write) return { kind: "read-only-collection" }; // unreachable: caller guards presence
   const { primaryKey } = collection.schema;
   const patchKeys = Object.keys(request.patch);
   if (patchKeys.length === 0) return { kind: "invalid-patch" };
@@ -167,10 +168,10 @@ async function updateViaView(
   // hold no record, so it still resolves to item-not-found; a real write is
   // additionally refused by writeItem's own containment guard below.)
   if (safeRecordId(request.id) === null) return { kind: "invalid-id", id: request.id };
-  const existing = await deps.readRecord(collection, request.id);
+  const existing = await store.read(request.id);
   if (!existing) return { kind: "item-not-found", id: request.id };
   const merged: CollectionItem = { ...existing, ...request.patch, [primaryKey]: request.id };
-  const result = await deps.writeItem(collection.dataDir, request.id, merged, { slug: collection.slug });
+  const result = await write(request.id, merged);
   if (result.kind === "invalid-id") return { kind: "invalid-id", id: result.itemId };
   if (result.kind === "path-escape") return { kind: "path-escape" };
   if (result.kind === "conflict") return { kind: "item-not-found", id: result.itemId }; // unreachable: refuseOverwrite is false
@@ -200,13 +201,7 @@ async function updateViaView(
   return { kind: "ok", op: "update", item: item as CollectionItem };
 }
 
-export const mutateRemoteView = createMutateRemoteView({
-  readRecord: (collection, itemId) => storeFor(collection).read(itemId),
-  writeItem,
-  deleteItem,
-  enrichItems,
-  resolveThumbnail,
-});
+export const mutateRemoteView = createMutateRemoteView({ storeFor, enrichItems, resolveThumbnail });
 
 // ── Item pages with inlined image thumbnails (phase 5 — plans/feat-remote-view-images.md) ──
 // A mobile view's `getItems`, view-aware so it can inline the `imageFields` its

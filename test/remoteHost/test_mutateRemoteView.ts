@@ -8,7 +8,7 @@ import { REMOTE_VIEW_ITEMS_MAX_BYTES } from "@mulmoclaude/core/remote-view";
 import { createMutateRemoteView, mutateRemoteViewFailureMessage, type MutateRemoteViewDeps } from "../../server/workspace/collections/remoteView.js";
 import { createMutateRemoteViewHandler, type MutateRemoteViewHandlerDeps } from "../../server/remoteHost/handlers/mutateRemoteView.js";
 import { handlers } from "../../server/remoteHost/handlers/index.js";
-import type { LoadedCollection } from "../../server/workspace/collections/index.js";
+import type { CollectionStore, LoadedCollection } from "../../server/workspace/collections/index.js";
 
 const collection = (views: unknown[]): LoadedCollection =>
   ({
@@ -24,10 +24,21 @@ const writableView = { id: "phone", label: "Todos", target: "mobile", file: "vie
 
 const record = { id: "t1", title: "buy milk", done: false };
 
-const deps = (overrides: Partial<MutateRemoteViewDeps> = {}): MutateRemoteViewDeps => ({
-  readRecord: (async () => ({ ...record })) as unknown as MutateRemoteViewDeps["readRecord"],
-  writeItem: (async (_dir: string, itemId: string, item: unknown) => ({ kind: "ok", itemId, item })) as unknown as MutateRemoteViewDeps["writeItem"],
-  deleteItem: (async (_dir: string, itemId: string) => ({ kind: "ok", itemId })) as unknown as MutateRemoteViewDeps["deleteItem"],
+// A writable in-memory store stub — the mutate flow reads/writes/deletes
+// through the injected storeFor, so tests override store methods, not io fns.
+const fakeStore = (storeOverrides: Partial<CollectionStore> = {}): CollectionStore =>
+  ({
+    capabilities: { writable: true, nativeQuery: false, nativePaging: false },
+    list: async () => [],
+    page: async () => ({ items: [], total: 0, truncated: false }),
+    read: async () => ({ ...record }),
+    write: async (itemId: string, item: unknown) => ({ kind: "ok", itemId, item }),
+    delete: async (itemId: string) => ({ kind: "ok", itemId }),
+    ...storeOverrides,
+  }) as CollectionStore;
+
+const deps = (storeOverrides: Partial<CollectionStore> = {}, overrides: Partial<MutateRemoteViewDeps> = {}): MutateRemoteViewDeps => ({
+  storeFor: () => fakeStore(storeOverrides),
   // Identity stub: fixtures have no computed fields, so the real resolver returns
   // them unchanged — the update path just threads the written record through it.
   enrichItems: (async (_collection: unknown, items: unknown[]) => items) as unknown as MutateRemoteViewDeps["enrichItems"],
@@ -43,10 +54,7 @@ describe("createMutateRemoteView", () => {
     let written: unknown;
     const mutate = createMutateRemoteView(
       deps({
-        writeItem: (async (_dir: string, itemId: string, item: unknown) => (
-          (written = item),
-          { kind: "ok", itemId, item }
-        )) as unknown as MutateRemoteViewDeps["writeItem"],
+        write: (async (itemId: string, item: unknown) => ((written = item), { kind: "ok", itemId, item })) as unknown as CollectionStore["write"],
       }),
     );
     const result = await mutate(collection([writableView]), "phone", { op: "update", id: "t1", patch: { done: true } });
@@ -63,8 +71,7 @@ describe("createMutateRemoteView", () => {
     withImage.schema.fields = { id: { type: "string" }, rating: { type: "string" }, poster: { type: "image" } } as unknown as typeof withImage.schema.fields;
     const mutate = createMutateRemoteView(
       deps({
-        readRecord: (async () => ({ id: "t1", rating: "", poster: "images/a.png" })) as unknown as MutateRemoteViewDeps["readRecord"],
-        writeItem: (async (_dir: string, itemId: string, item: unknown) => ({ kind: "ok", itemId, item })) as unknown as MutateRemoteViewDeps["writeItem"],
+        read: (async () => ({ id: "t1", rating: "", poster: "images/a.png" })) as unknown as CollectionStore["read"],
       }),
     );
     const result = await mutate(withImage, "phone", { op: "update", id: "t1", patch: { rating: "★★★" } });
@@ -82,11 +89,10 @@ describe("createMutateRemoteView", () => {
     withImage.schema.fields = { id: { type: "string" }, rating: { type: "string" }, poster: { type: "image" } } as unknown as typeof withImage.schema.fields;
     const big = `data:image/jpeg;base64,${"x".repeat(REMOTE_VIEW_ITEMS_MAX_BYTES)}`;
     const mutate = createMutateRemoteView(
-      deps({
-        readRecord: (async () => ({ id: "t1", rating: "", poster: "images/a.png" })) as unknown as MutateRemoteViewDeps["readRecord"],
-        writeItem: (async (_dir: string, itemId: string, item: unknown) => ({ kind: "ok", itemId, item })) as unknown as MutateRemoteViewDeps["writeItem"],
-        resolveThumbnail: (async () => big) as MutateRemoteViewDeps["resolveThumbnail"],
-      }),
+      deps(
+        { read: (async () => ({ id: "t1", rating: "", poster: "images/a.png" })) as unknown as CollectionStore["read"] },
+        { resolveThumbnail: (async () => big) as MutateRemoteViewDeps["resolveThumbnail"] },
+      ),
     );
     const result = await mutate(withImage, "phone", { op: "update", id: "t1", patch: { rating: "★" } });
     assert.equal(result.kind, "ok");
@@ -99,12 +105,13 @@ describe("createMutateRemoteView", () => {
     // update result must keep its host-computed columns (e.g. a ref-crossing
     // `value = shares * ticker.price`), not drop them until the next refetch.
     const mutate = createMutateRemoteView(
-      deps({
-        readRecord: (async () => ({ id: "t1", shares: 2 })) as unknown as MutateRemoteViewDeps["readRecord"],
-        writeItem: (async (_dir: string, itemId: string, item: unknown) => ({ kind: "ok", itemId, item })) as unknown as MutateRemoteViewDeps["writeItem"],
-        enrichItems: (async (_collection: unknown, items: Record<string, unknown>[]) =>
-          items.map((entry) => ({ ...entry, value: Number(entry.shares) * 50 }))) as unknown as MutateRemoteViewDeps["enrichItems"],
-      }),
+      deps(
+        { read: (async () => ({ id: "t1", shares: 2 })) as unknown as CollectionStore["read"] },
+        {
+          enrichItems: (async (_collection: unknown, items: Record<string, unknown>[]) =>
+            items.map((entry) => ({ ...entry, value: Number(entry.shares) * 50 }))) as unknown as MutateRemoteViewDeps["enrichItems"],
+        },
+      ),
     );
     const editable = collection([{ ...writableView, editableFields: ["shares"] }]);
     const result = await mutate(editable, "phone", { op: "update", id: "t1", patch: { shares: 3 } });
@@ -118,12 +125,13 @@ describe("createMutateRemoteView", () => {
     // over the command-doc cap — fail predictably here, not downstream on write.
     const huge = "x".repeat(REMOTE_VIEW_ITEMS_MAX_BYTES);
     const mutate = createMutateRemoteView(
-      deps({
-        readRecord: (async () => ({ id: "t1", done: false })) as unknown as MutateRemoteViewDeps["readRecord"],
-        writeItem: (async (_dir: string, itemId: string, item: unknown) => ({ kind: "ok", itemId, item })) as unknown as MutateRemoteViewDeps["writeItem"],
-        enrichItems: (async (_collection: unknown, items: Record<string, unknown>[]) =>
-          items.map((entry) => ({ ...entry, embedded: huge }))) as unknown as MutateRemoteViewDeps["enrichItems"],
-      }),
+      deps(
+        { read: (async () => ({ id: "t1", done: false })) as unknown as CollectionStore["read"] },
+        {
+          enrichItems: (async (_collection: unknown, items: Record<string, unknown>[]) =>
+            items.map((entry) => ({ ...entry, embedded: huge }))) as unknown as MutateRemoteViewDeps["enrichItems"],
+        },
+      ),
     );
     const result = await mutate(collection([writableView]), "phone", { op: "update", id: "t1", patch: { done: true } });
     assert.equal(result.kind, "too-large");
@@ -149,7 +157,7 @@ describe("createMutateRemoteView", () => {
   });
 
   it("reports invalid-id for an unsafe id on update (not a masked item-not-found)", async () => {
-    // readRecord/writeItem stubs are never reached — the safeRecordId preflight
+    // The store's read/write stubs are never reached — the safeRecordId preflight
     // classifies `bad/id` before any IO, matching the delete path's behaviour.
     const result = await createMutateRemoteView(deps())(collection([writableView]), "phone", { op: "update", id: "bad/id", patch: { done: true } });
     assert.deepEqual(result, { kind: "invalid-id", id: "bad/id" });
@@ -159,7 +167,7 @@ describe("createMutateRemoteView", () => {
     assert.deepEqual(await createMutateRemoteView(deps())(collection([writableView]), "phone", { op: "update", id: "t1", patch: {} }), {
       kind: "invalid-patch",
     });
-    const noItem = createMutateRemoteView(deps({ readRecord: (async () => null) as unknown as MutateRemoteViewDeps["readRecord"] }));
+    const noItem = createMutateRemoteView(deps({ read: (async () => null) as unknown as CollectionStore["read"] }));
     assert.deepEqual(await noItem(collection([writableView]), "phone", { op: "update", id: "ghost", patch: { done: true } }), {
       kind: "item-not-found",
       id: "ghost",

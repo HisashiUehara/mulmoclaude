@@ -15,13 +15,11 @@ export { storeFor, collectionWritable, readOnlyRefusal, type CollectionStore } f
 export { deleteCollection, deleteCollectionRefusalMessage, type DeleteCollectionResult } from "@mulmoclaude/core/collection/server";
 export { deleteCustomView, type DeleteViewResult } from "@mulmoclaude/core/collection/server";
 // NOTE (storage virtualization, plans/refactor-storage-virtualization.md):
-// the raw io READERS (`listItems` / `readItem`) are deliberately NOT
-// re-exported — host code reads records only through `storeFor(...)` so a
-// future storage backend can't be bypassed. `writeItem` / `deleteItem` stay
-// direct until Stage 2 folds writes into the store.
+// the raw io functions (`listItems` / `readItem` / `writeItem` /
+// `deleteItem`) are deliberately NOT re-exported — host code reads AND
+// writes records only through `storeFor(...)` (write/delete exist only on
+// writable stores) so a future storage backend can't be bypassed.
 export {
-  writeItem,
-  deleteItem,
   safeRecordId,
   generateItemId,
   resolveCreateItemId,

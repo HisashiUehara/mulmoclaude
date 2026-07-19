@@ -5,7 +5,7 @@
 // processes feeds sequentially to stay gentle on remote hosts (the
 // fetch client does no rate-limiting yet).
 
-import { deleteItem, discoverCollections, listItems, writeItem, type LoadedCollection } from "../../collection/server/index.js";
+import { discoverCollections, storeFor, type CollectionStore, type LoadedCollection } from "../../collection/server/index.js";
 import type { CollectionItem, CollectionSchema } from "../../collection/index.js";
 import { log, requireFeedsHost } from "./host.js";
 import { getRetriever } from "./retrievers/index.js";
@@ -30,12 +30,29 @@ function feedIngest(schema: CollectionSchema): IngestSpec | undefined {
   return schema.ingest as IngestSpec | undefined;
 }
 
+/** A feed's store. `write`/`delete` are always present (discovery rejects
+ *  `ingest` on read-only dataSource schemas); null only as defense in depth. */
+function writableFeedStore(
+  workspaceRoot: string,
+  feed: LoadedCollection,
+): (CollectionStore & { write: NonNullable<CollectionStore["write"]>; delete: NonNullable<CollectionStore["delete"]> }) | null {
+  const store = storeFor(feed, { workspaceRoot });
+  const { write, delete: remove } = store;
+  if (!write || !remove) {
+    log.warn("feeds", "feed store is read-only — refresh skipped", { slug: feed.slug });
+    return null;
+  }
+  return { ...store, write, delete: remove };
+}
+
 async function upsertItems(workspaceRoot: string, feed: LoadedCollection, items: CollectionItem[]): Promise<number> {
+  const store = writableFeedStore(workspaceRoot, feed);
+  if (!store) return 0;
   let written = 0;
   for (const item of items) {
     const itemId = item[feed.schema.primaryKey];
     if (typeof itemId !== "string" || itemId.length === 0) continue;
-    const result = await writeItem(feed.dataDir, itemId, item, { refuseOverwrite: false, workspaceRoot, slug: feed.slug });
+    const result = await store.write(itemId, item);
     if (result.kind === "ok") written += 1;
     else log.warn("feeds", "feed item write skipped", { slug: feed.slug, itemId, kind: result.kind });
   }
@@ -72,14 +89,16 @@ async function pruneFeed(workspaceRoot: string, feed: LoadedCollection): Promise
     log.warn("feeds", "maxItems prune skipped: schema has no date field to order by", { slug: feed.slug });
     return 0;
   }
-  const items = await listItems(feed.dataDir, { workspaceRoot });
+  const store = writableFeedStore(workspaceRoot, feed);
+  if (!store) return 0;
+  const items = await store.list();
   if (items.length <= cap) return 0;
   const stale = [...items].sort((left, right) => recordTime(right, dateField) - recordTime(left, dateField)).slice(cap);
   let removed = 0;
   for (const item of stale) {
     const itemId = item[feed.schema.primaryKey];
     if (typeof itemId !== "string" || itemId.length === 0) continue;
-    if ((await deleteItem(feed.dataDir, itemId, { workspaceRoot, slug: feed.slug })).kind === "ok") removed += 1;
+    if ((await store.delete(itemId)).kind === "ok") removed += 1;
   }
   if (removed > 0) log.info("feeds", "pruned old feed records", { slug: feed.slug, removed, cap });
   return removed;

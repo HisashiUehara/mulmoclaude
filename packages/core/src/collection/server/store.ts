@@ -6,11 +6,13 @@
 //   - CSV store (csvStore.ts): the rows of an external `dataSource` file,
 //     queried through DuckDB — READ-ONLY by definition.
 //
-// Callers that only need to read records go through `storeFor(...)`;
-// write paths keep calling `writeItem`/`deleteItem` directly but MUST
-// refuse read-only collections first (`collectionWritable`) — the store
-// deliberately exposes no write methods, so a "write through the store"
-// can't be authored by accident.
+// Reads AND writes go through `storeFor(...)`. Writability is encoded by
+// PRESENCE: `write`/`delete` exist only on writable stores, so "write
+// through a read-only store" is a type error, not a runtime surprise —
+// entry points refuse with `readOnlyRefusal` when the methods are absent.
+// (`io.ts#writeItem`/`deleteItem` remain the file-store implementation and
+// the change-event choke point; only callers WITHOUT a `LoadedCollection`
+// in hand — e.g. `spawn.ts` — still call them directly.)
 //
 // BACKWARD COMPATIBILITY — read before evolving this interface.
 // This store is INTERNAL and may change shape, but two user-facing
@@ -39,7 +41,7 @@ import type { CollectionItem } from "../core/schema";
 import type { CollectionQuery } from "../core/queryZ";
 import { isReadOnlySchema } from "../core/schema";
 import type { LoadedCollection } from "./discoveredCollection";
-import { listItems, readItem, type IoOptions } from "./io";
+import { deleteItem, listItems, readItem, writeItem, type DeleteItemResult, type IoOptions, type WriteItemResult } from "./io";
 import { csvList, csvRead, csvRunQuery } from "./csvStore";
 
 export interface CollectionStoreCapabilities {
@@ -73,6 +75,12 @@ export interface ListPage {
   truncated: boolean;
 }
 
+export interface WriteOptions {
+  /** Create semantics: fail with `kind: "conflict"` when the record
+   *  already exists (an O_EXCL open in the file store — race-safe). */
+  refuseOverwrite?: boolean;
+}
+
 /** The storage contract every backend must satisfy (verified by the shared
  *  contract test suite, `test/workspace/collections/test_storeContract.ts`):
  *
@@ -102,6 +110,12 @@ export interface CollectionStore {
    *  engine (the CSV store). Absent ⇒ use the engine-level fallback
    *  (`runCollectionQuery`), never emulate ad hoc. */
   query?: (query: CollectionQuery) => Promise<Record<string, unknown>[]>;
+  /** Present ONLY when `capabilities.writable` — absence IS the read-only
+   *  refusal (surface it with `readOnlyRefusal`). A successful write/delete
+   *  publishes a collection-change event: the store always threads the
+   *  collection's slug into io's publish hook, so no writer can forget it. */
+  write?: (itemId: string, item: CollectionItem, opts?: WriteOptions) => Promise<WriteItemResult>;
+  delete?: (itemId: string) => Promise<DeleteItemResult>;
 }
 
 /** Project `fields` (+ the primary key, always) out of each record. No
@@ -161,11 +175,15 @@ function csvStoreFor(collection: LoadedCollection, opts: IoOptions): CollectionS
 /** The classic file store over `<dataDir>/<itemId>.json` records. */
 function fileStoreFor(collection: LoadedCollection, opts: IoOptions): CollectionStore {
   const key = collection.schema.primaryKey;
+  const ioOpts: IoOptions = { ...opts, slug: opts.slug ?? collection.slug };
   return {
     capabilities: { writable: true, nativeQuery: false, nativePaging: false },
     list: () => listItems(collection.dataDir, opts),
     page: async (pageOpts = {}) => pageFromFullRead(sortByRecordId(await listItems(collection.dataDir, opts), key), pageOpts, key, false),
     read: (itemId: string) => readItem(collection.dataDir, itemId, opts),
+    write: (itemId: string, item: CollectionItem, writeOpts: WriteOptions = {}) =>
+      writeItem(collection.dataDir, itemId, item, { ...ioOpts, refuseOverwrite: writeOpts.refuseOverwrite }),
+    delete: (itemId: string) => deleteItem(collection.dataDir, itemId, ioOpts),
   };
 }
 
