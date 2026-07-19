@@ -29,6 +29,11 @@ export const GoogleArgs = z.discriminatedUnion("kind", [
     maxResults: MaxResults,
   }),
   z.object({
+    kind: z.literal("calendarSync"),
+    calendarId: OptionalNonEmpty,
+    fullResync: z.boolean().optional(),
+  }),
+  z.object({
     kind: z.literal("calendarCreateEvent"),
     summary: NonEmpty,
     start: IsoDateTimeWithOffset,

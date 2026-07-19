@@ -26,7 +26,7 @@ export {
   type RevokeFetch,
 } from "./auth.js";
 export { createGoogleAuthFlow, googleAuthFlow, type GoogleAuthFlow, type GoogleAuthFlowStatus } from "./authFlow.js";
-export { googleApiError, DEFAULT_LIST_MAX_RESULTS, MAX_LIST_RESULTS } from "./apiClient.js";
+export { googleApiError, isGoogleApiError, GoogleApiError, DEFAULT_LIST_MAX_RESULTS, MAX_LIST_RESULTS } from "./apiClient.js";
 export {
   calendarApiError,
   collectCalendarPages,
@@ -34,6 +34,7 @@ export {
   getCalendarColors,
   listCalendarEvents,
   listCalendars,
+  syncCalendarEvents,
   toCalendarSummary,
   toEventSummary,
   type CalendarColorEntry,
@@ -42,8 +43,11 @@ export {
   type CalendarEventSummary,
   type CalendarListPage,
   type CalendarSummary,
+  type CalendarSyncResult,
   type ListEventsInput,
+  type SyncEventsInput,
 } from "./calendar.js";
+export { calendarSyncStatePath, clearCalendarSyncToken, loadCalendarSyncToken, saveCalendarSyncToken } from "./calendarSyncStore.js";
 export {
   completeTask,
   createTask,

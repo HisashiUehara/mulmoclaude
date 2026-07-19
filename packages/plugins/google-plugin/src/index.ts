@@ -8,6 +8,7 @@
 // each host's own help carries the specific steps.
 import { definePlugin } from "gui-chat-protocol";
 import {
+  clearCalendarSyncToken,
   clientSecretPresence,
   completeTask,
   createCalendarEvent,
@@ -20,9 +21,13 @@ import {
   listDriveFiles,
   listTaskLists,
   listTasks,
+  loadCalendarSyncToken,
   loadGoogleTokens,
   readDriveFile,
+  saveCalendarSyncToken,
+  syncCalendarEvents,
   DEFAULT_LIST_MAX_RESULTS,
+  type CalendarSyncResult,
 } from "@mulmoclaude/core/google";
 import { GoogleArgs } from "./args";
 import { TOOL_DEFINITION } from "./definition";
@@ -30,6 +35,41 @@ import { TOOL_DEFINITION } from "./definition";
 export { TOOL_DEFINITION };
 
 const LINK_GUIDANCE = "Ask the user to link their Google account in this app's settings, then retry.";
+
+// A sync can legitimately return an entire calendar's history on its first
+// run, so the tool answers with counts plus a capped sample — the whole point
+// of incremental sync is to stop burning context on calendar data (#2095).
+const SYNC_SAMPLE_LIMIT = 20;
+
+const summarizeSync = (result: CalendarSyncResult, incremental: boolean) => {
+  const active = result.events.filter((event) => event.status !== "cancelled");
+  const cancelled = result.events.length - active.length;
+  return {
+    ok: true,
+    incremental,
+    changed: active.length,
+    cancelled,
+    events: active.slice(0, SYNC_SAMPLE_LIMIT),
+    truncated: active.length > SYNC_SAMPLE_LIMIT,
+  };
+};
+
+// 410 means the stored token aged out; drop it and start clean rather than
+// surfacing an error the user can do nothing about.
+async function restartFullSync(accessToken: string, calendarId: string | undefined): Promise<CalendarSyncResult> {
+  await clearCalendarSyncToken(calendarId);
+  return await syncCalendarEvents(accessToken, { calendarId });
+}
+
+async function runCalendarSync(calendarId: string | undefined, fullResync: boolean): Promise<unknown> {
+  const accessToken = await getGoogleAccessToken();
+  const storedToken = fullResync ? null : await loadCalendarSyncToken(calendarId);
+  const first = await syncCalendarEvents(accessToken, { calendarId, syncToken: storedToken ?? undefined });
+  const result = first.fullResyncRequired ? await restartFullSync(accessToken, calendarId) : first;
+  if (result.nextSyncToken) await saveCalendarSyncToken(calendarId, result.nextSyncToken);
+  const incremental = Boolean(storedToken) && !first.fullResyncRequired;
+  return { ...summarizeSync(result, incremental), expiredToken: first.fullResyncRequired };
+}
 
 export default definePlugin(({ log }) => {
   const dispatch = async (args: GoogleArgs): Promise<unknown> => {
@@ -52,6 +92,9 @@ export default definePlugin(({ log }) => {
           maxResults: args.maxResults ?? DEFAULT_LIST_MAX_RESULTS,
         });
         return { ok: true, events };
+      }
+      case "calendarSync": {
+        return await runCalendarSync(args.calendarId, args.fullResync ?? false);
       }
       case "calendarCreateEvent": {
         const event = await createCalendarEvent(await getGoogleAccessToken(), {

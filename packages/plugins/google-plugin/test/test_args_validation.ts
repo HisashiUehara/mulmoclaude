@@ -177,3 +177,24 @@ describe("GoogleArgs — drive", () => {
     assert.throws(() => GoogleArgs.parse({ kind: "driveRead" }));
   });
 });
+
+describe("calendarSync args (#2095)", () => {
+  it("accepts the bare kind (primary calendar, incremental)", () => {
+    assert.deepEqual(GoogleArgs.parse({ kind: "calendarSync" }), { kind: "calendarSync" });
+  });
+
+  it("accepts an explicit calendarId and fullResync", () => {
+    const parsed = GoogleArgs.parse({ kind: "calendarSync", calendarId: "work@group.calendar.google.com", fullResync: true });
+    assert.equal(parsed.kind, "calendarSync");
+    assert.equal(parsed.calendarId, "work@group.calendar.google.com");
+    assert.equal(parsed.fullResync, true);
+  });
+
+  it("rejects an empty calendarId (would build a malformed events URL)", () => {
+    assert.throws(() => GoogleArgs.parse({ kind: "calendarSync", calendarId: "   " }));
+  });
+
+  it("rejects a non-boolean fullResync", () => {
+    assert.throws(() => GoogleArgs.parse({ kind: "calendarSync", fullResync: "yes" }));
+  });
+});
