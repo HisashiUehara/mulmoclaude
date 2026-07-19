@@ -88,8 +88,8 @@ description: The user's personal todo list. Use whenever they add, list, edit,
   the table.
 - **Mark done**: `putItems` with `mode: "merge"` and `{ id, status: "done" }`.
 - **Edit**: `putItems` `mode: "merge"` with a partial row — the default upsert
-  replaces the whole record. **Delete**: remove the file (`manageCollection`
-  has no delete).
+  replaces the whole record. **Delete**: `deleteItems` with `ids` (an id that
+  doesn't exist comes back in `rejected`, not `deleted`).
 - After a change, call `presentCollection` with slug `todos` (and the id) to show
   it inline.
 ```

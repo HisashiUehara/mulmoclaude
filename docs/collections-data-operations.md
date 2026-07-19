@@ -114,16 +114,14 @@ Everything else (`list` / `read` / `write` / `delete`) is already `async`.
 `mcp-tools/index.ts:39`). Its actions:
 
 ```
-getItems | putItems | queryItems | getOntology | schemaDocs | getSchema | putSchema
+getItems | putItems | deleteItems | queryItems | getOntology | schemaDocs | getSchema | putSchema
 ```
 
-**There is no delete action.** Deleting a record means unlinking the file, and the help file
-tells the agent exactly that:
+`deleteItems` (#2194) closed the one gap where the tool had no equivalent at all: deleting a
+record used to mean unlinking the file, which a non-file backend cannot offer. A missing id
+comes back in `rejected` rather than counted as deleted, so a typo can't be reported as done.
 
-> **Delete**: remove the file (`manageCollection` has no delete).
-> — `packages/core/assets/helps/todo-collection.md:91`
-
-Raw file I/O is a documented, supported escape hatch, not an accident:
+Raw file I/O nonetheless remains a documented, supported escape hatch, not an accident:
 
 > Read / Write / Edit on the record files stays available (**files are the source of truth**)
 > — `packages/core/assets/helps/collection-skills.md:918-919`
@@ -175,7 +173,7 @@ rediscovery (`watcher.ts:32`) and a 60s clock tick (`watcher.ts:40`). Its `onEve
 | Layer | Reads via | Writes via |
 | --- | --- | --- |
 | Frontend (`src/`) | HTTP `/api/collections` → `storeFor` | HTTP POST/PUT/DELETE → `io.ts` |
-| Agent | `manageCollection` **or** raw Read | `manageCollection.putItems` **or** raw Write; **delete = unlink the file** |
+| Agent | `manageCollection` **or** raw Read | `manageCollection.putItems` / `deleteItems` **or** raw Write / unlink |
 | Server internals | `storeFor` | `io.ts` free functions, path-keyed |
 | Feeds / spawn / mutate | `storeFor` | `io.ts` free functions |
 
@@ -186,8 +184,8 @@ is outside both by design.**
 
 A backend without files (a remote DB, a hosted store) would need, in rough order:
 
-1. **A delete action on `manageCollection`.** Without a file to unlink, the agent currently has
-   no way to delete a record at all.
+1. ~~**A delete action on `manageCollection`.**~~ Done in #2194 — `deleteItems`. Without it the
+   agent had no way to delete a record on a backend with no file to unlink.
 2. **A per-backend rule for raw file I/O**, since "files are the source of truth" stops being
    true — this is a change to documented agent behaviour, not just to code.
 3. **Writes keyed by collection, not by `dataDir` path** — roughly 10 call sites, all async,
