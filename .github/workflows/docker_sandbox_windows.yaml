@@ -172,30 +172,29 @@ jobs:
           Write-Host "Windows workspace: $wsWin"
           Write-Host "WSL2 mount path:   $wsLinux"
 
-          # Bind each preset package's dev-workspace path to
-          # /app/pkg_modules/@mulmoclaude/<name>. `packages/plugins` is
-          # mounted whole; the container-side symlinks resolve to the
-          # individual package roots. `packages/core` is separate (it
-          # lives at packages/core, not packages/plugins/core). Keep in
-          # sync with server/plugins/preset-list.ts when a preset is
-          # added or removed — the probe iterates PRESET_PLUGINS and
-          # will fail if a mount is missing.
-          wsl -d Ubuntu-22.04 -u root -- docker run --rm `
-            -v "${wsLinux}/node_modules:/app/node_modules:ro" `
-            -v "${wsLinux}/packages/plugins/x-plugin:/app/pkg_modules/@mulmoclaude/x-plugin:ro" `
-            -v "${wsLinux}/packages/plugins/spotify-plugin:/app/pkg_modules/@mulmoclaude/spotify-plugin:ro" `
-            -v "${wsLinux}/packages/plugins/debug-plugin:/app/pkg_modules/@mulmoclaude/debug-plugin:ro" `
-            -v "${wsLinux}/packages/plugins/edgar-plugin:/app/pkg_modules/@mulmoclaude/edgar-plugin:ro" `
-            -v "${wsLinux}/packages/plugins/email-plugin:/app/pkg_modules/@mulmoclaude/email-plugin:ro" `
-            -v "${wsLinux}/packages/core:/app/pkg_modules/@mulmoclaude/core:ro" `
-            -v "${wsLinux}/server/plugins:/app/server-plugins:ro" `
-            -v "${wsLinux}/server/agent/mcp-esm-loader.mjs:/app/server/agent/mcp-esm-loader.mjs:ro" `
-            -v "${wsLinux}/server/agent/mcp-esm-bootstrap.mjs:/app/server/agent/mcp-esm-bootstrap.mjs:ro" `
-            -v "${wsLinux}/test/sandbox-repro:/repro:ro" `
-            -e NODE_PATH=/app/node_modules:/app/pkg_modules `
-            -w /app `
-            node:22-slim `
-            bash -c "npm install -g tsx --silent && tsx --import file:///app/server/agent/mcp-esm-bootstrap.mjs /repro/probe.ts"
+          # The per-package `/app/pkg_modules/<scope>/<name>` fallback mounts come
+          # from the SHIPPED `workspaceModuleMounts()` (via
+          # print-mcp-container-spec.ts) — the same builder the real MCP child
+          # uses. probe.ts iterates PRESET_PLUGINS, so a hand-maintained mount
+          # list here rots the moment a preset is added: that is exactly how
+          # `@mulmoclaude/google-plugin` (#2114) broke this canary while every
+          # other preset still passed. Deriving the list makes that impossible.
+          $spec = & node_modules/.bin/tsx test/sandbox-repro/print-mcp-container-spec.ts | ConvertFrom-Json
+
+          $dockerArgs = @("run", "--rm")
+          $dockerArgs += @("-v", "${wsLinux}/node_modules:/app/node_modules:ro")
+          foreach ($mount in $spec.pkgModuleMounts) { $dockerArgs += @("-v", $mount) }
+          $dockerArgs += @("-v", "${wsLinux}/server/plugins:/app/server-plugins:ro")
+          $dockerArgs += @("-v", "${wsLinux}/server/agent/mcp-esm-loader.mjs:/app/server/agent/mcp-esm-loader.mjs:ro")
+          $dockerArgs += @("-v", "${wsLinux}/server/agent/mcp-esm-bootstrap.mjs:/app/server/agent/mcp-esm-bootstrap.mjs:ro")
+          $dockerArgs += @("-v", "${wsLinux}/test/sandbox-repro:/repro:ro")
+          $dockerArgs += @("-e", "NODE_PATH=/app/node_modules:/app/pkg_modules")
+          $dockerArgs += @("-w", "/app", "node:22-slim", "bash", "-c",
+            "npm install -g tsx --silent && tsx --import file:///app/server/agent/mcp-esm-bootstrap.mjs /repro/probe.ts")
+
+          Write-Host "pkg_modules mounts: $($spec.pkgModuleMounts.Count)"
+          wsl -d Ubuntu-22.04 -u root -- docker @dockerArgs
+          if ($LASTEXITCODE -ne 0) { throw "sandbox regression probe failed (exit $LASTEXITCODE)" }
 
       # ── #2052 diagnostics ────────────────────────────────────────────
       # The probe above runs from /repro, whose sibling package.json says
