@@ -560,7 +560,12 @@ export const GOOGLE_CALENDAR_SOURCE_FIELDS = ["summary", "start", "end", "htmlLi
 export const GoogleCalendarSyncZ = z.object({
   /** Calendar to pull from; defaults to the user's primary. */
   calendarId: z.string().trim().min(1).optional(),
-  map: z.record(z.string().trim().min(1), z.enum(GOOGLE_CALENDAR_SOURCE_FIELDS)),
+  // An empty map is silently useless rather than harmless: the sync would run
+  // and write a record per event carrying ONLY the event id, so the user gets
+  // rows with no content. Fail at load instead.
+  map: z.record(z.string().trim().min(1), z.enum(GOOGLE_CALENDAR_SOURCE_FIELDS)).refine((map) => Object.keys(map).length > 0, {
+    message: "map at least one field — a `googleCalendar` sync with an empty map writes records that carry only the event id",
+  }),
 });
 
 /** `ingest` is a discriminated union on `kind`: the three declarative

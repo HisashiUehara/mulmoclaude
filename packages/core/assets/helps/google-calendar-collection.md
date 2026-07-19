@@ -41,7 +41,9 @@ it isn't, sync silently does nothing until they link it in settings.
   other calendar, get its id from the `google` tool
   (`kind: "calendarListCalendars"`).
 - `map` — **your field name → the Google event field**. Pick whatever field
-  names suit the collection; the map absorbs the difference.
+  names suit the collection; the map absorbs the difference. Map at least one
+  field: an empty map syncs records that carry only the event id, so the user
+  would see rows with no content.
 
 Mappable event fields: `summary`, `start`, `end`, `htmlLink`, `colorId`,
 `status`.
