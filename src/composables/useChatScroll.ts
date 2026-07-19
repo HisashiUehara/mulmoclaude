@@ -1,9 +1,16 @@
 // Auto-scroll the sidebar chat list to the bottom when new results
 // arrive or a run starts. Also re-focuses the chat input when a run
 // finishes.
+//
+// Following is gated on the reader still being at the bottom: streaming
+// appends fire this watch on every chunk, and forcing the scroll each
+// time dragged the view out from under anyone who had scrolled up to
+// read (#2179). A run starting is treated as an explicit user action
+// (they just sent something), so that one re-arms and jumps.
 
 import { computed, nextTick, watch, type ComputedRef, type Ref } from "vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
+import { useStickToBottom } from "./useStickToBottom";
 
 export function useChatScroll<T extends { focus: () => void }>(opts: {
   sessionSidebarRef: Ref<{ root: HTMLDivElement | null } | null>;
@@ -14,6 +21,7 @@ export function useChatScroll<T extends { focus: () => void }>(opts: {
   const { sessionSidebarRef, toolResults, isRunning, chatInputRef } = opts;
 
   const chatListRef = computed(() => sessionSidebarRef.value?.root ?? null);
+  const { stuck, resume } = useStickToBottom(chatListRef);
   // Key that changes both on new results AND on streaming updates to
   // the last text card (which appends in place, leaving length stable).
   const latestResultScrollKey = computed(() => {
@@ -22,7 +30,8 @@ export function useChatScroll<T extends { focus: () => void }>(opts: {
     return `${list.length}:${last?.uuid ?? ""}:${last?.message?.length ?? 0}`;
   });
 
-  function scrollChatToBottom(): void {
+  function scrollChatToBottom(options: { force?: boolean } = {}): void {
+    if (!options.force && !stuck.value) return;
     nextTick(() => {
       if (chatListRef.value) {
         chatListRef.value.scrollTop = chatListRef.value.scrollHeight;
@@ -34,14 +43,15 @@ export function useChatScroll<T extends { focus: () => void }>(opts: {
     chatInputRef.value?.focus();
   }
 
-  watch(latestResultScrollKey, scrollChatToBottom);
+  watch(latestResultScrollKey, () => scrollChatToBottom());
   watch(isRunning, (running) => {
     if (running) {
-      scrollChatToBottom();
+      resume();
+      scrollChatToBottom({ force: true });
     } else {
       nextTick(() => focusChatInput());
     }
   });
 
-  return { scrollChatToBottom, focusChatInput };
+  return { scrollChatToBottom, focusChatInput, stuckToBottom: stuck };
 }

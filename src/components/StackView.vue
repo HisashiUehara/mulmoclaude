@@ -128,6 +128,7 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import { View as TextResponseOriginalView } from "../plugins/textResponse/index";
 import { handleExternalLinkClick } from "../utils/dom/externalLink";
 import { clampIframeHeight } from "../utils/dom/iframeHeightClamp";
+import { isNearBottom } from "../utils/dom/scrollable";
 import type { TextResponseData } from "../plugins/textResponse/types";
 import { formatSmartTime } from "../utils/format/date";
 import { isRecord } from "../utils/types";
@@ -231,6 +232,9 @@ const emit = defineEmits<{
 }>();
 
 const containerRef = ref<HTMLDivElement | null>(null);
+// Auto-follow gate: true while the reader is at the bottom. Updated from the
+// container's scroll handler (#2179).
+const stickToBottom = ref(true);
 const itemRefs = new Map<string, HTMLElement>();
 const naturalWrapperRefs = new Map<string, HTMLElement>();
 
@@ -445,6 +449,11 @@ function computeActiveUuidFromScroll(): string | null {
 
 function onContainerScroll(): void {
   if (suppressScrollSync) return;
+  // Only a genuine user scroll moves the auto-follow gate. Programmatic
+  // scrolls are suppressed above — otherwise following would cancel itself:
+  // the newest-card jump lands away from the bottom, which would read as
+  // "the user scrolled up" and stop the next chunk from arriving.
+  if (containerRef.value) stickToBottom.value = isNearBottom(containerRef.value);
   if (scrollSpyRafId !== null) return;
   scrollSpyRafId = requestAnimationFrame(() => {
     scrollSpyRafId = null;
@@ -490,7 +499,9 @@ const latestResultScrollKey = computed(() => {
 
 watch(latestResultScrollKey, () => {
   nextTick(() => {
-    if (containerRef.value) {
+    // Streaming fires this on every chunk — only follow while the reader is
+    // still parked at the bottom, so scrolling up to read stays put (#2179).
+    if (containerRef.value && stickToBottom.value) {
       beginSuppressScrollSync();
       const newest = props.toolResults[props.toolResults.length - 1];
       const target = resolveLatestScrollTarget(displayItems.value, newest, (result) => result.uuid);

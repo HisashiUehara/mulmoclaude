@@ -1,6 +1,38 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { findScrollableChild } from "../../../src/utils/dom/scrollable.js";
+import { findScrollableChild, isNearBottom, NEAR_BOTTOM_THRESHOLD_PX } from "../../../src/utils/dom/scrollable.js";
+
+// isNearBottom is the gate that keeps streaming output from dragging the
+// view away from a reader who scrolled up (#2179). Boundary behaviour is
+// what matters, so drive it with plain numbers.
+describe("isNearBottom", () => {
+  const pos = (scrollTop: number, scrollHeight = 2000, clientHeight = 500) => ({ scrollTop, scrollHeight, clientHeight });
+
+  it("is true at the exact bottom", () => {
+    assert.equal(isNearBottom(pos(1500)), true);
+  });
+
+  it("is true within the tolerance band (slightly above the bottom)", () => {
+    assert.equal(isNearBottom(pos(1500 - NEAR_BOTTOM_THRESHOLD_PX)), true);
+  });
+
+  it("is false one pixel past the tolerance band", () => {
+    assert.equal(isNearBottom(pos(1500 - NEAR_BOTTOM_THRESHOLD_PX - 1)), false);
+  });
+
+  it("is false when scrolled to the top of a long list", () => {
+    assert.equal(isNearBottom(pos(0)), false);
+  });
+
+  it("is true when the content does not overflow (nothing to scroll)", () => {
+    assert.equal(isNearBottom({ scrollTop: 0, scrollHeight: 400, clientHeight: 400 }), true);
+  });
+
+  it("honours a custom threshold", () => {
+    assert.equal(isNearBottom(pos(1400), 0), false);
+    assert.equal(isNearBottom(pos(1400), 100), true);
+  });
+});
 
 // findScrollableChild touches DOM APIs (querySelectorAll, scrollHeight,
 // clientHeight, getComputedStyle). Rather than spin up jsdom, we mock
