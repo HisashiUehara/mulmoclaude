@@ -11,12 +11,25 @@ const HTTP_FORBIDDEN = 403;
 export const DEFAULT_LIST_MAX_RESULTS = 10;
 export const MAX_LIST_RESULTS = 50;
 
+/** Carries the HTTP status so callers can branch on it (e.g. an expired
+ *  calendar syncToken answers 410) without parsing the message. */
+export class GoogleApiError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "GoogleApiError";
+    this.status = status;
+  }
+}
+
+export const isGoogleApiError = (value: unknown): value is GoogleApiError => value instanceof GoogleApiError;
+
 /** 403 usually means the API is not enabled for the user's Cloud project —
  *  name the API so the agent's recovery guidance can be specific. */
-export const googleApiError = (apiLabel: string, status: number, body: string): Error => {
+export const googleApiError = (apiLabel: string, status: number, body: string): GoogleApiError => {
   const hint = status === HTTP_FORBIDDEN ? ` (is the ${apiLabel} enabled for the Cloud project?)` : "";
   const detail = body ? ` — ${truncate(body, ERROR_BODY_MAX_CHARS)}` : "";
-  return new Error(`${apiLabel}: HTTP ${status}${hint}${detail}`);
+  return new GoogleApiError(status, `${apiLabel}: HTTP ${status}${hint}${detail}`);
 };
 
 export interface GoogleRequestInit {

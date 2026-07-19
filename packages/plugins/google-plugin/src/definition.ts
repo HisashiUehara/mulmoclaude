@@ -21,6 +21,7 @@ export const TOOL_DEFINITION = {
     " - `calendarListCalendars`: list the calendars the user has added/subscribed to (`id`, `summary`, `primary`, `backgroundColor`/`foregroundColor` hex, `colorId`, `accessRole`). Call this to work with a non-primary calendar.\n" +
     " - `calendarColors`: palettes that map an event/calendar `colorId` to hex — `event` for per-event colours, `calendar` for calendar colours.\n" +
     " - `calendarListEvents`: list upcoming events (each carries `colorId`, empty when it inherits the calendar colour). Optional `calendarId`, `timeMin` (ISO 8601 date-time with timezone offset; default now), `maxResults` (1-50, default 10).\n" +
+    " - `calendarSync`: fetch only what CHANGED since the last sync of this calendar, using a stored sync token. Use this for repeated/periodic syncing — it does not re-fetch the whole calendar, so it stays cheap. The FIRST call (or after `fullResync: true`) walks the entire calendar to establish the token. Returns counts (`changed`, `cancelled`) plus a capped `events` sample — never the full list, so it will not flood the conversation; `truncated: true` means more changed than are shown. Deletions are reported as the `cancelled` count. Optional `calendarId`, `fullResync` (discard the stored token and start over).\n" +
     ' - `calendarCreateEvent`: create an event. Requires `summary`, `start`, `end` — ISO 8601 date-times WITH a timezone offset (e.g. 2026-07-17T09:00:00+09:00); optional `description`, `calendarId`, `colorId` (event palette id "1"-"11").\n' +
     "\n" +
     "Tasks:\n" +
@@ -43,6 +44,7 @@ export const TOOL_DEFINITION = {
           "calendarListCalendars",
           "calendarColors",
           "calendarListEvents",
+          "calendarSync",
           "calendarCreateEvent",
           "taskListsList",
           "tasksList",
@@ -56,6 +58,7 @@ export const TOOL_DEFINITION = {
       calendarId: { type: "string", description: "calendar kinds: target calendar id from calendarListCalendars (default: the user's primary)" },
       colorId: { type: "string", description: 'calendarCreateEvent: optional event palette colour id "1"-"11"' },
       timeMin: { type: "string", description: "calendarListEvents: lower bound, ISO 8601 with timezone offset (default: now)" },
+      fullResync: { type: "boolean", description: "calendarSync: discard the stored sync token and re-walk the whole calendar (default false)" },
       maxResults: { type: "number", description: "list kinds: max items to return, 1-50 (default 10)" },
       summary: { type: "string", description: "calendarCreateEvent: event title" },
       start: { type: "string", description: "calendarCreateEvent: start, ISO 8601 with timezone offset" },
