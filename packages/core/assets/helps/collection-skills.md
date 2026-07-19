@@ -881,7 +881,9 @@ records through **`manageCollection`**, not raw file I/O:
   `toggle` / `embed` values (the stored JSON never contains them). Pass `ids`
   / `fields` on large collections to keep the result small — e.g.
   `fields: ["id"]` to check for an id collision before an add.
-- **Delete** — remove the record file (`manageCollection` has no delete).
+- **Delete — `deleteItems`.** Pass `ids`; the result is `{ deleted, rejected }`.
+  An id that doesn't exist lands in `rejected` rather than being counted as
+  deleted, so a typo'd id can't be reported back to the user as done.
 - **Aggregate — `queryItems`.** Counts, sums, averages, group-bys on ANY
   collection via a structured query (`groupBy` / `aggregates` / `where` /
   `orderBy` / `limit` — full shape in the "External data (CSV) collections"

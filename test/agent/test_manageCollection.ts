@@ -543,3 +543,70 @@ describe("manageCollection — putSchema", () => {
     assert.match(msg, /…and \d+ more issue\(s\)/);
   });
 });
+
+describe("manageCollection — deleteItems", () => {
+  beforeEach(() => {
+    writeRecord("data/portfolio/items", "h1", { id: "h1", name: "Apple", ticker: "aapl", shares: 10, status: "open" });
+    writeRecord("data/portfolio/items", "h2", { id: "h2", name: "Cash", status: "closed" });
+  });
+
+  const recordPath = (itemId: string) => path.join(workdir, "data/portfolio/items", `${itemId}.json`);
+
+  it("deletes a record and removes its file", async () => {
+    const result = await runJson({ action: "deleteItems", slug: "portfolio", ids: ["h1"] });
+    assert.deepEqual(result.deleted, ["h1"]);
+    assert.deepEqual(result.rejected, []);
+    assert.equal(existsSync(recordPath("h1")), false);
+    assert.equal(existsSync(recordPath("h2")), true, "unrelated records survive");
+  });
+
+  it("deletes several ids in one call", async () => {
+    const result = await runJson({ action: "deleteItems", slug: "portfolio", ids: ["h1", "h2"] });
+    assert.deepEqual((result.deleted as string[]).sort(), ["h1", "h2"]);
+    assert.equal(existsSync(recordPath("h1")), false);
+    assert.equal(existsSync(recordPath("h2")), false);
+  });
+
+  it("rejects an id that does not exist instead of reporting it deleted", async () => {
+    const result = await runJson({ action: "deleteItems", slug: "portfolio", ids: ["ghost"] });
+    assert.deepEqual(result.deleted, []);
+    const rejected = result.rejected as { id: string; problem: string }[];
+    assert.equal(rejected.length, 1);
+    assert.equal(rejected[0].id, "ghost");
+    assert.match(rejected[0].problem, /not found/);
+  });
+
+  it("keeps a partially-bad batch partial — good ids still go", async () => {
+    const result = await runJson({ action: "deleteItems", slug: "portfolio", ids: ["h1", "ghost"] });
+    assert.deepEqual(result.deleted, ["h1"]);
+    assert.equal((result.rejected as unknown[]).length, 1);
+    assert.equal(existsSync(recordPath("h1")), false);
+  });
+
+  it("rejects a path-traversal id without touching the filesystem", async () => {
+    const result = await runJson({ action: "deleteItems", slug: "portfolio", ids: ["../../../etc/passwd"] });
+    assert.deepEqual(result.deleted, []);
+    assert.match((result.rejected as { problem: string }[])[0].problem, /not a valid record id/);
+    assert.equal(existsSync(recordPath("h1")), true, "nothing else was deleted");
+  });
+
+  it("requires a non-empty ids array", async () => {
+    assert.match(await run({ action: "deleteItems", slug: "portfolio" }), /`ids` is required for deleteItems/);
+    assert.match(await run({ action: "deleteItems", slug: "portfolio", ids: [] }), /`ids` is required for deleteItems/);
+    assert.match(await run({ action: "deleteItems", slug: "portfolio", ids: [42] }), /`ids` is required for deleteItems/);
+    assert.match(await run({ action: "deleteItems", slug: "portfolio", ids: ["  "] }), /`ids` is required for deleteItems/);
+  });
+
+  it("refuses a read-only dataSource collection", async () => {
+    writeSkill("students", {
+      title: "Students",
+      icon: "school",
+      dataSource: { type: "csv", path: "data/students.csv" },
+      primaryKey: "student_id",
+      fields: { student_id: { type: "string", label: "ID", primary: true }, name: { type: "string", label: "Name" } },
+    });
+    mkdirSync(path.join(workdir, "data"), { recursive: true });
+    writeFileSync(path.join(workdir, "data/students.csv"), "student_id,name\ns1,Ada\n");
+    assert.match(await run({ action: "deleteItems", slug: "students", ids: ["s1"] }), /read-only/);
+  });
+});
