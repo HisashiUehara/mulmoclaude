@@ -89,7 +89,7 @@ async function countRecordFiles(dataDir: string, workspaceRoot: string): Promise
 async function countRecords(collection: LoadedCollection, workspaceRoot: string): Promise<number> {
   if (!collectionWritable(collection)) {
     try {
-      return (await storeFor(collection, { workspaceRoot }).list()).length;
+      return (await storeFor(collection, { workspaceRoot }).page({ limit: 0 })).total;
     } catch {
       return 0;
     }

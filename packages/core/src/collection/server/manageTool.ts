@@ -49,7 +49,7 @@ import { loadCollection, type DiscoveryOptions } from "./discovery";
 import type { LoadedCollection } from "./discoveredCollection";
 import { readItem, resolveCreateItemId, writeItem } from "./io";
 import { collectionWritable, readOnlyRefusal, storeFor } from "./store";
-import { runQueryOverRows } from "./jsonlQuery";
+import { runCollectionQuery } from "./queryRunner";
 import { enrichItems } from "./derive";
 import { validateCollectionRecords, validateRecordObject } from "./validate";
 import { buildWorkspaceOntology } from "./ontology";
@@ -291,12 +291,10 @@ async function putOneItem(
 
 /** Aggregation over a collection via the structured query DSL
  *  (`core/queryZ.ts`) — the paved road for counts / sums / group-bys
- *  that a row listing can't answer honestly. Two engines behind one
- *  shape: a dataSource collection queries its CSV natively through the
- *  store (`store.query`, uncapped whole-file scan); a file-backed
- *  collection aggregates its ENRICHED records (computed fields —
- *  `derived` / `rollup` / `toggle` — are real columns) through the same
- *  compiled SQL over a temp JSONL (`runQueryOverRows`). */
+ *  that a row listing can't answer honestly. The engine choice (native
+ *  store query vs enrich-then-JSONL fallback) lives in
+ *  `runCollectionQuery`, shared with the desktop custom view's `/query`
+ *  route so the two surfaces can never drift. */
 async function handleQueryItems(collection: LoadedCollection, queryArg: unknown, deps: ManageCollectionDeps): Promise<string> {
   const parsed = CollectionQueryZ.safeParse(queryArg);
   if (!parsed.success) {
@@ -305,16 +303,7 @@ async function handleQueryItems(collection: LoadedCollection, queryArg: unknown,
       .map((issue) => `- ${issue.path.map(String).join(".") || "(root)"}: ${defangForPrompt(issue.message)}`);
     return `manageCollection: \`query\` rejected — fix and retry:\n${lines.join("\n")}`;
   }
-  const store = storeFor(collection, { workspaceRoot: deps.workspaceRoot });
-  if (store.query) {
-    const rows = await store.query(parsed.data);
-    return JSON.stringify({ collection: collection.slug, count: rows.length, rows });
-  }
-  // File-backed: load through the guarded reader (symlink defenses) and
-  // enrich BEFORE DuckDB sees anything — a raw read_json over the record
-  // files would both follow symlinks and miss every computed field.
-  const enriched = await enrichItems(collection, await store.list(), deps);
-  const rows = await runQueryOverRows(enriched, parsed.data);
+  const rows = await runCollectionQuery(collection, parsed.data, { workspaceRoot: deps.workspaceRoot });
   return JSON.stringify({ collection: collection.slug, count: rows.length, rows });
 }
 

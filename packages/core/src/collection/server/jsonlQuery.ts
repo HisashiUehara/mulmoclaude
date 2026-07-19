@@ -15,7 +15,7 @@
 //
 // The temp JSONL lives in the same 0700 cache dir as CSV decode copies,
 // is written 0600 (shared OS tmpdir), and is unlinked when the query
-// finishes. Caller wiring lives in `manageTool.ts` (NOT `store.ts` —
+// finishes. Caller wiring lives in `queryRunner.ts` (NOT `store.ts` —
 // enrichment lives in `derive.ts`, which itself consumes `storeFor`, so
 // wiring it into the store would create an import cycle).
 

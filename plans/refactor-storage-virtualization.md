@@ -1,6 +1,7 @@
 # Collection storage virtualization — Stage 0–1
 
-**Status**: Stage 0 in progress
+**Status**: Stage 0 done; Stage 1 done in REVISED (additive) form — see
+"Stage 1 revision" below
 **Owner**: TBD
 **Last updated**: 2026-07-19
 
@@ -61,7 +62,39 @@ Pure refactor, behavior unchanged, no core API change (no version bump).
    `collection/server/io` outside `packages/core/src/collection/` (+ one line
    in `docs/lint-policy.md`).
 
-## Stage 1 — widen the interface (same two stores)
+## Stage 1 revision (what actually shipped)
+
+The original Stage 1 below proposed a BREAKING `list()` → `ListPage` change.
+Implemented instead as an **additive** change, for two reasons:
+
+1. **0.x caret ranges.** Core is 0.25.x and every dependent
+   (collection-plugin, google-plugin, launcher, MulmoTerminal) pins
+   `^0.25.x`, which a 0.26.0 minor cannot satisfy — a breaking change forces
+   a plugin range ratchet + publish cascade + a synchronized MulmoTerminal
+   port. Additive ⇒ core 0.25.1 (patch), no ratchet, nothing breaks.
+2. **Existing custom views must keep working** (explicit requirement).
+   `list()` semantics stay byte-identical for every current consumer.
+
+Shipped shape: `list()` unchanged; NEW `page(opts?) → ListPage`;
+`capabilities` grew `nativeQuery` / `nativePaging`; `queryRunner.ts`
+(`runCollectionQuery`) unifies native vs enrich+JSONL aggregation — the
+manageCollection `queryItems` AND (transitively — the view `/query` route
+reuses that handler) the desktop custom-view query surface now share it with
+identical outputs. Contract tests: `test/workspace/collections/test_storeContract.ts`.
+
+**Deliberately deferred:**
+- `readPage.ts` and the remote-view rewire onto `page()`. The file store's
+  `page()` order is sorted-by-record-id (paging needs determinism), while
+  `remoteViewItems` today serves `list()`'s readdir order — switching would
+  change the order existing remote views observe. Adopt `page()` there only
+  as a deliberate, tested decision (it FIXES latent "Load more"
+  skip/duplicate bugs, but it is an observable change on a frozen surface).
+- Sort pushdown, `list()` deprecation → fold into the next breaking wave
+  (Stage 2's write fold-in), so dependents ratchet once, not twice.
+
+## Stage 1 — widen the interface (same two stores) — ORIGINAL DESIGN
+
+(Kept for reference; superseded by the revision above where they differ.)
 
 Breaking change to core's exported types ⇒ minor bump of `@mulmoclaude/core`
 in the same PR (+ launcher range lockstep), and a matching port in

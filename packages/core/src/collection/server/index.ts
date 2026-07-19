@@ -24,6 +24,7 @@ export * from "./store";
 export { MAX_CSV_ROWS, encodeCsvRecordId, decodeCsvRecordId, normalizeCsvValue, csvRowToItem, dedupeByRecordId } from "./csvStore";
 export { compileCsvQuery, compileJsonlQuery } from "./csvQuery";
 export { runQueryOverRows } from "./jsonlQuery";
+export { runCollectionQuery } from "./queryRunner";
 export { CollectionQueryZ, MAX_QUERY_ROWS, DEFAULT_QUERY_ROWS } from "../core/queryZ";
 export type { CollectionQuery, CollectionQueryAggregate, CollectionQueryOrder, CollectionQueryWhere } from "../core/queryZ";
 export * from "./validate";
