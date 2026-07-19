@@ -1,7 +1,7 @@
 # Collection storage virtualization — Stage 0–1
 
-**Status**: Stages 0–2 done (Stage 1 in REVISED additive form — see
-"Stage 1 revision"; Stage 2 notes below)
+**Status**: Stages 0–4 done (Stage 1 in REVISED additive form — see
+"Stage 1 revision"; Stage 2–4 notes below)
 **Owner**: TBD
 **Last updated**: 2026-07-19
 
@@ -201,13 +201,50 @@ Shipped as designed, with two deviations from the sketch:
 - Contract tests grew write/delete presence + round-trip (conflict on
   create-overwrite, delete → not-found) assertions.
 
+## Stage 3 — explicit storage + factory registry (done)
+
+- Schema: new `storage` block (`StorageZ`, v1 union: `{ type: "sqlite", path }`),
+  exactly-one-of `dataPath` | `dataSource` | `storage`. Derived
+  `storageKindFor(schema)` → `"file" | "csv" | "sqlite"` — existing schemas
+  carry no `storage` key and resolve exactly as before.
+- Discovery: `storage.path` gets the same containment resolution as
+  `dataSource.path` → `LoadedCollection.storageFile`, plus the conventional
+  phantom `dataDir`.
+- `storeFor` resolves through a factory registry
+  (`Map<CollectionStorageKind, CollectionStoreFactory>`) — factories live in
+  core only (dependency-direction rule; no plugin registration). Pure paging
+  helpers moved to `storePage.ts` so backend modules share them without an
+  import cycle (store.ts re-exports — public surface unchanged).
+
+## Stage 4 — sqlite backend (done)
+
+`sqliteStore.ts`: one db file, one `records(id TEXT PRIMARY KEY, record TEXT)`
+table, JSON per row. Passes the full contract suite unchanged — which was the
+point.
+
+- **Engine: `node:sqlite`** (no native npm dep). Engines floor is Node >=
+  20.12 but node:sqlite needs >= 22.5 ⇒ lazy import, DuckDB-style degradation
+  (only sqlite collections break, clear error;
+  `assets/helps/error-recovery.md` has the section).
+- `nativePaging: true` (LIMIT/OFFSET + COUNT(*)); order `ORDER BY id`
+  (BINARY = the file store's documented lexicographic order);
+  `nativeQuery: false` — aggregation flows through `runCollectionQuery`'s
+  enrich+JSONL fallback, exercising it on a non-file backend.
+- Same `safeRecordId` id rule as the file store (ids portable across
+  backends; remote-view preflights keep holding); symlinked db refused
+  (io.ts parity); write publishes its own `publishCollectionChange` (io.ts
+  is not in the path here).
+- **Known v1 gaps** (documented in error-recovery.md): `spawn`
+  schema-rejected (raw-io writer); record Repair/validation scans record
+  FILES so it sees no sqlite records (no false errors, just no repair);
+  `deleteCollection` archives skill + phantom dataDir but leaves the `.db`
+  file; external edits to the db don't fire change events (no watcher).
+
 ## Later stages (sketch, not in scope here)
-- **Stage 3**: explicit `storage` discriminated union in the schema + store
-  factory registry in core (factories live in core, per the dependency-
-  direction rule — no plugin-registered backends).
-- **Stage 4**: first non-file writable backend (e.g. SQLite) to validate the
-  abstraction — stresses write / native query / native paging / change events
-  at once. `nativeSort` capability considered here, not before.
+
+- `nativeSort` capability + sort pushdown (design against a second
+  SQL-capable backend), `list()` deprecation, spawn onto the store, db-file
+  archive on collection delete.
 
 ## Open questions
 

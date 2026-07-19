@@ -42,7 +42,7 @@ function applyFeedSchemaDefaults(parsed: unknown, slug: string): unknown {
 /** Result of the post-Zod acceptance gates: the resolved record dir (and,
  *  for a `dataSource` schema, the resolved data file) on success, or a
  *  one-line reason discovery would skip the schema. */
-export type SchemaAcceptance = { ok: true; dataDir: string; dataSourceFile?: string } | { ok: false; reason: string };
+export type SchemaAcceptance = { ok: true; dataDir: string; dataSourceFile?: string; storageFile?: string } | { ok: false; reason: string };
 
 /** The conventional per-slug records dir a `dataSource` collection gets as
  *  its `dataDir` (records never live there, but archive/delete paths stay
@@ -80,6 +80,15 @@ export function acceptParsedSchema(schema: CollectionSchema, opts: { source: Col
     const dataDir = resolveDataDir(conventionalDataPath(opts.slug), opts.workspaceRoot);
     if (dataDir === null) return { ok: false, reason: `slug '${opts.slug}' yields no workspace-contained data dir` };
     return { ok: true, dataDir, dataSourceFile };
+  }
+  if (schema.storage !== undefined) {
+    // An alternative-backend data file (e.g. the SQLite db): same
+    // containment as dataSource, same conventional phantom dataDir.
+    const storageFile = resolveDataDir(schema.storage.path, opts.workspaceRoot);
+    if (storageFile === null) return { ok: false, reason: `storage.path '${schema.storage.path}' escapes the workspace` };
+    const dataDir = resolveDataDir(conventionalDataPath(opts.slug), opts.workspaceRoot);
+    if (dataDir === null) return { ok: false, reason: `slug '${opts.slug}' yields no workspace-contained data dir` };
+    return { ok: true, dataDir, storageFile };
   }
   const dataDir = resolveDataDir(schema.dataPath ?? "", opts.workspaceRoot);
   if (dataDir === null) return { ok: false, reason: `dataPath '${schema.dataPath}' escapes the workspace` };
@@ -136,6 +145,7 @@ async function loadOneCollection(skillsRoot: string, slug: string, source: Colle
     schema,
     dataDir: acceptance.dataDir,
     ...(acceptance.dataSourceFile !== undefined ? { dataSourceFile: acceptance.dataSourceFile } : {}),
+    ...(acceptance.storageFile !== undefined ? { storageFile: acceptance.storageFile } : {}),
     skillDir: path.join(skillsRoot, safeName),
   };
 }

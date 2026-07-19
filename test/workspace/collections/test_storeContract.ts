@@ -1,11 +1,12 @@
 import "../../../server/workspace/collections/configure.js"; // configure @mulmoclaude/core/collection host binding for tests
-// Shared storage-contract suite (plans/refactor-storage-virtualization.md,
-// Stage 1). ONE set of assertions run against BOTH CollectionStore
-// implementations — the per-record JSON file store and the DuckDB-backed
-// CSV `dataSource` store — pinning the contract documented on the
-// interface: stable order, offset/limit paging, `fields` projection with
-// the primary key always kept, `read` round-trips for every listed id,
-// honest `truncated`/`total`, and `query` present iff `nativeQuery`.
+// Shared storage-contract suite (plans/refactor-storage-virtualization.md).
+// ONE set of assertions run against EVERY CollectionStore implementation —
+// the per-record JSON file store, the DuckDB-backed CSV `dataSource` store,
+// and the node:sqlite `storage` store — pinning the contract documented on
+// the interface: stable order, offset/limit paging, `fields` projection
+// with the primary key always kept, `read` round-trips for every listed
+// id, honest `truncated`/`total`, `query` present iff `nativeQuery`, and
+// write/delete present iff writable (with create-conflict semantics).
 // A future backend joins by passing this suite unchanged.
 
 import { describe, it, beforeEach, afterEach } from "node:test";
@@ -14,7 +15,14 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { discoverCollections, pageFromFullRead, projectItemFields, storeFor, type CollectionStore } from "@mulmoclaude/core/collection/server";
+import {
+  CollectionSchemaZ,
+  discoverCollections,
+  pageFromFullRead,
+  projectItemFields,
+  storeFor,
+  type CollectionStore,
+} from "@mulmoclaude/core/collection/server";
 
 let workdir: string;
 let emptyUserDir: string;
@@ -92,9 +100,36 @@ async function csvStoreFixture(): Promise<CollectionStore> {
   return storeFor(collection, { workspaceRoot: workdir });
 }
 
+const SQLITE_SCHEMA = {
+  title: "Notes DB",
+  icon: "database",
+  storage: { type: "sqlite", path: "data/notes.db" },
+  primaryKey: "id",
+  fields: {
+    id: { type: "string", label: "ID", primary: true },
+    title: { type: "string", label: "Title" },
+    score: { type: "number", label: "Score" },
+  },
+};
+
+async function sqliteStoreFixture(): Promise<CollectionStore> {
+  writeSkill("notesdb", SQLITE_SCHEMA);
+  const [collection] = await discoverCollections(discoveryOpts());
+  assert.ok(collection);
+  const store = storeFor(collection, { workspaceRoot: workdir });
+  assert.ok(store.write, "sqlite store must be writable");
+  // Seed through the store's own write path, shuffled to prove ORDER BY id.
+  for (const recordId of ["n3", "n1", "n4", "n2"]) {
+    const written = await store.write(recordId, { id: recordId, title: `T-${recordId}`, score: Number(recordId.slice(1)) });
+    assert.equal(written.kind, "ok");
+  }
+  return store;
+}
+
 const FIXTURES: { name: string; make: () => Promise<CollectionStore>; writable: boolean; nativeQuery: boolean }[] = [
   { name: "file store", make: fileStoreFixture, writable: true, nativeQuery: false },
   { name: "csv store", make: csvStoreFixture, writable: false, nativeQuery: true },
+  { name: "sqlite store", make: sqliteStoreFixture, writable: true, nativeQuery: false },
 ];
 
 for (const fixture of FIXTURES) {
@@ -182,6 +217,39 @@ for (const fixture of FIXTURES) {
     }
   });
 }
+
+describe("storage schema gates (sqlite)", () => {
+  it("accepts a storage schema: storageFile + phantom dataDir resolved, collection is writable", async () => {
+    writeSkill("notesdb", SQLITE_SCHEMA);
+    const [collection] = await discoverCollections(discoveryOpts());
+    assert.ok(collection);
+    assert.equal(collection.storageFile, path.resolve(workdir, "data/notes.db"));
+    assert.equal(collection.dataDir, path.resolve(workdir, "data/collections/notesdb/items"));
+    assert.equal(storeFor(collection, { workspaceRoot: workdir }).capabilities.writable, true);
+  });
+
+  it("rejects storage combined with dataPath or dataSource, and storage + spawn (that refine specifically)", async () => {
+    writeSkill("both-path", { ...SQLITE_SCHEMA, dataPath: "data/x/items" });
+    writeSkill("both-source", { ...SQLITE_SCHEMA, dataSource: { type: "csv", path: "data/x.csv" } });
+    assert.equal((await discoverCollections(discoveryOpts())).length, 0);
+    const parsed = CollectionSchemaZ.safeParse({
+      ...SQLITE_SCHEMA,
+      triggerField: "score",
+      spawn: { when: { field: "title", in: ["x"] }, every: { unit: "month", interval: 1, dayOfMonth: 10 } },
+    });
+    assert.equal(parsed.success, false);
+    if (parsed.success) return;
+    assert.ok(
+      parsed.error.issues.some((issue) => issue.message.includes("cannot declare `spawn` yet")),
+      `expected the storage+spawn refine, got: ${parsed.error.issues.map((issue) => issue.message).join(" | ")}`,
+    );
+  });
+
+  it("rejects a storage.path escaping the workspace", async () => {
+    writeSkill("escape", { ...SQLITE_SCHEMA, storage: { type: "sqlite", path: "../outside.db" } });
+    assert.equal((await discoverCollections(discoveryOpts())).length, 0);
+  });
+});
 
 describe("page emulation helpers (pure)", () => {
   const items = [

@@ -1,10 +1,14 @@
 // Storage abstraction over a collection's records — the one seam where
-// "where do the rows come from" is decided. Two implementations:
+// "where do the rows come from" is decided. Implementations, selected by
+// the schema's storage kind (`storageKindFor`) through the factory
+// registry below:
 //
-//   - file store: the classic `<dataDir>/<itemId>.json` records (io.ts),
-//     writable through the governed write paths;
-//   - CSV store (csvStore.ts): the rows of an external `dataSource` file,
-//     queried through DuckDB — READ-ONLY by definition.
+//   - file store ("file"): the classic `<dataDir>/<itemId>.json` records
+//     (io.ts), writable through the governed write paths;
+//   - CSV store ("csv", csvStore.ts): the rows of an external `dataSource`
+//     file, queried through DuckDB — READ-ONLY by definition;
+//   - SQLite store ("sqlite", sqliteStore.ts): records in a single
+//     node:sqlite database file — writable, native paging.
 //
 // Reads AND writes go through `storeFor(...)`. Writability is encoded by
 // PRESENCE: `write`/`delete` exist only on writable stores, so "write
@@ -37,12 +41,19 @@
 // params or message types, never change existing response shapes, never
 // let a new backend alter what an existing view observes.
 
-import type { CollectionItem } from "../core/schema";
+import type { CollectionItem, CollectionStorageKind } from "../core/schema";
 import type { CollectionQuery } from "../core/queryZ";
-import { isReadOnlySchema } from "../core/schema";
+import { isReadOnlySchema, storageKindFor } from "../core/schema";
 import type { LoadedCollection } from "./discoveredCollection";
 import { deleteItem, listItems, readItem, writeItem, type DeleteItemResult, type IoOptions, type WriteItemResult } from "./io";
 import { csvList, csvRead, csvRunQuery } from "./csvStore";
+import { sqliteStoreFor } from "./sqliteStore";
+import { pageFromFullRead, type ListOptions, type ListPage, type WriteOptions } from "./storePage";
+
+// The pure paging/projection primitives live in storePage.ts (so backend
+// modules can share them without an import cycle); re-exported here to
+// keep the public surface where it has always been.
+export { pageFromFullRead, projectItemFields, type ListOptions, type ListPage, type WriteOptions } from "./storePage";
 
 export interface CollectionStoreCapabilities {
   readonly writable: boolean;
@@ -55,39 +66,14 @@ export interface CollectionStoreCapabilities {
   readonly nativePaging: boolean;
 }
 
-/** Options for `page`. STORED fields only — computed fields (`derived` /
- *  `toggle` / `embed` / rollups) never reach the store; project them at the
- *  engine level (`readPage.ts`) after enrichment. */
-export interface ListOptions {
-  /** 0-based offset into the store's stable order (see the contract). */
-  offset?: number;
-  /** Max records returned. Absent = all remaining (subject to store caps). */
-  limit?: number;
-  /** Keep only these fields per record (the primary key is always kept). */
-  fields?: readonly string[];
-}
-
-export interface ListPage {
-  items: CollectionItem[];
-  /** Records in the collection before offset/limit — a lower bound when
-   *  `truncated` (the store capped its scan, e.g. `MAX_CSV_ROWS`). */
-  total: number;
-  truncated: boolean;
-}
-
-export interface WriteOptions {
-  /** Create semantics: fail with `kind: "conflict"` when the record
-   *  already exists (an O_EXCL open in the file store — race-safe). */
-  refuseOverwrite?: boolean;
-}
-
 /** The storage contract every backend must satisfy (verified by the shared
  *  contract test suite, `test/workspace/collections/test_storeContract.ts`):
  *
  *  1. STABLE ORDER — `page` walks a documented deterministic order (file
- *     store: lexicographic by record id; CSV store: file row order), so
- *     `offset`-paging never skips or repeats records between calls. Sorting
- *     by arbitrary fields is NOT the store's job.
+ *     store: lexicographic by record id; CSV store: file row order; SQLite
+ *     store: `ORDER BY id`), so `offset`-paging never skips or repeats
+ *     records between calls. Sorting by arbitrary fields is NOT the
+ *     store's job.
  *  2. IDS — minting/resolving record ids is the store's job (the CSV
  *     store's `id0x…` encoding stays inside it); `read` resolves every id
  *     `list`/`page` returned.
@@ -113,26 +99,9 @@ export interface CollectionStore {
   /** Present ONLY when `capabilities.writable` — absence IS the read-only
    *  refusal (surface it with `readOnlyRefusal`). A successful write/delete
    *  publishes a collection-change event: the store always threads the
-   *  collection's slug into io's publish hook, so no writer can forget it. */
+   *  collection's slug into the publish hook, so no writer can forget it. */
   write?: (itemId: string, item: CollectionItem, opts?: WriteOptions) => Promise<WriteItemResult>;
   delete?: (itemId: string) => Promise<DeleteItemResult>;
-}
-
-/** Project `fields` (+ the primary key, always) out of each record. No
- *  `fields` ⇒ records pass through untouched. Pure, exported for tests. */
-export function projectItemFields(items: CollectionItem[], fields: readonly string[] | undefined, primaryKey: string): CollectionItem[] {
-  if (!fields) return items;
-  const keep = new Set([primaryKey, ...fields]);
-  return items.map((item) => Object.fromEntries(Object.entries(item).filter(([key]) => keep.has(key))));
-}
-
-/** Slice + project an already-ordered full read into a `ListPage` — the
- *  shared emulation for stores without native paging. Pure, exported for
- *  tests. `limit: 0` is a valid "count only" page. */
-export function pageFromFullRead(items: CollectionItem[], opts: ListOptions, primaryKey: string, truncated: boolean): ListPage {
-  const offset = Math.max(0, opts.offset ?? 0);
-  const end = opts.limit === undefined ? undefined : offset + Math.max(0, opts.limit);
-  return { items: projectItemFields(items.slice(offset, end), opts.fields, primaryKey), total: items.length, truncated };
 }
 
 /** The file store's stable order: lexicographic by record id (codepoint
@@ -187,7 +156,25 @@ function fileStoreFor(collection: LoadedCollection, opts: IoOptions): Collection
   };
 }
 
-/** Pick the store implementation for a discovered collection. */
+export type CollectionStoreFactory = (collection: LoadedCollection, opts: IoOptions) => CollectionStore;
+
+// The store factory registry (plans/refactor-storage-virtualization.md,
+// Stage 3): schema storage kind → implementation. Factories live in CORE
+// (dependency-direction rule — never plugin-registered); a new backend is
+// one factory + a `StorageZ` variant + a pass of the contract test suite.
+const storeFactories = new Map<CollectionStorageKind, CollectionStoreFactory>([
+  ["file", fileStoreFor],
+  ["csv", csvStoreFor],
+  ["sqlite", sqliteStoreFor],
+]);
+
+/** Pick the store implementation for a discovered collection via the
+ *  factory registry. An unknown kind cannot normally reach here (the
+ *  schema's `StorageZ` union gates it), so the throw is a loud invariant
+ *  breach, not a user-facing path. */
 export function storeFor(collection: LoadedCollection, opts: IoOptions = {}): CollectionStore {
-  return isReadOnlySchema(collection.schema) ? csvStoreFor(collection, opts) : fileStoreFor(collection, opts);
+  const kind = storageKindFor(collection.schema);
+  const factory = storeFactories.get(kind);
+  if (!factory) throw new Error(`no store factory registered for storage kind '${kind}'`);
+  return factory(collection, opts);
 }
