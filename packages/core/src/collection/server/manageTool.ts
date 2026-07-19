@@ -13,6 +13,9 @@
 //     keys), written atomically, with per-row accept/reject results the
 //     model can fix and retry — instead of writing a broken file and
 //     meeting it later in the presentCollection repair loop.
+//   - deleteItems: removal by id, so a collection whose records aren't
+//     files (or whose caller shouldn't be handed raw unlink) still has a
+//     delete. A missing id rejects rather than reporting success.
 //   - getOntology: the machine-readable workspace ontology — every
 //     collection with its record count and outbound ref/embed relations,
 //     so a cross-collection question starts from the map instead of
@@ -325,6 +328,44 @@ async function handlePutItems(collection: LoadedCollection, args: PutItemsArgs, 
   return JSON.stringify({ collection: collection.slug, written, rejected });
 }
 
+/** Delete records by id, through the store — so it works on any writable
+ *  backend, not just file records. Same read-only refusal as putItems (an
+ *  absent `delete` IS the refusal), and the same per-id result shape so a
+ *  partially-bad batch reports per id instead of failing whole. */
+async function handleDeleteItems(collection: LoadedCollection, ids: string[], deps: ManageCollectionDeps): Promise<string> {
+  const { delete: removeItem } = storeFor(collection, { workspaceRoot: deps.workspaceRoot });
+  if (!removeItem) {
+    return `manageCollection: ${readOnlyRefusal(collection.slug)} (its records are the rows of '${collection.schema.dataSource?.path}'; edit that file to change the data).`;
+  }
+  const deleted: string[] = [];
+  const rejected: RejectedRow[] = [];
+  for (const itemId of ids) {
+    const outcome = await deleteOneItem(removeItem, itemId);
+    if (outcome.deleted) deleted.push(outcome.deleted);
+    if (outcome.rejected) rejected.push(outcome.rejected);
+  }
+  return JSON.stringify({ collection: collection.slug, deleted, rejected });
+}
+
+/** A missing id is a rejection, not a silent success: deleting by a typo'd
+ *  id would otherwise report "done" while the real record survives. */
+async function deleteOneItem(removeItem: NonNullable<CollectionStore["delete"]>, itemId: string): Promise<{ deleted?: string; rejected?: RejectedRow }> {
+  const result = await removeItem(itemId);
+  if (result.kind === "ok") return { deleted: result.itemId };
+  const reject = (problem: string): { rejected: RejectedRow } => ({ rejected: { id: defangForPrompt(itemId), problem: defangForPrompt(problem) } });
+  if (result.kind === "invalid-id")
+    return reject(`'${itemId}' is not a valid record id (letters/digits at the ends; -, _, or . inside; no '..' or path characters)`);
+  if (result.kind === "not-found") return reject(`'${itemId}' not found — nothing was deleted; confirm the id with getItems`);
+  return reject("delete refused: the collection's data dir escapes the workspace");
+}
+
+function parseDeleteIds(args: Record<string, unknown>): string[] | string {
+  const { ids } = args;
+  const valid = Array.isArray(ids) && ids.length > 0 && ids.every((entry) => typeof entry === "string" && entry.trim().length > 0);
+  if (!valid) return "manageCollection: `ids` is required for deleteItems — a non-empty array of record ids.";
+  return ids as string[];
+}
+
 function parsePutItems(args: Record<string, unknown>, slug: string): PutItemsArgs | string {
   const { items, mode } = args;
   const validItems = Array.isArray(items) && items.length > 0 && items.every((entry) => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry));
@@ -469,6 +510,7 @@ const MANAGE_COLLECTION_PROMPT =
   'For a question that spans collections ("which clients have unpaid invoices?"), start with `getOntology`: it lists every collection with its primaryKey, record count, and outbound `ref`/`embed` relations, so you know which collections to join before reading any records. ' +
   "`putItems` validates every row against the schema before writing (required fields, enum values, primaryKey = record id) and returns `{ written, rejected }`; fix each rejected row using its `problem` text and retry just those rows. Never include computed fields in a row you write. " +
   'To update a few fields of an existing record, use `mode: "merge"` with a partial row ({ id, <changed fields> }) — the default upsert replaces the WHOLE record, so a partial upsert would silently erase every optional field it omits. ' +
+  "`deleteItems` removes records by id and returns `{ deleted, rejected }`; an id that doesn't exist comes back rejected rather than counted as deleted, so check `rejected` before reporting a deletion as done. " +
   "Answer aggregation questions (counts, sums, averages, group-bys) with `queryItems` on ANY collection — on a dataSource (CSV) collection it scans the whole file (getItems is row-capped, so aggregates computed from its output can be silently wrong on large files); on a file-backed collection it aggregates the enriched records, so computed fields (derived/rollup/toggle) are queryable columns.";
 
 /** Validate getItems' optional `ids`/`fields` args, then delegate. */
@@ -478,6 +520,23 @@ async function dispatchGetItems(collection: LoadedCollection, args: Record<strin
   const fields = optionalStringArray(args.fields, "fields");
   if (!fields.ok) return fields.error;
   return handleGetItems(collection, { slug: collection.slug, ids: ids.value, fields: fields.value }, deps);
+}
+
+/** Actions that operate on a collection's RECORDS — i.e. the ones that
+ *  need the collection loaded first. Schema/workspace actions don't. */
+const RECORD_ACTIONS = new Set(["getItems", "putItems", "deleteItems", "queryItems"]);
+
+/** Record-action dispatch, split from `manageCollectionHandler` to keep
+ *  both within the cognitive-complexity budget. */
+async function dispatchRecordAction(action: string, collection: LoadedCollection, args: Record<string, unknown>, deps: ManageCollectionDeps): Promise<string> {
+  if (action === "getItems") return dispatchGetItems(collection, args, deps);
+  if (action === "queryItems") return handleQueryItems(collection, args.query, deps);
+  if (action === "deleteItems") {
+    const ids = parseDeleteIds(args);
+    return typeof ids === "string" ? ids : handleDeleteItems(collection, ids, deps);
+  }
+  const parsed = parsePutItems(args, collection.slug);
+  return typeof parsed === "string" ? parsed : handlePutItems(collection, parsed, deps);
 }
 
 // The tool's action dispatch. Extracted from the factory's returned object so
@@ -491,16 +550,12 @@ async function manageCollectionHandler(deps: ManageCollectionDeps, args: Record<
   if (!slug) return "manageCollection: `slug` is required (the collection's slug).";
   if (action === "getSchema") return handleGetSchema(slug, deps);
   if (action === "putSchema") return handlePutSchema(slug, args.schema, deps);
-  if (action !== "getItems" && action !== "putItems" && action !== "queryItems") {
-    return 'manageCollection: `action` must be "getItems", "putItems", "queryItems", "getOntology", "schemaDocs", "getSchema", or "putSchema".';
+  if (!RECORD_ACTIONS.has(action)) {
+    return 'manageCollection: `action` must be "getItems", "putItems", "deleteItems", "queryItems", "getOntology", "schemaDocs", "getSchema", or "putSchema".';
   }
   const collection = await loadCollection(slug, deps);
   if (!collection) return unknownCollection(slug);
-  if (action === "getItems") return dispatchGetItems(collection, args, deps);
-  if (action === "queryItems") return handleQueryItems(collection, args.query, deps);
-  const parsed = parsePutItems(args, slug);
-  if (typeof parsed === "string") return parsed;
-  return handlePutItems(collection, parsed, deps);
+  return dispatchRecordAction(action, collection, args, deps);
 }
 
 // Static tool definition, hoisted out of the factory so the function body
@@ -508,13 +563,13 @@ async function manageCollectionHandler(deps: ManageCollectionDeps, args: Record<
 const MANAGE_COLLECTION_DEFINITION = {
   name: "manageCollection",
   description:
-    "Read and write a schema-driven collection through the host — both its records and its structure. getItems returns records WITH computed values (derived formulas, toggles, embeds) the stored JSON files don't contain; putItems validates each row against the schema before writing. getOntology maps the whole workspace: every collection with its record count and outbound ref/embed relations — call it first for cross-collection questions. schemaDocs returns the collection-authoring reference; getSchema/putSchema read and validate-then-write the collection's schema.json. Prefer it over raw file I/O on collections.",
+    "Read and write a schema-driven collection through the host — both its records and its structure. getItems returns records WITH computed values (derived formulas, toggles, embeds) the stored JSON files don't contain; putItems validates each row against the schema before writing; deleteItems removes records by id. getOntology maps the whole workspace: every collection with its record count and outbound ref/embed relations — call it first for cross-collection questions. schemaDocs returns the collection-authoring reference; getSchema/putSchema read and validate-then-write the collection's schema.json. Prefer it over raw file I/O on collections.",
   inputSchema: {
     type: "object",
     properties: {
       action: {
         type: "string",
-        enum: ["getItems", "putItems", "queryItems", "getOntology", "schemaDocs", "getSchema", "putSchema"],
+        enum: ["getItems", "putItems", "deleteItems", "queryItems", "getOntology", "schemaDocs", "getSchema", "putSchema"],
         description: "What to do.",
       },
       slug: {
@@ -524,7 +579,8 @@ const MANAGE_COLLECTION_DEFINITION = {
       ids: {
         type: "array",
         items: { type: "string" },
-        description: "getItems: only these record ids (primary-key values). Omit for all records.",
+        description:
+          "getItems: only these record ids (primary-key values); omit for all records. deleteItems: the record ids to delete — required, and never optional there.",
       },
       fields: {
         type: "array",

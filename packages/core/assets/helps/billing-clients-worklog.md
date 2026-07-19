@@ -114,8 +114,9 @@ one-line confirmation ("Added Acme Corp.") is enough.
 **Update**: `putItems` with `mode: "merge"` and a partial row
 (`{ id, <changed fields> }`) — the default upsert replaces the whole record.
 
-**Delete**: confirm once if the request is ambiguous, then remove the file
-(`manageCollection` has no delete).
+**Delete**: confirm once if the request is ambiguous, then `deleteItems` with
+`ids`. Check `rejected` in the result — an id that didn't exist is reported
+there, not as deleted.
 
 ## Linking to a client in chat
 Link to the collection view, not the raw JSON path:

@@ -568,6 +568,31 @@ export default [
       "@typescript-eslint/await-thenable": "error",
       // Same backlog treatment for the sonarjs rules this block wakes.
       ...sonarTypeAwareRulesAsWarn,
+
+      // Three of those woken rules are off entirely rather than warned. Each
+      // was checked against all of its findings in this repo, and none of them
+      // pointed at a bug — the first would have introduced one.
+      //
+      // `no-alphabetical-sort` wants `localeCompare` on every bare `.sort()`.
+      // Its real target is `[10, 9, 1].sort()` returning `[1, 10, 9]`; this
+      // repo has no numeric sort like that. What it flags instead is sorting
+      // that must stay locale-INDEPENDENT: the Twilio request signature
+      // (`Object.keys(params).sort()`, where the server recomputes the same
+      // order to verify), frontmatter keys, record ids, ISO-dated filenames.
+      // `localeCompare` varies with ICU data and locale, so following the rule
+      // makes those non-deterministic — a broken signature, not a fixed sort.
+      "sonarjs/no-alphabetical-sort": "off",
+      // `prefer-regexp-exec` prefers `re.exec(str)` over `str.match(re)` for a
+      // marginal speed win on non-global patterns. It inverts subject and
+      // pattern at every call site — `url.match(/status\/(\d+)/)` reads as "does
+      // this url match", `/status\/(\d+)/.exec(url)` reads pattern-first — for
+      // no correctness difference.
+      "sonarjs/prefer-regexp-exec": "off",
+      // `no-misleading-array-reverse` catches in-place `.sort()`/`.reverse()` on
+      // an array someone else still holds. Every finding here mutates an array
+      // the same function just built (`picked`, `removed`, `missing`) or a fresh
+      // `readdir` result — nothing is shared, so there is no one to surprise.
+      "sonarjs/no-misleading-array-reverse": "off",
     },
   },
   eslintConfigPrettier,
