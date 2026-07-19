@@ -73,7 +73,7 @@ const frMessages: CollectionMessages = {
     searchSummary: "Affichage de {shown} sur {total}",
     noMatchingItems: "Aucun élément correspondant",
     clearSearch: "Effacer la recherche",
-    flagFilterGroup: "Filtres par indicateur",
+    flagFilterButton: "Filtres",
     flagFilterAll: "Filtrer par {label}",
     flagFilterHide: "{label} masqué",
     flagFilterOnly: "Uniquement {label}",

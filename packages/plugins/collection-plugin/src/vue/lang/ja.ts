@@ -71,7 +71,7 @@ const jaMessages: CollectionMessages = {
     searchSummary: "{total} 件中 {shown} 件を表示",
     noMatchingItems: "一致する項目がありません",
     clearSearch: "検索をクリア",
-    flagFilterGroup: "フラグで絞り込み",
+    flagFilterButton: "絞り込み",
     flagFilterAll: "{label} で絞り込む",
     flagFilterHide: "{label} を非表示中",
     flagFilterOnly: "{label} のみ表示中",
