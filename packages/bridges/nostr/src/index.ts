@@ -107,7 +107,7 @@ async function sendDm(recipientPubkey: string, text: string): Promise<void> {
   const chunks = chunkText(text, MAX_DM_LEN);
   for (const chunk of chunks) {
     try {
-      const ciphertext = await nip04.encrypt(privateKeyBytes, recipientPubkey, chunk);
+      const ciphertext = nip04.encrypt(privateKeyBytes, recipientPubkey, chunk);
       const signed = finalizeEvent(
         {
           kind: KIND_ENCRYPTED_DM,
@@ -163,7 +163,7 @@ async function handleEvent(evt: Event): Promise<void> {
 
   let plaintext: string;
   try {
-    plaintext = await nip04.decrypt(privateKeyBytes, evt.pubkey, evt.content);
+    plaintext = nip04.decrypt(privateKeyBytes, evt.pubkey, evt.content);
   } catch (err) {
     console.warn(`[nostr] decrypt failed from=${senderPubkey.slice(0, 12)}…: ${err}`);
     return;

@@ -72,7 +72,7 @@ const deMessages: CollectionMessages = {
     searchSummary: "{shown} von {total} werden angezeigt",
     noMatchingItems: "Keine passenden Einträge",
     clearSearch: "Suche zurücksetzen",
-    flagFilterGroup: "Flag-Filter",
+    flagFilterButton: "Filter",
     flagFilterAll: "Nach {label} filtern",
     flagFilterHide: "{label} ausgeblendet",
     flagFilterOnly: "Nur {label}",

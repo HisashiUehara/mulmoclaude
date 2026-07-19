@@ -269,7 +269,13 @@ export function createTaskManager(options?: TaskManagerOptions): ITaskManager {
 
     start() {
       if (timer) return;
-      timer = setInterval(onTick, tickMs);
+      // `onTick` guards re-entry but not failure — it has a `finally`, no
+      // `catch` — so handing it straight to setInterval let a rejected tick
+      // escape as an unhandled rejection, which the host turns into a process
+      // exit. The scheduler must outlive one bad tick.
+      timer = setInterval(() => {
+        onTick().catch((err: unknown) => log.error("tick failed", { error: String(err) }));
+      }, tickMs);
       log.info("started", { tickMs });
     },
 

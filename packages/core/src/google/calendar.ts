@@ -1,7 +1,7 @@
 // Google Calendar v3 REST calls. Events read/write against any calendar the
 // user can access (default: their primary); the calendar list and colour
 // palette let callers show non-primary calendars and their colours.
-import { asRecord, googleApiError, googleRequest, itemsOf, stringField, DEFAULT_LIST_MAX_RESULTS } from "./apiClient.js";
+import { asRecord, googleApiError, googleRequest, isGoogleApiError, itemsOf, stringField, DEFAULT_LIST_MAX_RESULTS } from "./apiClient.js";
 import { isRecord } from "./util.js";
 
 const CALENDAR_BASE_URL = "https://www.googleapis.com/calendar/v3";
@@ -12,10 +12,21 @@ const DEFAULT_CALENDAR_ID = "primary";
 // runaway guard — 250 * 40 = 10k calendars, far beyond any real account.
 const CALENDAR_LIST_PAGE_SIZE = 250;
 const MAX_CALENDAR_LIST_PAGES = 40;
+// Events.list caps maxResults at 2500. The page cap is a runaway guard —
+// 2500 * 200 = 500k events, far beyond any real calendar's history.
+const EVENT_SYNC_PAGE_SIZE = 2500;
+const MAX_EVENT_SYNC_PAGES = 200;
+// An expired/invalidated calendar syncToken.
+const HTTP_GONE = 410;
 
-// `||` (not `??`) so an empty-string calendarId also falls back to primary
-// instead of building a malformed `/calendars//events` URL.
-const eventsUrl = (calendarId: string | undefined): string => `${CALENDAR_BASE_URL}/calendars/${encodeURIComponent(calendarId || DEFAULT_CALENDAR_ID)}/events`;
+/** Resolve a declared calendarId to the one the API and the sync-token store
+ *  both address. `||` (not `??`) so an empty string also falls back instead of
+ *  building a malformed `/calendars//events` URL. Single-sourced because an
+ *  omitted id and an explicit "primary" MUST agree everywhere — grouping them
+ *  apart while they share a sync token silently loses events (#2184). */
+export const canonicalCalendarId = (calendarId: string | undefined): string => calendarId || DEFAULT_CALENDAR_ID;
+
+const eventsUrl = (calendarId: string | undefined): string => `${CALENDAR_BASE_URL}/calendars/${encodeURIComponent(canonicalCalendarId(calendarId))}/events`;
 
 export interface CalendarEventInput {
   summary: string;
@@ -139,6 +150,76 @@ export async function listCalendarEvents(accessToken: string, input: ListEventsI
   });
   const listed = await googleRequest(CALENDAR_API_LABEL, accessToken, `${eventsUrl(input.calendarId)}?${params.toString()}`);
   return itemsOf(listed).map(toEventSummary);
+}
+
+export interface SyncEventsInput {
+  /** Calendar to sync; defaults to the user's primary. */
+  calendarId?: string;
+  /** Token from the previous sync. Omit for a full sync. */
+  syncToken?: string;
+  /** Page size for the underlying list calls. */
+  maxResults?: number;
+}
+
+export interface CalendarSyncResult {
+  /** Changed events since `syncToken` (all of them on a full sync). Deletions
+   *  arrive here too, as `status: "cancelled"`. */
+  events: CalendarEventSummary[];
+  /** Token to pass to the NEXT sync. Absent only if Google omitted it. */
+  nextSyncToken?: string;
+  /** The stored token had expired (410) — the caller must drop it and re-sync
+   *  from scratch; no events are returned in that case. */
+  fullResyncRequired: boolean;
+}
+
+// Sentinel for "the syncToken expired" so the page loop can bail without
+// throwing — 410 is an expected, recoverable state, not a failure.
+const GONE = Symbol("calendar-sync-gone");
+
+async function fetchSyncPage(accessToken: string, calendarId: string | undefined, params: URLSearchParams): Promise<unknown> {
+  try {
+    return await googleRequest(CALENDAR_API_LABEL, accessToken, `${eventsUrl(calendarId)}?${params.toString()}`);
+  } catch (err: unknown) {
+    if (isGoogleApiError(err) && err.status === HTTP_GONE) return GONE;
+    throw err;
+  }
+}
+
+/** Incremental sync over the events of one calendar (#2095).
+ *
+ *  Deliberately separate from `listCalendarEvents`: Google forbids combining
+ *  `syncToken` with `timeMin` / `timeMax` / `updatedMin` / `orderBy` / `q`,
+ *  and that function always sends `timeMin` + `orderBy`. So this one sends
+ *  neither — a sync covers the WHOLE calendar and the caller sorts / windows
+ *  client-side. `showDeleted` must stay true or deletions would be invisible.
+ *
+ *  `nextSyncToken` is only present on the LAST page, so every page must be
+ *  walked before the token is worth storing. */
+export async function syncCalendarEvents(accessToken: string, input: SyncEventsInput = {}): Promise<CalendarSyncResult> {
+  const events: CalendarEventSummary[] = [];
+  let pageToken: string | undefined;
+  let nextSyncToken: string | undefined;
+
+  for (let page = 0; page < MAX_EVENT_SYNC_PAGES; page += 1) {
+    const params = new URLSearchParams({
+      singleEvents: "true",
+      showDeleted: "true",
+      maxResults: String(input.maxResults ?? EVENT_SYNC_PAGE_SIZE),
+    });
+    if (input.syncToken) params.set("syncToken", input.syncToken);
+    if (pageToken) params.set("pageToken", pageToken);
+
+    const payload = await fetchSyncPage(accessToken, input.calendarId, params);
+    if (payload === GONE) return { events: [], fullResyncRequired: true };
+
+    const record = asRecord(payload);
+    events.push(...itemsOf(payload).map(toEventSummary));
+    nextSyncToken = stringField(record, "nextSyncToken") || undefined;
+    pageToken = stringField(record, "nextPageToken") || undefined;
+    if (!pageToken) break;
+  }
+
+  return { events, nextSyncToken, fullResyncRequired: false };
 }
 
 export interface CalendarListPage {

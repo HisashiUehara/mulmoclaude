@@ -32,7 +32,9 @@ export function useChatScroll<T extends { focus: () => void }>(opts: {
 
   function scrollChatToBottom(options: { force?: boolean } = {}): void {
     if (!options.force && !stuck.value) return;
-    nextTick(() => {
+    // Scrolling after the DOM settles is the whole point; callers are sync and
+    // have nothing to do with the tick's completion.
+    void nextTick(() => {
       if (chatListRef.value) {
         chatListRef.value.scrollTop = chatListRef.value.scrollHeight;
       }
@@ -49,7 +51,7 @@ export function useChatScroll<T extends { focus: () => void }>(opts: {
       resume();
       scrollChatToBottom({ force: true });
     } else {
-      nextTick(() => focusChatInput());
+      void nextTick(() => focusChatInput());
     }
   });
 

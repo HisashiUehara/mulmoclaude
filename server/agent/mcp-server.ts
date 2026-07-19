@@ -628,7 +628,15 @@ process.stdin.on("data", (chunk: Buffer) => {
 // and setting `exitCode` (instead of calling `exit`) lets the event loop
 // drain the rest of the I/O before the process leaves naturally.
 process.stdin.on("end", () => {
-  runtimeReady.finally(() => {
-    process.exitCode = 0;
-  });
+  // Terminal `.catch` rather than a bare `void` — the promise has to be
+  // settled here. The exit code deliberately stays 0 on both paths: a runtime
+  // that failed to load is already reported on stderr and degrades to static
+  // tools rather than aborting this child, and that tolerance is exactly what
+  // keeps a host whose plugin junctions don't resolve (Windows + Docker,
+  // #1946 / #2052) usable instead of surfacing a crashed MCP server.
+  runtimeReady
+    .finally(() => {
+      process.exitCode = 0;
+    })
+    .catch(() => {});
 });
