@@ -128,6 +128,7 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import { View as TextResponseOriginalView } from "../plugins/textResponse/index";
 import { handleExternalLinkClick } from "../utils/dom/externalLink";
 import { clampIframeHeight } from "../utils/dom/iframeHeightClamp";
+import { isNearBottom } from "../utils/dom/scrollable";
 import type { TextResponseData } from "../plugins/textResponse/types";
 import { formatSmartTime } from "../utils/format/date";
 import { isRecord } from "../utils/types";
@@ -231,6 +232,9 @@ const emit = defineEmits<{
 }>();
 
 const containerRef = ref<HTMLDivElement | null>(null);
+// Auto-follow gate: true while the reader is at the bottom. Updated from the
+// container's scroll handler (#2179).
+const stickToBottom = ref(true);
 const itemRefs = new Map<string, HTMLElement>();
 const naturalWrapperRefs = new Map<string, HTMLElement>();
 
@@ -444,6 +448,10 @@ function computeActiveUuidFromScroll(): string | null {
 }
 
 function onContainerScroll(): void {
+  // Ahead of the suppress guard on purpose: following must track where the
+  // view actually ended up, including after a programmatic jump to a card
+  // (that reader wants to stay on the card, not be dragged to the bottom).
+  if (containerRef.value) stickToBottom.value = isNearBottom(containerRef.value);
   if (suppressScrollSync) return;
   if (scrollSpyRafId !== null) return;
   scrollSpyRafId = requestAnimationFrame(() => {
@@ -490,7 +498,9 @@ const latestResultScrollKey = computed(() => {
 
 watch(latestResultScrollKey, () => {
   nextTick(() => {
-    if (containerRef.value) {
+    // Streaming fires this on every chunk — only follow while the reader is
+    // still parked at the bottom, so scrolling up to read stays put (#2179).
+    if (containerRef.value && stickToBottom.value) {
       beginSuppressScrollSync();
       const newest = props.toolResults[props.toolResults.length - 1];
       const target = resolveLatestScrollTarget(displayItems.value, newest, (result) => result.uuid);
