@@ -10,6 +10,29 @@ import vuePlugin from "eslint-plugin-vue";
 import vueParser from "vue-eslint-parser";
 import vueI18n from "@intlify/eslint-plugin-vue-i18n";
 
+// sonarjs ships type-aware rules of its own. They sit dormant without a
+// TypeScript program, so enabling `projectService` below wakes them — at the
+// `error` severity sonarjs's preset sets, on code they had never linted before.
+//
+// Derived from the plugin's own `requiresTypeChecking` metadata rather than a
+// hand-listed set, so a sonarjs upgrade that adds type-aware rules can't
+// silently start failing CI. Intersected with what `recommended` actually turns
+// on: 14 of the 70 type-aware rules are `off` there, and naming them here would
+// ENABLE them rather than downgrade them (`strings-comparison` alone adds 32
+// findings that way). This set is exactly what `projectService` wakes — every
+// rule in it is dormant today, so it weakens no gate that currently runs.
+const sonarRecommendedRules = sonarjs.configs.recommended?.rules ?? {};
+const isEnabled = (level) => {
+  const severity = Array.isArray(level) ? level[0] : level;
+  return severity !== undefined && severity !== "off" && severity !== 0;
+};
+
+const sonarTypeAwareRulesAsWarn = Object.fromEntries(
+  Object.entries(sonarjs.rules ?? {})
+    .filter(([name, rule]) => rule?.meta?.docs?.requiresTypeChecking && isEnabled(sonarRecommendedRules[`sonarjs/${name}`]))
+    .map(([name]) => [`sonarjs/${name}`, "warn"]),
+);
+
 export default [
   {
     files: ["{src,test}/**/*.{js,ts,yaml,yml,vue}", "assets/html/js/**/*.js"],
@@ -469,6 +492,49 @@ export default [
           ],
         },
       ],
+    },
+  },
+  // Type-aware pass. `projectService` builds the TypeScript program so rules can
+  // reason about real types; that program is the whole cost (measured: five
+  // rules cost the same as all 44), and it runs the full scope in ~26s over the
+  // untyped pass.
+  //
+  // Only rules that earn that cost are on. The rest of `strictTypeChecked` was
+  // measured across the repo and is dominated by style — `restrict-template-
+  // expressions` alone accounts for 439 of its 1213 findings — which would bury
+  // the two things type information is actually needed for here:
+  //
+  //   1. the `any` that `no-explicit-any` structurally cannot see (values from
+  //      untyped libraries, `JSON.parse()`, `as unknown as T` double casts)
+  //   2. mistakes no syntactic rule can catch at all (a dropped `await`, an
+  //      async callback handed to a sync-only API, an object stringified into
+  //      "[object Object]")
+  //
+  // Scoped to source: tests / e2e stay on the untyped pass to keep the program
+  // small. Everything is `warn` per docs/lint-policy.md — a backlog to drain,
+  // not a gate — so this can never fail CI on its own.
+  {
+    files: ["server/**/*.ts", "src/**/*.ts", "packages/**/src/**/*.ts"],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
+    rules: {
+      // (1) `any` that survives no-explicit-any.
+      "@typescript-eslint/no-unsafe-assignment": "warn",
+      "@typescript-eslint/no-unsafe-member-access": "warn",
+      "@typescript-eslint/no-unsafe-argument": "warn",
+      "@typescript-eslint/no-unsafe-call": "warn",
+      "@typescript-eslint/no-unsafe-return": "warn",
+      // Zero findings today — on to keep it that way.
+      "@typescript-eslint/no-unsafe-enum-comparison": "warn",
+      "@typescript-eslint/no-unsafe-declaration-merging": "warn",
+      // (2) Bugs only the type checker can see.
+      "@typescript-eslint/no-base-to-string": "warn",
+      "@typescript-eslint/no-floating-promises": "warn",
+      "@typescript-eslint/no-misused-promises": "warn",
+      "@typescript-eslint/await-thenable": "warn",
+      // Same backlog treatment for the sonarjs rules this block wakes.
+      ...sonarTypeAwareRulesAsWarn,
     },
   },
   eslintConfigPrettier,
