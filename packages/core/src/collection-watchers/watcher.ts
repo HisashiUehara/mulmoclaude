@@ -455,11 +455,15 @@ async function onEvent(slug: string, filename: string | Buffer | null): Promise<
     // which record changed. `reconcileAllItems` covers items whose file
     // still exists; pair it with a sweep so any record deleted inside the
     // same opaque event has its stale bell entry cleared too.
-    await reconcileAllItems(slug, collection.schema, collection.dataDir, discoveryOpts);
-    await sweepStaleActiveEntries(discoveryOpts);
-    // No id and no op: subscribers refetch the whole collection anyway,
-    // and guessing either one here would be a lie.
-    safePublish({ slug });
+    try {
+      await reconcileAllItems(slug, collection.schema, collection.dataDir, discoveryOpts);
+      await sweepStaleActiveEntries(discoveryOpts);
+    } finally {
+      // In `finally` for the same reason as the per-item path: a failed
+      // reconcile still means a file changed. No id and no op — subscribers
+      // refetch the whole collection anyway, and guessing either would lie.
+      safePublish({ slug });
+    }
     return;
   }
   const name = typeof filename === "string" ? filename : filename.toString("utf-8");

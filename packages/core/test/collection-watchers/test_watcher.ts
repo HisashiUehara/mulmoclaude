@@ -8,7 +8,7 @@
 // burst into one publish.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -17,6 +17,7 @@ import { configureNotifier, setNotifierFilePaths } from "../../src/notifier/inde
 import { configureCollectionWatchers, _scheduleItemReconcileForTesting, type CollectionNotificationAdapter } from "../../src/collection-watchers/index.ts";
 
 const root = mkdtempSync(path.join(tmpdir(), "cw-pub-"));
+test.after(() => rmSync(root, { recursive: true, force: true }));
 const noopLog = { error: () => {}, warn: () => {}, info: () => {}, debug: () => {} };
 
 configureCollectionHost({
@@ -57,7 +58,6 @@ setCollectionChangePublisher((payload) => published.push(payload));
 
 function freshDataDir(records: Record<string, unknown>[]): string {
   const dir = mkdtempSync(path.join(root, "coll-"));
-  mkdirSync(dir, { recursive: true });
   for (const rec of records) writeFileSync(path.join(dir, `${rec.id as string}.json`), JSON.stringify(rec));
   const notifDir = mkdtempSync(path.join(root, "notif-"));
   setNotifierFilePaths({ active: path.join(notifDir, "active.json"), history: path.join(notifDir, "history.json") });
