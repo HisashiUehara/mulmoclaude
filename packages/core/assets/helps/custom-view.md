@@ -106,9 +106,9 @@ toggles, embeds) — the same numbers the user sees elsewhere.
 A view can run structured aggregations over the collection — on a
 `dataSource` (CSV) collection this scans the WHOLE file (the record read
 above is row-capped at 5,000 there, so an aggregate computed from it would
-be silently wrong); on a file-backed collection it aggregates the ENRICHED
-records, so computed fields (`derived` / `rollup` / `toggle`) are queryable
-columns:
+be silently wrong); on any other collection (file-backed or sqlite
+`storage`) it aggregates the ENRICHED records, so computed fields
+(`derived` / `rollup` / `toggle`) are queryable columns:
 
 ```js
 const res = await fetch(dataUrl + "/query", {

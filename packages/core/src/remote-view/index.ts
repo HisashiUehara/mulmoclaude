@@ -7,6 +7,20 @@
 // desktop custom view (token + fetch to the view-data route) — its records
 // arrive over an async postMessage bridge owned by the parent page, and its
 // CSP locks `connect-src` to 'none' entirely.
+//
+// BACKWARD COMPATIBILITY — this bridge is a frozen public contract. Remote
+// views are LLM-authored HTML files persisted in users' workspaces
+// (`data/skills/*/views/*.html`), written against
+// `packages/core/assets/helps/custom-view-remote.md`; they cannot be
+// migrated centrally and must keep working across host upgrades and any
+// storage-virtualization work underneath. Evolve only by backward-compatible
+// supersets, the way protocol v2 added the mutate pair: bump
+// `REMOTE_VIEW_PROTOCOL`, add new message types / optional fields — never
+// repurpose an existing message type, change the `getItems` page shape
+// (`{ items, total, offset, limit }`), or tighten limits a shipped view may
+// already rely on.
+
+import { projectRecordFields } from "../collection/core/project";
 
 /** Bump when the bootstrap/message contract changes shape; the bootstrap
  *  exposes it as `__MC_VIEW.protocol` so a parent can refuse a stale view.
@@ -128,11 +142,12 @@ export interface RemoteViewPageRequest {
 /** Keep only `fields` (+ always the primary key) on each record. Parents apply
  *  this uniformly — the desktop preview via `pageFromItems`, the phone parent
  *  over the page it fetched through the channel — so a view sees the same
- *  projection everywhere. No-op without `fields`. */
+ *  projection everywhere. No-op without `fields`; an EMPTY `fields` array is
+ *  also a no-op here (frozen bridge behavior — the shared helper would
+ *  project down to the primary key alone). */
 export function projectItems(items: RemoteViewItem[], fields: string[] | undefined, primaryKey: string): RemoteViewItem[] {
   if (!fields || fields.length === 0) return items;
-  const keep = new Set([primaryKey, ...fields]);
-  return items.map((item) => Object.fromEntries(Object.entries(item).filter(([key]) => keep.has(key))));
+  return projectRecordFields(items, fields, primaryKey);
 }
 
 /** Answer a page request from an already-loaded record array (the desktop

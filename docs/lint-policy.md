@@ -29,3 +29,7 @@ Every `v-html` in this repo (NewsView, markdown/View, spreadsheet/View, textResp
 ## Multi-line elements need the wrapping form
 
 `eslint-disable-next-line` only reaches one line. Use a `<!-- eslint-disable <rule> -->` … `<!-- eslint-enable <rule> -->` pair around the element instead.
+
+## Raw collection io functions are import-restricted
+
+`no-restricted-imports` blocks `listItems` / `readItem` / `writeItem` / `deleteItem` from `@mulmoclaude/core/collection/server` in host + plugin code: records are accessed through `storeFor(collection)` — `.list()`/`.page()`/`.read()` to read, `.write()`/`.delete()` to mutate (present only on writable stores; absence is the read-only refusal) — so storage backends can't be bypassed (plans/refactor-storage-virtualization.md). Don't suppress it — if a call site seems to need the raw io function, the store interface is missing a capability; extend it instead.

@@ -31,6 +31,7 @@ import type {
   FieldSpecZ,
   IngestZ,
   SpawnZ,
+  StorageZ,
   SubFieldSpecZ,
   WhenZ,
 } from "./schemaZ";
@@ -209,6 +210,24 @@ export type CollectionIngestSpec = z.infer<typeof IngestZ>;
 /** The `dataSource` block: this collection's records are the rows of an
  *  external read-only data file (v1: CSV). See `DataSourceZ`. */
 export type CollectionDataSource = z.infer<typeof DataSourceZ>;
+
+/** The `storage` block: an alternative WRITABLE record backend (v1:
+ *  sqlite). See `StorageZ`. */
+export type CollectionStorage = z.infer<typeof StorageZ>;
+
+/** Every storage backend a schema can select. `file` is the implicit
+ *  default (`dataPath`); `csv` is implied by `dataSource`; other kinds are
+ *  named explicitly via `storage.type`. The server's store factory registry
+ *  (`server/store.ts`) is keyed by this. */
+export type CollectionStorageKind = "file" | "csv" | "sqlite";
+
+/** Which storage backend serves this schema's records. Derived, not stored:
+ *  existing schemas carry no `storage` key and must keep resolving exactly
+ *  as before (`dataSource` ⇒ csv, else file). */
+export function storageKindFor(schema: Pick<CollectionSchema, "dataSource" | "storage">): CollectionStorageKind {
+  if (schema.dataSource !== undefined) return "csv";
+  return schema.storage?.type ?? "file";
+}
 
 /** The whole `schema.json` contract. Key-level docs live on
  *  `CollectionSchemaZ` in `./schemaZ`. */

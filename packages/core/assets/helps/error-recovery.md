@@ -213,6 +213,36 @@ Related, not an error: a dataSource CSV in Shift_JIS / UTF-16 is decoded
 automatically to a cache copy under the OS temp dir — never "fix" the
 user's file by re-encoding it.
 
+## storage (sqlite) collection fails — "sqlite storage needs the node:sqlite module"
+
+A collection whose schema declares `storage: { type: "sqlite", path: … }`
+keeps its records in a single SQLite database file, read/written through
+Node's BUILT-IN `node:sqlite` module — no npm dependency. That module
+exists only in **Node.js >= 22.5**, while the app itself runs on >= 20.12,
+so on an older runtime ONLY sqlite-backed collections break (file and
+dataSource collections keep working) and every operation fails with
+`sqlite storage needs the node:sqlite module (Node.js >= 22.5) — this
+runtime cannot load it`.
+
+Diagnosis + fixes, in order:
+
+1. **Check the Node version** — `node --version`. Below 22.5 there is no
+   local fix except upgrading Node; tell the user which version they run
+   and that their other collections are unaffected.
+2. **`ExperimentalWarning: SQLite is an experimental feature`** printed
+   once on first use is EXPECTED on Node 22.x — it is a warning, not an
+   error; do not chase it.
+3. **Do not "repair" by converting the collection to `dataPath`** unless
+   the user asks — the records live inside the `.db` file, not as
+   `<id>.json` files; a schema flip alone would make the collection look
+   empty, not migrate it.
+
+Known v1 limits of sqlite storage (by design, not bugs to fix in place):
+`spawn`, `completionField`, and `triggerField` are schema-rejected (those
+paths still read record files), the record Repair/validation pass sees no
+records (it scans record files), and deleting the collection archives the
+skill + phantom data dir but leaves the `.db` file in place.
+
 ## Fallback
 
 If none of the above matches the failing tool output:
