@@ -19,6 +19,7 @@ import type { GOOGLE_CALENDAR_SOURCE_FIELDS } from "../collection/core/schemaZ.j
 import { getGoogleAccessToken } from "./auth.js";
 import { canonicalCalendarId, syncCalendarEvents, type CalendarEventSummary } from "./calendar.js";
 import { clearCalendarSyncToken, loadCalendarSyncToken, saveCalendarSyncToken } from "./calendarSyncStore.js";
+import { loadGoogleTokens } from "./tokenStore.js";
 import { log } from "./host.js";
 
 export const GOOGLE_CALENDAR_SYNC_TASK_ID = "system:google-calendar-sync";
@@ -161,6 +162,12 @@ async function applyEventsToCollection(
   };
 }
 
+/** A refresh token is what lets the scheduler run unattended; without one
+ *  there is nothing to sync with. */
+async function isGoogleLinked(): Promise<boolean> {
+  return Boolean((await loadGoogleTokens())?.refresh_token);
+}
+
 /** Group the declaring collections by the calendar they read, so each calendar
  *  is fetched exactly once.
  *
@@ -184,6 +191,14 @@ export function groupByCalendar(collections: readonly LoadedCollection[]): Map<s
 export async function syncDueCalendarCollections(workspaceRoot: string): Promise<CalendarCollectionSyncResult[]> {
   const all = await discoverCollections({ workspaceRoot });
   const declaring = all.filter((collection) => collection.schema.googleCalendar);
+  if (declaring.length === 0) return [];
+  // Authoring the collection before linking the account is an expected state,
+  // not a failure. Checking once here keeps it a quiet skip instead of an
+  // access-token throw per calendar, every hour, until the user links (#2188).
+  if (!(await isGoogleLinked())) {
+    log.info("google", "skipping calendar sync — no Google account linked on this host", { collections: declaring.length });
+    return [];
+  }
   const results: CalendarCollectionSyncResult[] = [];
   for (const [calendarId, collections] of groupByCalendar(declaring)) {
     try {

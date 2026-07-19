@@ -64,6 +64,17 @@ describe("collection schema — googleCalendar block (#2095)", () => {
     assert.equal(withSync({ calendarId: "   ", map: { title: "summary" } }).success, false);
   });
 
+  // An empty map is silently useless rather than harmless: the sync writes a
+  // record per event carrying only the event id, so the user sees empty rows
+  // and no error anywhere (#2188).
+  it("rejects an empty map", () => {
+    assert.equal(withSync({ map: {} }).success, false);
+  });
+
+  it("rejects a missing map outright", () => {
+    assert.equal(withSync({ calendarId: "primary" }).success, false);
+  });
+
   it("rejects the block on a read-only dataSource collection", () => {
     const parsed = CollectionSchemaZ.safeParse({
       title: "CSV backed",
