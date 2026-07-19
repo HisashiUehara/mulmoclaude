@@ -277,4 +277,30 @@ describe("storage (sqlite) collection reconciliation", () => {
     legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
     assert.ok(!legacyIds.includes(`collection-completion:${DB_SLUG}:a`), "bell must clear once the record is done");
   });
+
+  it("clears the bell when a pending sqlite record is DELETED (stale sweep)", async () => {
+    writeDbSchema();
+    await startCollectionWatchers({
+      discoveryOpts: { workspaceRoot: workdir, userSkillsDir: userDir },
+      rediscoveryIntervalMs: null,
+      triggerTickIntervalMs: null,
+    });
+    const collection = await loadCollection(DB_SLUG, { workspaceRoot: workdir, userSkillsDir: userDir });
+    assert.ok(collection);
+    const store = storeFor(collection, { workspaceRoot: workdir });
+    assert.ok(store.write && store.delete);
+
+    await store.write("b", { id: "b", read: false });
+    await _scheduleStorageReconcileForTesting(DB_SLUG);
+    let legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
+    assert.ok(legacyIds.includes(`collection-completion:${DB_SLUG}:b`));
+
+    // One db file holds every record — a delete produces no per-item event,
+    // so the full-pass reconcile must pair with the stale sweep (PR #2204
+    // review finding) to clear the removed record's bell.
+    await store.delete("b");
+    await _scheduleStorageReconcileForTesting(DB_SLUG);
+    legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
+    assert.ok(!legacyIds.includes(`collection-completion:${DB_SLUG}:b`), "bell must clear when the record is deleted");
+  });
 });

@@ -22,6 +22,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { log, getWorkspaceRoot, isPresetSlug, skillsStagingDir, archiveDir as archiveRelDir } from "./host";
 import { isContainedInRoot } from "./paths";
+import { checkpointSqliteDatabase } from "./sqliteStore";
 import type { LoadedCollection } from "./discoveredCollection";
 
 export type DeleteCollectionResult =
@@ -119,6 +120,13 @@ function isDataDirSafe(dataDir: string, slug: string, workspaceRoot: string): bo
  *  `dataSource` collection has no record files to copy (its rows live in
  *  the external data file, which the delete never touches). */
 function restoreRecordsStep(schema: LoadedCollection["schema"]): string {
+  if (schema.storage !== undefined) {
+    return `2. Records: copy the archived database file
+   \`${path.basename(schema.storage.path)}\` (next to this document) back to
+   \`${schema.storage.path}\` (workspace-relative, \`cp\`). It holds every
+   record. If \`-wal\`/\`-journal\` sidecar files were archived alongside
+   it, copy them back too.`;
+  }
   if (schema.dataPath === undefined) {
     return `2. Records: nothing to copy. This is a \`dataSource\` collection —
    its records are the rows of \`${schema.dataSource?.path}\`, which the
@@ -158,7 +166,7 @@ ${restoreRecordsStep(schema)}
 
 - slug: \`${slug}\`
 - title: ${schema.title}
-- dataPath: \`${schema.dataPath ?? `(dataSource) ${schema.dataSource?.path}`}\`
+- dataPath: \`${schema.dataPath ?? (schema.storage !== undefined ? `(storage) ${schema.storage.path}` : `(dataSource) ${schema.dataSource?.path}`)}\`
 `;
 }
 
@@ -174,10 +182,21 @@ async function writeArchive(collection: LoadedCollection, archiveDir: string, wo
   }
   // A `storage` collection's records live in its database file (the
   // dataDir is a phantom) — archive it under its own basename so RESTORE
-  // can point `storage.path` back at it. (`dataSourceFile` is deliberately
-  // NOT archived or removed: an external dataSource file is user-owned.)
+  // can point `storage.path` back at it. Checkpoint first so the main file
+  // alone is a complete snapshot (in WAL mode, committed rows can live
+  // only in `<db>-wal`); if the checkpoint fails (older Node, locked db),
+  // archive the sidecars too — either way no committed data is lost.
+  // (`dataSourceFile` is deliberately NOT archived or removed: an external
+  // dataSource file is user-owned.)
   if (collection.storageFile !== undefined && (await pathExists(collection.storageFile))) {
+    const checkpointed = await checkpointSqliteDatabase(collection.storageFile);
     await cp(collection.storageFile, path.join(archiveDir, path.basename(collection.storageFile)));
+    if (!checkpointed) {
+      for (const suffix of ["-wal", "-journal", "-shm"]) {
+        const sidecar = `${collection.storageFile}${suffix}`;
+        if (await pathExists(sidecar)) await cp(sidecar, path.join(archiveDir, path.basename(sidecar)));
+      }
+    }
   }
   await writeFile(path.join(archiveDir, "RESTORE.md"), buildRestoreDoc(collection), "utf-8");
 }

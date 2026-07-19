@@ -380,30 +380,16 @@ async function startStorageWatcher(collection: LoadedCollection): Promise<void> 
 }
 
 function scheduleStorageReconcile(slug: string): Promise<void> {
-  const existing = storageSlots.get(slug);
-  if (existing) {
-    existing.pending = true;
-    return existing.running;
-  }
-  const slot: ReconcileSlot = { running: Promise.resolve(), pending: false };
-  slot.running = (async () => {
-    try {
-      let keepGoing = true;
-      while (keepGoing) {
-        slot.pending = false;
-        const collection = await loadCollection(slug, discoveryOpts);
-        if (collection) {
-          await reconcileAllItems(collection, discoveryOpts);
-          publishCollectionChange({ slug, op: "upsert" });
-        }
-        keepGoing = slot.pending;
-      }
-    } finally {
-      storageSlots.delete(slug);
-    }
-  })();
-  storageSlots.set(slug, slot);
-  return slot.running;
+  return runSingleFlight(storageSlots, slug, async () => {
+    const collection = await loadCollection(slug, discoveryOpts);
+    if (!collection) return;
+    await reconcileAllItems(collection, discoveryOpts);
+    // One db file holds every record, so a DELETED row leaves no per-item
+    // event — sweep the active bell so its entry converges like a
+    // file-backed delete does (same pairing as the unknown-filename path).
+    await sweepStaleActiveEntries(discoveryOpts);
+    publishCollectionChange({ slug, op: "upsert" });
+  });
 }
 
 /** Test-only: drive one storage-collection reconcile pass directly. */
@@ -453,8 +439,17 @@ export function _scheduleItemReconcileForTesting(collection: LoadedCollection, i
 }
 
 function scheduleItemReconcile(collection: LoadedCollection, itemId: string): Promise<void> {
-  const key = `${collection.slug}\x00${itemId}`;
-  const existing = itemSlots.get(key);
+  return runSingleFlight(itemSlots, `${collection.slug}\x00${itemId}`, () => reconcileItem(collection, itemId, discoveryOpts));
+}
+
+/** The shared single-flight loop behind both schedulers. Re-runs `pass`
+ *  while events keep arriving — the trailing re-run captures any state
+ *  change that landed during a prior pass. After each pass we read
+ *  `pending` and zero it before the next iteration, so an event that
+ *  fires *during* the last pass's await still triggers one more pass
+ *  before the slot is freed. */
+function runSingleFlight(slots: Map<string, ReconcileSlot>, key: string, pass: () => Promise<void>): Promise<void> {
+  const existing = slots.get(key);
   if (existing) {
     existing.pending = true;
     return existing.running;
@@ -462,22 +457,17 @@ function scheduleItemReconcile(collection: LoadedCollection, itemId: string): Pr
   const slot: ReconcileSlot = { running: Promise.resolve(), pending: false };
   slot.running = (async () => {
     try {
-      // Re-run while events keep arriving — the trailing re-run captures
-      // any state change that landed during a prior pass. After each pass
-      // we read `pending` and zero it before the next iteration, so an
-      // event that fires *during* the last reconcile's await still
-      // triggers one more pass before the slot is freed.
       let keepGoing = true;
       while (keepGoing) {
         slot.pending = false;
-        await reconcileItem(collection, itemId, discoveryOpts);
+        await pass();
         keepGoing = slot.pending;
       }
     } finally {
-      itemSlots.delete(key);
+      slots.delete(key);
     }
   })();
-  itemSlots.set(key, slot);
+  slots.set(key, slot);
   return slot.running;
 }
 

@@ -653,6 +653,12 @@ export function makeViewActionRateLimiter(max: number, windowMs: number, now: ()
 
 const VIEW_ACTION_RATE_LIMIT_PER_MINUTE = 60;
 const viewActionRateLimit = makeViewActionRateLimiter(VIEW_ACTION_RATE_LIMIT_PER_MINUTE, ONE_MINUTE_MS);
+// Image thumbnails get their own, roomier bucket: a gallery legitimately
+// fetches dozens of images on first paint, so the action budget (60/min)
+// would starve it — while the endpoint still needs a ceiling (each request
+// is a record scan + a thumbnail decode).
+const VIEW_IMAGE_RATE_LIMIT_PER_MINUTE = 300;
+const viewImageRateLimit = makeViewActionRateLimiter(VIEW_IMAGE_RATE_LIMIT_PER_MINUTE, ONE_MINUTE_MS);
 
 router.options(API_ROUTES.collections.viewData, viewDataCors, (_req: Request, res: Response) => {
   res.status(204).end();
@@ -982,6 +988,7 @@ router.options(API_ROUTES.collections.viewDataImage, viewDataCors, (_req: Reques
 router.get(
   API_ROUTES.collections.viewDataImage,
   viewDataCors,
+  viewImageRateLimit,
   viewQueryConcurrency,
   requireViewToken("read"),
   async (req: Request<{ slug: string }>, res: Response) => {
