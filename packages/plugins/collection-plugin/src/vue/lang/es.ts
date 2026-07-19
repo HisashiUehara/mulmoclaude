@@ -72,7 +72,7 @@ const esMessages: CollectionMessages = {
     searchSummary: "Mostrando {shown} de {total}",
     noMatchingItems: "No hay elementos coincidentes",
     clearSearch: "Borrar búsqueda",
-    flagFilterGroup: "Filtros por indicador",
+    flagFilterButton: "Filtros",
     flagFilterAll: "Filtrar por {label}",
     flagFilterHide: "Ocultando {label}",
     flagFilterOnly: "Solo {label}",
