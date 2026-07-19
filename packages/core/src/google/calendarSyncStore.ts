@@ -31,22 +31,38 @@ async function readState(workspaceRoot?: string): Promise<CalendarSyncState> {
   return stored?.tokens ? stored : { tokens: {} };
 }
 
+// One file holds every calendar's token, so an unguarded read-modify-write
+// loses updates: two calendars syncing at once both read the same snapshot and
+// the later write drops the earlier one's token — silently forcing that
+// calendar into a full re-walk next run. Serialising the whole cycle keeps
+// them ordered. Scope is this process, which is where the concurrency comes
+// from (parallel tool calls today, the scheduler fanning out over calendars
+// next). Held in a const wrapper so the tail can advance without a `let`.
+const writeQueue: { tail: Promise<unknown> } = { tail: Promise.resolve() };
+
+async function updateState(mutate: (tokens: Record<string, string>) => Record<string, string>, workspaceRoot?: string): Promise<void> {
+  const run = writeQueue.tail.then(async () => {
+    const state = await readState(workspaceRoot);
+    await writeJsonAtomicWithMode(calendarSyncStatePath(workspaceRoot), { tokens: mutate(state.tokens) }, SYNC_STATE_MODE);
+  });
+  // Swallow on the queue only — the caller still sees the original rejection.
+  writeQueue.tail = run.catch(() => undefined);
+  return await run;
+}
+
 export async function loadCalendarSyncToken(calendarId?: string, workspaceRoot?: string): Promise<string | null> {
   const state = await readState(workspaceRoot);
   return state.tokens[calendarKey(calendarId)] ?? null;
 }
 
 export async function saveCalendarSyncToken(calendarId: string | undefined, syncToken: string, workspaceRoot?: string): Promise<void> {
-  const state = await readState(workspaceRoot);
-  const tokens = { ...state.tokens, [calendarKey(calendarId)]: syncToken };
-  await writeJsonAtomicWithMode(calendarSyncStatePath(workspaceRoot), { tokens }, SYNC_STATE_MODE);
+  const stored = calendarKey(calendarId);
+  await updateState((tokens) => ({ ...tokens, [stored]: syncToken }), workspaceRoot);
 }
 
 /** Drop one calendar's token — used when Google answers 410, so the next run
  *  starts a clean full sync. */
 export async function clearCalendarSyncToken(calendarId?: string, workspaceRoot?: string): Promise<void> {
-  const state = await readState(workspaceRoot);
   const dropped = calendarKey(calendarId);
-  const tokens = Object.fromEntries(Object.entries(state.tokens).filter(([key]) => key !== dropped));
-  await writeJsonAtomicWithMode(calendarSyncStatePath(workspaceRoot), { tokens }, SYNC_STATE_MODE);
+  await updateState((tokens) => Object.fromEntries(Object.entries(tokens).filter(([key]) => key !== dropped)), workspaceRoot);
 }

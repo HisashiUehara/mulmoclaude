@@ -64,4 +64,25 @@ describe("calendar sync-token store (#2095)", () => {
     await clearCalendarSyncToken("never-synced", workspace);
     assert.equal(await loadCalendarSyncToken("never-synced", workspace), null);
   });
+
+  // All calendars share one state file, so an unguarded read-modify-write let
+  // the later save clobber the earlier one's token (CodeRabbit review on
+  // #2182) — silently forcing that calendar into a full re-walk next run.
+  it("does not lose a token when several calendars are saved concurrently", async () => {
+    await Promise.all([
+      saveCalendarSyncToken("a", "tok-a", workspace),
+      saveCalendarSyncToken("b", "tok-b", workspace),
+      saveCalendarSyncToken("c", "tok-c", workspace),
+    ]);
+    assert.equal(await loadCalendarSyncToken("a", workspace), "tok-a");
+    assert.equal(await loadCalendarSyncToken("b", workspace), "tok-b");
+    assert.equal(await loadCalendarSyncToken("c", workspace), "tok-c");
+  });
+
+  it("keeps concurrent save and clear of different calendars independent", async () => {
+    await saveCalendarSyncToken("keep", "tok-keep", workspace);
+    await Promise.all([saveCalendarSyncToken("added", "tok-added", workspace), clearCalendarSyncToken("keep", workspace)]);
+    assert.equal(await loadCalendarSyncToken("keep", workspace), null);
+    assert.equal(await loadCalendarSyncToken("added", workspace), "tok-added");
+  });
 });

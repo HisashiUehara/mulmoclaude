@@ -63,6 +63,10 @@ async function restartFullSync(accessToken: string, calendarId: string | undefin
 
 async function runCalendarSync(calendarId: string | undefined, fullResync: boolean): Promise<unknown> {
   const accessToken = await getGoogleAccessToken();
+  // Drop the token BEFORE rebuilding, not after: if the full sync then fails
+  // mid-way, the next run must still start clean rather than silently resuming
+  // from the stale state the user asked to discard.
+  if (fullResync) await clearCalendarSyncToken(calendarId);
   const storedToken = fullResync ? null : await loadCalendarSyncToken(calendarId);
   const first = await syncCalendarEvents(accessToken, { calendarId, syncToken: storedToken ?? undefined });
   const result = first.fullResyncRequired ? await restartFullSync(accessToken, calendarId) : first;
