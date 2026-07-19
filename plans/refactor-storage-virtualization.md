@@ -1,6 +1,6 @@
 # Collection storage virtualization — Stage 0–1
 
-**Status**: Stages 0–4 done (Stage 1 in REVISED additive form — see
+**Status**: Stages 0–4 + post-merge follow-up done (Stage 1 in REVISED additive form — see
 "Stage 1 revision"; Stage 2–4 notes below)
 **Owner**: TBD
 **Last updated**: 2026-07-19
@@ -243,11 +243,33 @@ point.
   phantom dataDir but leaves the `.db` file; external edits to the db
   don't fire change events (no watcher).
 
+## Post-merge follow-up (PR #2203 review + web-test findings) — done
+
+- **Watcher/reconciler are store-aware**: `maybeSpawnSuccessor`,
+  `reconcileItem`, `reconcileAllItems`, and the sweep all take a
+  `LoadedCollection` and go through `storeFor` — the schema-level rejection
+  of `spawn` / `completionField` / `triggerField` on `storage` collections
+  is LIFTED. A db-file watcher (parent-dir mount, sqlite sidecars
+  included, per-slug single-flight) drives full-pass reconciliation +
+  change publishes for external db edits. (Signature change — MulmoTerminal
+  needs the matching port when it ratchets to 0.25.1.)
+- **`deleteCollection`** archives the `.db` beside the skill and removes
+  the live file (+`-wal`/`-journal`/`-shm`); `dataSourceFile` stays
+  untouched (user-owned).
+- **Repair/validation** lists non-file backends through the store and
+  lints with the same strict tier (issues keyed by record id).
+- **Desktop custom-view images**: new `GET view-data/image?path=…&maxEdge=…`
+  (read capability) resolves a CURRENT image-field value into a thumbnail
+  `{ dataUrl }` — the desktop sibling of remote `imageFields`; authorization
+  set = the records' image-field values, nothing else. Documented in
+  custom-view.md "Displaying images" (born from the NPB web test, where the
+  agent base64-embedded logos into the view HTML for lack of this).
+
 ## Later stages (sketch, not in scope here)
 
 - `nativeSort` capability + sort pushdown (design against a second
-  SQL-capable backend), `list()` deprecation, spawn onto the store, db-file
-  archive on collection delete.
+  SQL-capable backend) and `list()` deprecation — the next BREAKING wave,
+  bundled so dependents ratchet once.
 
 ## Open questions
 

@@ -237,11 +237,11 @@ Diagnosis + fixes, in order:
    `<id>.json` files; a schema flip alone would make the collection look
    empty, not migrate it.
 
-Known v1 limits of sqlite storage (by design, not bugs to fix in place):
-`spawn`, `completionField`, and `triggerField` are schema-rejected (those
-paths still read record files), the record Repair/validation pass sees no
-records (it scans record files), and deleting the collection archives the
-skill + phantom data dir but leaves the `.db` file in place.
+Known limits of sqlite storage (by design, not bugs to fix in place):
+a db row so corrupt the backend can't parse it is skipped silently (the
+Repair pass reports schema violations by record id, but has no
+"malformed file" classification), and the completion/spawn watcher
+reconciles the WHOLE collection per db change (no per-record events).
 
 ## Fallback
 

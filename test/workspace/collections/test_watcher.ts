@@ -29,11 +29,14 @@ import path from "node:path";
 import { _setFilePathsForTesting, initNotifier, listAll } from "../../../server/notifier/engine.js";
 import {
   _scheduleItemReconcileForTesting,
+  _scheduleStorageReconcileForTesting,
   _syncWatchersForTesting,
   startCollectionWatchers,
   stopCollectionWatchers,
 } from "../../../server/workspace/collections/watcher.js";
+import { loadCollection, storeFor } from "@mulmoclaude/core/collection/server";
 import type { CollectionSchema } from "../../../server/workspace/collections/types.js";
+import type { LoadedCollection } from "@mulmoclaude/core/collection/server";
 
 let workdir: string;
 let userDir: string;
@@ -215,7 +218,9 @@ describe("scheduleItemReconcile single-flight", () => {
     // writes are still queued, producing duplicate entries.
     const schema = buildSchema();
     const dataDir = path.join(workdir, "data", SLUG, "items");
-    const promises = Array.from({ length: 10 }, () => _scheduleItemReconcileForTesting(SLUG, schema, dataDir, "a"));
+    const promises = Array.from({ length: 10 }, () =>
+      _scheduleItemReconcileForTesting({ slug: SLUG, source: "project", schema, dataDir, skillDir: dataDir } as unknown as LoadedCollection, "a"),
+    );
     await Promise.all(promises);
 
     const after = (await activeCompletionEntries()).length;
@@ -223,5 +228,53 @@ describe("scheduleItemReconcile single-flight", () => {
     // there wasn't (baseline=0, after=1). Either way, the burst added
     // at most one entry — never two.
     assert.equal(after, Math.max(baseline, 1), "rapid-fire reconciles must not produce duplicate entries");
+  });
+});
+
+describe("storage (sqlite) collection reconciliation", () => {
+  const DB_SLUG = "test-watcher-db";
+
+  function writeDbSchema(): void {
+    const skillDir = path.join(workdir, ".claude/skills", DB_SLUG);
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(path.join(skillDir, "SKILL.md"), `---\nname: ${DB_SLUG}\ndescription: test\n---\nbody\n`);
+    writeFileSync(
+      path.join(skillDir, "schema.json"),
+      JSON.stringify({
+        title: "DB Watcher",
+        icon: "check_circle",
+        storage: { type: "sqlite", path: `data/${DB_SLUG}.db` },
+        primaryKey: "id",
+        fields: {
+          id: { type: "string", label: "ID", primary: true, required: true },
+          read: { type: "boolean", label: "Read", required: true },
+        },
+        completionField: "read",
+        completionDoneValues: ["true"],
+      }),
+    );
+  }
+
+  it("bells a pending sqlite record and clears it when it turns done", async () => {
+    writeDbSchema();
+    await startCollectionWatchers({
+      discoveryOpts: { workspaceRoot: workdir, userSkillsDir: userDir },
+      rediscoveryIntervalMs: null,
+      triggerTickIntervalMs: null,
+    });
+    const collection = await loadCollection(DB_SLUG, { workspaceRoot: workdir, userSkillsDir: userDir });
+    assert.ok(collection);
+    const store = storeFor(collection, { workspaceRoot: workdir });
+    assert.ok(store.write);
+
+    await store.write("a", { id: "a", read: false });
+    await _scheduleStorageReconcileForTesting(DB_SLUG);
+    let legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
+    assert.ok(legacyIds.includes(`collection-completion:${DB_SLUG}:a`), `expected a bell for a, got ${JSON.stringify(legacyIds)}`);
+
+    await store.write("a", { id: "a", read: true });
+    await _scheduleStorageReconcileForTesting(DB_SLUG);
+    legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
+    assert.ok(!legacyIds.includes(`collection-completion:${DB_SLUG}:a`), "bell must clear once the record is done");
   });
 });

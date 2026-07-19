@@ -228,25 +228,21 @@ describe("storage schema gates (sqlite)", () => {
     assert.equal(storeFor(collection, { workspaceRoot: workdir }).capabilities.writable, true);
   });
 
-  it("rejects storage combined with dataPath or dataSource, and storage + spawn (that refine specifically)", async () => {
+  it("rejects storage combined with dataPath or dataSource; ACCEPTS the full write machinery", async () => {
     writeSkill("both-path", { ...SQLITE_SCHEMA, dataPath: "data/x/items" });
     writeSkill("both-source", { ...SQLITE_SCHEMA, dataSource: { type: "csv", path: "data/x.csv" } });
     assert.equal((await discoverCollections(discoveryOpts())).length, 0);
+    // spawn / completionField / triggerField are store-aware now — a
+    // storage schema declaring them must parse (the old v1 refine is gone).
     const parsed = CollectionSchemaZ.safeParse({
       ...SQLITE_SCHEMA,
-      triggerField: "score",
-      spawn: { when: { field: "title", in: ["x"] }, every: { unit: "month", interval: 1, dayOfMonth: 10 } },
+      fields: { ...SQLITE_SCHEMA.fields, dueOn: { type: "date", label: "Due" }, status: { type: "enum", label: "St", values: ["pending", "paid"] } },
+      completionField: "status",
+      completionDoneValues: ["paid"],
+      triggerField: "dueOn",
+      spawn: { when: { field: "status", in: ["paid"] }, every: { unit: "month", interval: 1, dayOfMonth: 10 } },
     });
-    assert.equal(parsed.success, false);
-    if (parsed.success) return;
-    assert.ok(
-      parsed.error.issues.some((issue) => issue.message.includes("cannot declare `spawn`")),
-      `expected the storage+spawn refine, got: ${parsed.error.issues.map((issue) => issue.message).join(" | ")}`,
-    );
-    // The same refine also rejects the watcher-reconciled fields — their
-    // reconcilers scan record files and would silently see zero records.
-    const withCompletion = CollectionSchemaZ.safeParse({ ...SQLITE_SCHEMA, completionField: "title", completionDoneValues: ["done"] });
-    assert.equal(withCompletion.success, false);
+    assert.equal(parsed.success, true, parsed.success ? "" : parsed.error.issues.map((issue) => issue.message).join(" | "));
   });
 
   it("rejects a storage.path escaping the workspace", async () => {

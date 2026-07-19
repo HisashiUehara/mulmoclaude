@@ -55,7 +55,8 @@ import {
   type RemoteViewBuildResult,
   type RemoteViewItemsResult,
 } from "../../workspace/collections/remoteView.js";
-import { clampLimit, clampOffset, normalizeFields, normalizeMutate } from "@mulmoclaude/core/remote-view";
+import { clampImageMaxEdge, clampLimit, clampOffset, normalizeFields, normalizeMutate } from "@mulmoclaude/core/remote-view";
+import { resolveThumbnail } from "../../utils/files/thumbnail-store.js";
 import { badRequest, notFound, conflict, forbidden, methodNotAllowed, serverError, serviceUnavailable } from "../../utils/httpError.js";
 import { ONE_MINUTE_MS } from "../../utils/time.js";
 import { errorMessage } from "../../utils/errors.js";
@@ -942,6 +943,70 @@ router.post(
       // scoped view is not a trusted audience for those.
       log.warn("collections", "view-data query failed", { slug: req.params.slug.replace(/[\r\n]/g, " "), error: errorMessage(err) });
       serverError(res, "collection query failed");
+    }
+  },
+);
+
+/** The set of workspace paths this collection's records CURRENTLY reference
+ *  through schema `image`-type fields (top-level fields only, matching the
+ *  remote view's `inlineFields` rule). This is the authorization set for the
+ *  view-data image route: a scoped view token may resolve exactly these
+ *  paths and nothing else — never an arbitrary workspace file. Exported for
+ *  the unit test. */
+export function imageFieldPathValues(schema: LoadedCollection["schema"], items: CollectionItem[]): Set<string> {
+  const imageFields = Object.entries(schema.fields)
+    .filter(([, spec]) => spec.type === "image")
+    .map(([name]) => name);
+  const paths = new Set<string>();
+  for (const item of items) {
+    for (const field of imageFields) {
+      const value = item[field];
+      if (typeof value === "string" && value.length > 0) paths.add(value);
+    }
+  }
+  return paths;
+}
+
+router.options(API_ROUTES.collections.viewDataImage, viewDataCors, (_req: Request, res: Response) => {
+  res.status(204).end();
+});
+
+// Scoped image read: resolve one record-referenced image path into a
+// downscaled `data:` thumbnail (same resolver + clamps as the remote view's
+// `imageFields` inlining). The record scan doubles as the authorization
+// check — the requested path must be a CURRENT image-field value — and runs
+// under the same in-flight cap as /query (both are per-request full scans).
+// Sandboxed views can't attach the bearer to an <img>, so the JSON
+// { dataUrl } shape (fetch → img.src) is the contract; see
+// packages/core/assets/helps/custom-view.md "Displaying images".
+router.get(
+  API_ROUTES.collections.viewDataImage,
+  viewDataCors,
+  viewQueryConcurrency,
+  requireViewToken("read"),
+  async (req: Request<{ slug: string }>, res: Response) => {
+    const collection = await loadCollectionOr404(req.params.slug, res);
+    if (!collection) return;
+    const relPath = typeof req.query.path === "string" ? req.query.path : "";
+    if (relPath.length === 0) {
+      badRequest(res, "pass `path` — an image field's workspace-relative value");
+      return;
+    }
+    try {
+      const items = await storeFor(collection).list();
+      if (!imageFieldPathValues(collection.schema, items).has(relPath)) {
+        notFound(res, "path is not a current value of this collection's image fields");
+        return;
+      }
+      const dataUrl = await resolveThumbnail(relPath, clampImageMaxEdge(req.query.maxEdge));
+      if (dataUrl === null) {
+        notFound(res, "image could not be resolved");
+        return;
+      }
+      res.json({ path: relPath, dataUrl });
+    } catch (err) {
+      log.warn("collections", "view-data image failed", { slug: collection.slug, error: errorMessage(err) });
+      serverError(res, "image resolve failed");
     }
   },
 );

@@ -81,7 +81,12 @@ function todayStamp(): string {
 /** Every directory the delete will touch must resolve under the
  *  workspace root — guards against a symlinked ancestor escaping it. */
 function deleteTargets(collection: LoadedCollection, workspaceRoot: string): string[] {
-  return [stagingSkillDir(workspaceRoot, collection.slug), collection.skillDir, collection.dataDir];
+  return [
+    stagingSkillDir(workspaceRoot, collection.slug),
+    collection.skillDir,
+    collection.dataDir,
+    ...(collection.storageFile !== undefined ? [collection.storageFile] : []),
+  ];
 }
 
 /** The records directory the delete recursively archives + removes
@@ -167,6 +172,13 @@ async function writeArchive(collection: LoadedCollection, archiveDir: string, wo
   if (await pathExists(collection.dataDir)) {
     await cp(collection.dataDir, path.join(archiveDir, "records"), { recursive: true });
   }
+  // A `storage` collection's records live in its database file (the
+  // dataDir is a phantom) — archive it under its own basename so RESTORE
+  // can point `storage.path` back at it. (`dataSourceFile` is deliberately
+  // NOT archived or removed: an external dataSource file is user-owned.)
+  if (collection.storageFile !== undefined && (await pathExists(collection.storageFile))) {
+    await cp(collection.storageFile, path.join(archiveDir, path.basename(collection.storageFile)));
+  }
   await writeFile(path.join(archiveDir, "RESTORE.md"), buildRestoreDoc(collection), "utf-8");
 }
 
@@ -178,6 +190,14 @@ async function removeLocations(collection: LoadedCollection, workspaceRoot: stri
   await rm(collection.skillDir, { recursive: true, force: true });
   await rm(collection.dataDir, { recursive: true, force: true });
   await rmdir(path.dirname(collection.dataDir)).catch(() => undefined);
+  // The archived copy above is the backup; remove the live db (+ sqlite
+  // sidecars) so a deleted collection doesn't leave orphaned data behind.
+  if (collection.storageFile !== undefined) {
+    await rm(collection.storageFile, { force: true });
+    await rm(`${collection.storageFile}-wal`, { force: true });
+    await rm(`${collection.storageFile}-journal`, { force: true });
+    await rm(`${collection.storageFile}-shm`, { force: true });
+  }
 }
 
 export async function deleteCollection(collection: LoadedCollection, opts: DeleteCollectionOptions = {}): Promise<DeleteCollectionResult> {
