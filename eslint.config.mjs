@@ -471,5 +471,62 @@ export default [
       ],
     },
   },
+  // Type-aware pass. `projectService` builds the TypeScript program so rules can
+  // reason about real types; that program is the whole cost (measured: five
+  // rules cost the same as all 44), and it runs the full scope in ~26s over the
+  // untyped pass.
+  //
+  // Only rules that earn that cost are on. The rest of `strictTypeChecked` was
+  // measured across the repo and is dominated by style — `restrict-template-
+  // expressions` alone accounts for 439 of its 1213 findings — which would bury
+  // the two things type information is actually needed for here:
+  //
+  //   1. the `any` that `no-explicit-any` structurally cannot see (values from
+  //      untyped libraries, `JSON.parse()`, `as unknown as T` double casts)
+  //   2. mistakes no syntactic rule can catch at all (a dropped `await`, an
+  //      async callback handed to a sync-only API, an object stringified into
+  //      "[object Object]")
+  //
+  // Scoped to source: tests / e2e stay on the untyped pass to keep the program
+  // small. Everything is `warn` per docs/lint-policy.md — a backlog to drain,
+  // not a gate — so this can never fail CI on its own.
+  {
+    files: ["server/**/*.ts", "src/**/*.ts", "packages/**/src/**/*.ts"],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
+    rules: {
+      // (1) `any` that survives no-explicit-any.
+      "@typescript-eslint/no-unsafe-assignment": "warn",
+      "@typescript-eslint/no-unsafe-member-access": "warn",
+      "@typescript-eslint/no-unsafe-argument": "warn",
+      "@typescript-eslint/no-unsafe-call": "warn",
+      "@typescript-eslint/no-unsafe-return": "warn",
+      // Zero findings today — on to keep it that way.
+      "@typescript-eslint/no-unsafe-enum-comparison": "warn",
+      "@typescript-eslint/no-unsafe-declaration-merging": "warn",
+      // (2) Bugs only the type checker can see.
+      "@typescript-eslint/no-base-to-string": "warn",
+      "@typescript-eslint/no-floating-promises": "warn",
+      "@typescript-eslint/no-misused-promises": "warn",
+      "@typescript-eslint/await-thenable": "warn",
+      // sonarjs ships type-aware rules of its own. They sit dormant without a
+      // TypeScript program, so `projectService` wakes them — and they'd land at
+      // the `error` severity the sonarjs preset sets above, failing CI on code
+      // that was never linted by them before. Same backlog treatment as the
+      // typescript-eslint set: surface them, don't gate on them.
+      "sonarjs/no-alphabetical-sort": "warn",
+      "sonarjs/prefer-regexp-exec": "warn",
+      "sonarjs/different-types-comparison": "warn",
+      "sonarjs/function-return-type": "warn",
+      "sonarjs/no-misleading-array-reverse": "warn",
+      "sonarjs/reduce-initial-value": "warn",
+      "sonarjs/deprecation": "warn",
+      "sonarjs/no-selector-parameter": "warn",
+      "sonarjs/no-undefined-argument": "warn",
+      "sonarjs/post-message": "warn",
+      "sonarjs/no-redundant-optional": "warn",
+    },
+  },
   eslintConfigPrettier,
 ];
