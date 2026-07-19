@@ -29,6 +29,10 @@ export function useStickToBottom(elementRef: Ref<HTMLElement | null>, thresholdP
       detach();
       if (!element) return;
       attached = element;
+      // A freshly mounted container follows again — otherwise a reader who
+      // had scrolled away in a previous list would find the new one silently
+      // not following.
+      stuck.value = true;
       element.addEventListener("scroll", sync, { passive: true });
     },
     { immediate: true },

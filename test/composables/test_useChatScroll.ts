@@ -185,6 +185,27 @@ describe("useChatScroll — sticky bottom (#2179)", () => {
     await nextTick();
   };
 
+  it("still follows on load when the fresh container is not yet at the bottom", async () => {
+    // A freshly mounted list sits at scrollTop 0 with a full transcript, so by
+    // raw geometry it is "not near the bottom" — but the reader has not
+    // scrolled anywhere, so the load must still jump to the latest message.
+    // Seeding the gate from the mount-time scroll position instead of
+    // defaulting to "following" would strand the session at its OLDEST
+    // message; only a real scroll event may disarm following.
+    const session = reactive(createEmptySession("s7", "general"));
+    const { el, writes } = makeFakeScrollEl(TALL);
+    useChatScroll({
+      sessionSidebarRef: ref<{ root: HTMLDivElement | null } | null>({ root: el }),
+      toolResults: computed<ToolResultComplete[]>(() => session.toolResults),
+      isRunning: computed(() => false),
+      chatInputRef: ref<{ focus: () => void } | null>(null),
+    });
+
+    await stream(session, "Hello");
+
+    assert.ok(writes.length >= 1, "a freshly mounted list must still scroll to the latest result");
+  });
+
   it("stops following once the reader scrolls up", async () => {
     const { session, writes, userScrollTo } = setup("s4");
 

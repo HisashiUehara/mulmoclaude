@@ -448,11 +448,12 @@ function computeActiveUuidFromScroll(): string | null {
 }
 
 function onContainerScroll(): void {
-  // Ahead of the suppress guard on purpose: following must track where the
-  // view actually ended up, including after a programmatic jump to a card
-  // (that reader wants to stay on the card, not be dragged to the bottom).
-  if (containerRef.value) stickToBottom.value = isNearBottom(containerRef.value);
   if (suppressScrollSync) return;
+  // Only a genuine user scroll moves the auto-follow gate. Programmatic
+  // scrolls are suppressed above — otherwise following would cancel itself:
+  // the newest-card jump lands away from the bottom, which would read as
+  // "the user scrolled up" and stop the next chunk from arriving.
+  if (containerRef.value) stickToBottom.value = isNearBottom(containerRef.value);
   if (scrollSpyRafId !== null) return;
   scrollSpyRafId = requestAnimationFrame(() => {
     scrollSpyRafId = null;
