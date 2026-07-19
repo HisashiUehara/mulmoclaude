@@ -57,44 +57,76 @@ async function applyEvent(collection: LoadedCollection, event: CalendarEventSumm
   return "written";
 }
 
-/** Sync one declaring collection. Resumes from the stored token, restarting a
- *  full walk when Google reports it expired (410). */
-export async function syncCalendarCollection(collection: LoadedCollection, workspaceRoot: string): Promise<CalendarCollectionSyncResult> {
-  const calendarId = collection.schema.googleCalendar?.calendarId;
-  const accessToken = await getGoogleAccessToken();
-  const storedToken = await loadCalendarSyncToken(calendarId, workspaceRoot);
-  const first = await syncCalendarEvents(accessToken, { calendarId, syncToken: storedToken ?? undefined });
-  const result = first.fullResyncRequired ? await restartFullSync(accessToken, calendarId, workspaceRoot) : first;
-
-  const counts = { written: 0, removed: 0 };
-  for (const event of result.events) {
-    const outcome = await applyEvent(collection, event, workspaceRoot);
-    counts[outcome] += 1;
-  }
-  // Only persist the token once every event above landed, so a mid-way crash
-  // replays the same window instead of skipping it.
-  if (result.nextSyncToken) await saveCalendarSyncToken(calendarId, result.nextSyncToken, workspaceRoot);
-  return { slug: collection.slug, ...counts, errors: [] };
-}
-
 async function restartFullSync(accessToken: string, calendarId: string | undefined, workspaceRoot: string) {
   await clearCalendarSyncToken(calendarId, workspaceRoot);
   return await syncCalendarEvents(accessToken, { calendarId });
 }
 
-/** Sync every collection that declares `googleCalendar`. Failures are
- *  isolated per collection — one unreachable calendar (or a revoked grant)
- *  must not stop the others. */
+/** Sync ONE calendar and fan its events out to every collection bound to it.
+ *
+ *  The fan-out is not an optimisation, it is correctness: the sync token is
+ *  keyed by `calendarId`, so syncing collection-by-collection would let the
+ *  first collection advance the shared token and leave every later collection
+ *  on the same calendar reading an already-consumed window — silently missing
+ *  those events forever. Fetch once, apply to all, then advance the token.
+ *  (Codex + CodeRabbit review on #2184.) */
+export async function syncCalendarGroup(
+  calendarId: string | undefined,
+  collections: readonly LoadedCollection[],
+  workspaceRoot: string,
+): Promise<CalendarCollectionSyncResult[]> {
+  const accessToken = await getGoogleAccessToken();
+  const storedToken = await loadCalendarSyncToken(calendarId, workspaceRoot);
+  const first = await syncCalendarEvents(accessToken, { calendarId, syncToken: storedToken ?? undefined });
+  const result = first.fullResyncRequired ? await restartFullSync(accessToken, calendarId, workspaceRoot) : first;
+
+  const results: CalendarCollectionSyncResult[] = [];
+  for (const collection of collections) {
+    results.push(await applyEventsToCollection(collection, result.events, workspaceRoot));
+  }
+  // Advance the token only after every collection in the group has consumed
+  // the window, so a mid-way crash replays it instead of skipping it.
+  if (result.nextSyncToken) await saveCalendarSyncToken(calendarId, result.nextSyncToken, workspaceRoot);
+  return results;
+}
+
+async function applyEventsToCollection(
+  collection: LoadedCollection,
+  events: readonly CalendarEventSummary[],
+  workspaceRoot: string,
+): Promise<CalendarCollectionSyncResult> {
+  const counts = { written: 0, removed: 0 };
+  for (const event of events) {
+    const outcome = await applyEvent(collection, event, workspaceRoot);
+    counts[outcome] += 1;
+  }
+  return { slug: collection.slug, ...counts, errors: [] };
+}
+
+/** Group the declaring collections by the calendar they read, so each calendar
+ *  is fetched exactly once. */
+export function groupByCalendar(collections: readonly LoadedCollection[]): Map<string | undefined, LoadedCollection[]> {
+  const groups = new Map<string | undefined, LoadedCollection[]>();
+  for (const collection of collections) {
+    const calendarId = collection.schema.googleCalendar?.calendarId;
+    groups.set(calendarId, [...(groups.get(calendarId) ?? []), collection]);
+  }
+  return groups;
+}
+
+/** Sync every collection that declares `googleCalendar`. Failures are isolated
+ *  per calendar — one unreachable calendar (or a revoked grant) must not stop
+ *  the others. */
 export async function syncDueCalendarCollections(workspaceRoot: string): Promise<CalendarCollectionSyncResult[]> {
   const all = await discoverCollections({ workspaceRoot });
   const declaring = all.filter((collection) => collection.schema.googleCalendar);
   const results: CalendarCollectionSyncResult[] = [];
-  for (const collection of declaring) {
+  for (const [calendarId, collections] of groupByCalendar(declaring)) {
     try {
-      results.push(await syncCalendarCollection(collection, workspaceRoot));
+      results.push(...(await syncCalendarGroup(calendarId, collections, workspaceRoot)));
     } catch (error) {
-      log.warn("google", "calendar sync failed for collection", { slug: collection.slug, error: String(error) });
-      results.push({ slug: collection.slug, written: 0, removed: 0, errors: [String(error)] });
+      log.warn("google", "calendar sync failed", { calendarId, error: String(error) });
+      results.push(...collections.map((collection) => ({ slug: collection.slug, written: 0, removed: 0, errors: [String(error)] })));
     }
   }
   return results;

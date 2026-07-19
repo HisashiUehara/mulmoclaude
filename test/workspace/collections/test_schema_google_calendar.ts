@@ -48,6 +48,18 @@ describe("collection schema — googleCalendar block (#2095)", () => {
     assert.equal(withSync({ map: { title: "attendees" } }).success, false);
   });
 
+  // A computed field is derived at read time and never materialised, so a
+  // sync writing into one would be silently discarded (Sourcery review on
+  // #2184).
+  it("rejects mapping onto a computed field", () => {
+    const parsed = CollectionSchemaZ.safeParse({
+      ...base,
+      fields: { ...base.fields, span: { type: "formula", label: "Span", formula: "1" } },
+      googleCalendar: { map: { span: "summary" } },
+    });
+    assert.equal(parsed.success, false);
+  });
+
   it("rejects an empty calendarId (would build a malformed events URL)", () => {
     assert.equal(withSync({ calendarId: "   ", map: { title: "summary" } }).success, false);
   });
