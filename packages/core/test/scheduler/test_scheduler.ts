@@ -362,3 +362,31 @@ test("recordExternalRun records a failed dispatch as an error run", async () => 
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+// `makeGuardedTick` has a `finally` but no `catch`, so a tick that rejects
+// propagates. Awaiting `tick()` hands that to the caller, which is fine — but
+// `start()` drives the same function from `setInterval`, where a rejection has
+// nowhere to go and the host turns it into a process exit. One bad tick used to
+// be able to take the server down; this pins that it no longer can, and that
+// the interval keeps firing afterwards.
+test("start(): a rejected tick is logged and later ticks keep running", async () => {
+  const errors: string[] = [];
+  let nowCalls = 0;
+  const manager = createTaskManager({
+    tickMs: 5,
+    log: { info: () => {}, warn: () => {}, error: (message) => errors.push(message) },
+    // `runTick` calls `now()` first thing, so throwing here rejects the tick
+    // itself rather than an individual task (those are caught per-task).
+    now: () => {
+      nowCalls += 1;
+      throw new Error("clock exploded");
+    },
+  });
+
+  manager.start();
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  manager.stop();
+
+  assert.ok(nowCalls >= 2, `interval stopped after the first rejection (${nowCalls} tick(s))`);
+  assert.ok(errors.includes("tick failed"), `expected a "tick failed" log, got ${JSON.stringify(errors)}`);
+});
