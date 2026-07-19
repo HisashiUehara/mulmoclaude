@@ -265,9 +265,12 @@ export function pushSessionEvent(chatSessionId: string, event: Record<string, un
   // If we notified before the write completed, the client's refetch
   // would read the stale pre-drain value. Sequence: persist, then
   // notify.
-  void persistHasUnread(chatSessionId, true)
+  persistHasUnread(chatSessionId, true)
     .catch(() => {})
-    .then(() => notifySessionsChanged());
+    .then(() => notifySessionsChanged())
+    // Terminal handler: the `.catch` above only covers the persist, so a throw
+    // out of `notifySessionsChanged` would still escape.
+    .catch((err: unknown) => log.warn("session-store", "unread notify failed", { error: String(err) }));
 }
 
 /**

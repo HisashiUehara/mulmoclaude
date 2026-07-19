@@ -41,8 +41,9 @@ export function useFileSelection() {
 
   function selectFile(filePath: string): void {
     selectedPath.value = filePath;
-    // Fire-and-forget: the loader surfaces its own outcome through
-    // `contentLoading` / `contentError`, and selection must not block on I/O.
+    // Fire-and-forget: selection must not block on I/O, and `loadContent`
+    // catches internally so this cannot reject — its outcome is read off
+    // `contentLoading` / `contentError`.
     void loadContent(filePath);
     // Pass segments as an array so Vue Router encodes each segment
     // independently (spaces / multi-byte / `?#%` get UTF-8 percent-

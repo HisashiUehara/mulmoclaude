@@ -358,9 +358,10 @@ async function dispatchAgentRun(
   });
 
   // Deliberately not awaited — the request returns the SSE stream immediately
-  // and the run continues past it. `runAgentInBackground` owns its own
-  // try/catch/finally, so nothing can escape as an unhandled rejection.
-  void runAgentInBackground({
+  // and the run continues past it. The terminal `.catch` is the safety net for
+  // anything its own try/catch/finally misses; a bare `void` would only hide
+  // such a failure from the linter, not from the process.
+  runAgentInBackground({
     decoratedMessage,
     role,
     chatSessionId,
@@ -372,7 +373,7 @@ async function dispatchAgentRun(
     attachments: extras.attachments,
     userTimezone,
     origin: validOrigin,
-  });
+  }).catch(logBackgroundError("agent", "background agent run failed"));
 }
 
 interface RequestExtras {

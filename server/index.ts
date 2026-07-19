@@ -1367,7 +1367,14 @@ process.on("SIGTERM", () => {
   };
 
   const httpServer = app.listen(port, "127.0.0.1", () => {
-    void onListening(httpServer);
+    // Terminal handler, not a bare `void`: `onListening` runs the whole
+    // post-listen setup, and a rejection outside its own
+    // `startRuntimeServices(...).catch(...)` branch would otherwise be an
+    // unhandled rejection on a half-initialised server.
+    onListening(httpServer).catch((err: unknown) => {
+      log.error("server", "post-listen initialization failed — exiting", { error: String(err) });
+      process.exit(1);
+    });
   });
 })().catch((err: unknown) => {
   // Anything thrown before the listener is up (port resolution, token write)

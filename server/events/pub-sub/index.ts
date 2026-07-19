@@ -1,10 +1,18 @@
 import http from "http";
 import { Server as IOServer } from "socket.io";
 
+import { log } from "../../system/logger/index.js";
+
 export interface IPubSub {
   /** Publish data to all clients subscribed to this channel. */
   publish: (channel: string, data: unknown) => void;
 }
+
+const logRoomError =
+  (action: string, channel: string) =>
+  (err: unknown): void => {
+    log.warn("pubsub", `socket room ${action} failed`, { channel, error: String(err) });
+  };
 
 // Channel names are treated as socket.io rooms — one room per
 // channel. Subscribe/unsubscribe is plain `socket.join` /
@@ -29,14 +37,16 @@ export function createPubSub(server: http.Server): IPubSub {
   });
 
   ioServer.on("connection", (socket) => {
-    // `join`/`leave` are synchronous for the in-memory adapter but typed as
-    // Promise because a clustered adapter would go over the wire. Nothing here
-    // depends on the result, so discard it rather than block the handler.
+    // `join`/`leave` return `void | Promise<void>`: the in-memory adapter runs
+    // synchronously and returns undefined, while a clustered adapter goes over
+    // the wire. Nothing here depends on the result, but the promise branch
+    // still needs a terminal handler — a bare `void` would turn an adapter
+    // failure into an unhandled rejection. `Promise.resolve` normalises both.
     socket.on("subscribe", (channel: unknown) => {
-      if (typeof channel === "string") void socket.join(channel);
+      if (typeof channel === "string") Promise.resolve(socket.join(channel)).catch(logRoomError("subscribe", channel));
     });
     socket.on("unsubscribe", (channel: unknown) => {
-      if (typeof channel === "string") void socket.leave(channel);
+      if (typeof channel === "string") Promise.resolve(socket.leave(channel)).catch(logRoomError("unsubscribe", channel));
     });
   });
 

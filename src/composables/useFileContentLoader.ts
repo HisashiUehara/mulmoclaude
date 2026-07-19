@@ -47,6 +47,14 @@ export function useFileContentLoader() {
       } else {
         content.value = result.data;
       }
+    } catch (err) {
+      // `apiGet` reports expected failures through its Result, so a throw here
+      // is out-of-contract. Surface it the same way instead of rejecting: every
+      // caller treats this as fire-and-forget and reads the outcome off
+      // `contentError`. An aborted request was superseded — not an error.
+      if (!controller.signal.aborted) {
+        contentError.value = err instanceof Error ? err.message : String(err);
+      }
     } finally {
       // A stale request resolving after a newer one started must not
       // clear the newer request's loading state.

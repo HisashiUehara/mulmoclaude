@@ -88,11 +88,14 @@ export function createTranslationService(deps: TranslationServiceDeps): Translat
     const next = prev.catch(() => undefined).then(runner);
     const tracked = next.catch(() => undefined);
     chains.set(namespace, tracked);
-    // Housekeeping only, and `tracked` already swallowed the rejection — the
-    // caller waits on `next`, not on this.
-    void tracked.then(() => {
-      if (chains.get(namespace) === tracked) chains.delete(namespace);
-    });
+    // Housekeeping only — the caller waits on `next`, not on this. Still needs
+    // a terminal handler: `tracked` swallowed the runner's rejection, but the
+    // cleanup callback itself is not covered by that.
+    tracked
+      .then(() => {
+        if (chains.get(namespace) === tracked) chains.delete(namespace);
+      })
+      .catch(() => {});
     return next;
   }
 

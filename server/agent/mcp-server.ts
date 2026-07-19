@@ -628,7 +628,15 @@ process.stdin.on("data", (chunk: Buffer) => {
 // and setting `exitCode` (instead of calling `exit`) lets the event loop
 // drain the rest of the I/O before the process leaves naturally.
 process.stdin.on("end", () => {
-  void runtimeReady.finally(() => {
-    process.exitCode = 0;
-  });
+  // Terminal handlers, not a bare `void`: discarding the promise would leave a
+  // failed runtime as an unhandled rejection AND still exit 0, reporting
+  // success for a server that never came up.
+  runtimeReady.then(
+    () => {
+      process.exitCode = 0;
+    },
+    () => {
+      process.exitCode = 1;
+    },
+  );
 });
