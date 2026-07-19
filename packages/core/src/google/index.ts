@@ -51,6 +51,8 @@ export {
 export { calendarSyncStatePath, clearCalendarSyncToken, loadCalendarSyncToken, saveCalendarSyncToken } from "./calendarSyncStore.js";
 export {
   googleCalendarSyncTaskDef,
+  classifyDelete,
+  classifyWrite,
   groupByCalendar,
   syncCalendarGroup,
   syncDueCalendarCollections,

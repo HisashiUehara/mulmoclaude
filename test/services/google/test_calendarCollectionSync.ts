@@ -6,7 +6,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { groupByCalendar, toCollectionRecord } from "@mulmoclaude/core/google";
+import { classifyDelete, classifyWrite, groupByCalendar, toCollectionRecord } from "@mulmoclaude/core/google";
 import type { CalendarEventSummary } from "@mulmoclaude/core/google";
 import type { LoadedCollection } from "@mulmoclaude/core/collection/server";
 
@@ -123,5 +123,45 @@ describe("groupByCalendar (#2184 shared-token fan-out)", () => {
 
   it("returns no groups for no declaring collections", () => {
     assert.equal(groupByCalendar([]).size, 0);
+  });
+});
+
+// Which failures hold the sync token is the difference between "retry next
+// run" and "this calendar never syncs again": a permanently-unwritable id must
+// NOT hold the token, or every run re-fetches the same window, fails on the
+// same event, and the calendar dies silently.
+describe("apply-failure classification (#2184)", () => {
+  it("counts a successful write", () => {
+    assert.equal(classifyWrite("ev-1", "ok").kind, "written");
+  });
+
+  it("treats an unusable event id as unwritable, NOT a retryable error", () => {
+    const outcome = classifyWrite("bad@id", "invalid-id");
+    assert.equal(outcome.kind, "unwritable", "retrying an invalid id forever would kill the whole calendar's sync");
+  });
+
+  it("treats a path escape as a retryable error (it can be fixed)", () => {
+    assert.equal(classifyWrite("ev-1", "path-escape").kind, "error");
+  });
+
+  it("treats a write conflict as a retryable error", () => {
+    assert.equal(classifyWrite("ev-1", "conflict").kind, "error");
+  });
+
+  it("counts a successful delete", () => {
+    assert.equal(classifyDelete("ev-1", "ok").kind, "removed");
+  });
+
+  it("treats deleting a never-stored event as a benign skip", () => {
+    assert.equal(classifyDelete("ev-1", "not-found").kind, "skipped");
+  });
+
+  it("treats an unusable id on delete as unwritable too", () => {
+    assert.equal(classifyDelete("bad@id", "invalid-id").kind, "unwritable");
+  });
+
+  it("names the event in every failure message so the log is actionable", () => {
+    const outcome = classifyWrite("ev-42", "path-escape");
+    assert.ok(outcome.kind === "error" && outcome.message.includes("ev-42"));
   });
 });

@@ -13,7 +13,7 @@ import type { SystemTaskDef } from "../scheduler/adapter.js";
 import { discoverCollections } from "../collection/server/discovery.js";
 import { getWorkspaceRoot } from "../collection/server/host.js";
 import type { LoadedCollection } from "../collection/server/discoveredCollection.js";
-import { deleteItem, writeItem } from "../collection/server/io.js";
+import { deleteItem, writeItem, type DeleteItemResult, type WriteItemResult } from "../collection/server/io.js";
 import type { CollectionItem } from "../collection/core/schema.js";
 import type { GOOGLE_CALENDAR_SOURCE_FIELDS } from "../collection/core/schemaZ.js";
 import { getGoogleAccessToken } from "./auth.js";
@@ -29,6 +29,10 @@ export interface CalendarCollectionSyncResult {
   slug: string;
   written: number;
   removed: number;
+  /** Events that can NEVER be stored — e.g. an id the record-file sanitiser
+   *  rejects. Reported and skipped rather than retried; see `classifyWrite`. */
+  unwritable: string[];
+  /** Retryable failures. Any of these hold the sync token back. */
   errors: string[];
 }
 
@@ -44,27 +48,53 @@ export function toCollectionRecord(event: CalendarEventSummary, map: Record<stri
   return { ...Object.fromEntries(mapped), [primaryKey]: event.id };
 }
 
-/** `skipped` is a benign no-op (deleting an event we never stored); `error`
- *  means the record did NOT land and the sync token must not advance past it. */
-type ApplyOutcome = { kind: "written" } | { kind: "removed" } | { kind: "skipped" } | { kind: "error"; message: string };
+/** `skipped` is a benign no-op; `unwritable` can never succeed so it must NOT
+ *  hold the token; `error` is retryable and does hold it. */
+type ApplyOutcome =
+  { kind: "written" } | { kind: "removed" } | { kind: "skipped" } | { kind: "unwritable"; message: string } | { kind: "error"; message: string };
 
-// `writeItem` / `deleteItem` report most failures by RETURNING a non-`ok`
-// kind rather than throwing (invalid id, path escape, write conflict). Ignoring
-// the result would let the token advance past events that were never applied,
-// and Google never resends them — silent, permanent loss (Codex review #2184).
+// `writeItem` / `deleteItem` report most failures by RETURNING a non-`ok` kind
+// rather than throwing. Ignoring that would let the token advance past events
+// that never landed, and Google never resends them (Codex review #2184).
+//
+// But not every failure is worth retrying: an id the record-file sanitiser
+// rejects can never become valid, so holding the token for it would re-fetch
+// the same window forever and permanently kill that calendar's sync — far
+// worse than dropping the one event. Google's own ids are base32hex and pass,
+// but an imported/client-set id may contain characters the sanitiser refuses.
+// (Observed during Claude review, not flagged by a bot.)
+export function classifyWrite(eventId: string, kind: WriteItemResult["kind"]): ApplyOutcome {
+  if (kind === "ok") return { kind: "written" };
+  if (kind === "invalid-id") return { kind: "unwritable", message: `write ${eventId}: invalid-id` };
+  return { kind: "error", message: `write ${eventId}: ${kind}` };
+}
+
+export function classifyDelete(eventId: string, kind: DeleteItemResult["kind"]): ApplyOutcome {
+  if (kind === "ok") return { kind: "removed" };
+  // Cancelling an event we never stored is normal, not a failure.
+  if (kind === "not-found") return { kind: "skipped" };
+  if (kind === "invalid-id") return { kind: "unwritable", message: `delete ${eventId}: invalid-id` };
+  return { kind: "error", message: `delete ${eventId}: ${kind}` };
+}
+
 async function applyEvent(collection: LoadedCollection, event: CalendarEventSummary, workspaceRoot: string): Promise<ApplyOutcome> {
   const { slug, dataDir, schema } = collection;
-  if (event.status === CANCELLED_STATUS) {
-    const deleted = await deleteItem(dataDir, event.id, { workspaceRoot, slug });
-    // Cancelling an event we never stored is normal, not a failure.
-    if (deleted.kind === "not-found") return { kind: "skipped" };
-    return deleted.kind === "ok" ? { kind: "removed" } : { kind: "error", message: `delete ${event.id}: ${deleted.kind}` };
+  try {
+    if (event.status === CANCELLED_STATUS) {
+      const deleted = await deleteItem(dataDir, event.id, { workspaceRoot, slug });
+      return classifyDelete(event.id, deleted.kind);
+    }
+    const record = toCollectionRecord(event, schema.googleCalendar?.map ?? {}, schema.primaryKey);
+    // `slug` is load-bearing: it publishes the change so an open view updates
+    // live instead of waiting for a refresh.
+    const written = await writeItem(dataDir, event.id, record, { refuseOverwrite: false, workspaceRoot, slug });
+    return classifyWrite(event.id, written.kind);
+  } catch (error) {
+    // A thrown IO error (EACCES, ENOSPC, …) must not abort the remaining events
+    // or the other collections on this calendar — record it as retryable so the
+    // token holds and the next run retries only what failed (CodeRabbit #2184).
+    return { kind: "error", message: `apply ${event.id}: ${String(error)}` };
   }
-  const record = toCollectionRecord(event, schema.googleCalendar?.map ?? {}, schema.primaryKey);
-  // `slug` is load-bearing: it publishes the change so an open view updates
-  // live instead of waiting for a refresh.
-  const written = await writeItem(dataDir, event.id, record, { refuseOverwrite: false, workspaceRoot, slug });
-  return written.kind === "ok" ? { kind: "written" } : { kind: "error", message: `write ${event.id}: ${written.kind}` };
 }
 
 async function restartFullSync(accessToken: string, calendarId: string | undefined, workspaceRoot: string) {
@@ -98,6 +128,12 @@ export async function syncCalendarGroup(
   // window AND every record actually landed. Google never resends a window, so
   // advancing past a failed write would lose those events for good; holding the
   // token back just replays them next run (writes are idempotent).
+  const unwritable = results.flatMap((entry) => entry.unwritable);
+  if (unwritable.length > 0) {
+    // Never retryable, so the token still advances — but say so loudly, since
+    // these events will silently never appear in the collection.
+    log.warn("google", "skipping calendar events that can never be stored", { calendarId, unwritable });
+  }
   const failed = results.flatMap((entry) => entry.errors);
   if (result.nextSyncToken && failed.length === 0) {
     await saveCalendarSyncToken(calendarId, result.nextSyncToken, workspaceRoot);
@@ -120,6 +156,7 @@ async function applyEventsToCollection(
     slug: collection.slug,
     written: outcomes.filter((outcome) => outcome.kind === "written").length,
     removed: outcomes.filter((outcome) => outcome.kind === "removed").length,
+    unwritable: outcomes.flatMap((outcome) => (outcome.kind === "unwritable" ? [outcome.message] : [])),
     errors: outcomes.flatMap((outcome) => (outcome.kind === "error" ? [outcome.message] : [])),
   };
 }
@@ -153,7 +190,7 @@ export async function syncDueCalendarCollections(workspaceRoot: string): Promise
       results.push(...(await syncCalendarGroup(calendarId, collections, workspaceRoot)));
     } catch (error) {
       log.warn("google", "calendar sync failed", { calendarId, error: String(error) });
-      results.push(...collections.map((collection) => ({ slug: collection.slug, written: 0, removed: 0, errors: [String(error)] })));
+      results.push(...collections.map((collection) => ({ slug: collection.slug, written: 0, removed: 0, unwritable: [], errors: [String(error)] })));
     }
   }
   return results;
