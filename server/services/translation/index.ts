@@ -90,7 +90,9 @@ export function createTranslationService(deps: TranslationServiceDeps): Translat
     chains.set(namespace, tracked);
     // Housekeeping only — the caller waits on `next`, not on this. Still needs
     // a terminal handler: `tracked` swallowed the runner's rejection, but the
-    // cleanup callback itself is not covered by that.
+    // cleanup callback itself is not covered by that. Silent by design: a
+    // failed map-entry cleanup is not worth a log line, and it used to reach
+    // the process-level `unhandledRejection` handler and exit the server.
     tracked
       .then(() => {
         if (chains.get(namespace) === tracked) chains.delete(namespace);

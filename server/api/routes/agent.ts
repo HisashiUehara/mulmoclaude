@@ -361,6 +361,15 @@ async function dispatchAgentRun(
   // and the run continues past it. The terminal `.catch` is the safety net for
   // anything its own try/catch/finally misses; a bare `void` would only hide
   // such a failure from the linter, not from the process.
+  //
+  // BEHAVIOUR NOTE, revisit if the supervisor story changes: before this
+  // `.catch` existed, a rejection escaping `runAgentInBackground` reached the
+  // process-level `unhandledRejection` handler in server/index.ts, which logs
+  // and `process.exit(1)` — one failed background run bounced the whole
+  // server, taking every other session's SSE stream with it. Catching keeps
+  // those sessions alive, at the cost of staying up after a failure a
+  // supervisor restart would have cleared. To return to fail-fast, rethrow
+  // from the handler.
   runAgentInBackground({
     decoratedMessage,
     role,

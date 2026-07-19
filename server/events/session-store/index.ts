@@ -269,7 +269,10 @@ export function pushSessionEvent(chatSessionId: string, event: Record<string, un
     .catch(() => {})
     .then(() => notifySessionsChanged())
     // Terminal handler: the `.catch` above only covers the persist, so a throw
-    // out of `notifySessionsChanged` would still escape.
+    // out of `notifySessionsChanged` would still escape. Same trade as the
+    // agent route (see its BEHAVIOUR NOTE) — this used to bounce the whole
+    // server through the process-level `unhandledRejection` handler; now an
+    // unread-badge glitch stays a glitch. Rethrow here to go back to fail-fast.
     .catch((err: unknown) => log.warn("session-store", "unread notify failed", { error: String(err) }));
 }
 
