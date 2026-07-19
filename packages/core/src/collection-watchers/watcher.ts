@@ -1,14 +1,23 @@
 // Filesystem watchers that drive collection-completion bell
-// notifications. One `fs.watch` per discovered collection's `dataDir`,
-// fanned out from a single boot call + a 30-second re-discovery interval
-// that catches newly-created / deleted collections (there is no
-// in-process "collections changed" event broadcast).
+// notifications AND the live-refresh change event. One `fs.watch` per
+// discovered collection's `dataDir`, fanned out from a single boot call
+// + a 30-second re-discovery interval that catches newly-created /
+// deleted collections (there is no in-process "collections changed"
+// event broadcast).
 //
 // Why a watcher, not just route hooks: the canonical pattern for
 // collection-skills has the agent Write records directly with the Write
 // tool — that path never hits the REST API, so a route-level hook would
 // miss most of the traffic the user generates. The watcher catches every
 // mutation regardless of who wrote the file.
+//
+// That same reasoning is why the watcher publishes change events: a
+// write through `io.ts` publishes its own (immediately, and reliably
+// even where fs.watch is unavailable), but a direct file write has no
+// other producer, so open views would never refresh. Both producers
+// firing for one `io.ts` write is intentional — the payload carries no
+// bodies, so a duplicate costs one redundant refetch, whereas a missed
+// event leaves the UI silently stale.
 //
 // All decisions live in `reconciler.ts`; this module is pure plumbing:
 // discover, mkdir, fs.watch, forward events into the reconciler. Every
@@ -17,9 +26,9 @@
 // platforms) don't need special handling.
 
 import { watch, type FSWatcher } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { access, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { discoverCollections, loadCollection, publishCollectionChange, type DiscoveryOptions, type LoadedCollection } from "../collection/server";
+import { discoverCollections, itemFilePath, loadCollection, publishCollectionChange, type DiscoveryOptions, type LoadedCollection } from "../collection/server";
 import type { CollectionSchema } from "../collection";
 import { errMsg, log } from "./config.js";
 import { evalNow } from "./clock.js";
@@ -397,10 +406,41 @@ function scheduleItemReconcile(slug: string, schema: CollectionSchema, dataDir: 
       }
     } finally {
       itemSlots.delete(key);
+      // In `finally`, and after the loop rather than per pass: a failed
+      // reconcile still means the file changed, and the slot is the
+      // coalescing primitive, so one burst yields one event.
+      await publishItemChange(slug, dataDir, itemId);
     }
   })();
   itemSlots.set(key, slot);
   return slot.running;
+}
+
+/** Emit the live-refresh event for one record. `op` is derived from
+ *  whether the file is still there — `fs.watch` reports neither the kind
+ *  of change nor, reliably, which of `rename`/`change` means what. */
+async function publishItemChange(slug: string, dataDir: string, itemId: string): Promise<void> {
+  const changeOp = (await itemFileExists(dataDir, itemId)) ? "upsert" : "delete";
+  safePublish({ slug, ids: [itemId], op: changeOp });
+}
+
+async function itemFileExists(dataDir: string, itemId: string): Promise<boolean> {
+  try {
+    await access(itemFilePath(dataDir, itemId));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The publisher is host-supplied, so treat it as untrusted: a throw here
+ *  runs inside a `finally` and would mask the reconcile's own error. */
+function safePublish(payload: { slug: string; ids?: string[]; op?: "upsert" | "delete" }): void {
+  try {
+    publishCollectionChange(payload);
+  } catch (err) {
+    log().warn("collection change publish failed", { slug: payload.slug, error: errMsg(err) });
+  }
 }
 
 /** Handle a single fs.watch event. Re-loads the collection (schema may
@@ -417,6 +457,9 @@ async function onEvent(slug: string, filename: string | Buffer | null): Promise<
     // same opaque event has its stale bell entry cleared too.
     await reconcileAllItems(slug, collection.schema, collection.dataDir, discoveryOpts);
     await sweepStaleActiveEntries(discoveryOpts);
+    // No id and no op: subscribers refetch the whole collection anyway,
+    // and guessing either one here would be a lie.
+    safePublish({ slug });
     return;
   }
   const name = typeof filename === "string" ? filename : filename.toString("utf-8");
