@@ -22,7 +22,9 @@
 
 import { log } from "./host";
 import { errorMessage, ONE_DAY_MS } from "./util";
-import { writeItem, type IoOptions } from "./io";
+import type { IoOptions } from "./io";
+import { storeFor } from "./store";
+import type { LoadedCollection } from "./discoveredCollection";
 import { isFieldDrivenEvery } from "../core/schema";
 import { itemIsDone } from "../core/completion";
 import type { CollectionEvery, CollectionItem, CollectionSchema, CollectionSpawnEvery, CollectionWhen } from "../core/schema";
@@ -202,14 +204,8 @@ function logSpawnSkip(slug: string, triggerField: string, every: CollectionSpawn
  *  predicate doesn't match, the trigger date is unparseable, or the
  *  successor already exists (create-if-absent). Never overwrites an
  *  existing successor — protects any edits the user made to it. */
-export async function maybeSpawnSuccessor(
-  slug: string,
-  schema: CollectionSchema,
-  dataDir: string,
-  sourceItem: CollectionItem,
-  sourceId: string,
-  ioOpts: IoOptions = {},
-): Promise<void> {
+export async function maybeSpawnSuccessor(collection: LoadedCollection, sourceItem: CollectionItem, sourceId: string, ioOpts: IoOptions = {}): Promise<void> {
+  const { slug, schema } = collection;
   const { spawn } = schema;
   if (!spawn || !schema.triggerField) return;
   if (!matchesWhen(spawn.when, schema, sourceItem)) return;
@@ -232,7 +228,15 @@ export async function maybeSpawnSuccessor(
     return;
   }
   try {
-    const result = await writeItem(dataDir, computed.id, computed.record, { ...ioOpts, refuseOverwrite: true, slug });
+    // Store-mediated write: works for any writable backend (file, sqlite).
+    // A read-only store can't spawn — schema validation forbids `spawn` on
+    // dataSource collections, so an absent `write` is defense in depth.
+    const { write } = storeFor(collection, ioOpts);
+    if (!write) {
+      log.warn("collections", "spawn skipped: collection store is read-only", { slug, sourceId });
+      return;
+    }
+    const result = await write(computed.id, computed.record, { refuseOverwrite: true });
     if (result.kind === "ok") {
       log.info("collections", "spawned successor", { slug, sourceId, successorId: computed.id });
     } else if (result.kind !== "conflict") {

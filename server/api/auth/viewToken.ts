@@ -137,6 +137,7 @@ export function requireViewToken(action: ViewCapability) {
 const VIEW_DATA_PATH_RE = /^\/(?:api\/)?collections\/[^/]+\/view-data$/;
 const VIEW_DATA_ACTION_PATH_RE = /^\/(?:api\/)?collections\/[^/]+\/view-data\/actions\/[^/]+$/;
 const VIEW_DATA_QUERY_PATH_RE = /^\/(?:api\/)?collections\/[^/]+\/view-data\/query$/;
+const VIEW_DATA_IMAGE_PATH_RE = /^\/(?:api\/)?collections\/[^/]+\/view-data\/image$/;
 
 /** True for the view-data endpoint paths (either mount base): the record
  *  read/write base path, the token-scoped mutate-action endpoint, and the
@@ -147,5 +148,10 @@ const VIEW_DATA_QUERY_PATH_RE = /^\/(?:api\/)?collections\/[^/]+\/view-data\/que
  *  add every new `/view-data/...` route to this matcher AND to the
  *  coverage in `test/server/test_viewToken.ts`. */
 export function isViewDataPath(pathname: string): boolean {
-  return VIEW_DATA_PATH_RE.test(pathname) || VIEW_DATA_ACTION_PATH_RE.test(pathname) || VIEW_DATA_QUERY_PATH_RE.test(pathname);
+  return (
+    VIEW_DATA_PATH_RE.test(pathname) ||
+    VIEW_DATA_ACTION_PATH_RE.test(pathname) ||
+    VIEW_DATA_QUERY_PATH_RE.test(pathname) ||
+    VIEW_DATA_IMAGE_PATH_RE.test(pathname)
+  );
 }

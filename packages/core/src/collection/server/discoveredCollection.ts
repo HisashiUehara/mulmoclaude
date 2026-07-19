@@ -21,6 +21,10 @@ export interface LoadedCollection {
    *  the schema declares `dataSource` — i.e. iff the collection is
    *  read-only and its records come from the CSV store. */
   dataSourceFile?: string;
+  /** Absolute path to the alternative-backend data file (schema
+   *  `storage.path`, e.g. a SQLite database — same containment as dataDir).
+   *  Present iff the schema declares `storage`. */
+  storageFile?: string;
   /** Absolute path to the skill directory this collection was loaded from
    *  (`<skillsRoot>/<slug>/`). Action templates are read from here, path-safely. */
   skillDir: string;

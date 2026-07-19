@@ -74,7 +74,7 @@ describe("createGetCollection", () => {
 describe("createGetFeed", () => {
   const feedDeps = (all: { id: string }[]): GetFeedDeps => ({
     listFeeds: (async () => [{ slug: "news", dataDir: "/f/news", schema: {} }]) as unknown as GetFeedDeps["listFeeds"],
-    listItems: (async () => all) as unknown as GetFeedDeps["listItems"],
+    listRecords: (async () => all) as unknown as GetFeedDeps["listRecords"],
     toDetail: ((feed: { slug: string }) => ({
       slug: feed.slug,
       title: feed.slug,

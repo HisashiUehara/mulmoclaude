@@ -31,6 +31,10 @@ import {
   sweepStaleActiveEntries,
 } from "../../../server/workspace/collections/notifications.js";
 import type { CollectionSchema } from "../../../server/workspace/collections/types.js";
+import type { LoadedCollection } from "@mulmoclaude/core/collection/server";
+// The store-based reconciler takes the discovered collection.
+const asCollection = (slug: string, schema: CollectionSchema, dataDir: string): LoadedCollection =>
+  ({ slug, source: "project", schema, dataDir, skillDir: dataDir }) as unknown as LoadedCollection;
 
 let workdir: string;
 let userDir: string;
@@ -151,7 +155,7 @@ describe("reconcileItem", () => {
   it("publishes a bell entry for a pending item with no existing entry", async () => {
     const schema = buildSchema();
     writeItem("a", { read: false });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     const entries = await activeCompletionEntries();
     assert.equal(entries.length, 1);
     assert.equal(entries[0]?.legacyId, `collection-completion:${SLUG}:a`);
@@ -163,8 +167,8 @@ describe("reconcileItem", () => {
   it("is idempotent — a second reconcile on the same pending item doesn't dup", async () => {
     const schema = buildSchema();
     writeItem("a", { read: false });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     const entries = await activeCompletionEntries();
     assert.equal(entries.length, 1);
   });
@@ -172,39 +176,39 @@ describe("reconcileItem", () => {
   it("clears the bell entry when the item transitions to a done value", async () => {
     const schema = buildSchema();
     writeItem("a", { read: false });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 1);
     // Flip the item to done by rewriting the file.
     writeItem("a", { read: true });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 0);
   });
 
   it("clears the bell entry when the item file is deleted", async () => {
     const schema = buildSchema();
     writeItem("a", { read: false });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 1);
     deleteItemFile("a");
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 0);
   });
 
   it("clears the entry when the schema no longer declares completionField", async () => {
     const schema = buildSchema();
     writeItem("a", { read: false });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 1);
     // Simulate a runtime schema edit that drops completion tracking.
     const flipped = buildSchema({ completionField: undefined, completionDoneValues: undefined });
-    await reconcileItem(SLUG, flipped, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, flipped, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 0);
   });
 
   it("does NOT publish for an item born done", async () => {
     const schema = buildSchema();
     writeItem("a", { read: true });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 0);
   });
 
@@ -218,7 +222,7 @@ describe("reconcileItem", () => {
       displayField: "title",
     });
     writeItem("a", { title: "Buy milk", read: false });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     const entries = await activeCompletionEntries();
     assert.equal(entries[0]?.title, `${schema.title}: Buy milk`);
     // Deep-link still keys on the primaryKey, not the label.
@@ -235,7 +239,7 @@ describe("reconcileItem", () => {
       displayField: "title",
     });
     writeItem("a", { title: "   ", read: false });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     const entries = await activeCompletionEntries();
     assert.equal(entries[0]?.title, `${schema.title}: a`);
   });
@@ -275,7 +279,7 @@ describe("reconcileAllItems", () => {
     writeItem("a", { read: false });
     writeItem("b", { read: true });
     writeItem("c", { read: false });
-    await reconcileAllItems(SLUG, schema, dataDir, { workspaceRoot: workdir });
+    await reconcileAllItems(asCollection(SLUG, schema, dataDir), { workspaceRoot: workdir });
     const entries = await activeCompletionEntries();
     const legacyIds = entries.map((entry) => entry.legacyId).sort();
     assert.deepEqual(legacyIds, [`collection-completion:${SLUG}:a`, `collection-completion:${SLUG}:c`]);
@@ -284,7 +288,7 @@ describe("reconcileAllItems", () => {
   it("is a no-op when the schema has no completionField", async () => {
     const schema = buildSchema({ completionField: undefined, completionDoneValues: undefined });
     writeItem("a", { read: false });
-    await reconcileAllItems(SLUG, schema, dataDir, { workspaceRoot: workdir });
+    await reconcileAllItems(asCollection(SLUG, schema, dataDir), { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 0);
   });
 });
@@ -334,7 +338,7 @@ describe("sweepStaleActiveEntries", () => {
     const schema = buildSchema();
     writeSchemaJson(schema);
     writeItem("a", { read: false });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 1);
     // Delete the schema dir to simulate a collection deletion.
     deleteSchemaDir();
@@ -346,7 +350,7 @@ describe("sweepStaleActiveEntries", () => {
     const schema = buildSchema();
     writeSchemaJson(schema);
     writeItem("a", { read: false });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 1);
     // Rewrite the schema without completionField.
     writeSchemaJson(buildSchema({ completionField: undefined, completionDoneValues: undefined }));
@@ -358,7 +362,7 @@ describe("sweepStaleActiveEntries", () => {
     const schema = buildSchema();
     writeSchemaJson(schema);
     writeItem("a", { read: false });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 1);
     deleteItemFile("a");
     await sweepStaleActiveEntries({ workspaceRoot: workdir, userSkillsDir: userDir });
@@ -369,7 +373,7 @@ describe("sweepStaleActiveEntries", () => {
     const schema = buildSchema();
     writeSchemaJson(schema);
     writeItem("a", { read: false });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 1);
     // Flip the file to done without going through reconcileItem — sweep
     // is the safety net for changes made while the watcher was down.
@@ -382,7 +386,7 @@ describe("sweepStaleActiveEntries", () => {
     const schema = buildSchema();
     writeSchemaJson(schema);
     writeItem("a", { read: false });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 1);
     await sweepStaleActiveEntries({ workspaceRoot: workdir, userSkillsDir: userDir });
     assert.equal((await activeCompletionEntries()).length, 1);
@@ -416,41 +420,41 @@ describe("reconcileItem — triggerField (time gate)", () => {
   it("suppresses the bell before the trigger date", async () => {
     const schema = triggerSchema();
     writeItem("a", { dueOn: "2026-06-10", status: "pending" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir }, BEFORE);
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir }, BEFORE);
     assert.equal((await activeCompletionEntries()).length, 0);
   });
 
   it("fires the bell once the clock reaches the trigger date", async () => {
     const schema = triggerSchema();
     writeItem("a", { dueOn: "2026-06-10", status: "pending" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir }, ON_DAY);
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir }, ON_DAY);
     assert.equal((await activeCompletionEntries()).length, 1);
   });
 
   it("clears a fired bell when the item is marked done", async () => {
     const schema = triggerSchema();
     writeItem("a", { dueOn: "2026-06-10", status: "pending" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir }, ON_DAY);
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir }, ON_DAY);
     assert.equal((await activeCompletionEntries()).length, 1);
     writeItem("a", { dueOn: "2026-06-10", status: "done" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir }, ON_DAY);
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir }, ON_DAY);
     assert.equal((await activeCompletionEntries()).length, 0);
   });
 
   it("retracts a premature bell when the trigger is pushed to the future (convergent)", async () => {
     const schema = triggerSchema();
     writeItem("a", { dueOn: "2026-06-10", status: "pending" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir }, ON_DAY);
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir }, ON_DAY);
     assert.equal((await activeCompletionEntries()).length, 1);
     writeItem("a", { dueOn: "2026-12-31", status: "pending" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir }, ON_DAY);
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir }, ON_DAY);
     assert.equal((await activeCompletionEntries()).length, 0);
   });
 
   it("suppresses the bell (no throw) when the trigger value is unparseable", async () => {
     const schema = triggerSchema();
     writeItem("a", { dueOn: "whenever", status: "pending" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir }, ON_DAY);
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir }, ON_DAY);
     assert.equal((await activeCompletionEntries()).length, 0);
   });
 
@@ -458,7 +462,7 @@ describe("reconcileItem — triggerField (time gate)", () => {
     const schema = triggerSchema();
     writeItem("a", { dueOn: "2026-06-10", status: "pending" });
     // Boot-style reconcile with `now` already well past the trigger.
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir }, new Date(2026, 11, 1));
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir }, new Date(2026, 11, 1));
     assert.equal((await activeCompletionEntries()).length, 1);
   });
 });
@@ -487,8 +491,8 @@ describe("reconcileItem — notifyWhen (condition gate)", () => {
     const schema = notifySchema();
     writeItem("a", { priority: "high", status: "Todo" });
     writeItem("b", { priority: "low", status: "Todo" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
-    await reconcileItem(SLUG, schema, dataDir, "b", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "b", { workspaceRoot: workdir });
     const ids = (await activeCompletionEntries()).map((entry) => entry.legacyId);
     assert.deepEqual(ids, [`collection-completion:${SLUG}:a`]);
   });
@@ -496,27 +500,27 @@ describe("reconcileItem — notifyWhen (condition gate)", () => {
   it("does not fire when the gated field is missing", async () => {
     const schema = notifySchema();
     writeItem("a", { status: "Todo" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 0);
   });
 
   it("clears the bell when the record stops matching (priority dropped)", async () => {
     const schema = notifySchema();
     writeItem("a", { priority: "urgent", status: "Todo" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 1);
     writeItem("a", { priority: "low", status: "Todo" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 0);
   });
 
   it("still clears on done even while notifyWhen matches", async () => {
     const schema = notifySchema();
     writeItem("a", { priority: "high", status: "Todo" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 1);
     writeItem("a", { priority: "high", status: "Done" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 0);
   });
 
@@ -524,7 +528,7 @@ describe("reconcileItem — notifyWhen (condition gate)", () => {
     const schema = notifySchema();
     writeSchemaJson(schema);
     writeItem("a", { priority: "high", status: "Todo" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 1);
     writeItem("a", { priority: "low", status: "Todo" });
     await sweepStaleActiveEntries({ workspaceRoot: workdir, userSkillsDir: userDir });
@@ -556,8 +560,8 @@ describe("reconcileItem — notifyWhen severity", () => {
     const schema = severitySchema();
     writeItem("a", { priority: "urgent", status: "Todo" });
     writeItem("b", { priority: "high", status: "Todo" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
-    await reconcileItem(SLUG, schema, dataDir, "b", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "b", { workspaceRoot: workdir });
     const bySlug = new Map((await activeCompletionEntries()).map((entry) => [entry.legacyId, entry.severity]));
     assert.equal(bySlug.get(`collection-completion:${SLUG}:a`), "urgent");
     assert.equal(bySlug.get(`collection-completion:${SLUG}:b`), "nudge");
@@ -566,7 +570,7 @@ describe("reconcileItem — notifyWhen severity", () => {
   it("updates a pending entry's severity in place when its flagged priority changes", async () => {
     const schema = severitySchema();
     writeItem("a", { priority: "urgent", status: "Todo" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     const before = await activeCompletionEntries();
     assert.equal(before.length, 1);
     assert.equal(before[0].severity, "urgent");
@@ -574,7 +578,7 @@ describe("reconcileItem — notifyWhen severity", () => {
     // urgent → high: still flagged, so the entry persists but must re-colour
     // to amber — and keep the SAME id (in-place update, not clear+republish).
     writeItem("a", { priority: "high", status: "Todo" });
-    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(asCollection(SLUG, schema, dataDir), "a", { workspaceRoot: workdir });
     const after = await activeCompletionEntries();
     assert.equal(after.length, 1);
     assert.equal(after[0].severity, "nudge");

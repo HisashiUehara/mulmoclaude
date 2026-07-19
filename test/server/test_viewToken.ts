@@ -114,6 +114,9 @@ describe("viewToken — isViewDataPath", () => {
     // is unreachable from sandboxed views (Codex P1 on #2163).
     assert.equal(isViewDataPath("/collections/my-slug/view-data/query"), true);
     assert.equal(isViewDataPath("/api/collections/my-slug/view-data/query"), true);
+    // The image-thumbnail endpoint — same failure mode (Codex P1 on #2204).
+    assert.equal(isViewDataPath("/collections/my-slug/view-data/image"), true);
+    assert.equal(isViewDataPath("/api/collections/my-slug/view-data/image"), true);
   });
 
   it("does not match sibling collection routes", () => {

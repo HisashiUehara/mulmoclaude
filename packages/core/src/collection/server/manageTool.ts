@@ -50,9 +50,9 @@ import { CollectionQueryZ } from "../core/queryZ";
 import { defangForPrompt } from "../core/promptSafety";
 import { loadCollection, type DiscoveryOptions } from "./discovery";
 import type { LoadedCollection } from "./discoveredCollection";
-import { deleteItem, readItem, resolveCreateItemId, writeItem } from "./io";
-import { collectionWritable, readOnlyRefusal, storeFor } from "./store";
-import { runQueryOverRows } from "./jsonlQuery";
+import { resolveCreateItemId } from "./io";
+import { readOnlyRefusal, storeFor, type CollectionStore } from "./store";
+import { runCollectionQuery } from "./queryRunner";
 import { enrichItems } from "./derive";
 import { validateCollectionRecords, validateRecordObject } from "./validate";
 import { buildWorkspaceOntology } from "./ontology";
@@ -233,18 +233,18 @@ interface RejectedRow {
  *  `toggle` value, and re-writing it would perpetuate a forged
  *  host-computed value. A merge heals the record instead.
  *
- *  readItem THROWS on a malformed stored file (only ENOENT is null) —
+ *  the store read THROWS on a malformed stored file (only ENOENT is null) —
  *  downgraded to a per-row rejection here, like loadRequestedItems'
  *  `missing`, so one broken file can't abort the whole putItems batch. */
 async function mergeWithExisting(
   collection: LoadedCollection,
+  store: CollectionStore,
   record: CollectionItem,
   itemId: string,
-  deps: ManageCollectionDeps,
 ): Promise<CollectionItem | string> {
   let existing: CollectionItem | null;
   try {
-    existing = await readItem(collection.dataDir, itemId, { workspaceRoot: deps.workspaceRoot });
+    existing = await store.read(itemId);
   } catch {
     return `'${itemId}' has a malformed stored file — mode "merge" needs to read it; fix the file (Read → correct → Write) or replace it whole with "upsert"`;
   }
@@ -258,6 +258,8 @@ async function mergeWithExisting(
 
 async function putOneItem(
   collection: LoadedCollection,
+  store: CollectionStore,
+  write: NonNullable<CollectionStore["write"]>,
   record: CollectionItem,
   mode: PutMode,
   deps: ManageCollectionDeps,
@@ -272,7 +274,7 @@ async function putOneItem(
   if (computed) return reject(itemId, computed);
   let toWrite = record;
   if (mode === "merge") {
-    const merged = await mergeWithExisting(collection, record, itemId, deps);
+    const merged = await mergeWithExisting(collection, store, record, itemId);
     if (typeof merged === "string") return reject(itemId, merged);
     toWrite = merged;
   }
@@ -280,11 +282,7 @@ async function putOneItem(
     const invalid = validateRecordObject(toWrite, itemId, schema);
     if (invalid) return reject(itemId, invalid);
   }
-  const result = await writeItem(collection.dataDir, itemId, toWrite, {
-    refuseOverwrite: mode === "create",
-    workspaceRoot: deps.workspaceRoot,
-    slug: collection.slug,
-  });
+  const result = await write(itemId, toWrite, { refuseOverwrite: mode === "create" });
   if (result.kind === "ok") return { written: result.itemId };
   if (result.kind === "invalid-id")
     return reject(itemId, `'${itemId}' is not a valid record id (letters/digits at the ends; -, _, or . inside; no '..' or path characters)`);
@@ -294,12 +292,10 @@ async function putOneItem(
 
 /** Aggregation over a collection via the structured query DSL
  *  (`core/queryZ.ts`) — the paved road for counts / sums / group-bys
- *  that a row listing can't answer honestly. Two engines behind one
- *  shape: a dataSource collection queries its CSV natively through the
- *  store (`store.query`, uncapped whole-file scan); a file-backed
- *  collection aggregates its ENRICHED records (computed fields —
- *  `derived` / `rollup` / `toggle` — are real columns) through the same
- *  compiled SQL over a temp JSONL (`runQueryOverRows`). */
+ *  that a row listing can't answer honestly. The engine choice (native
+ *  store query vs enrich-then-JSONL fallback) lives in
+ *  `runCollectionQuery`, shared with the desktop custom view's `/query`
+ *  route so the two surfaces can never drift. */
 async function handleQueryItems(collection: LoadedCollection, queryArg: unknown, deps: ManageCollectionDeps): Promise<string> {
   const parsed = CollectionQueryZ.safeParse(queryArg);
   if (!parsed.success) {
@@ -308,47 +304,43 @@ async function handleQueryItems(collection: LoadedCollection, queryArg: unknown,
       .map((issue) => `- ${issue.path.map(String).join(".") || "(root)"}: ${defangForPrompt(issue.message)}`);
     return `manageCollection: \`query\` rejected — fix and retry:\n${lines.join("\n")}`;
   }
-  const store = storeFor(collection, { workspaceRoot: deps.workspaceRoot });
-  if (store.query) {
-    const rows = await store.query(parsed.data);
-    return JSON.stringify({ collection: collection.slug, count: rows.length, rows });
-  }
-  // File-backed: load through the guarded reader (symlink defenses) and
-  // enrich BEFORE DuckDB sees anything — a raw read_json over the record
-  // files would both follow symlinks and miss every computed field.
-  const enriched = await enrichItems(collection, await store.list(), deps);
-  const rows = await runQueryOverRows(enriched, parsed.data);
+  const rows = await runCollectionQuery(collection, parsed.data, { workspaceRoot: deps.workspaceRoot });
   return JSON.stringify({ collection: collection.slug, count: rows.length, rows });
 }
 
 async function handlePutItems(collection: LoadedCollection, args: PutItemsArgs, deps: ManageCollectionDeps): Promise<string> {
   // Server-enforced read-only: a `dataSource` collection's rows live in
   // the external data file — point the agent at the real update path
-  // instead of writing phantom record files.
-  if (!collectionWritable(collection)) {
+  // instead of writing phantom record files. The store encodes this as an
+  // absent `write` method.
+  const store = storeFor(collection, { workspaceRoot: deps.workspaceRoot });
+  const { write } = store;
+  if (!write) {
     return `manageCollection: ${readOnlyRefusal(collection.slug)} (its records are the rows of '${collection.schema.dataSource?.path}'; edit that file to change the data).`;
   }
   const written: string[] = [];
   const rejected: RejectedRow[] = [];
   for (const record of args.items) {
-    const outcome = await putOneItem(collection, record, args.mode, deps);
+    const outcome = await putOneItem(collection, store, write, record, args.mode, deps);
     if (outcome.written) written.push(outcome.written);
     if (outcome.rejected) rejected.push(outcome.rejected);
   }
   return JSON.stringify({ collection: collection.slug, written, rejected });
 }
 
-/** Delete records by id. Same read-only refusal as putItems, and the
- *  same `{ done, rejected }` shape so a partially-bad batch reports per
- *  id instead of failing whole. */
+/** Delete records by id, through the store — so it works on any writable
+ *  backend, not just file records. Same read-only refusal as putItems (an
+ *  absent `delete` IS the refusal), and the same per-id result shape so a
+ *  partially-bad batch reports per id instead of failing whole. */
 async function handleDeleteItems(collection: LoadedCollection, ids: string[], deps: ManageCollectionDeps): Promise<string> {
-  if (!collectionWritable(collection)) {
+  const { delete: removeItem } = storeFor(collection, { workspaceRoot: deps.workspaceRoot });
+  if (!removeItem) {
     return `manageCollection: ${readOnlyRefusal(collection.slug)} (its records are the rows of '${collection.schema.dataSource?.path}'; edit that file to change the data).`;
   }
   const deleted: string[] = [];
   const rejected: RejectedRow[] = [];
   for (const itemId of ids) {
-    const outcome = await deleteOneItem(collection, itemId, deps);
+    const outcome = await deleteOneItem(removeItem, itemId);
     if (outcome.deleted) deleted.push(outcome.deleted);
     if (outcome.rejected) rejected.push(outcome.rejected);
   }
@@ -357,8 +349,8 @@ async function handleDeleteItems(collection: LoadedCollection, ids: string[], de
 
 /** A missing id is a rejection, not a silent success: deleting by a typo'd
  *  id would otherwise report "done" while the real record survives. */
-async function deleteOneItem(collection: LoadedCollection, itemId: string, deps: ManageCollectionDeps): Promise<{ deleted?: string; rejected?: RejectedRow }> {
-  const result = await deleteItem(collection.dataDir, itemId, { workspaceRoot: deps.workspaceRoot, slug: collection.slug });
+async function deleteOneItem(removeItem: NonNullable<CollectionStore["delete"]>, itemId: string): Promise<{ deleted?: string; rejected?: RejectedRow }> {
+  const result = await removeItem(itemId);
   if (result.kind === "ok") return { deleted: result.itemId };
   const reject = (problem: string): { rejected: RejectedRow } => ({ rejected: { id: defangForPrompt(itemId), problem: defangForPrompt(problem) } });
   if (result.kind === "invalid-id")
