@@ -1798,6 +1798,35 @@ describe("discoverCollections — flag field validation", () => {
     assert.equal((await listCollections()).length, 0);
   });
 
+  it("rejects a top-level field named __proto__ (raw JSON — a JS literal would set the prototype)", async () => {
+    writeSkill(
+      "test-proto-field",
+      `{"title":"P","icon":"person","dataPath":"data/p/items","primaryKey":"id","fields":{"id":{"type":"string","label":"ID","primary":true,"required":true},"__proto__":{"type":"string","label":"Bad"}}}`,
+    );
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a top-level field named constructor", async () => {
+    writeSkill(
+      "test-constructor-field",
+      flagSchema({ fields: { ...(flagSchema().fields as Record<string, unknown>), constructor: { type: "string", label: "Bad" } } }),
+    );
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a table sub-field named prototype", async () => {
+    writeSkill(
+      "test-prototype-subfield",
+      flagSchema({
+        fields: {
+          ...(flagSchema().fields as Record<string, unknown>),
+          rows: { type: "table", label: "Rows", of: { prototype: { type: "string", label: "Bad" } } },
+        },
+      }),
+    );
+    assert.equal((await listCollections()).length, 0);
+  });
+
   it("accepts spawn under flag completion with an explicit spawn.when", async () => {
     writeSkill(
       "test-flag-spawn-explicit",

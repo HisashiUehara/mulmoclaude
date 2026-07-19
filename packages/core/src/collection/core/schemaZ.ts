@@ -756,7 +756,7 @@ export const DataSourceZ = z.object({
 // The whole schema
 // ---------------------------------------------------------------------------
 
-export const CollectionSchemaZ = z
+const BareCollectionSchemaZ = z
   .object({
     title: z.string().min(1),
     icon: z.string().min(1),
@@ -1191,3 +1191,55 @@ export const CollectionSchemaZ = z
     message: "schema `views` must have unique `id`s",
     path: ["views"],
   });
+
+// ---------------------------------------------------------------------------
+// Prototype-sensitive field names — checked on the RAW input
+// ---------------------------------------------------------------------------
+
+// A field name becomes a plain-object key THROUGHOUT the engine — record
+// JSON, edit drafts, enrichment output, view filter state — where a
+// prototype-sensitive name would read (or write) inherited prototype data
+// instead of field data (Codex review on PR #2176: a flag named
+// `__proto__` jams its filter chip). This check must run BEFORE zod
+// parses: zod's record builder silently SKIPS an own `__proto__` input
+// key (pollution safety), so a post-parse refine would never see it and
+// the author's field would just vanish. Hence the `z.preprocess` wrapper
+// below rather than another `.refine`.
+const PROTOTYPE_KEYS = ["__proto__", "constructor", "prototype"] as const;
+
+/** The first own prototype-sensitive key of `value`, or null. */
+function ownPrototypeKey(value: unknown): string | null {
+  if (value === null || typeof value !== "object") return null;
+  for (const key of PROTOTYPE_KEYS) {
+    if (Object.hasOwn(value, key)) return key;
+  }
+  return null;
+}
+
+/** Dotted path of the first prototype-sensitive field name in the raw
+ *  schema input — top-level `fields`, each table field's `of`, and each
+ *  action's `params` (the three records that DEFINE names) — or null. */
+function prototypeFieldKeyPath(input: unknown): string | null {
+  if (input === null || typeof input !== "object") return null;
+  const schema = input as { fields?: unknown; actions?: unknown; collectionActions?: unknown };
+  const bad = ownPrototypeKey(schema.fields);
+  if (bad !== null) return `fields.${bad}`;
+  for (const [key, spec] of Object.entries(schema.fields ?? {})) {
+    const badSub = ownPrototypeKey((spec as { of?: unknown } | null)?.of);
+    if (badSub !== null) return `fields.${key}.of.${badSub}`;
+  }
+  for (const action of [schema.actions, schema.collectionActions].flatMap((list) => (Array.isArray(list) ? list : []))) {
+    const badParam = ownPrototypeKey((action as { params?: unknown } | null)?.params);
+    if (badParam !== null) return `actions.params.${badParam}`;
+  }
+  return null;
+}
+
+export const CollectionSchemaZ = z.preprocess((input, ctx) => {
+  const bad = prototypeFieldKeyPath(input);
+  if (bad !== null) {
+    ctx.addIssue({ code: "custom", message: `'${bad}': field names must not be prototype-sensitive keys (\`__proto__\`, \`constructor\`, \`prototype\`)` });
+    return z.NEVER;
+  }
+  return input;
+}, BareCollectionSchemaZ);
