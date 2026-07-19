@@ -71,6 +71,21 @@ describe("useFileContentLoader", () => {
     assert.equal(loader.contentError.value, null);
   });
 
+  // The reason `selectFile` can call this fire-and-forget: a network-level
+  // failure resolves into `contentError` instead of rejecting. `apiCall`
+  // catches the `fetch` throw and returns `{ ok: false, status: 0 }`, so
+  // nothing escapes for a caller to have to `.catch`. Pinning that here — if
+  // the api layer ever starts rethrowing, the detached callers become
+  // unhandled-rejection sites and this test is what catches it.
+  it("a network-level fetch throw resolves into contentError, it does not reject", async () => {
+    globalThis.fetch = () => Promise.reject(new TypeError("Failed to fetch"));
+    const { content, contentLoading, contentError, loadContent } = useFileContentLoader();
+    await assert.doesNotReject(loadContent("a.txt"));
+    assert.equal(content.value, null);
+    assert.match(contentError.value ?? "", /Failed to fetch/);
+    assert.equal(contentLoading.value, false);
+  });
+
   it("abortContent stops the in-flight load and clears loading", async () => {
     installControllableFetch();
     const loader = useFileContentLoader();
