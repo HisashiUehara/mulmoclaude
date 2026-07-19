@@ -1304,7 +1304,12 @@ process.on("SIGTERM", () => {
   // `http://<laptop-ip>:3001/api/*`), which combined with the
   // workspace file API is a credential-theft risk. Personal dev
   // tool — localhost is the right default.
-  const httpServer = app.listen(port, "127.0.0.1", async () => {
+  // Express discards whatever the listen callback returns, so an async callback
+  // would leave a throw in it as an unhandled rejection. The callback below
+  // stays synchronous and hands the async setup off here. The server arrives as
+  // a parameter rather than a closure variable — `httpServer` is this call's
+  // own result and isn't defined yet at this point.
+  const onListening = async (httpServer: ReturnType<typeof app.listen>): Promise<void> => {
     // Initialize the notifier engine synchronously, before any await
     // in this callback. The HTTP listener is already accepting
     // connections by the time this callback fires, so any awaited
@@ -1361,8 +1366,25 @@ process.on("SIGTERM", () => {
       httpServer.close(() => process.exit(1));
       setTimeout(() => process.exit(1), STARTUP_FAILURE_FORCE_EXIT_MS).unref();
     });
+  };
+
+  const httpServer = app.listen(port, "127.0.0.1", () => {
+    // Terminal handler, not a bare `void`: `onListening` runs the whole
+    // post-listen setup, and a rejection outside its own
+    // `startRuntimeServices(...).catch(...)` branch would otherwise be an
+    // unhandled rejection on a half-initialised server.
+    onListening(httpServer).catch((err: unknown) => {
+      log.error("server", "post-listen initialization failed — exiting", { error: String(err) });
+      process.exit(1);
+    });
   });
-})();
+})().catch((err: unknown) => {
+  // Anything thrown before the listener is up (port resolution, token write)
+  // lands here. Without this the failure surfaced only as an unhandled
+  // rejection — no log line, and the exit code depended on the Node version.
+  log.error("server", "server startup failed — exiting", { error: String(err) });
+  process.exit(1);
+});
 
 function registerDebugTasks(taskManager: ITaskManager, pubsub: IPubSub) {
   let tick = 0;
