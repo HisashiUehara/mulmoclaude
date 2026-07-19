@@ -183,7 +183,10 @@ export function endRun(chatSessionId: string): void {
   session.statusMessage = "";
   session.abortRun = undefined;
   session.updatedAt = new Date().toISOString();
-  persistHasUnread(chatSessionId, true);
+  // Same fire-and-forget contract as the other unread writes: the in-memory
+  // flag above is what the UI reads, so a failed persist must not break the
+  // finish path.
+  persistHasUnread(chatSessionId, true).catch(() => {});
   publishToSessionChannel(chatSessionId, {
     type: EVENT_TYPES.sessionFinished,
   });
@@ -262,7 +265,7 @@ export function pushSessionEvent(chatSessionId: string, event: Record<string, un
   // If we notified before the write completed, the client's refetch
   // would read the stale pre-drain value. Sequence: persist, then
   // notify.
-  persistHasUnread(chatSessionId, true)
+  void persistHasUnread(chatSessionId, true)
     .catch(() => {})
     .then(() => notifySessionsChanged());
 }

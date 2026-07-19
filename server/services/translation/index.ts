@@ -88,7 +88,9 @@ export function createTranslationService(deps: TranslationServiceDeps): Translat
     const next = prev.catch(() => undefined).then(runner);
     const tracked = next.catch(() => undefined);
     chains.set(namespace, tracked);
-    tracked.then(() => {
+    // Housekeeping only, and `tracked` already swallowed the rejection — the
+    // caller waits on `next`, not on this.
+    void tracked.then(() => {
       if (chains.get(namespace) === tracked) chains.delete(namespace);
     });
     return next;

@@ -29,11 +29,14 @@ export function createPubSub(server: http.Server): IPubSub {
   });
 
   ioServer.on("connection", (socket) => {
+    // `join`/`leave` are synchronous for the in-memory adapter but typed as
+    // Promise because a clustered adapter would go over the wire. Nothing here
+    // depends on the result, so discard it rather than block the handler.
     socket.on("subscribe", (channel: unknown) => {
-      if (typeof channel === "string") socket.join(channel);
+      if (typeof channel === "string") void socket.join(channel);
     });
     socket.on("unsubscribe", (channel: unknown) => {
-      if (typeof channel === "string") socket.leave(channel);
+      if (typeof channel === "string") void socket.leave(channel);
     });
   });
 

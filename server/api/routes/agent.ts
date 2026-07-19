@@ -357,7 +357,10 @@ async function dispatchAgentRun(
     resumed: Boolean(claudeSessionId),
   });
 
-  runAgentInBackground({
+  // Deliberately not awaited — the request returns the SSE stream immediately
+  // and the run continues past it. `runAgentInBackground` owns its own
+  // try/catch/finally, so nothing can escape as an unhandled rejection.
+  void runAgentInBackground({
     decoratedMessage,
     role,
     chatSessionId,

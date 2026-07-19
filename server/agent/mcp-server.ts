@@ -628,7 +628,7 @@ process.stdin.on("data", (chunk: Buffer) => {
 // and setting `exitCode` (instead of calling `exit`) lets the event loop
 // drain the rest of the I/O before the process leaves naturally.
 process.stdin.on("end", () => {
-  runtimeReady.finally(() => {
+  void runtimeReady.finally(() => {
     process.exitCode = 0;
   });
 });
