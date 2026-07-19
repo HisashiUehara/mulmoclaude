@@ -46,6 +46,18 @@ describe("fieldTextOrNull", () => {
   it("renders a Date as ISO rather than a locale-dependent string", () => {
     assert.equal(fieldTextOrNull(new Date("2026-07-19T00:00:00.000Z")), "2026-07-19T00:00:00.000Z");
   });
+
+  // An unparseable date is still `instanceof Date`, and `toISOString()` throws
+  // `RangeError` on it. Since this helper sits on the match/sort/display paths,
+  // that would turn one bad record into a failed render.
+  it("treats an invalid Date as having no text instead of throwing", () => {
+    const invalid = new Date("not-a-date");
+    assert.equal(invalid instanceof Date, true);
+    assert.throws(() => invalid.toISOString(), RangeError);
+    assert.doesNotThrow(() => fieldTextOrNull(invalid));
+    assert.equal(fieldTextOrNull(invalid), null);
+    assert.equal(fieldText(invalid, "—"), "—");
+  });
 });
 
 describe("fieldText", () => {

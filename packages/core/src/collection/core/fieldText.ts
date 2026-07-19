@@ -25,7 +25,14 @@ const isTextable = (value: unknown): value is string | number | boolean | Date =
 export function fieldTextOrNull(value: unknown): string | null {
   if (value === undefined || value === null) return null;
   if (!isTextable(value)) return null;
-  return value instanceof Date ? value.toISOString() : String(value);
+  if (value instanceof Date) {
+    // `new Date("nonsense")` is still `instanceof Date`, and `toISOString()`
+    // throws `RangeError` on it. This helper sits on the match, sort and
+    // display paths, so one unparseable date in one record would take the whole
+    // render down — the loud version of the bug this module exists to prevent.
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
+  return String(value);
 }
 
 /** The field's text, or `fallback` (default `""`) when it has none. Use where
