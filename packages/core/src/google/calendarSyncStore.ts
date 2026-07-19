@@ -8,9 +8,9 @@
 import path from "node:path";
 import { getWorkspaceRoot } from "../collection/server/host.js";
 import { readJsonOrNull, writeJsonAtomicWithMode } from "./fsJson.js";
+import { canonicalCalendarId } from "./calendar.js";
 
 const SYNC_STATE_MODE = 0o600;
-const DEFAULT_CALENDAR_KEY = "primary";
 
 /** `<workspace>/data/calendar/.sync-state.json` */
 export function calendarSyncStatePath(workspaceRoot?: string): string {
@@ -22,9 +22,10 @@ interface CalendarSyncState {
   tokens: Record<string, string>;
 }
 
-// `||` (not `??`) so an empty-string calendarId keys off "primary", matching
-// the same fallback the REST layer applies when building the events URL.
-const calendarKey = (calendarId: string | undefined): string => calendarId || DEFAULT_CALENDAR_KEY;
+// Shared with the REST layer so a stored token is keyed by exactly the
+// calendar the request addressed — an omitted id and an explicit "primary"
+// must never end up as two different keys.
+const calendarKey = canonicalCalendarId;
 
 async function readState(workspaceRoot?: string): Promise<CalendarSyncState> {
   const stored = await readJsonOrNull<CalendarSyncState>(calendarSyncStatePath(workspaceRoot));

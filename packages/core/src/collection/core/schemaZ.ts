@@ -549,6 +549,20 @@ export const AgentIngestZ = z.object({
     .refine(isSafeActionTemplatePath, "must be a safe path under `templates/` (e.g. `templates/refresh.md`; no `..`, no leading `/`, no backslash)"),
 });
 
+/** The Google event fields a collection may pull from. `id` is absent on
+ *  purpose — it always lands in the primary field, since upsert-by-event-id
+ *  is what makes the sync idempotent. */
+export const GOOGLE_CALENDAR_SOURCE_FIELDS = ["summary", "start", "end", "htmlLink", "colorId", "status"] as const;
+
+/** Marks a collection as the destination of the LLM-free Google Calendar
+ *  sync (#2095). `map` is collectionField → Google event field, so the user's
+ *  collection keeps whatever field names it already uses. */
+export const GoogleCalendarSyncZ = z.object({
+  /** Calendar to pull from; defaults to the user's primary. */
+  calendarId: z.string().trim().min(1).optional(),
+  map: z.record(z.string().trim().min(1), z.enum(GOOGLE_CALENDAR_SOURCE_FIELDS)),
+});
+
 /** `ingest` is a discriminated union on `kind`: the three declarative
  *  retrievers fetch-and-map; `agent` dispatches a hidden worker. Optional on
  *  every schema — skill-backed collections usually omit it; only feeds
@@ -828,6 +842,9 @@ const BareCollectionSchemaZ = z
     // the `<workspace>/feeds/` registry). Optional, so every existing
     // skill schema validates unchanged.
     ingest: IngestZ.optional(),
+    // Declares this collection as the destination of the LLM-free Google
+    // Calendar sync. Optional, so every existing schema validates unchanged.
+    googleCalendar: GoogleCalendarSyncZ.optional(),
     // Data-driven launcher-icon override. Optional, so every existing
     // schema validates unchanged; `source` is required within it.
     dynamicIcon: DynamicIconSpecZ.optional(),
@@ -844,10 +861,30 @@ const BareCollectionSchemaZ = z
   // write machinery can never fire: `singleton` pins CREATES, `ingest`
   // REFILLS records, `spawn` WRITES successor records. Rejecting them at
   // validation kills whole classes of writes before any runtime guard.
-  .refine((schema) => schema.dataSource === undefined || (schema.singleton === undefined && schema.ingest === undefined && schema.spawn === undefined), {
-    message: "a `dataSource` collection is read-only — it cannot declare `singleton`, `ingest`, or `spawn` (all of them write records)",
-    path: ["dataSource"],
-  })
+  .refine(
+    (schema) =>
+      schema.dataSource === undefined ||
+      (schema.singleton === undefined && schema.ingest === undefined && schema.spawn === undefined && schema.googleCalendar === undefined),
+    {
+      message: "a `dataSource` collection is read-only — it cannot declare `singleton`, `ingest`, `spawn`, or `googleCalendar` (all of them write records)",
+      path: ["dataSource"],
+    },
+  )
+  // The sync writes each mapped value into a declared field, and puts the
+  // Google event id in the primary field — so a map key that names no field
+  // (or names the primary) would silently drop data or fight the id.
+  .refine(
+    (schema) =>
+      schema.googleCalendar === undefined ||
+      Object.keys(schema.googleCalendar.map).every((key) => {
+        const target = schema.fields[key];
+        return target !== undefined && !COMPUTED_TYPES.has(target.type) && key !== schema.primaryKey;
+      }),
+    {
+      message: "a `googleCalendar` map key must name a declared, non-computed field, and never the primaryKey (that always holds the Google event id)",
+      path: ["googleCalendar"],
+    },
+  )
   // Same rule for declarative host writes: a mutate action writes the
   // record it's invoked on.
   .refine(

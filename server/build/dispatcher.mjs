@@ -126,7 +126,7 @@ async function handleConfigRefresh(payload) {
   await safePost(req);
 }
 
-// packages/core/dist/collection/paths.js
+// packages/core/dist/templatePath-k_WNbL_Q.js
 var TEMPLATES_PREFIX = "templates/";
 function isSafeTemplatePath(value) {
   if (value.length === 0 || value.includes("\\") || value.startsWith("/")) return false;
