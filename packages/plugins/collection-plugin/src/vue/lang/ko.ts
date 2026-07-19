@@ -71,7 +71,7 @@ const koMessages: CollectionMessages = {
     searchSummary: "{total}개 중 {shown}개 표시",
     noMatchingItems: "일치하는 항목이 없습니다",
     clearSearch: "검색 지우기",
-    flagFilterGroup: "플래그 필터",
+    flagFilterButton: "필터",
     flagFilterAll: "{label}(으)로 필터",
     flagFilterHide: "{label} 숨김",
     flagFilterOnly: "{label}만 표시",

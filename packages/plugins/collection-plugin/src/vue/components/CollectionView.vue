@@ -175,31 +175,59 @@
         </button>
       </div>
       <div class="flex items-center gap-2">
-        <!-- Flag filter chips (table view only): one tri-state chip per
-             `flag` field (all → hide → only), plus a synthesized "done"
-             chip for legacy completion-pair schemas. State is a shared
-             per-collection localStorage preference, like the table sort. -->
-        <div
-          v-if="activeView === 'table' && flagChips.length > 0 && items.length > 0"
-          class="flex items-center gap-0.5"
-          role="group"
-          :aria-label="t('collectionsView.flagFilterGroup')"
-        >
+        <!-- Filter menu (table view only): one tri-state entry (all → hide
+             → only) per predicate-shaped field — `flag`, `boolean`,
+             `toggle` — plus a synthesized "done" entry for legacy
+             completion-pair schemas. Collapsed behind a single trigger so
+             a chip-heavy schema can't flood the chrome row, and styled as
+             a dashed pill (soft-tinted when active) so it never reads as
+             another view-toggle button. State is a shared per-collection
+             localStorage preference, like the table sort. -->
+        <div v-if="activeView === 'table' && flagChips.length > 0 && items.length > 0" ref="filterMenuRef" class="relative">
           <button
-            v-for="chip in flagChips"
-            :key="chip.key"
             type="button"
-            class="h-8 px-2.5 flex items-center gap-1 rounded text-xs font-bold transition-colors"
-            :class="flagChipClass(chip.key)"
-            :title="flagChipTitle(chip)"
-            :aria-label="flagChipTitle(chip)"
-            :aria-pressed="flagFilterMode(chip.key) !== undefined"
-            :data-testid="`collections-flag-chip-${chip.key}`"
-            @click="cycleFlagFilter(chip.key)"
+            class="h-8 px-2.5 flex items-center gap-1 rounded-full text-xs font-medium transition-colors"
+            :class="
+              activeFlagFilterCount > 0
+                ? 'bg-indigo-50 text-indigo-700 border border-indigo-300'
+                : 'bg-transparent text-slate-500 border border-dashed border-slate-300 hover:bg-slate-50'
+            "
+            :aria-label="t('collectionsView.flagFilterButton')"
+            :aria-expanded="filterMenuOpen"
+            data-testid="collections-filter-menu"
+            @click="filterMenuOpen = !filterMenuOpen"
           >
-            <span class="material-icons text-sm" aria-hidden="true">{{ flagChipIcon(chip.key) }}</span>
-            <span>{{ chip.label }}</span>
+            <span class="material-icons text-sm" aria-hidden="true">filter_alt</span>
+            <span>{{ t("collectionsView.flagFilterButton") }}</span>
+            <span
+              v-if="activeFlagFilterCount > 0"
+              class="min-w-4 h-4 px-1 flex items-center justify-center rounded-full bg-indigo-600 text-white text-[10px] font-bold"
+              >{{ activeFlagFilterCount }}</span
+            >
           </button>
+          <div
+            v-if="filterMenuOpen"
+            class="absolute left-0 top-full mt-1 z-20 min-w-max rounded border border-slate-200 bg-white shadow-lg py-1"
+            role="group"
+            :aria-label="t('collectionsView.flagFilterButton')"
+            data-testid="collections-filter-menu-panel"
+          >
+            <button
+              v-for="chip in flagChips"
+              :key="chip.key"
+              type="button"
+              class="w-full h-8 px-3 flex items-center gap-2 text-xs font-medium transition-colors hover:bg-slate-50"
+              :class="flagChipClass(chip.key)"
+              :title="flagChipTitle(chip)"
+              :aria-label="flagChipTitle(chip)"
+              :aria-pressed="flagFilterMode(chip.key) !== undefined"
+              :data-testid="`collections-flag-chip-${chip.key}`"
+              @click="cycleFlagFilter(chip.key)"
+            >
+              <span class="material-icons text-sm" :class="flagChipIconClass(chip.key)" aria-hidden="true">{{ flagChipIcon(chip.key) }}</span>
+              <span class="flex-1 text-left">{{ chip.label }}</span>
+            </button>
+          </div>
         </div>
         <!-- View toggle: table ↔ calendar ↔ kanban. Calendar shows only when
              the schema has a `date` field, kanban only with an `enum` field;
@@ -1140,25 +1168,54 @@ interface FlagChip {
   key: string;
   label: string;
   /** Set on the synthesized legacy-completion chip (predicate =
-   *  `itemIsDone`); absent on chips backed by a real flag field. */
+   *  `itemIsDone`); absent on chips backed by a real field. */
   synthetic?: boolean;
+}
+
+/** The field types that earn a filter-menu entry: declared predicates
+ *  (`flag`) plus the fields that ARE a predicate already — a stored
+ *  `boolean` and a `toggle`'s projected on/off state. Enums stay out:
+ *  they need a value picker, and kanban already slices by enum. */
+const CHIP_FIELD_TYPES = new Set(["flag", "boolean", "toggle"]);
+
+/** True when an existing FIELD chip already expresses the legacy
+ *  completion predicate exactly, so a synthesized "done" chip would be a
+ *  duplicate: a boolean `completionField` (done ⇔ `"true"` ⇔ the
+ *  boolean's own chip), or a `toggle` projecting the `completionField`
+ *  whose `onValue` is the single done value (the todos-schema shape:
+ *  toggle "Done" on `status` + `completionDoneValues: ["done"]`). A
+ *  superset pair (extra done values) still synthesizes — no field chip
+ *  covers it. */
+function completionCoveredByFieldChip(schema: {
+  fields: Record<string, FieldSpec>;
+  completionField?: string;
+  completionDoneValues?: readonly string[];
+}): boolean {
+  const { completionField, completionDoneValues } = schema;
+  if (completionDoneValues?.length !== 1) return false;
+  const [doneValue] = completionDoneValues;
+  if (schema.fields[completionField ?? ""]?.type === "boolean") return doneValue === "true";
+  return Object.values(schema.fields).some((field) => field.type === "toggle" && field.field === completionField && field.onValue === doneValue);
 }
 
 const flagChips = computed<FlagChip[]>(() => {
   const schema = collection.value?.schema;
   if (!schema) return [];
   const chips: FlagChip[] = Object.entries(schema.fields)
-    .filter(([, field]) => field.type === "flag")
+    .filter(([, field]) => CHIP_FIELD_TYPES.has(field.type))
     .map(([key, field]) => ({ key, label: field.label ?? key }));
   // Legacy completion pair (completionField NOT naming a flag) → one
   // synthesized done chip; a flag-form completion is already covered by
-  // that flag's own chip. Skipped when a field happens to be named
+  // that flag's own chip, and a pair a boolean/toggle chip expresses
+  // exactly is covered by THAT chip (else e.g. the todos schema shows
+  // two "Done" filters). Skipped when a field happens to be named
   // `__completion`, so the chip key (filter state / testid / Vue :key)
   // can never collide with a real field's.
   if (
     schema.completionField &&
     schema.completionDoneValues &&
     schema.fields[schema.completionField]?.type !== "flag" &&
+    !completionCoveredByFieldChip(schema) &&
     schema.fields[COMPLETION_CHIP_KEY] === undefined
   ) {
     chips.push({ key: COMPLETION_CHIP_KEY, label: t("collectionsView.flagDoneChip"), synthetic: true });
@@ -1184,11 +1241,16 @@ function flagValueOf(key: string, item: CollectionItem): boolean {
 }
 
 /** The chip's boolean for one row — `itemIsDone` for the synthesized
- *  completion chip, the computed flag value otherwise. */
+ *  completion chip, the stored/projected value for `boolean`/`toggle`
+ *  fields, the computed flag value otherwise. */
 function chipMatches(chip: FlagChip, item: CollectionItem): boolean {
   const schema = collection.value?.schema;
   if (!schema) return false;
-  return chip.synthetic ? itemIsDone(schema, item) : flagValueOf(chip.key, item);
+  if (chip.synthetic) return itemIsDone(schema, item);
+  const field = schema.fields[chip.key];
+  if (field?.type === "toggle") return toggleChecked(item, field);
+  if (field?.type === "boolean") return item[chip.key] === true;
+  return flagValueOf(chip.key, item);
 }
 
 /** `filteredItems` further narrowed by every ACTIVE chip (AND). Consumed
@@ -1207,19 +1269,46 @@ function cycleFlagFilter(key: string): void {
   flagFilters.value = next ? { ...rest, [key]: next } : rest;
 }
 
+// Checkbox metaphor for the tri-state: checked = only the ON rows,
+// unchecked = only the OFF rows, faint unchecked = not filtering. The
+// icon glyph alone can't show the third state (Material Icons has no
+// dotted box), so `flagChipIconClass` greys it out instead.
 function flagChipIcon(key: string): string {
-  const mode = flagFilterMode(key);
-  return mode === "hide" ? "visibility_off" : mode === "only" ? "filter_alt" : "visibility";
+  return flagFilterMode(key) === "only" ? "check_box" : "check_box_outline_blank";
 }
 
-// Mirrors the view-toggle button states: neutral when inactive; slate for
-// "hide" (rows removed), indigo for "only" (rows isolated).
+function flagChipIconClass(key: string): string {
+  const mode = flagFilterMode(key);
+  if (mode === "hide") return "text-slate-600";
+  if (mode === "only") return "text-indigo-600";
+  return "text-slate-300";
+}
+
+// Menu-entry state tints (the distinct-from-view-toggle treatment lives
+// on the trigger pill): slate for "hide" (rows removed), indigo for
+// "only" (rows isolated), neutral when inactive.
 function flagChipClass(key: string): string {
   const mode = flagFilterMode(key);
-  if (mode === "hide") return "bg-slate-600 text-white";
-  if (mode === "only") return "bg-indigo-600 text-white";
-  return "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50";
+  if (mode === "hide") return "bg-slate-100 text-slate-700";
+  if (mode === "only") return "bg-indigo-50 text-indigo-700";
+  return "text-slate-500";
 }
+
+/** How many chips currently filter (badge on the menu trigger). */
+const activeFlagFilterCount = computed<number>(() => flagChips.value.filter((chip) => flagFilterMode(chip.key) !== undefined).length);
+
+// ── Filter dropdown open/close (same pattern as the "+" add-view menu) ──
+const filterMenuOpen = ref<boolean>(false);
+const filterMenuRef = ref<HTMLElement | null>(null);
+
+function closeFilterMenuOnOutsideClick(event: MouseEvent): void {
+  if (!filterMenuRef.value?.contains(event.target as Node)) filterMenuOpen.value = false;
+}
+
+watch(filterMenuOpen, (open) => {
+  if (open) document.addEventListener("mousedown", closeFilterMenuOnOutsideClick);
+  else document.removeEventListener("mousedown", closeFilterMenuOnOutsideClick);
+});
 
 function flagChipTitle(chip: FlagChip): string {
   const mode = flagFilterMode(chip.key);
@@ -2571,6 +2660,7 @@ watch(
       anchorOverride.value = null;
       kanbanOverride.value = null;
       addMenuOpen.value = false;
+      filterMenuOpen.value = false;
       // A sort belongs to a collection's own schema, so don't carry it across —
       // restore the new collection's stored (shared) sort instead. Same for
       // the flag filter chips.

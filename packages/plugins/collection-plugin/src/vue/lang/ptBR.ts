@@ -72,7 +72,7 @@ const ptBRMessages: CollectionMessages = {
     searchSummary: "Mostrando {shown} de {total}",
     noMatchingItems: "Nenhum item correspondente",
     clearSearch: "Limpar busca",
-    flagFilterGroup: "Filtros por marcador",
+    flagFilterButton: "Filtros",
     flagFilterAll: "Filtrar por {label}",
     flagFilterHide: "Ocultando {label}",
     flagFilterOnly: "Somente {label}",

@@ -69,7 +69,7 @@ const enMessages = {
     searchSummary: "Showing {shown} of {total}",
     noMatchingItems: "No matching items",
     clearSearch: "Clear search",
-    flagFilterGroup: "Flag filters",
+    flagFilterButton: "Filters",
     flagFilterAll: "Filter by {label}",
     flagFilterHide: "Hiding {label}",
     flagFilterOnly: "Only {label}",
