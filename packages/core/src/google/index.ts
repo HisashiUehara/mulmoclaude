@@ -32,6 +32,7 @@ export {
   collectCalendarPages,
   createCalendarEvent,
   getCalendarColors,
+  canonicalCalendarId,
   listCalendarEvents,
   listCalendars,
   syncCalendarEvents,

@@ -17,7 +17,7 @@ import { deleteItem, writeItem } from "../collection/server/io.js";
 import type { CollectionItem } from "../collection/core/schema.js";
 import type { GOOGLE_CALENDAR_SOURCE_FIELDS } from "../collection/core/schemaZ.js";
 import { getGoogleAccessToken } from "./auth.js";
-import { syncCalendarEvents, type CalendarEventSummary } from "./calendar.js";
+import { canonicalCalendarId, syncCalendarEvents, type CalendarEventSummary } from "./calendar.js";
 import { clearCalendarSyncToken, loadCalendarSyncToken, saveCalendarSyncToken } from "./calendarSyncStore.js";
 import { log } from "./host.js";
 
@@ -44,17 +44,27 @@ export function toCollectionRecord(event: CalendarEventSummary, map: Record<stri
   return { ...Object.fromEntries(mapped), [primaryKey]: event.id };
 }
 
-async function applyEvent(collection: LoadedCollection, event: CalendarEventSummary, workspaceRoot: string): Promise<"written" | "removed"> {
+/** `skipped` is a benign no-op (deleting an event we never stored); `error`
+ *  means the record did NOT land and the sync token must not advance past it. */
+type ApplyOutcome = { kind: "written" } | { kind: "removed" } | { kind: "skipped" } | { kind: "error"; message: string };
+
+// `writeItem` / `deleteItem` report most failures by RETURNING a non-`ok`
+// kind rather than throwing (invalid id, path escape, write conflict). Ignoring
+// the result would let the token advance past events that were never applied,
+// and Google never resends them — silent, permanent loss (Codex review #2184).
+async function applyEvent(collection: LoadedCollection, event: CalendarEventSummary, workspaceRoot: string): Promise<ApplyOutcome> {
   const { slug, dataDir, schema } = collection;
   if (event.status === CANCELLED_STATUS) {
-    await deleteItem(dataDir, event.id, { workspaceRoot, slug });
-    return "removed";
+    const deleted = await deleteItem(dataDir, event.id, { workspaceRoot, slug });
+    // Cancelling an event we never stored is normal, not a failure.
+    if (deleted.kind === "not-found") return { kind: "skipped" };
+    return deleted.kind === "ok" ? { kind: "removed" } : { kind: "error", message: `delete ${event.id}: ${deleted.kind}` };
   }
   const record = toCollectionRecord(event, schema.googleCalendar?.map ?? {}, schema.primaryKey);
   // `slug` is load-bearing: it publishes the change so an open view updates
   // live instead of waiting for a refresh.
-  await writeItem(dataDir, event.id, record, { refuseOverwrite: false, workspaceRoot, slug });
-  return "written";
+  const written = await writeItem(dataDir, event.id, record, { refuseOverwrite: false, workspaceRoot, slug });
+  return written.kind === "ok" ? { kind: "written" } : { kind: "error", message: `write ${event.id}: ${written.kind}` };
 }
 
 async function restartFullSync(accessToken: string, calendarId: string | undefined, workspaceRoot: string) {
@@ -84,9 +94,16 @@ export async function syncCalendarGroup(
   for (const collection of collections) {
     results.push(await applyEventsToCollection(collection, result.events, workspaceRoot));
   }
-  // Advance the token only after every collection in the group has consumed
-  // the window, so a mid-way crash replays it instead of skipping it.
-  if (result.nextSyncToken) await saveCalendarSyncToken(calendarId, result.nextSyncToken, workspaceRoot);
+  // Advance the token only after every collection in the group consumed the
+  // window AND every record actually landed. Google never resends a window, so
+  // advancing past a failed write would lose those events for good; holding the
+  // token back just replays them next run (writes are idempotent).
+  const failed = results.flatMap((entry) => entry.errors);
+  if (result.nextSyncToken && failed.length === 0) {
+    await saveCalendarSyncToken(calendarId, result.nextSyncToken, workspaceRoot);
+  } else if (failed.length > 0) {
+    log.warn("google", "holding back calendar sync token after failed writes", { calendarId, failed: failed.length });
+  }
   return results;
 }
 
@@ -95,21 +112,31 @@ async function applyEventsToCollection(
   events: readonly CalendarEventSummary[],
   workspaceRoot: string,
 ): Promise<CalendarCollectionSyncResult> {
-  const counts = { written: 0, removed: 0 };
+  const outcomes: ApplyOutcome[] = [];
   for (const event of events) {
-    const outcome = await applyEvent(collection, event, workspaceRoot);
-    counts[outcome] += 1;
+    outcomes.push(await applyEvent(collection, event, workspaceRoot));
   }
-  return { slug: collection.slug, ...counts, errors: [] };
+  return {
+    slug: collection.slug,
+    written: outcomes.filter((outcome) => outcome.kind === "written").length,
+    removed: outcomes.filter((outcome) => outcome.kind === "removed").length,
+    errors: outcomes.flatMap((outcome) => (outcome.kind === "error" ? [outcome.message] : [])),
+  };
 }
 
 /** Group the declaring collections by the calendar they read, so each calendar
- *  is fetched exactly once. */
-export function groupByCalendar(collections: readonly LoadedCollection[]): Map<string | undefined, LoadedCollection[]> {
-  const groups = new Map<string | undefined, LoadedCollection[]>();
+ *  is fetched exactly once.
+ *
+ *  Keyed by the CANONICAL id, not the declared one: an omitted `calendarId` and
+ *  an explicit `"primary"` address the same calendar and therefore share one
+ *  sync token, so grouping them apart would let one group advance the token out
+ *  from under the other — the very loss this grouping exists to prevent
+ *  (Codex review #2184). */
+export function groupByCalendar(collections: readonly LoadedCollection[]): Map<string, LoadedCollection[]> {
+  const groups = new Map<string, LoadedCollection[]>();
   for (const collection of collections) {
-    const calendarId = collection.schema.googleCalendar?.calendarId;
-    groups.set(calendarId, [...(groups.get(calendarId) ?? []), collection]);
+    const key = canonicalCalendarId(collection.schema.googleCalendar?.calendarId);
+    groups.set(key, [...(groups.get(key) ?? []), collection]);
   }
   return groups;
 }

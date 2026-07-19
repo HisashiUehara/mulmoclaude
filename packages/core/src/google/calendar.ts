@@ -19,9 +19,14 @@ const MAX_EVENT_SYNC_PAGES = 200;
 // An expired/invalidated calendar syncToken.
 const HTTP_GONE = 410;
 
-// `||` (not `??`) so an empty-string calendarId also falls back to primary
-// instead of building a malformed `/calendars//events` URL.
-const eventsUrl = (calendarId: string | undefined): string => `${CALENDAR_BASE_URL}/calendars/${encodeURIComponent(calendarId || DEFAULT_CALENDAR_ID)}/events`;
+/** Resolve a declared calendarId to the one the API and the sync-token store
+ *  both address. `||` (not `??`) so an empty string also falls back instead of
+ *  building a malformed `/calendars//events` URL. Single-sourced because an
+ *  omitted id and an explicit "primary" MUST agree everywhere — grouping them
+ *  apart while they share a sync token silently loses events (#2184). */
+export const canonicalCalendarId = (calendarId: string | undefined): string => calendarId || DEFAULT_CALENDAR_ID;
+
+const eventsUrl = (calendarId: string | undefined): string => `${CALENDAR_BASE_URL}/calendars/${encodeURIComponent(canonicalCalendarId(calendarId))}/events`;
 
 export interface CalendarEventInput {
   summary: string;

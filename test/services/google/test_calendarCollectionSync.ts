@@ -99,7 +99,26 @@ describe("groupByCalendar (#2184 shared-token fan-out)", () => {
   it("groups collections that omit calendarId together (all mean the primary)", () => {
     const groups = groupByCalendar([collectionOn("a"), collectionOn("b")]);
     assert.equal(groups.size, 1);
-    assert.equal(groups.get(undefined)?.length, 2);
+    assert.equal(groups.get("primary")?.length, 2);
+  });
+
+  // An omitted id and an explicit "primary" address the same calendar and
+  // therefore share ONE sync token. Grouping them apart let one group advance
+  // the token out from under the other — the exact loss grouping exists to
+  // prevent (Codex review on #2184).
+  it('puts an omitted calendarId and an explicit "primary" in the SAME group', () => {
+    const groups = groupByCalendar([collectionOn("omitted"), collectionOn("explicit", "primary")]);
+    assert.equal(groups.size, 1, "mixed declarations must not split into two groups sharing one token");
+    assert.deepEqual(
+      groups.get("primary")?.map((entry) => entry.slug),
+      ["omitted", "explicit"],
+    );
+  });
+
+  it("treats an empty-string calendarId as the primary too", () => {
+    const groups = groupByCalendar([collectionOn("blank", ""), collectionOn("omitted")]);
+    assert.equal(groups.size, 1);
+    assert.equal(groups.get("primary")?.length, 2);
   });
 
   it("returns no groups for no declaring collections", () => {
