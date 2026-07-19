@@ -23,7 +23,15 @@
 
 import { clear as notifierClear, listAll, publish as notifierPublish, updateForPlugin as notifierUpdate, type NotifierEntry } from "../notifier";
 import { itemIsDone, whenMatches, type CollectionItem, type CollectionSchema } from "../collection";
-import { type DiscoveryOptions, listItems, readItem, type IoOptions, isTriggerDue, maybeSpawnSuccessor, loadCollection } from "../collection/server";
+import {
+  type DiscoveryOptions,
+  type IoOptions,
+  isTriggerDue,
+  maybeSpawnSuccessor,
+  loadCollection,
+  storeFor,
+  type LoadedCollection,
+} from "../collection/server";
 import { type CompletionPriority, errMsg, log, requireAdapter } from "./config.js";
 import { evalNow } from "./clock.js";
 
@@ -203,27 +211,22 @@ export async function clearItemNotification(slug: string, itemId: string): Promi
   }
 }
 
-/** Reconcile one item to the desired bell state. Re-reads the record from
- *  disk so the decision is grounded in current truth, not in the event
- *  payload. Safe to call when the file is missing (delete path).
+/** Reconcile one item to the desired bell state. Re-reads the record
+ *  through the collection's STORE (file, sqlite, …) so the decision is
+ *  grounded in current truth, not in the event payload. Safe to call when
+ *  the record is missing (delete path).
  *
- *  `ioOpts` flows into `readItem`'s workspace-containment check —
+ *  `ioOpts` flows into the store's workspace-containment checks —
  *  production callers (the watcher) pass nothing; tests pass
  *  `{ workspaceRoot: <tmpdir> }` so the check accepts a fixture dataDir. */
-export async function reconcileItem(
-  slug: string,
-  schema: CollectionSchema,
-  dataDir: string,
-  itemId: string,
-  ioOpts: IoOptions = {},
-  now: Date = evalNow(),
-): Promise<void> {
+export async function reconcileItem(collection: LoadedCollection, itemId: string, ioOpts: IoOptions = {}, now: Date = evalNow()): Promise<void> {
+  const { slug, schema } = collection;
   if (!schema.completionField) {
     // Schema doesn't track completion — drop any stale entry.
     await clearItemNotification(slug, itemId);
     return;
   }
-  const item = await readItem(dataDir, itemId, ioOpts);
+  const item = await storeFor(collection, ioOpts).read(itemId);
   if (item === null) {
     await clearItemNotification(slug, itemId);
     return;
@@ -231,7 +234,7 @@ export async function reconcileItem(
   // Recurrence: predicate-gated + create-if-absent, idempotent and
   // independent of this item's own bell state. Runs before the done-clear
   // below so marking an item done still spawns its successor.
-  await maybeSpawnSuccessor(slug, schema, dataDir, item, itemId, ioOpts);
+  await maybeSpawnSuccessor(collection, item, itemId, ioOpts);
   if (itemIsDone(schema, item)) {
     await clearItemNotification(slug, itemId);
     return;
@@ -263,24 +266,26 @@ export async function reconcileItem(
   await ensureItemNotification(slug, schema, itemId, resolveDisplayLabel(schema, item, itemId), notifyPriorityForItem(schema, item));
 }
 
-/** Boot-time reconcile: walk every record under `dataDir` once and
- *  reconcile it. Catches up changes that happened while the server was
- *  down. Deleted items are covered by `sweepStaleActiveEntries`, not this
- *  function (it only sees files that exist). */
-export async function reconcileAllItems(slug: string, schema: CollectionSchema, dataDir: string, ioOpts: IoOptions = {}, now: Date = evalNow()): Promise<void> {
+/** Boot-time reconcile: walk every record of the collection once (through
+ *  its store) and reconcile it. Catches up changes that happened while the
+ *  server was down. Deleted items are covered by
+ *  `sweepStaleActiveEntries`, not this function (it only sees records
+ *  that exist). */
+export async function reconcileAllItems(collection: LoadedCollection, ioOpts: IoOptions = {}, now: Date = evalNow()): Promise<void> {
+  const { slug, schema } = collection;
   if (!schema.completionField) return;
   let items: CollectionItem[];
   try {
-    items = await listItems(dataDir, ioOpts);
+    items = await storeFor(collection, ioOpts).list();
   } catch (err) {
-    log().warn("reconcile list failed", { slug, dataDir, error: errMsg(err) });
+    log().warn("reconcile list failed", { slug, error: errMsg(err) });
     return;
   }
   const { primaryKey } = schema;
   for (const item of items) {
     const raw = item[primaryKey];
     if (typeof raw !== "string" || raw.length === 0) continue;
-    await reconcileItem(slug, schema, dataDir, raw, ioOpts, now);
+    await reconcileItem(collection, raw, ioOpts, now);
   }
 }
 
@@ -309,7 +314,7 @@ export async function sweepStaleActiveEntries(opts: DiscoveryOptions = {}): Prom
         await notifierClear(entry.id);
         continue;
       }
-      const item = await readItem(collection.dataDir, itemId, opts);
+      const item = await storeFor(collection, opts).read(itemId);
       if (item === null || itemIsDone(collection.schema, item) || !whenMatches(collection.schema.notifyWhen, item)) {
         await notifierClear(entry.id);
       }

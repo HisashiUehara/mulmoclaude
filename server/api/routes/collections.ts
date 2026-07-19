@@ -55,7 +55,8 @@ import {
   type RemoteViewBuildResult,
   type RemoteViewItemsResult,
 } from "../../workspace/collections/remoteView.js";
-import { clampLimit, clampOffset, normalizeFields, normalizeMutate } from "@mulmoclaude/core/remote-view";
+import { clampImageMaxEdge, clampLimit, clampOffset, normalizeFields, normalizeMutate } from "@mulmoclaude/core/remote-view";
+import { resolveThumbnail } from "../../utils/files/thumbnail-store.js";
 import { badRequest, notFound, conflict, forbidden, methodNotAllowed, serverError, serviceUnavailable } from "../../utils/httpError.js";
 import { ONE_MINUTE_MS } from "../../utils/time.js";
 import { errorMessage } from "../../utils/errors.js";
@@ -652,6 +653,12 @@ export function makeViewActionRateLimiter(max: number, windowMs: number, now: ()
 
 const VIEW_ACTION_RATE_LIMIT_PER_MINUTE = 60;
 const viewActionRateLimit = makeViewActionRateLimiter(VIEW_ACTION_RATE_LIMIT_PER_MINUTE, ONE_MINUTE_MS);
+// Image thumbnails get their own, roomier bucket: a gallery legitimately
+// fetches dozens of images on first paint, so the action budget (60/min)
+// would starve it — while the endpoint still needs a ceiling (each request
+// is a record scan + a thumbnail decode).
+const VIEW_IMAGE_RATE_LIMIT_PER_MINUTE = 300;
+const viewImageRateLimit = makeViewActionRateLimiter(VIEW_IMAGE_RATE_LIMIT_PER_MINUTE, ONE_MINUTE_MS);
 
 router.options(API_ROUTES.collections.viewData, viewDataCors, (_req: Request, res: Response) => {
   res.status(204).end();
@@ -944,6 +951,83 @@ router.post(
       serverError(res, "collection query failed");
     }
   },
+);
+
+/** True when `relPath` is a CURRENT value of one of the schema's
+ *  `image`-type fields (top-level fields only, matching the remote view's
+ *  `inlineFields` rule) across `items`. This is the authorization rule for
+ *  the view-data image route: a scoped view token may resolve exactly these
+ *  paths and nothing else — never an arbitrary workspace file. Early-exit
+ *  scan (no per-request Set allocation). Exported for the unit test. */
+export function isAuthorizedImagePath(schema: LoadedCollection["schema"], items: CollectionItem[], relPath: string): boolean {
+  const imageFields = Object.entries(schema.fields)
+    .filter(([, spec]) => spec.type === "image")
+    .map(([name]) => name);
+  if (imageFields.length === 0 || relPath.length === 0) return false;
+  return items.some((item) => imageFields.some((field) => item[field] === relPath));
+}
+
+export interface ViewDataImageDeps {
+  loadCollection: (slug: string) => Promise<LoadedCollection | null>;
+  listRecords: (collection: LoadedCollection) => Promise<CollectionItem[]>;
+  resolveThumbnail: typeof resolveThumbnail;
+}
+
+/** The image-route handler behind a deps seam so its contract (400 missing
+ *  path / 404 unknown collection / 404 unauthorized path / 404 unresolvable
+ *  / clamped `maxEdge` plumbing / 500 on a thrown resolver) is
+ *  unit-testable without mounting the express app — same factory pattern as
+ *  the remote-view handlers. */
+export const createViewDataImageHandler =
+  (deps: ViewDataImageDeps) =>
+  async (req: Request<{ slug: string }>, res: Response): Promise<void> => {
+    const collection = await deps.loadCollection(req.params.slug);
+    if (!collection) {
+      notFound(res, `collection '${req.params.slug}' not found`);
+      return;
+    }
+    const relPath = typeof req.query.path === "string" ? req.query.path : "";
+    if (relPath.length === 0) {
+      badRequest(res, "pass `path` — an image field's workspace-relative value");
+      return;
+    }
+    try {
+      const items = await deps.listRecords(collection);
+      if (!isAuthorizedImagePath(collection.schema, items, relPath)) {
+        notFound(res, "path is not a current value of this collection's image fields");
+        return;
+      }
+      const dataUrl = await deps.resolveThumbnail(relPath, clampImageMaxEdge(req.query.maxEdge));
+      if (dataUrl === null) {
+        notFound(res, "image could not be resolved");
+        return;
+      }
+      res.json({ path: relPath, dataUrl });
+    } catch (err) {
+      log.warn("collections", "view-data image failed", { slug: collection.slug, error: errorMessage(err) });
+      serverError(res, "image resolve failed");
+    }
+  };
+
+router.options(API_ROUTES.collections.viewDataImage, viewDataCors, (_req: Request, res: Response) => {
+  res.status(204).end();
+});
+
+// Scoped image read: resolve one record-referenced image path into a
+// downscaled `data:` thumbnail (same resolver + clamps as the remote view's
+// `imageFields` inlining). The record scan doubles as the authorization
+// check — the requested path must be a CURRENT image-field value — and runs
+// under the same in-flight cap as /query (both are per-request full scans).
+// Sandboxed views can't attach the bearer to an <img>, so the JSON
+// { dataUrl } shape (fetch → img.src) is the contract; see
+// packages/core/assets/helps/custom-view.md "Displaying images".
+router.get(
+  API_ROUTES.collections.viewDataImage,
+  viewDataCors,
+  viewImageRateLimit,
+  viewQueryConcurrency,
+  requireViewToken("read"),
+  createViewDataImageHandler({ loadCollection, listRecords: (collection) => storeFor(collection).list(), resolveThumbnail }),
 );
 
 // Scoped write: validated putItems. Requires the `write` capability.

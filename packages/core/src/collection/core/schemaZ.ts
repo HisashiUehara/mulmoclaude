@@ -883,21 +883,11 @@ const BareCollectionSchemaZ = z
       "declare exactly one of `dataPath` (native JSON records), `dataSource` (external read-only data file), or `storage` (alternative writable backend)",
     path: ["dataPath"],
   })
-  // Record-file machinery that a non-file backend can't serve yet:
-  // `spawn` writes successor RECORD FILES through the raw io layer (no
-  // LoadedCollection in its signature to pick a store from), and the
-  // collection watcher's reconcilers (`completionField` bell clearing,
-  // `triggerField` clock notifications) scan the dataDir's .json files —
-  // on a `storage` backend they would silently see zero records. Reject
-  // loudly until those paths are store-aware.
-  .refine(
-    (schema) => schema.storage === undefined || (schema.spawn === undefined && schema.completionField === undefined && schema.triggerField === undefined),
-    {
-      message:
-        "a `storage` collection cannot declare `spawn`, `completionField`, or `triggerField` yet — successor writes and watcher reconciliation still read record files",
-      path: ["storage"],
-    },
-  )
+  // NOTE: `storage` collections support the full write machinery
+  // (`spawn` / `completionField` / `triggerField` / `singleton` / `ingest`
+  // / mutate actions) — spawn and the watcher reconcilers go through the
+  // CollectionStore seam, and a db-file watcher drives their
+  // reconciliation (collection-watchers/watcher.ts).
   // A `dataSource` collection is read-only by definition, so schema-level
   // write machinery can never fire: `singleton` pins CREATES, `ingest`
   // REFILLS records, `spawn` WRITES successor records. Rejecting them at

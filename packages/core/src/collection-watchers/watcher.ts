@@ -49,6 +49,10 @@ interface CollectionWatcher {
    *  flipping `completionField` on or off) that don't touch any record
    *  file and would otherwise leave bell state stale indefinitely. */
   schemaJson: string;
+  /** The discovered collection this watcher was mounted for — what the
+   *  reconciler needs to pick the right STORE (file records vs a sqlite
+   *  `storage` db). Refreshed whenever `schemaJson` is. */
+  collection: LoadedCollection;
 }
 
 const watchers = new Map<string, CollectionWatcher>();
@@ -69,6 +73,11 @@ interface ReconcileSlot {
   pending: boolean;
 }
 const itemSlots = new Map<string, ReconcileSlot>();
+
+/** Per-slug single-flight for a storage (db-file) collection's full
+ *  reconcile pass — a burst of db writes collapses to one pass + one
+ *  trailing re-run, mirroring the per-item slots of the file watcher. */
+const storageSlots = new Map<string, ReconcileSlot>();
 
 /** Trailing debounce per dataSource collection: an atomic file replace
  *  (Excel save, editor rename) surfaces as 2-3 fs events — collapse them
@@ -149,6 +158,7 @@ export async function stopCollectionWatchers(): Promise<void> {
   }
   watchers.clear();
   itemSlots.clear();
+  storageSlots.clear();
   for (const timer of dataSourceTimers.values()) clearTimeout(timer);
   dataSourceTimers.clear();
   discoveryOpts = {};
@@ -180,11 +190,11 @@ async function tickTimeTriggers(now: Date = evalNow()): Promise<void> {
       log().warn("trigger tick: bad cached schema", { slug: entry.slug, error: errMsg(err) });
       continue;
     }
-    // dataSource collections have no reconcilable record files (and zod
+    // dataSource collections have no reconcilable records (and zod
     // forbids `spawn` on them) — the clock never changes their state.
     if (schema.dataSource !== undefined) continue;
     if (!schema.triggerField && !schema.spawn) continue;
-    await reconcileAllItems(entry.slug, schema, entry.dataDir, discoveryOpts, now);
+    await reconcileAllItems(entry.collection, discoveryOpts, now);
   }
 }
 
@@ -240,7 +250,7 @@ function storagePathChanged(previousJson: string, next: LoadedCollection["schema
   } catch {
     return true; // unreadable cache — remount to be safe
   }
-  return previous.dataSource?.path !== next.dataSource?.path || previous.dataPath !== next.dataPath;
+  return previous.dataSource?.path !== next.dataSource?.path || previous.dataPath !== next.dataPath || previous.storage?.path !== next.storage?.path;
 }
 
 /** Re-reconcile already-watched collections whose schema changed since
@@ -269,6 +279,7 @@ async function reconcileChangedSchemas(collections: readonly LoadedCollection[])
       continue;
     }
     existing.schemaJson = nextJson;
+    existing.collection = collection;
     if (collection.schema.dataSource !== undefined) {
       // No record files to reconcile — but a schema edit can change what
       // the views render (fields, displayField, …), so ping them.
@@ -278,7 +289,7 @@ async function reconcileChangedSchemas(collections: readonly LoadedCollection[])
       continue;
     }
     log().info("watcher schema changed, re-reconciling", { slug: collection.slug });
-    await reconcileAllItems(collection.slug, collection.schema, collection.dataDir, discoveryOpts);
+    await reconcileAllItems(collection, discoveryOpts);
     mutated = true;
   }
   return mutated;
@@ -289,7 +300,8 @@ async function startNewWatchers(collections: readonly LoadedCollection[]): Promi
   for (const collection of collections) {
     if (watchers.has(collection.slug)) continue;
     if (collection.schema.dataSource !== undefined) await startDataSourceWatcher(collection);
-    else await startWatcherFor(collection.slug, collection.schema, collection.dataDir);
+    else if (collection.schema.storage !== undefined) await startStorageWatcher(collection);
+    else await startWatcherFor(collection);
     mutated = true;
   }
   return mutated;
@@ -327,14 +339,70 @@ async function startDataSourceWatcher(collection: LoadedCollection): Promise<voi
     watcher.on("error", (err) => {
       log().warn("dataSource watcher error", { slug: collection.slug, error: errMsg(err) });
     });
-    watchers.set(collection.slug, { slug: collection.slug, dataDir: dir, watcher, schemaJson: JSON.stringify(collection.schema) });
+    watchers.set(collection.slug, { slug: collection.slug, dataDir: dir, watcher, schemaJson: JSON.stringify(collection.schema), collection });
     log().info("dataSource watcher started", { slug: collection.slug, file });
   } catch (err) {
     log().warn("dataSource watcher start failed", { slug: collection.slug, error: errMsg(err) });
   }
 }
 
-async function startWatcherFor(slug: string, schema: CollectionSchema, dataDir: string): Promise<void> {
+/** Watch a `storage` collection's database file. One db file holds every
+ *  record, so an event can't name WHICH record changed — each (debounced)
+ *  event runs a full `reconcileAllItems` pass (bells / spawn) plus a
+ *  change publish so views refetch after EXTERNAL edits too (host writes
+ *  already publish their own change events; the extra ping is debounced
+ *  and idempotent). Mounts on the parent dir, same as the dataSource
+ *  watcher, so an atomic replace can't strand the watch. */
+async function startStorageWatcher(collection: LoadedCollection): Promise<void> {
+  const file = collection.storageFile;
+  if (file === undefined) return;
+  const dir = path.dirname(file);
+  const base = path.basename(file);
+  try {
+    await mkdir(dir, { recursive: true });
+    await reconcileAllItems(collection, discoveryOpts);
+    const watcher = watch(dir, { persistent: false }, (_eventType, rawFilename) => {
+      // fs.watch can hand back a Buffer on some platforms despite the
+      // string typing — stringify defensively (a Buffer has no startsWith,
+      // so calling it directly would throw inside the callback and crash).
+      const filename = rawFilename === null ? null : String(rawFilename);
+      // Null filename (platform quirk) counts as a hit; otherwise accept
+      // the db itself plus its sqlite sidecars (`<db>-wal`, `<db>-journal`).
+      if (filename !== null && !filename.startsWith(base)) return;
+      scheduleStorageReconcile(collection.slug).catch((err: unknown) => {
+        log().warn("storage watcher reconcile failed", { slug: collection.slug, error: errMsg(err) });
+      });
+    });
+    watcher.on("error", (err) => {
+      log().warn("storage watcher error", { slug: collection.slug, error: errMsg(err) });
+    });
+    watchers.set(collection.slug, { slug: collection.slug, dataDir: dir, watcher, schemaJson: JSON.stringify(collection.schema), collection });
+    log().info("storage watcher started", { slug: collection.slug, file });
+  } catch (err) {
+    log().warn("storage watcher start failed", { slug: collection.slug, error: errMsg(err) });
+  }
+}
+
+function scheduleStorageReconcile(slug: string): Promise<void> {
+  return runSingleFlight(storageSlots, slug, async () => {
+    const collection = await loadCollection(slug, discoveryOpts);
+    if (!collection) return;
+    await reconcileAllItems(collection, discoveryOpts);
+    // One db file holds every record, so a DELETED row leaves no per-item
+    // event — sweep the active bell so its entry converges like a
+    // file-backed delete does (same pairing as the unknown-filename path).
+    await sweepStaleActiveEntries(discoveryOpts);
+    publishCollectionChange({ slug, op: "upsert" });
+  });
+}
+
+/** Test-only: drive one storage-collection reconcile pass directly. */
+export function _scheduleStorageReconcileForTesting(slug: string): Promise<void> {
+  return scheduleStorageReconcile(slug);
+}
+
+async function startWatcherFor(collection: LoadedCollection): Promise<void> {
+  const { slug, schema, dataDir } = collection;
   try {
     // `fs.watch` throws on a missing dir, so ensure it exists. New
     // collections legitimately start with no records — mkdir is the
@@ -343,7 +411,7 @@ async function startWatcherFor(slug: string, schema: CollectionSchema, dataDir: 
     // Boot reconcile this collection's existing items BEFORE mounting the
     // watcher: a pending item the user added during downtime needs its
     // bell entry even if no event fires today.
-    await reconcileAllItems(slug, schema, dataDir, discoveryOpts);
+    await reconcileAllItems(collection, discoveryOpts);
     const watcher = watch(dataDir, { persistent: false }, (_eventType, filename) => {
       // Errors from inside the callback would propagate as unhandled
       // rejections — wrap so a single bad event can't unwind the watcher.
@@ -354,7 +422,7 @@ async function startWatcherFor(slug: string, schema: CollectionSchema, dataDir: 
     watcher.on("error", (err) => {
       log().warn("watcher error", { slug, error: errMsg(err) });
     });
-    watchers.set(slug, { slug, dataDir, watcher, schemaJson: JSON.stringify(schema) });
+    watchers.set(slug, { slug, dataDir, watcher, schemaJson: JSON.stringify(schema), collection });
     log().info("watcher started", { slug, dataDir });
   } catch (err) {
     log().warn("watcher start failed", { slug, error: errMsg(err) });
@@ -370,13 +438,22 @@ async function startWatcherFor(slug: string, schema: CollectionSchema, dataDir: 
  *  and return — the running reconcile re-runs once after it completes.
  *  This collapses fs.watch's rapid-fire bursts (atomic rename surfaces as
  *  2-3 events) into a single reconcile + one trailing re-run. */
-export function _scheduleItemReconcileForTesting(slug: string, schema: CollectionSchema, dataDir: string, itemId: string): Promise<void> {
-  return scheduleItemReconcile(slug, schema, dataDir, itemId);
+export function _scheduleItemReconcileForTesting(collection: LoadedCollection, itemId: string): Promise<void> {
+  return scheduleItemReconcile(collection, itemId);
 }
 
-function scheduleItemReconcile(slug: string, schema: CollectionSchema, dataDir: string, itemId: string): Promise<void> {
-  const key = `${slug}\x00${itemId}`;
-  const existing = itemSlots.get(key);
+function scheduleItemReconcile(collection: LoadedCollection, itemId: string): Promise<void> {
+  return runSingleFlight(itemSlots, `${collection.slug}\x00${itemId}`, () => reconcileItem(collection, itemId, discoveryOpts));
+}
+
+/** The shared single-flight loop behind both schedulers. Re-runs `pass`
+ *  while events keep arriving — the trailing re-run captures any state
+ *  change that landed during a prior pass. After each pass we read
+ *  `pending` and zero it before the next iteration, so an event that
+ *  fires *during* the last pass's await still triggers one more pass
+ *  before the slot is freed. */
+function runSingleFlight(slots: Map<string, ReconcileSlot>, key: string, pass: () => Promise<void>): Promise<void> {
+  const existing = slots.get(key);
   if (existing) {
     existing.pending = true;
     return existing.running;
@@ -384,22 +461,17 @@ function scheduleItemReconcile(slug: string, schema: CollectionSchema, dataDir: 
   const slot: ReconcileSlot = { running: Promise.resolve(), pending: false };
   slot.running = (async () => {
     try {
-      // Re-run while events keep arriving — the trailing re-run captures
-      // any state change that landed during a prior pass. After each pass
-      // we read `pending` and zero it before the next iteration, so an
-      // event that fires *during* the last reconcile's await still
-      // triggers one more pass before the slot is freed.
       let keepGoing = true;
       while (keepGoing) {
         slot.pending = false;
-        await reconcileItem(slug, schema, dataDir, itemId, discoveryOpts);
+        await pass();
         keepGoing = slot.pending;
       }
     } finally {
-      itemSlots.delete(key);
+      slots.delete(key);
     }
   })();
-  itemSlots.set(key, slot);
+  slots.set(key, slot);
   return slot.running;
 }
 
@@ -415,7 +487,7 @@ async function onEvent(slug: string, filename: string | Buffer | null): Promise<
     // which record changed. `reconcileAllItems` covers items whose file
     // still exists; pair it with a sweep so any record deleted inside the
     // same opaque event has its stale bell entry cleared too.
-    await reconcileAllItems(slug, collection.schema, collection.dataDir, discoveryOpts);
+    await reconcileAllItems(collection, discoveryOpts);
     await sweepStaleActiveEntries(discoveryOpts);
     return;
   }
@@ -426,5 +498,5 @@ async function onEvent(slug: string, filename: string | Buffer | null): Promise<
   // skipping early avoids needless I/O.
   if (!name.endsWith(".json") || name.startsWith(".")) return;
   const itemId = name.slice(0, -".json".length);
-  await scheduleItemReconcile(slug, collection.schema, collection.dataDir, itemId);
+  await scheduleItemReconcile(collection, itemId);
 }

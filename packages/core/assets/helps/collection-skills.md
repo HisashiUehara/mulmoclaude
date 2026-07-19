@@ -228,6 +228,9 @@ Every field spec needs a `type` and a `label`. Extra keys by type:
   collection). No extra keys. Great for photos like a business card: read the
   details off the attached image and write its path into the image field.
   Write the bare workspace-relative path — never an `/api/files/raw?...` URL.
+  A **custom view** renders these via `GET <dataUrl>/image` (see
+  `config/helps/custom-view.md` "Displaying images"; remote views declare
+  `imageFields` instead) — never by base64-embedding them into the view HTML.
 - **`file`** — stores a **workspace-relative file path** as a plain string (e.g.
   `artifacts/html/the-solar-system-1777158558023.html`). Rendered as a
   **clickable link** in both the list table and the detail view (unlike `image`,
@@ -1054,17 +1057,21 @@ expected to grow far beyond what a folder of JSON files handles comfortably
 (thousands of records). For everything else prefer `dataPath` — record files
 are transparent, diffable, and every feature supports them.
 
-v1 limits (schema-enforced or documented):
+Notes:
 
 - Requires **Node.js >= 22.5** (built-in `node:sqlite`); on an older runtime
   only sqlite collections fail, with a clear error (see
   `config/helps/error-recovery.md`).
-- Cannot declare `spawn`, `completionField`, or `triggerField` (those paths
-  still read record files — the schema validator rejects the combination).
-- The record Repair pass doesn't see sqlite records, and deleting the
-  collection leaves the `.db` file in place (remove it manually if asked).
-- Editing the `.db` file externally does not trigger live view refreshes
-  (writes through the host do).
+- The full write machinery works: `spawn`, `completionField` /
+  `triggerField` bells, `singleton`, `ingest`, and mutate actions all go
+  through the storage layer, and a watcher on the db file drives bell
+  reconciliation + live view refreshes — including after EXTERNAL edits to
+  the `.db`.
+- The Repair pass validates records through the storage backend (schema
+  violations are reported by record id); a row so corrupt the backend
+  can't parse it is skipped silently, unlike a malformed record FILE.
+- Deleting the collection archives the `.db` alongside the skill under
+  `archive/…` and removes the live file.
 
 Minimal example:
 

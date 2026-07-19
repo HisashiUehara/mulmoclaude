@@ -10,6 +10,7 @@ import { readdir, readFile, lstat } from "node:fs/promises";
 import path from "node:path";
 import { getWorkspaceRoot, log } from "./host";
 import { isContainedInRoot } from "./paths";
+import { storeFor } from "./store";
 import { firstRecordProblem, type RecordCheckTier } from "../core/recordZ";
 import type { LoadedCollection } from "./discoveredCollection";
 import type { CollectionItem, CollectionSchema } from "../core/schema";
@@ -56,6 +57,9 @@ export async function validateCollectionRecords(collection: LoadedCollection, op
   // come from the external data file (type mismatches there surface as
   // raw values in the views, not as repairable record files).
   if (collection.schema.dataSource !== undefined) return [];
+  // A `storage` collection's records live in its database, not as files —
+  // validate what the store serves instead of scanning the phantom dataDir.
+  if (collection.schema.storage !== undefined) return validateStoreRecords(collection, opts);
   const workspaceRoot = opts.workspaceRoot ?? getWorkspaceRoot();
   const entries = await listRecordFilenames(collection.dataDir, workspaceRoot);
   const issues: RecordIssue[] = [];
@@ -64,6 +68,30 @@ export async function validateCollectionRecords(collection: LoadedCollection, op
     if (issues.length >= MAX_ISSUES) break;
     const issue = await inspectRecord(path.join(collection.dataDir, name), name, collection.schema);
     if (issue) issues.push(issue);
+  }
+  return issues;
+}
+
+/** Store-backed twin of the file scan: list every record through the
+ *  collection's store and lint it with the same "strict" report-only tier.
+ *  A row the store can't even parse is invisible here (the store skips
+ *  it), so the read/parse classifications of the file scan don't apply —
+ *  schema violations are what this catches. `file` carries the record id
+ *  (there is no per-record filename). */
+async function validateStoreRecords(collection: LoadedCollection, opts: { workspaceRoot?: string }): Promise<RecordIssue[]> {
+  let items: CollectionItem[];
+  try {
+    items = await storeFor(collection, { workspaceRoot: opts.workspaceRoot }).list();
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    return [{ file: "(store)", problem: `records could not be read from the storage backend: ${reason}` }];
+  }
+  const issues: RecordIssue[] = [];
+  for (const item of items) {
+    if (issues.length >= MAX_ISSUES) break;
+    const itemId = String(item[collection.schema.primaryKey] ?? "");
+    const problem = validateRecordObject(item, itemId, collection.schema, "strict");
+    if (problem) issues.push({ file: itemId, problem });
   }
   return issues;
 }

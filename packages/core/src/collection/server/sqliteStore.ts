@@ -263,6 +263,27 @@ async function sqliteDelete(absPath: string, itemId: string, opts: { workspaceRo
   return outcome;
 }
 
+/** Best-effort full WAL checkpoint so the MAIN db file alone is a
+ *  complete snapshot (committed pages in `<db>-wal` are folded in and the
+ *  WAL truncated). Used by `deleteCollection` before archiving. Returns
+ *  false on any failure (runtime without node:sqlite, locked db, missing
+ *  file) — the caller then archives the sidecar files alongside the db so
+ *  no committed data is lost either way. */
+export async function checkpointSqliteDatabase(absPath: string): Promise<boolean> {
+  try {
+    const { DatabaseSync } = await loadSqlite();
+    const database = new DatabaseSync(absPath);
+    try {
+      database.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    } finally {
+      database.close();
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** A `storage: sqlite` store over `collection.storageFile`. A schema whose
  *  `storageFile` failed to resolve yields a read-only EMPTY store rather
  *  than a writable one — same fail-closed rule as the CSV store. */

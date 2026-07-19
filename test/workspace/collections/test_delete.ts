@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { deleteCollection, type LoadedCollection } from "@mulmoclaude/core/collection/server";
+import { deleteCollection, storeFor, type LoadedCollection } from "@mulmoclaude/core/collection/server";
 import type { CollectionSchema, CollectionSource } from "../../../server/workspace/collections/types.js";
 
 let workdir: string;
@@ -148,5 +148,64 @@ describe("deleteCollection", () => {
     assert.equal(existsSync(path.join(workdir, ".claude", "skills", "restaurants")), true, "mirror must survive");
     assert.equal(existsSync(path.join(workdir, "data", "restaurants", "items")), true, "records must survive");
     assert.equal(existsSync(path.join(workdir, "archive")), false, "no archive should be written on refusal");
+  });
+});
+
+describe("deleteCollection — storage (sqlite) collections", () => {
+  /** Seed a sqlite-backed collection: skill files + a REAL db (written
+   *  through the store) at data/<slug>/records.db, plus fake sidecar files
+   *  so their removal is observable. */
+  function seedStorageCollection(slug: string): LoadedCollection {
+    const schema = {
+      title: "Orders DB",
+      icon: "receipt_long",
+      storage: { type: "sqlite", path: `data/${slug}/records.db` },
+      primaryKey: "id",
+      fields: { id: { type: "string", label: "ID", primary: true } },
+    } as unknown as CollectionSchema;
+    const stagingDir = path.join(workdir, "data", "skills", slug);
+    const skillDir = path.join(workdir, ".claude", "skills", slug);
+    const dataDir = path.join(workdir, "data", "collections", slug, "items");
+    for (const dir of [stagingDir, skillDir, dataDir]) mkdirSync(dir, { recursive: true });
+    for (const dir of [stagingDir, skillDir]) {
+      writeFileSync(path.join(dir, "schema.json"), JSON.stringify(schema));
+      writeFileSync(path.join(dir, "SKILL.md"), `# ${slug}`);
+    }
+    const storageFile = path.join(workdir, "data", slug, "records.db");
+    return { slug, source: "project" as CollectionSource, schema, dataDir, skillDir, storageFile } as LoadedCollection;
+  }
+
+  it("archives the db (checkpointed), removes the live file + sidecars, and writes storage restore steps", async () => {
+    const collection = seedStorageCollection("ordersdb");
+    const store = storeFor(collection, { workspaceRoot: workdir });
+    assert.ok(store.write);
+    assert.equal((await store.write("o1", { id: "o1" })).kind, "ok");
+    assert.equal((await store.write("o2", { id: "o2" })).kind, "ok");
+    const storageFile = collection.storageFile as string;
+    // Observable sidecars: gone after delete whether or not the checkpoint ran.
+    writeFileSync(`${storageFile}-wal`, "sidecar");
+    writeFileSync(`${storageFile}-journal`, "sidecar");
+
+    const result = await deleteCollection(collection, { workspaceRoot: workdir, dateStamp: "2026-07-19" });
+    assert.equal(result.kind, "ok");
+    if (result.kind !== "ok") return;
+
+    const archiveDir = path.join(workdir, result.archivePath);
+    // The db is archived under its basename and holds every committed record
+    // (the pre-archive checkpoint folds WAL pages into the main file).
+    const archivedDb = path.join(archiveDir, "records.db");
+    assert.ok(existsSync(archivedDb), "archived db must exist");
+    const archived = { ...collection, storageFile: archivedDb } as LoadedCollection;
+    const rows = await storeFor(archived, { workspaceRoot: workdir }).list();
+    assert.deepEqual(rows.map((row) => row.id).sort(), ["o1", "o2"]);
+
+    // Live db + sidecars are gone; RESTORE.md tells how to bring it back.
+    assert.equal(existsSync(storageFile), false);
+    assert.equal(existsSync(`${storageFile}-wal`), false);
+    assert.equal(existsSync(`${storageFile}-journal`), false);
+    const restore = readFileSync(path.join(archiveDir, "RESTORE.md"), "utf-8");
+    assert.ok(restore.includes("records.db"), "RESTORE.md must name the archived db file");
+    assert.ok(restore.includes(`data/ordersdb/records.db`), "RESTORE.md must point at storage.path");
+    assert.ok(restore.includes("(storage)"), "summary line must mark the storage backend");
   });
 });

@@ -23,6 +23,7 @@ import {
   type CivilDate,
   readItem,
   writeItem,
+  type LoadedCollection,
 } from "@mulmoclaude/core/collection/server";
 import type { CollectionEvery, CollectionSchema, CollectionSpawnEvery } from "../../../server/workspace/collections/types.js";
 
@@ -156,6 +157,10 @@ describe("successorId", () => {
   });
 });
 
+// The new store-based spawn signature takes the discovered collection.
+const asCollection = (slug: string, schema: CollectionSchema, dataDir: string): LoadedCollection =>
+  ({ slug, source: "project", schema, dataDir, skillDir: dataDir }) as unknown as LoadedCollection;
+
 function spawnSchema(extra: Partial<CollectionSchema> = {}): CollectionSchema {
   return {
     title: "Rent",
@@ -217,7 +222,7 @@ describe("maybeSpawnSuccessor", () => {
   it("creates the successor when the predicate matches", async () => {
     const schema = spawnSchema();
     const source = { id: "rent-20260610", dueOn: "2026-06-10", amount: 1500, status: "paid" };
-    await maybeSpawnSuccessor("rent", schema, dataDir, source, "rent-20260610", { workspaceRoot: workdir });
+    await maybeSpawnSuccessor(asCollection("rent", schema, dataDir), source, "rent-20260610", { workspaceRoot: workdir });
     const next = await readItem(dataDir, "rent-20260710", { workspaceRoot: workdir });
     assert.deepEqual(next, { amount: 1500, status: "pending", dueOn: "2026-07-10", id: "rent-20260710" });
   });
@@ -225,13 +230,13 @@ describe("maybeSpawnSuccessor", () => {
   it("is idempotent — spawning twice yields exactly one successor", async () => {
     const schema = spawnSchema();
     const source = { id: "rent-20260610", dueOn: "2026-06-10", amount: 1500, status: "paid" };
-    await maybeSpawnSuccessor("rent", schema, dataDir, source, "rent-20260610", { workspaceRoot: workdir });
-    await maybeSpawnSuccessor("rent", schema, dataDir, source, "rent-20260610", { workspaceRoot: workdir });
+    await maybeSpawnSuccessor(asCollection("rent", schema, dataDir), source, "rent-20260610", { workspaceRoot: workdir });
+    await maybeSpawnSuccessor(asCollection("rent", schema, dataDir), source, "rent-20260610", { workspaceRoot: workdir });
     const all = (await readItem(dataDir, "rent-20260710", { workspaceRoot: workdir })) !== null;
     assert.equal(all, true);
     // Mutate the successor, then re-run: create-if-absent must NOT overwrite the edit.
     await writeItem(dataDir, "rent-20260710", { id: "rent-20260710", dueOn: "2026-07-10", amount: 9999, status: "pending" }, { workspaceRoot: workdir });
-    await maybeSpawnSuccessor("rent", schema, dataDir, source, "rent-20260610", { workspaceRoot: workdir });
+    await maybeSpawnSuccessor(asCollection("rent", schema, dataDir), source, "rent-20260610", { workspaceRoot: workdir });
     const next = await readItem(dataDir, "rent-20260710", { workspaceRoot: workdir });
     assert.equal((next as { amount: number }).amount, 9999);
   });
@@ -239,7 +244,7 @@ describe("maybeSpawnSuccessor", () => {
   it("does not spawn when the predicate doesn't match", async () => {
     const schema = spawnSchema();
     const source = { id: "rent-20260610", dueOn: "2026-06-10", amount: 1500, status: "pending" };
-    await maybeSpawnSuccessor("rent", schema, dataDir, source, "rent-20260610", { workspaceRoot: workdir });
+    await maybeSpawnSuccessor(asCollection("rent", schema, dataDir), source, "rent-20260610", { workspaceRoot: workdir });
     assert.equal(await readItem(dataDir, "rent-20260710", { workspaceRoot: workdir }), null);
   });
 
@@ -250,14 +255,14 @@ describe("maybeSpawnSuccessor", () => {
       spawn: { when: { field: "status", in: ["paid"] }, every: { unit: "month", interval: 1, dayOfMonth: 10 }, carry: ["amount"], set: { status: "paid" } },
     });
     const source = { id: "rent-20260610", dueOn: "2026-06-10", amount: 1500, status: "paid" };
-    await maybeSpawnSuccessor("rent", schema, dataDir, source, "rent-20260610", { workspaceRoot: workdir });
+    await maybeSpawnSuccessor(asCollection("rent", schema, dataDir), source, "rent-20260610", { workspaceRoot: workdir });
     assert.equal(await readItem(dataDir, "rent-20260710", { workspaceRoot: workdir }), null);
   });
 
   it("defaults the predicate to the completion-done condition when `when` is omitted", async () => {
     const schema = spawnSchema({ spawn: { every: { unit: "month", interval: 1, dayOfMonth: 10 }, carry: ["amount"], set: { status: "pending" } } });
     const source = { id: "rent-20260610", dueOn: "2026-06-10", amount: 1500, status: "paid" };
-    await maybeSpawnSuccessor("rent", schema, dataDir, source, "rent-20260610", { workspaceRoot: workdir });
+    await maybeSpawnSuccessor(asCollection("rent", schema, dataDir), source, "rent-20260610", { workspaceRoot: workdir });
     assert.notEqual(await readItem(dataDir, "rent-20260710", { workspaceRoot: workdir }), null);
   });
 });
@@ -345,14 +350,14 @@ describe("maybeSpawnSuccessor — field-driven every", () => {
 
   it("creates a weekly successor 7 days out and carries the frequency driver", async () => {
     const source = { id: "gym-20260610", dueOn: "2026-06-10", frequency: "weekly", status: "paid" };
-    await maybeSpawnSuccessor("bills", freqSchema(), dataDir, source, "gym-20260610", { workspaceRoot: workdir });
+    await maybeSpawnSuccessor(asCollection("bills", freqSchema(), dataDir), source, "gym-20260610", { workspaceRoot: workdir });
     const next = await readItem(dataDir, "gym-20260617", { workspaceRoot: workdir });
     assert.deepEqual(next, { frequency: "weekly", status: "pending", dueOn: "2026-06-17", id: "gym-20260617" });
   });
 
   it("skips (no write) when the record's frequency isn't in the map", async () => {
     const source = { id: "odd-20260610", dueOn: "2026-06-10", frequency: "yearly", status: "paid" };
-    await maybeSpawnSuccessor("bills", freqSchema(), dataDir, source, "odd-20260610", { workspaceRoot: workdir });
+    await maybeSpawnSuccessor(asCollection("bills", freqSchema(), dataDir), source, "odd-20260610", { workspaceRoot: workdir });
     assert.equal(await readItem(dataDir, "odd-20260617", { workspaceRoot: workdir }), null);
   });
 
@@ -360,7 +365,7 @@ describe("maybeSpawnSuccessor — field-driven every", () => {
     // `set` seeds status back to a done value → the successor would respawn.
     const schema = freqSchema({ spawn: { when: { field: "status", in: ["paid"] }, every: FREQ_EVERY, carry: ["frequency"], set: { status: "paid" } } });
     const source = { id: "gym-20260610", dueOn: "2026-06-10", frequency: "weekly", status: "paid" };
-    await maybeSpawnSuccessor("bills", schema, dataDir, source, "gym-20260610", { workspaceRoot: workdir });
+    await maybeSpawnSuccessor(asCollection("bills", schema, dataDir), source, "gym-20260610", { workspaceRoot: workdir });
     assert.equal(await readItem(dataDir, "gym-20260617", { workspaceRoot: workdir }), null);
   });
 });
