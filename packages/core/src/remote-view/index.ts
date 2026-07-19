@@ -7,6 +7,18 @@
 // desktop custom view (token + fetch to the view-data route) — its records
 // arrive over an async postMessage bridge owned by the parent page, and its
 // CSP locks `connect-src` to 'none' entirely.
+//
+// BACKWARD COMPATIBILITY — this bridge is a frozen public contract. Remote
+// views are LLM-authored HTML files persisted in users' workspaces
+// (`data/skills/*/views/*.html`), written against
+// `packages/core/assets/helps/custom-view-remote.md`; they cannot be
+// migrated centrally and must keep working across host upgrades and any
+// storage-virtualization work underneath. Evolve only by backward-compatible
+// supersets, the way protocol v2 added the mutate pair: bump
+// `REMOTE_VIEW_PROTOCOL`, add new message types / optional fields — never
+// repurpose an existing message type, change the `getItems` page shape
+// (`{ items, total, offset, limit }`), or tighten limits a shipped view may
+// already rely on.
 
 /** Bump when the bootstrap/message contract changes shape; the bootstrap
  *  exposes it as `__MC_VIEW.protocol` so a parent can refuse a stale view.

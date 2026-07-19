@@ -29,3 +29,7 @@ Every `v-html` in this repo (NewsView, markdown/View, spreadsheet/View, textResp
 ## Multi-line elements need the wrapping form
 
 `eslint-disable-next-line` only reaches one line. Use a `<!-- eslint-disable <rule> -->` … `<!-- eslint-enable <rule> -->` pair around the element instead.
+
+## Raw collection io readers are import-restricted
+
+`no-restricted-imports` blocks `listItems` / `readItem` from `@mulmoclaude/core/collection/server` in host + plugin code: records are read through `storeFor(collection).list()` / `.read(id)` so storage backends can't be bypassed (plans/refactor-storage-virtualization.md). Don't suppress it — if a call site seems to need the raw reader, the store interface is missing a capability; extend it instead.

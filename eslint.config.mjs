@@ -494,6 +494,33 @@ export default [
       ],
     },
   },
+  // Storage-virtualization seam (plans/refactor-storage-virtualization.md):
+  // host + plugin code must read collection records through `storeFor(...)`
+  // (the CollectionStore seam), never through the raw io readers — a direct
+  // `listItems` / `readItem` import silently bypasses whatever storage
+  // backend the collection actually has. Core's own internals import io
+  // relatively, so restricting the package specifier leaves them free.
+  // `src/plugins/` is excluded: the plugin-boundary block above configures
+  // the SAME rule for those files, and flat-config rule configs replace
+  // (not merge) — those files can't reach server-only core anyway.
+  {
+    files: ["server/**/*.ts", "src/**/*.ts", "packages/plugins/**/*.ts"],
+    ignores: ["src/plugins/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@mulmoclaude/core/collection/server",
+              importNames: ["listItems", "readItem"],
+              message: "Read records through `storeFor(collection).list()` / `.read(id)` — the raw io readers bypass the storage seam (plans/refactor-storage-virtualization.md).",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Type-aware pass. `projectService` builds the TypeScript program so rules can
   // reason about real types; that program is the whole cost (measured: five
   // rules cost the same as all 44), and it runs the full scope in ~26s over the

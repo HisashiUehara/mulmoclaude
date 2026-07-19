@@ -25,7 +25,7 @@ const writableView = { id: "phone", label: "Todos", target: "mobile", file: "vie
 const record = { id: "t1", title: "buy milk", done: false };
 
 const deps = (overrides: Partial<MutateRemoteViewDeps> = {}): MutateRemoteViewDeps => ({
-  readItem: (async () => ({ ...record })) as unknown as MutateRemoteViewDeps["readItem"],
+  readRecord: (async () => ({ ...record })) as unknown as MutateRemoteViewDeps["readRecord"],
   writeItem: (async (_dir: string, itemId: string, item: unknown) => ({ kind: "ok", itemId, item })) as unknown as MutateRemoteViewDeps["writeItem"],
   deleteItem: (async (_dir: string, itemId: string) => ({ kind: "ok", itemId })) as unknown as MutateRemoteViewDeps["deleteItem"],
   // Identity stub: fixtures have no computed fields, so the real resolver returns
@@ -63,7 +63,7 @@ describe("createMutateRemoteView", () => {
     withImage.schema.fields = { id: { type: "string" }, rating: { type: "string" }, poster: { type: "image" } } as unknown as typeof withImage.schema.fields;
     const mutate = createMutateRemoteView(
       deps({
-        readItem: (async () => ({ id: "t1", rating: "", poster: "images/a.png" })) as unknown as MutateRemoteViewDeps["readItem"],
+        readRecord: (async () => ({ id: "t1", rating: "", poster: "images/a.png" })) as unknown as MutateRemoteViewDeps["readRecord"],
         writeItem: (async (_dir: string, itemId: string, item: unknown) => ({ kind: "ok", itemId, item })) as unknown as MutateRemoteViewDeps["writeItem"],
       }),
     );
@@ -83,7 +83,7 @@ describe("createMutateRemoteView", () => {
     const big = `data:image/jpeg;base64,${"x".repeat(REMOTE_VIEW_ITEMS_MAX_BYTES)}`;
     const mutate = createMutateRemoteView(
       deps({
-        readItem: (async () => ({ id: "t1", rating: "", poster: "images/a.png" })) as unknown as MutateRemoteViewDeps["readItem"],
+        readRecord: (async () => ({ id: "t1", rating: "", poster: "images/a.png" })) as unknown as MutateRemoteViewDeps["readRecord"],
         writeItem: (async (_dir: string, itemId: string, item: unknown) => ({ kind: "ok", itemId, item })) as unknown as MutateRemoteViewDeps["writeItem"],
         resolveThumbnail: (async () => big) as MutateRemoteViewDeps["resolveThumbnail"],
       }),
@@ -100,7 +100,7 @@ describe("createMutateRemoteView", () => {
     // `value = shares * ticker.price`), not drop them until the next refetch.
     const mutate = createMutateRemoteView(
       deps({
-        readItem: (async () => ({ id: "t1", shares: 2 })) as unknown as MutateRemoteViewDeps["readItem"],
+        readRecord: (async () => ({ id: "t1", shares: 2 })) as unknown as MutateRemoteViewDeps["readRecord"],
         writeItem: (async (_dir: string, itemId: string, item: unknown) => ({ kind: "ok", itemId, item })) as unknown as MutateRemoteViewDeps["writeItem"],
         enrichItems: (async (_collection: unknown, items: Record<string, unknown>[]) =>
           items.map((entry) => ({ ...entry, value: Number(entry.shares) * 50 }))) as unknown as MutateRemoteViewDeps["enrichItems"],
@@ -119,7 +119,7 @@ describe("createMutateRemoteView", () => {
     const huge = "x".repeat(REMOTE_VIEW_ITEMS_MAX_BYTES);
     const mutate = createMutateRemoteView(
       deps({
-        readItem: (async () => ({ id: "t1", done: false })) as unknown as MutateRemoteViewDeps["readItem"],
+        readRecord: (async () => ({ id: "t1", done: false })) as unknown as MutateRemoteViewDeps["readRecord"],
         writeItem: (async (_dir: string, itemId: string, item: unknown) => ({ kind: "ok", itemId, item })) as unknown as MutateRemoteViewDeps["writeItem"],
         enrichItems: (async (_collection: unknown, items: Record<string, unknown>[]) =>
           items.map((entry) => ({ ...entry, embedded: huge }))) as unknown as MutateRemoteViewDeps["enrichItems"],
@@ -149,7 +149,7 @@ describe("createMutateRemoteView", () => {
   });
 
   it("reports invalid-id for an unsafe id on update (not a masked item-not-found)", async () => {
-    // readItem/writeItem stubs are never reached — the safeRecordId preflight
+    // readRecord/writeItem stubs are never reached — the safeRecordId preflight
     // classifies `bad/id` before any IO, matching the delete path's behaviour.
     const result = await createMutateRemoteView(deps())(collection([writableView]), "phone", { op: "update", id: "bad/id", patch: { done: true } });
     assert.deepEqual(result, { kind: "invalid-id", id: "bad/id" });
@@ -159,7 +159,7 @@ describe("createMutateRemoteView", () => {
     assert.deepEqual(await createMutateRemoteView(deps())(collection([writableView]), "phone", { op: "update", id: "t1", patch: {} }), {
       kind: "invalid-patch",
     });
-    const noItem = createMutateRemoteView(deps({ readItem: (async () => null) as unknown as MutateRemoteViewDeps["readItem"] }));
+    const noItem = createMutateRemoteView(deps({ readRecord: (async () => null) as unknown as MutateRemoteViewDeps["readRecord"] }));
     assert.deepEqual(await noItem(collection([writableView]), "phone", { op: "update", id: "ghost", patch: { done: true } }), {
       kind: "item-not-found",
       id: "ghost",

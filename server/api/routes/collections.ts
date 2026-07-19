@@ -589,6 +589,20 @@ function sendToolResult(res: Response, raw: string): void {
   }
 }
 
+// ── View-data routes: a FROZEN public contract ──────────────────────────────
+// Everything under `viewData*` below is called by LLM-authored custom-view
+// HTML files persisted in users' workspaces (`data/skills/*/views/*.html`,
+// `feeds/*/views/*.html`), written against the contract in
+// `packages/core/assets/helps/custom-view.md`. Those files cannot be
+// re-generated or migrated centrally, so this surface must stay
+// backward-compatible indefinitely: keep `?fields=` / `?ids=` semantics, the
+// `{ collection, count, items }` / `{ written, rejected }` / `{ rows }`
+// response shapes, and the status-code semantics (400 with `{ error }`,
+// 403 mutate-kind, 409 require-gate) stable. Evolve by ADDITION only —
+// new optional params, new routes — never by renaming or reshaping.
+// Storage virtualization (new `CollectionStore` backends — see
+// `@mulmoclaude/core` collection/server/store.ts) must be invisible here.
+//
 // The view-data fetch comes from a sandboxed (opaque-origin) iframe, so it is
 // a cross-origin request that the browser gates with CORS. `*` is safe here:
 // auth is the unguessable scoped token in the Authorization header (not a

@@ -11,6 +11,29 @@
 // refuse read-only collections first (`collectionWritable`) — the store
 // deliberately exposes no write methods, so a "write through the store"
 // can't be authored by accident.
+//
+// BACKWARD COMPATIBILITY — read before evolving this interface.
+// This store is INTERNAL and may change shape, but two user-facing
+// contracts built on top of it are effectively FROZEN, because they are
+// consumed by LLM-authored custom-view HTML files that already live in
+// users' workspaces (`data/skills/*/views/*.html`, `feeds/*/views/*.html`).
+// Those files cannot be migrated centrally — there is no registry of them,
+// and users expect a view authored months ago to keep working:
+//
+//   - the desktop view-data HTTP surface (`server/api/routes/collections.ts`:
+//     GET `?fields=`/`?ids=`, PUT items, POST /query, POST /actions/<id>,
+//     response shapes, error semantics) as documented in
+//     `packages/core/assets/helps/custom-view.md`;
+//   - the remote-view bridge (`../../remote-view/index.ts`: `__MC_VIEW`
+//     protocol, `getItems` page shape `{ items, total, offset, limit }`,
+//     mutate replies) as documented in
+//     `packages/core/assets/helps/custom-view-remote.md`.
+//
+// Any storage-virtualization work (new backends, paging, capability
+// changes) must be invisible at those two surfaces: evolve them by
+// ADDITIVE, backward-compatible supersets only — never rename/repurpose
+// params or message types, never change existing response shapes, never
+// let a new backend alter what an existing view observes.
 
 import type { CollectionItem } from "../core/schema";
 import type { CollectionQuery } from "../core/queryZ";
