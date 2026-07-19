@@ -2746,6 +2746,7 @@ onUnmounted(() => {
   clearLiveRefreshTimer();
   if (refreshNoteTimer !== undefined) clearTimeout(refreshNoteTimer);
   document.removeEventListener("mousedown", closeAddMenuOnOutsideClick);
+  document.removeEventListener("mousedown", closeFilterMenuOnOutsideClick);
 });
 
 // Embedded mode: report view/anchor changes so the chat card persists them

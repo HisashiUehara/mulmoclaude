@@ -237,7 +237,7 @@ test("a toggle covering the completion pair suppresses the synthesized done chip
   // Exactly ONE "Done" filter: the toggle's own chip; no __completion twin.
   await expect(page.getByTestId("collections-flag-chip-done")).toBeVisible();
   await expect(page.getByTestId("collections-flag-chip-__completion")).toHaveCount(0);
-  await expect(page.getByTestId("collections-filter-menu-panel").getByText("Done")).toHaveCount(1);
+  await expect(page.getByTestId("collections-filter-menu-panel").getByText("Done", { exact: true })).toHaveCount(1);
 
   // And the surviving chip filters done-ness as before.
   await page.getByTestId("collections-flag-chip-done").click();
