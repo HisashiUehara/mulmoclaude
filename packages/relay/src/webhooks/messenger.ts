@@ -7,6 +7,7 @@
 
 import { chunkText } from "@mulmobridge/client/text";
 import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
+import { envSecret, requireEnvSecret } from "../utils/envSecret.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
 import { verifyMetaSignature, handleMetaVerification } from "./meta.js";
 import { FIFTEEN_SECONDS_MS } from "../time.js";
@@ -54,7 +55,7 @@ const messengerPlugin: PlatformPlugin = {
   },
 
   handleVerification(request: Request, env: Env): Response {
-    return handleMetaVerification(request, String(env.MESSENGER_VERIFY_TOKEN ?? ""));
+    return handleMetaVerification(request, envSecret(env, "MESSENGER_VERIFY_TOKEN") ?? "");
   },
 
   async handleWebhook(request: Request, body: string, env: Env): Promise<RelayMessage[]> {
@@ -73,8 +74,7 @@ const messengerPlugin: PlatformPlugin = {
   },
 
   async sendResponse(chatId: string, text: string, env: Env): Promise<void> {
-    const accessToken = String(env.MESSENGER_PAGE_ACCESS_TOKEN ?? "");
-    if (!accessToken) throw new Error("MESSENGER_PAGE_ACCESS_TOKEN not configured");
+    const accessToken = requireEnvSecret(env, "MESSENGER_PAGE_ACCESS_TOKEN");
 
     // Authorization header (not query string) — Graph API supports it, and
     // avoids leaking the token into CDN / proxy access logs and error reports.
