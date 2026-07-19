@@ -32,6 +32,7 @@ export {
   collectCalendarPages,
   createCalendarEvent,
   getCalendarColors,
+  canonicalCalendarId,
   listCalendarEvents,
   listCalendars,
   syncCalendarEvents,
@@ -48,6 +49,17 @@ export {
   type SyncEventsInput,
 } from "./calendar.js";
 export { calendarSyncStatePath, clearCalendarSyncToken, loadCalendarSyncToken, saveCalendarSyncToken } from "./calendarSyncStore.js";
+export {
+  googleCalendarSyncTaskDef,
+  classifyDelete,
+  classifyWrite,
+  groupByCalendar,
+  syncCalendarGroup,
+  syncDueCalendarCollections,
+  toCollectionRecord,
+  GOOGLE_CALENDAR_SYNC_TASK_ID,
+  type CalendarCollectionSyncResult,
+} from "./collectionSync.js";
 export {
   completeTask,
   createTask,

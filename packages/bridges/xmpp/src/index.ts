@@ -129,10 +129,12 @@ xmpp.on("offline", () => {
   console.warn("[xmpp] offline");
 });
 
-xmpp.on("online", async (address: { toString: () => string }) => {
+xmpp.on("online", (address: { toString: () => string }) => {
   console.log(`[xmpp] online as ${address.toString()}`);
-  // Presence broadcast so contacts can see the bot is available.
-  await xmpp.send(xml("presence"));
+  // Presence broadcast so contacts can see the bot is available. Same shape as
+  // the "stanza" handler below: the listener stays sync so the send's rejection
+  // has somewhere to go instead of escaping the emitter.
+  xmpp.send(xml("presence")).catch((err) => console.error(`[xmpp] presence broadcast failed: ${err}`));
 });
 
 xmpp.on("stanza", (stanza: XmlElement) => {

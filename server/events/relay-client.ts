@@ -277,7 +277,12 @@ function attachSocketHandlers(socket: WebSocket, deps: AttachSocketHandlersDeps)
   });
 
   socket.on("message", (data) => {
-    handleRelayMessage(String(data), { relay, logger, sendResponse: queue.send });
+    // One bad message must not take the socket down: `handleRelayMessage`
+    // already logs the failures it anticipates, so anything reaching here is
+    // unexpected and only needs to be recorded, not propagated.
+    void handleRelayMessage(String(data), { relay, logger, sendResponse: queue.send }).catch((err: unknown) => {
+      logger.error(LOG_PREFIX, "relay message handler threw", { error: String(err) });
+    });
   });
 
   socket.on("close", (code, reason) => {
