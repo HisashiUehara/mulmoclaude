@@ -530,9 +530,14 @@ export default [
       "@typescript-eslint/no-unsafe-declaration-merging": "warn",
       // (2) Bugs only the type checker can see.
       "@typescript-eslint/no-base-to-string": "warn",
-      "@typescript-eslint/no-floating-promises": "warn",
-      "@typescript-eslint/no-misused-promises": "warn",
-      "@typescript-eslint/await-thenable": "warn",
+      // Drained to zero and ratcheted to `error` per docs/lint-policy.md — a
+      // dropped `await` or an async callback handed to a sync-only API is a
+      // real bug, and the backlog for these three is empty, so there is nothing
+      // to grandfather. Re-introducing one now fails CI instead of joining a
+      // warning list nobody reads.
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": "error",
+      "@typescript-eslint/await-thenable": "error",
       // Same backlog treatment for the sonarjs rules this block wakes.
       ...sonarTypeAwareRulesAsWarn,
     },

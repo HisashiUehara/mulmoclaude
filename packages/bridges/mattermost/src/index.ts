@@ -99,37 +99,10 @@ function connectWebSocket(): void {
     );
   });
 
-  webSocket.on("message", async (data) => {
-    try {
-      const event: {
-        event?: string;
-        data?: { post?: string };
-      } = JSON.parse(data.toString());
-      if (event.event !== "posted" || !event.data?.post) return;
-
-      const post: {
-        user_id: string;
-        channel_id: string;
-        message: string;
-      } = JSON.parse(event.data.post);
-
-      // Ignore own messages
-      if (post.user_id === botUserId) return;
-      if (!post.message.trim()) return;
-      if (!allowAll && !allowedChannels.has(post.channel_id)) return;
-
-      console.log(`[mattermost] message channel=${post.channel_id} user=${post.user_id} len=${post.message.length}`);
-
-      const ack = await mulmo.send(post.channel_id, post.message);
-      if (ack.ok) {
-        await postMessage(post.channel_id, ack.reply ?? "");
-      } else {
-        const status = ack.status ? ` (${ack.status})` : "";
-        await postMessage(post.channel_id, `Error${status}: ${ack.error ?? "unknown"}`);
-      }
-    } catch (err) {
-      console.error(`[mattermost] message handling failed: ${err}`);
-    }
+  // Listener stays sync so a rejection has somewhere to go — an async listener
+  // hands its promise to the emitter, which drops it.
+  webSocket.on("message", (data) => {
+    onWebSocketMessage(data).catch((err) => console.error(`[mattermost] message handler error: ${err}`));
   });
 
   webSocket.on("close", () => {
@@ -140,6 +113,39 @@ function connectWebSocket(): void {
   webSocket.on("error", (err) => {
     console.error(`[mattermost] WebSocket error: ${err.message}`);
   });
+}
+
+async function onWebSocketMessage(data: { toString: () => string }): Promise<void> {
+  try {
+    const event: {
+      event?: string;
+      data?: { post?: string };
+    } = JSON.parse(data.toString());
+    if (event.event !== "posted" || !event.data?.post) return;
+
+    const post: {
+      user_id: string;
+      channel_id: string;
+      message: string;
+    } = JSON.parse(event.data.post);
+
+    // Ignore own messages
+    if (post.user_id === botUserId) return;
+    if (!post.message.trim()) return;
+    if (!allowAll && !allowedChannels.has(post.channel_id)) return;
+
+    console.log(`[mattermost] message channel=${post.channel_id} user=${post.user_id} len=${post.message.length}`);
+
+    const ack = await mulmo.send(post.channel_id, post.message);
+    if (ack.ok) {
+      await postMessage(post.channel_id, ack.reply ?? "");
+    } else {
+      const status = ack.status ? ` (${ack.status})` : "";
+      await postMessage(post.channel_id, `Error${status}: ${ack.error ?? "unknown"}`);
+    }
+  } catch (err) {
+    console.error(`[mattermost] message handling failed: ${err}`);
+  }
 }
 
 async function main(): Promise<void> {

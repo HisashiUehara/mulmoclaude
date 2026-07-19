@@ -142,7 +142,13 @@ export const startHostRunner = (firestore: Firestore, channel: Channel, handlers
   const presence = hostDoc(firestore, channel);
   // Advertise online/offline + the capability set (method names + protocol
   // version) on the same doc the remote already listens to for presence.
-  const writePresence = (online: boolean) => setDoc(presence, { ...buildHostPresence(channel, handlers, online), updatedAt: serverTimestamp() }).catch(noop);
+  // Returns void, not the promise: presence is advertised best-effort from
+  // three call sites (announce, the snapshot-error path, the teardown), none of
+  // which can await. Terminating the chain here with `.catch(noop)` keeps every
+  // caller from floating a promise it has no way to handle.
+  const writePresence = (online: boolean): void => {
+    setDoc(presence, { ...buildHostPresence(channel, handlers, online), updatedAt: serverTimestamp() }).catch(noop);
+  };
   const announce = () => {
     writePresence(true);
   };
