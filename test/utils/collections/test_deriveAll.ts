@@ -127,3 +127,78 @@ describe("deriveAll + resolveRowRefs — cross-collection deref", () => {
     assert.deepEqual(resolveRowRefs(schema, { ticker: 42 }, refRecords), { ticker: null });
   });
 });
+
+describe("deriveAll — flag fields", () => {
+  it("computes a membership flag over an enum value", () => {
+    const schema: DerivableSchema = {
+      fields: {
+        status: field("enum"),
+        isDone: field("flag", { where: [{ field: "status", op: "in", value: ["done", "canceled"] }] }),
+      },
+    };
+    assert.equal(deriveAll(schema, { status: "done" }, {}).isDone, true);
+    assert.equal(deriveAll(schema, { status: "doing" }, {}).isDone, false);
+  });
+
+  it("computes a numeric-compare flag (gte)", () => {
+    const schema: DerivableSchema = {
+      fields: {
+        score: field("number"),
+        isPassed: field("flag", { where: [{ field: "score", op: "gte", value: "60" }] }),
+      },
+    };
+    assert.equal(deriveAll(schema, { score: 75 }, {}).isPassed, true);
+    assert.equal(deriveAll(schema, { score: 59 }, {}).isPassed, false);
+  });
+
+  it("a flag reads a derived value computed in an earlier pass", () => {
+    // Declaration order forces saturation: the flag is declared before
+    // the derived total it compares against.
+    const schema: DerivableSchema = {
+      fields: {
+        isOverBudget: field("flag", { where: [{ field: "total", op: "gt", valueFrom: { field: "budget" } }] }),
+        total: field("derived", { formula: "subtotal * 2" }),
+        subtotal: field("number"),
+        budget: field("number"),
+      },
+    };
+    assert.equal(deriveAll(schema, { subtotal: 100, budget: 150 }, {}).isOverBudget, true);
+    assert.equal(deriveAll(schema, { subtotal: 100, budget: 300 }, {}).isOverBudget, false);
+  });
+
+  it('a flag composes over another flag via eq "true"', () => {
+    const schema: DerivableSchema = {
+      fields: {
+        isActive: field("flag", { where: [{ field: "isDone", op: "ne", value: "true" }] }),
+        isDone: field("flag", { where: [{ field: "status", op: "in", value: ["done"] }] }),
+        status: field("enum"),
+      },
+    };
+    assert.equal(deriveAll(schema, { status: "done" }, {}).isActive, false);
+    assert.equal(deriveAll(schema, { status: "todo" }, {}).isActive, true);
+  });
+
+  it("strips a stale stored flag value (host-truth, like derived)", () => {
+    const schema: DerivableSchema = {
+      fields: {
+        status: field("enum"),
+        isDone: field("flag", { where: [{ field: "status", op: "eq", value: "done" }] }),
+      },
+    };
+    // A forged/stale `isDone: true` in the record JSON must not survive.
+    assert.equal(deriveAll(schema, { status: "todo", isDone: true }, {}).isDone, false);
+  });
+
+  it("a missing predicate field reads as false for every op except ne", () => {
+    const schema: DerivableSchema = {
+      fields: {
+        status: field("enum"),
+        isDone: field("flag", { where: [{ field: "status", op: "eq", value: "done" }] }),
+        isNotDone: field("flag", { where: [{ field: "status", op: "ne", value: "done" }] }),
+      },
+    };
+    const enriched = deriveAll(schema, {}, {});
+    assert.equal(enriched.isDone, false);
+    assert.equal(enriched.isNotDone, true);
+  });
+});

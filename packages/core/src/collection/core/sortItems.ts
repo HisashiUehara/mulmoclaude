@@ -11,7 +11,7 @@
 //
 // Field-type → comparable mapping (see `isSortableField`):
 //   string/text/email → string · number/money → numeric ·
-//   date/datetime → epoch-ms · enum → declared-index · boolean/toggle →
+//   date/datetime → epoch-ms · enum → declared-index · boolean/toggle/flag →
 //   false<true · ref → display label · derived → its display type.
 // markdown/table/image/file/embed get no sort button.
 

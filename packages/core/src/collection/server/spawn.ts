@@ -24,6 +24,7 @@ import { log } from "./host";
 import { errorMessage, ONE_DAY_MS } from "./util";
 import { writeItem, type IoOptions } from "./io";
 import { isFieldDrivenEvery } from "../core/schema";
+import { itemIsDone } from "../core/completion";
 import type { CollectionEvery, CollectionItem, CollectionSchema, CollectionSpawnEvery, CollectionWhen } from "../core/schema";
 
 /** A timezone-free calendar date. `m` is 1-12. */
@@ -127,17 +128,15 @@ export function successorId(sourceId: string, next: CivilDate): string {
 
 /** True iff `item` satisfies the spawn predicate. With an explicit
  *  `when`, matches `String(item[when.field]) ∈ when.in`. Without one,
- *  defaults to the completion-done condition. Self-contained (no import
- *  from notifications.ts) to keep the module graph acyclic. */
+ *  defaults to the completion-done condition — the shared, flag-aware
+ *  `itemIsDone` (core/completion; downhill import, so the module graph
+ *  stays acyclic). */
 function matchesWhen(when: CollectionWhen | undefined, schema: CollectionSchema, item: CollectionItem): boolean {
   if (when) {
     const raw = item[when.field];
     return raw !== undefined && raw !== null && when.in.includes(String(raw));
   }
-  const { completionField, completionDoneValues } = schema;
-  if (!completionField || !completionDoneValues) return false;
-  const raw = item[completionField];
-  return raw !== undefined && raw !== null && completionDoneValues.includes(String(raw));
+  return itemIsDone(schema, item);
 }
 
 /** Resolve the literal `every` that applies to `sourceItem`. Literal-arm

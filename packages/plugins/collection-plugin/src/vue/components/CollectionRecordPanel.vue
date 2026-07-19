@@ -354,6 +354,26 @@
               <span v-else class="text-slate-300">—</span>
             </template>
 
+            <!-- Flag state (computed boolean predicate — total, so always
+                 yes or no; never stored, nothing to edit). -->
+            <template v-else-if="field.type === 'flag'">
+              <span
+                v-if="render.deriveRecord(detailRecord)[key] === true"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/40"
+                :data-testid="`collections-detail-flag-${key}`"
+              >
+                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                {{ t("common.yes") }}
+              </span>
+              <span
+                v-else
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-50 text-slate-400 border border-slate-200/20"
+                :data-testid="`collections-detail-flag-${key}`"
+              >
+                {{ t("common.no") }}
+              </span>
+            </template>
+
             <!-- Ref details link -->
             <a
               v-else-if="field.type === 'ref' && field.to && typeof detailRecord[key] === 'string' && detailRecord[key]"

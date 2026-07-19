@@ -84,6 +84,18 @@ test("pure helpers: itemIsDone + resolveDisplayLabel", () => {
   assert.equal(resolveDisplayLabel(SCHEMA, { id: "a" }, "a"), "a"); // falls back to itemId
 });
 
+test("itemIsDone re-export stays flag-aware (completionField naming a flag field)", () => {
+  const flagSchema = {
+    fields: {
+      status: { type: "enum", label: "Status", values: ["todo", "done"] },
+      isDone: { type: "flag", label: "Done", where: [{ field: "status", op: "in", value: ["done"] }] },
+    },
+    completionField: "isDone",
+  } as unknown as typeof SCHEMA;
+  assert.equal(itemIsDone(flagSchema, { id: "a", status: "done" }), true);
+  assert.equal(itemIsDone(flagSchema, { id: "a", status: "todo" }), false);
+});
+
 test("reconcileItem publishes a bell for a pending record via the adapter", async () => {
   freshNotifierFiles();
   const dataDir = dataDirWith([{ id: "t1", name: "Pending task", done: "false" }]);

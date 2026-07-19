@@ -123,3 +123,52 @@ export function writeCollectionSort(slug: string, sort: SortState | null): void 
     // Best-effort, same as the view-mode store.
   }
 }
+
+// ── Flag filter chips (table view) ───────────────────────────────────
+
+/** One chip's active filter mode: `hide` drops matching rows, `only`
+ *  keeps just them. A chip with no entry shows all rows. */
+export type FlagFilterMode = "hide" | "only";
+/** Chip key (flag field name, or the synthesized completion key) → mode. */
+export type FlagFilterState = Record<string, FlagFilterMode>;
+
+const FLAG_FILTER_STORAGE_KEY = "collection_flag_filters";
+
+function isFlagFilterState(value: unknown): value is FlagFilterState {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return Object.values(value).every((mode) => mode === "hide" || mode === "only");
+}
+
+function readAllFlagFilters(): Record<string, FlagFilterState> {
+  try {
+    const raw = localStorage.getItem(FLAG_FILTER_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const out: Record<string, FlagFilterState> = {};
+    for (const [slug, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (isFlagFilterState(value)) out[slug] = value;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** The slug's persisted chip states ({} when none). A key whose flag no
+ *  longer exists in the schema is harmless — the chip list is derived
+ *  from the live schema, so a stale entry just never renders/filters. */
+export function readCollectionFlagFilters(slug: string): FlagFilterState {
+  return readAllFlagFilters()[slug] ?? {};
+}
+
+/** Persist the slug's chip states; an empty state clears the entry. */
+export function writeCollectionFlagFilters(slug: string, filters: FlagFilterState): void {
+  try {
+    const all = Object.fromEntries(Object.entries(readAllFlagFilters()).filter(([key]) => key !== slug));
+    if (Object.keys(filters).length > 0) all[slug] = filters;
+    localStorage.setItem(FLAG_FILTER_STORAGE_KEY, JSON.stringify(all));
+  } catch {
+    // Best-effort, same as the view-mode store.
+  }
+}
