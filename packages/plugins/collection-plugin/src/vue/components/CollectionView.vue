@@ -193,7 +193,7 @@
             :class="flagChipClass(chip.key)"
             :title="flagChipTitle(chip)"
             :aria-label="flagChipTitle(chip)"
-            :aria-pressed="flagFilters[chip.key] !== undefined"
+            :aria-pressed="flagFilterMode(chip.key) !== undefined"
             :data-testid="`collections-flag-chip-${chip.key}`"
             @click="cycleFlagFilter(chip.key)"
           >
@@ -1166,6 +1166,16 @@ const flagChips = computed<FlagChip[]>(() => {
   return chips;
 });
 
+/** Own-property read of a chip's active mode. Field names may shadow
+ *  `Object.prototype` members (`toString`, `valueOf`, …) — a plain
+ *  `filters[key]` on such a key reads the inherited function, which
+ *  renders as an "active" chip that can never cycle (Codex review on
+ *  PR #2176). Every chip-state read goes through here. */
+function flagFilterMode(key: string): FlagFilterMode | undefined {
+  const filters = flagFilters.value;
+  return Object.hasOwn(filters, key) ? filters[key] : undefined;
+}
+
 /** A flag FIELD's computed boolean for one row (list cells + sort):
  *  the enriched record's value, so a flag over derived/rollup inputs
  *  reads correctly. */
@@ -1184,35 +1194,35 @@ function chipMatches(chip: FlagChip, item: CollectionItem): boolean {
 /** `filteredItems` further narrowed by every ACTIVE chip (AND). Consumed
  *  only by the table (sortedItems / count summary / empty state). */
 const tableFilteredItems = computed<CollectionItem[]>(() => {
-  const active = flagChips.value.filter((chip) => flagFilters.value[chip.key] !== undefined);
+  const active = flagChips.value.filter((chip) => flagFilterMode(chip.key) !== undefined);
   if (active.length === 0) return filteredItems.value;
-  return filteredItems.value.filter((item) => active.every((chip) => chipMatches(chip, item) === (flagFilters.value[chip.key] === "only")));
+  return filteredItems.value.filter((item) => active.every((chip) => chipMatches(chip, item) === (flagFilterMode(chip.key) === "only")));
 });
 
 /** Cycle a chip all → hide → only → all. */
 function cycleFlagFilter(key: string): void {
-  const current = flagFilters.value[key];
+  const current = flagFilterMode(key);
   const next: FlagFilterMode | undefined = current === undefined ? "hide" : current === "hide" ? "only" : undefined;
   const rest = Object.fromEntries(Object.entries(flagFilters.value).filter(([entry]) => entry !== key));
   flagFilters.value = next ? { ...rest, [key]: next } : rest;
 }
 
 function flagChipIcon(key: string): string {
-  const mode = flagFilters.value[key];
+  const mode = flagFilterMode(key);
   return mode === "hide" ? "visibility_off" : mode === "only" ? "filter_alt" : "visibility";
 }
 
 // Mirrors the view-toggle button states: neutral when inactive; slate for
 // "hide" (rows removed), indigo for "only" (rows isolated).
 function flagChipClass(key: string): string {
-  const mode = flagFilters.value[key];
+  const mode = flagFilterMode(key);
   if (mode === "hide") return "bg-slate-600 text-white";
   if (mode === "only") return "bg-indigo-600 text-white";
   return "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50";
 }
 
 function flagChipTitle(chip: FlagChip): string {
-  const mode = flagFilters.value[chip.key];
+  const mode = flagFilterMode(chip.key);
   if (mode === "hide") return t("collectionsView.flagFilterHide", { label: chip.label });
   if (mode === "only") return t("collectionsView.flagFilterOnly", { label: chip.label });
   return t("collectionsView.flagFilterAll", { label: chip.label });

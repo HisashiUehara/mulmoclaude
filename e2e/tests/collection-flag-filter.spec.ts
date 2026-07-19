@@ -24,6 +24,10 @@ const TASKS = {
         name: { type: "string", label: "Name" },
         status: { type: "enum", label: "Status", values: ["todo", "doing", "done", "canceled"] },
         isDone: { type: "flag", label: "Done", where: [{ field: "status", op: "in", value: ["done", "canceled"] }] },
+        // Deliberately named after an Object.prototype member: chip-state
+        // lookups must read OWN properties, or this chip reads the
+        // inherited function as "active" and can never cycle.
+        toString: { type: "flag", label: "Open", where: [{ field: "status", op: "eq", value: "todo" }] },
       },
     },
   },
@@ -104,6 +108,26 @@ test("flag chip cycles all → hide → only, filters the table, and persists", 
   // Third click clears the filter → everything again.
   await page.getByTestId("collections-flag-chip-isDone").click();
   await expectRows(page, ["t1", "t2", "t3"]);
+});
+
+test("a flag named after an Object.prototype member still cycles", async ({ page }) => {
+  await mockAllApis(page);
+  await mockCollection(page, "tasks", TASKS);
+
+  await page.goto("/collections/tasks");
+  await expectRows(page, ["t1", "t2", "t3"]);
+
+  // `toString` shadows Object.prototype — a plain-object lookup would read
+  // the inherited function, leaving this chip stuck in the default state.
+  const chip = page.getByTestId("collections-flag-chip-toString");
+  await expect(chip).toHaveAttribute("aria-pressed", "false");
+  await chip.click(); // hide the open task
+  await expectRows(page, ["t2", "t3"]);
+  await chip.click(); // only the open task
+  await expectRows(page, ["t1"]);
+  await chip.click(); // back to all
+  await expectRows(page, ["t1", "t2", "t3"]);
+  await expect(chip).toHaveAttribute("aria-pressed", "false");
 });
 
 test("flag cells render as read-only checks in the table", async ({ page }) => {

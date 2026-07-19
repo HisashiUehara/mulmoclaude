@@ -1228,9 +1228,14 @@ function prototypeFieldKeyPath(input: unknown): string | null {
     const badSub = ownPrototypeKey((spec as { of?: unknown } | null)?.of);
     if (badSub !== null) return `fields.${key}.of.${badSub}`;
   }
-  for (const action of [schema.actions, schema.collectionActions].flatMap((list) => (Array.isArray(list) ? list : []))) {
-    const badParam = ownPrototypeKey((action as { params?: unknown } | null)?.params);
-    if (badParam !== null) return `actions.params.${badParam}`;
+  for (const [listName, list] of [
+    ["actions", schema.actions],
+    ["collectionActions", schema.collectionActions],
+  ] as const) {
+    for (const action of Array.isArray(list) ? list : []) {
+      const badParam = ownPrototypeKey((action as { params?: unknown } | null)?.params);
+      if (badParam !== null) return `${listName}.params.${badParam}`;
+    }
   }
   return null;
 }
