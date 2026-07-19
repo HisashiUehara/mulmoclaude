@@ -128,6 +128,7 @@ skipped, never crashes the host):
 | `icon`                 | A **Material Symbols** name (`receipt_long`, `people`, `schedule`, `menu_book`). Required.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `dataPath`             | Workspace-relative records folder, e.g. `data/recipes/items`. Must stay under the workspace. Required — unless `dataSource` is set (declare exactly ONE of the two).                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `dataSource`           | Optional. `{ "type": "csv", "path": "data/students.csv" }` — the records ARE the rows of an external data file (workspace-relative, containment-checked like `dataPath`). Makes the collection **read-only** in every UI/tool write path; see "External data (CSV) collections" below. Mutually exclusive with `dataPath`, `singleton`, `ingest`, `spawn`, and `mutate` actions.                                                                                                                                                                                                     |
+| `storage`              | Optional. `{ "type": "sqlite", "path": "data/<name>.db" }` — records live in a single SQLite database file instead of per-record JSON files; the collection stays **writable** and behaves identically everywhere else. Declare exactly ONE of `dataPath` / `dataSource` / `storage`. Cannot combine with `spawn`, `completionField`, or `triggerField` (v1). See "Alternative storage (sqlite)" below.                                                                                                                                                            |
 | `primaryKey`           | The field name whose value is the filename. That field MUST set `primary: true`. The value must be a valid record id (see the **Records** section's id-charset rule). Required.                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `singleton`            | Optional. When set, at most one record exists, pinned to this exact id (e.g. `me`). Host pre-fills + locks the create form and hides Add once it exists.                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `fields`               | Ordered map of field-name → field spec. **Insertion order = column order** in the table. Required.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -227,6 +228,9 @@ Every field spec needs a `type` and a `label`. Extra keys by type:
   collection). No extra keys. Great for photos like a business card: read the
   details off the attached image and write its path into the image field.
   Write the bare workspace-relative path — never an `/api/files/raw?...` URL.
+  A **custom view** renders these via `GET <dataUrl>/image` (see
+  `config/helps/custom-view.md` "Displaying images"; remote views declare
+  `imageFields` instead) — never by base64-embedding them into the view HTML.
 - **`file`** — stores a **workspace-relative file path** as a plain string (e.g.
   `artifacts/html/the-solar-system-1777158558023.html`). Rendered as a
   **clickable link** in both the list table and the detail view (unlike `image`,
@@ -1034,6 +1038,53 @@ Minimal example (Japanese roster, Shift_JIS file dropped at
     "氏名": { "type": "string", "label": "氏名" },
     "学年": { "type": "enum", "label": "学年", "values": ["1", "2", "3"] },
     "入学日": { "type": "date", "label": "入学日" }
+  }
+}
+```
+
+## Alternative storage (sqlite) — `storage`
+
+A collection can keep its records in a single SQLite database file instead of
+per-record JSON files: declare `storage` instead of `dataPath`. Unlike
+`dataSource` (read-only, user-owned file), a `storage` collection is a normal
+WRITABLE collection — every UI, tool, custom view (desktop and remote), and
+API surface works identically; only where the rows live changes. The db file
+is collection-owned and managed by the host (`records` table, one JSON record
+per row keyed by `primaryKey`).
+
+When to use: only when the user explicitly asks for it, or a collection is
+expected to grow far beyond what a folder of JSON files handles comfortably
+(thousands of records). For everything else prefer `dataPath` — record files
+are transparent, diffable, and every feature supports them.
+
+Notes:
+
+- Requires **Node.js >= 22.5** (built-in `node:sqlite`); on an older runtime
+  only sqlite collections fail, with a clear error (see
+  `config/helps/error-recovery.md`).
+- The full write machinery works: `spawn`, `completionField` /
+  `triggerField` bells, `singleton`, `ingest`, and mutate actions all go
+  through the storage layer, and a watcher on the db file drives bell
+  reconciliation + live view refreshes — including after EXTERNAL edits to
+  the `.db`.
+- The Repair pass validates records through the storage backend (schema
+  violations are reported by record id); a row so corrupt the backend
+  can't parse it is skipped silently, unlike a malformed record FILE.
+- Deleting the collection archives the `.db` alongside the skill under
+  `archive/…` and removes the live file.
+
+Minimal example:
+
+```json
+{
+  "title": "Order History",
+  "icon": "receipt_long",
+  "storage": { "type": "sqlite", "path": "data/orders.db" },
+  "primaryKey": "id",
+  "fields": {
+    "id": { "type": "string", "label": "ID", "primary": true },
+    "item": { "type": "string", "label": "Item" },
+    "total": { "type": "number", "label": "Total" }
   }
 }
 ```

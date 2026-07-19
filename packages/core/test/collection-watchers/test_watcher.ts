@@ -12,7 +12,12 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { configureCollectionHost, setCollectionChangePublisher, type CollectionChangePayload } from "../../src/collection/server/index.ts";
+import {
+  configureCollectionHost,
+  setCollectionChangePublisher,
+  type CollectionChangePayload,
+  type LoadedCollection,
+} from "../../src/collection/server/index.ts";
 import { configureNotifier, setNotifierFilePaths } from "../../src/notifier/index.ts";
 import { configureCollectionWatchers, _scheduleItemReconcileForTesting, type CollectionNotificationAdapter } from "../../src/collection-watchers/index.ts";
 
@@ -53,6 +58,12 @@ configureCollectionWatchers({ adapter });
 
 const SCHEMA = { primaryKey: "id", title: "Tasks", displayField: "name", completionField: "done", completionDoneValues: ["true"] } as never;
 
+// The reconciler only needs slug + schema + dataDir off the collection;
+// a minimal cast keeps the test independent of full discovery (mirrors
+// `asCollection` in test_reconciler.ts).
+const asCollection = (slug: string, schema: unknown, dataDir: string): LoadedCollection =>
+  ({ slug, source: "project", schema, dataDir, skillDir: dataDir }) as unknown as LoadedCollection;
+
 const published: CollectionChangePayload[] = [];
 setCollectionChangePublisher((payload) => published.push(payload));
 
@@ -68,7 +79,7 @@ function freshDataDir(records: Record<string, unknown>[]): string {
 test("a record present on disk publishes op=upsert with its id", async () => {
   const dataDir = freshDataDir([{ id: "t1", name: "Pending", done: "false" }]);
   try {
-    await _scheduleItemReconcileForTesting("todo", SCHEMA, dataDir, "t1");
+    await _scheduleItemReconcileForTesting(asCollection("todo", SCHEMA, dataDir), "t1");
     assert.deepEqual(published, [{ slug: "todo", ids: ["t1"], op: "upsert" }]);
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
@@ -78,7 +89,7 @@ test("a record present on disk publishes op=upsert with its id", async () => {
 test("a record missing from disk publishes op=delete", async () => {
   const dataDir = freshDataDir([]);
   try {
-    await _scheduleItemReconcileForTesting("todo", SCHEMA, dataDir, "gone");
+    await _scheduleItemReconcileForTesting(asCollection("todo", SCHEMA, dataDir), "gone");
     assert.deepEqual(published, [{ slug: "todo", ids: ["gone"], op: "delete" }]);
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
@@ -91,9 +102,9 @@ test("a burst on one record coalesces into a single publish", async () => {
     // Same tick, same key: calls 2-3 land on the in-flight slot and only
     // set `pending`, so the burst must yield one event, not three.
     await Promise.all([
-      _scheduleItemReconcileForTesting("todo", SCHEMA, dataDir, "t1"),
-      _scheduleItemReconcileForTesting("todo", SCHEMA, dataDir, "t1"),
-      _scheduleItemReconcileForTesting("todo", SCHEMA, dataDir, "t1"),
+      _scheduleItemReconcileForTesting(asCollection("todo", SCHEMA, dataDir), "t1"),
+      _scheduleItemReconcileForTesting(asCollection("todo", SCHEMA, dataDir), "t1"),
+      _scheduleItemReconcileForTesting(asCollection("todo", SCHEMA, dataDir), "t1"),
     ]);
     assert.equal(published.length, 1);
     assert.deepEqual(published[0], { slug: "todo", ids: ["t1"], op: "upsert" });
@@ -108,7 +119,10 @@ test("distinct records each publish their own event", async () => {
     { id: "b", name: "B", done: "false" },
   ]);
   try {
-    await Promise.all([_scheduleItemReconcileForTesting("todo", SCHEMA, dataDir, "a"), _scheduleItemReconcileForTesting("todo", SCHEMA, dataDir, "b")]);
+    await Promise.all([
+      _scheduleItemReconcileForTesting(asCollection("todo", SCHEMA, dataDir), "a"),
+      _scheduleItemReconcileForTesting(asCollection("todo", SCHEMA, dataDir), "b"),
+    ]);
     assert.equal(published.length, 2);
     assert.deepEqual(published.map((event) => event.ids?.[0]).sort(), ["a", "b"]);
   } finally {
@@ -120,7 +134,7 @@ test("a collection without completionField still publishes", async () => {
   const noBellSchema = { primaryKey: "id", title: "Notes", displayField: "name" } as never;
   const dataDir = freshDataDir([{ id: "n1", name: "Note" }]);
   try {
-    await _scheduleItemReconcileForTesting("notes", noBellSchema, dataDir, "n1");
+    await _scheduleItemReconcileForTesting(asCollection("notes", noBellSchema, dataDir), "n1");
     assert.deepEqual(published, [{ slug: "notes", ids: ["n1"], op: "upsert" }]);
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
@@ -133,12 +147,12 @@ test("a throwing publisher neither fails the reconcile nor wedges the slot", asy
     throw new Error("host publisher exploded");
   });
   try {
-    await assert.doesNotReject(() => _scheduleItemReconcileForTesting("todo", SCHEMA, dataDir, "t1"));
+    await assert.doesNotReject(() => _scheduleItemReconcileForTesting(asCollection("todo", SCHEMA, dataDir), "t1"));
     // The slot lives in a module-level map keyed by (slug, itemId); if the
     // throw escaped before its `finally` freed the key, this second pass
     // would join a dead slot and never publish.
     setCollectionChangePublisher((payload) => published.push(payload));
-    await _scheduleItemReconcileForTesting("todo", SCHEMA, dataDir, "t1");
+    await _scheduleItemReconcileForTesting(asCollection("todo", SCHEMA, dataDir), "t1");
     assert.deepEqual(published, [{ slug: "todo", ids: ["t1"], op: "upsert" }]);
   } finally {
     setCollectionChangePublisher((payload) => published.push(payload));

@@ -19,6 +19,11 @@ import {
   resolveDisplayLabel,
   type CollectionNotificationAdapter,
 } from "../../src/collection-watchers/index.ts";
+import type { LoadedCollection } from "../../src/collection/server/index.ts";
+
+// The store-based reconciler takes the discovered collection.
+const asCollection = (slug: string, schema: unknown, dataDir: string): LoadedCollection =>
+  ({ slug, source: "project", schema, dataDir, skillDir: dataDir }) as unknown as LoadedCollection;
 
 const root = mkdtempSync(path.join(tmpdir(), "cw-root-"));
 const noopLog = { error: () => {}, warn: () => {}, info: () => {}, debug: () => {} };
@@ -100,7 +105,7 @@ test("reconcileItem publishes a bell for a pending record via the adapter", asyn
   freshNotifierFiles();
   const dataDir = dataDirWith([{ id: "t1", name: "Pending task", done: "false" }]);
   try {
-    await reconcileItem("todo", SCHEMA, dataDir, "t1", { workspaceRoot: root });
+    await reconcileItem(asCollection("todo", SCHEMA, dataDir), "t1", { workspaceRoot: root });
     const all = await listAll();
     assert.equal(all.length, 1);
     assert.equal(all[0].pluginPkg, "test-bells");
@@ -116,8 +121,8 @@ test("reconcileItem is idempotent — re-running does not duplicate the bell", a
   freshNotifierFiles();
   const dataDir = dataDirWith([{ id: "t1", name: "Pending", done: "false" }]);
   try {
-    await reconcileItem("todo", SCHEMA, dataDir, "t1", { workspaceRoot: root });
-    await reconcileItem("todo", SCHEMA, dataDir, "t1", { workspaceRoot: root });
+    await reconcileItem(asCollection("todo", SCHEMA, dataDir), "t1", { workspaceRoot: root });
+    await reconcileItem(asCollection("todo", SCHEMA, dataDir), "t1", { workspaceRoot: root });
     assert.equal((await listAll()).length, 1);
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
@@ -128,10 +133,10 @@ test("reconcileItem clears the bell when the record becomes done", async () => {
   freshNotifierFiles();
   const dataDir = dataDirWith([{ id: "t1", name: "Task", done: "false" }]);
   try {
-    await reconcileItem("todo", SCHEMA, dataDir, "t1", { workspaceRoot: root });
+    await reconcileItem(asCollection("todo", SCHEMA, dataDir), "t1", { workspaceRoot: root });
     assert.equal((await listAll()).length, 1);
     writeFileSync(path.join(dataDir, "t1.json"), JSON.stringify({ id: "t1", name: "Task", done: "true" }));
-    await reconcileItem("todo", SCHEMA, dataDir, "t1", { workspaceRoot: root });
+    await reconcileItem(asCollection("todo", SCHEMA, dataDir), "t1", { workspaceRoot: root });
     assert.equal((await listAll()).length, 0);
     assert.deepEqual(
       events.map((event) => event.type),
@@ -146,10 +151,10 @@ test("reconcileItem clears the bell when the record file is deleted", async () =
   freshNotifierFiles();
   const dataDir = dataDirWith([{ id: "t1", name: "Task", done: "false" }]);
   try {
-    await reconcileItem("todo", SCHEMA, dataDir, "t1", { workspaceRoot: root });
+    await reconcileItem(asCollection("todo", SCHEMA, dataDir), "t1", { workspaceRoot: root });
     assert.equal((await listAll()).length, 1);
     rmSync(path.join(dataDir, "t1.json"));
-    await reconcileItem("todo", SCHEMA, dataDir, "t1", { workspaceRoot: root });
+    await reconcileItem(asCollection("todo", SCHEMA, dataDir), "t1", { workspaceRoot: root });
     assert.equal((await listAll()).length, 0);
   } finally {
     rmSync(dataDir, { recursive: true, force: true });

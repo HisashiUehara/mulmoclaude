@@ -25,7 +25,8 @@
 import { actionVisible } from "../core/actionVisible";
 import { COMPUTED_TYPES, recordFieldProblem } from "../core/recordZ";
 import { resolveMutateSet } from "../core/mutateAction";
-import { readItem, writeItem, type IoOptions } from "./io";
+import type { IoOptions } from "./io";
+import { storeFor } from "./store";
 import { validateRecordObject } from "./validate";
 import type { LoadedCollection } from "./discoveredCollection";
 import type { CollectionItem, CollectionMutateAction } from "../core/schema";
@@ -66,7 +67,12 @@ export async function applyMutateAction(
   const paramProblem = firstMutateParamProblem(action, params);
   if (paramProblem) return { ok: false, status: "invalid-params", problem: paramProblem };
 
-  const existing = await readItem(collection.dataDir, itemId, opts);
+  // Discovery statically rejects mutate actions on read-only (dataSource)
+  // schemas, so a missing `write` is defense in depth, not a live path.
+  const store = storeFor(collection, opts);
+  if (!store.write) return { ok: false, status: "write-refused", problem: "write refused (read-only collection)" };
+
+  const existing = await store.read(itemId);
   if (!existing) return { ok: false, status: "not-found", problem: `item '${itemId}' not found` };
 
   // Re-check `require` against THIS read — the snapshot the merge below
@@ -88,7 +94,7 @@ export async function applyMutateAction(
   const invalid = validateRecordObject(merged, itemId, collection.schema);
   if (invalid) return { ok: false, status: "invalid-record", problem: invalid };
 
-  const result = await writeItem(collection.dataDir, itemId, merged, { workspaceRoot: opts.workspaceRoot, slug: collection.slug });
+  const result = await store.write(itemId, merged);
   if (result.kind !== "ok") return { ok: false, status: "write-refused", problem: `write refused (${result.kind})` };
   return { ok: true, item: merged };
 }

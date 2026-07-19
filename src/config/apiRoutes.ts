@@ -363,6 +363,14 @@ const HOST_API_ROUTES = {
      *  read-only by construction (see core/queryZ.ts); 400 on a file-backed
      *  collection (no query engine). Backs chart-drawing custom views. */
     viewDataQuery: "/api/collections/:slug/view-data/query",
+    /** GET → resolve one record-referenced `image` field value (a workspace
+     *  path, `?path=…`) into a downscaled thumbnail → { path, dataUrl }.
+     *  Requires only the `read` capability; the path must be a CURRENT value
+     *  of one of the schema's image-type fields (no arbitrary file reads).
+     *  Optional `?maxEdge=` (clamped 64–1024, default 512). This is how a
+     *  desktop custom view displays workspace image files — sibling of the
+     *  remote view's `imageFields` inlining. */
+    viewDataImage: "/api/collections/:slug/view-data/image",
     /** DELETE → remove one custom view: drop it from schema.json `views[]` and
      *  unlink its `views/<file>.html` (global-bearer auth) → { deleted, viewId }.
      *  Source-aware; refuses user-scope + preset collections. */

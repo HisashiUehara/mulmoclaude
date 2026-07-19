@@ -24,6 +24,7 @@
 // package catches up, but the launcher boots. Matches the feature's
 // "optional everywhere" design (the View-side `subscribeChanges` is optional too).
 
+// eslint-disable-next-line no-restricted-imports -- namespace import is the feature-detect described above; only `setCollectionChangePublisher` is accessed, never the restricted raw io readers
 import * as collectionPlugin from "@mulmoclaude/core/collection/server";
 import type { CollectionChangePayload } from "@mulmoclaude/core/collection/server";
 import { collectionChannel, type CollectionChannelPayload } from "../../src/config/pubsubChannels.js";

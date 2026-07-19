@@ -301,9 +301,17 @@ export async function queryCsv(sql: string, params: unknown[]): Promise<Record<s
  *  key column is pinned to VARCHAR (see `readCsvArgs`). `workspaceRoot`
  *  drives the per-read containment check; omitted, the configured host
  *  root is used. */
-export async function csvList(absPath: string, primaryKey: string, workspaceRoot?: string): Promise<CollectionItem[]> {
+export interface CsvListResult {
+  items: CollectionItem[];
+  /** True when the scan stopped at `MAX_CSV_ROWS` — `items` is then a
+   *  row-capped prefix, not the whole file. Surfaced to `ListPage.truncated`
+   *  so callers see the cap instead of inferring it from a warn log. */
+  truncated: boolean;
+}
+
+export async function csvList(absPath: string, primaryKey: string, workspaceRoot?: string): Promise<CsvListResult> {
   const utf8Path = await ensureUtf8CsvPath(absPath, workspaceRoot ?? getWorkspaceRoot());
-  if (utf8Path === null) return [];
+  if (utf8Path === null) return { items: [], truncated: false };
   let rows: Record<string, unknown>[];
   try {
     rows = await queryCsv(`SELECT * FROM read_csv(${readCsvArgs(primaryKey)}) LIMIT ${MAX_CSV_ROWS + 1}`, [utf8Path]);
@@ -313,9 +321,10 @@ export async function csvList(absPath: string, primaryKey: string, workspaceRoot
     // the pre-pin `primaryKey in row` check produced), not a 500.
     if (!isMissingKeyColumnError(err)) throw err;
     log.warn("collections", "dataSource CSV has no primaryKey column — every row is skipped", { path: absPath, primaryKey });
-    return [];
+    return { items: [], truncated: false };
   }
-  if (rows.length > MAX_CSV_ROWS) {
+  const truncated = rows.length > MAX_CSV_ROWS;
+  if (truncated) {
     log.warn("collections", "dataSource CSV truncated to row cap", { path: absPath, cap: MAX_CSV_ROWS });
     rows.length = MAX_CSV_ROWS;
   }
@@ -325,7 +334,7 @@ export async function csvList(absPath: string, primaryKey: string, workspaceRoot
   const deduped = dedupeByRecordId(items, primaryKey);
   if (deduped.duplicates > 0)
     log.warn("collections", "dataSource CSV has duplicate key values (last row wins)", { path: absPath, duplicates: deduped.duplicates });
-  return deduped.items;
+  return { items: deduped.items, truncated };
 }
 
 /** The scan-order ordinal column the last-match read adds. Underscore

@@ -772,6 +772,23 @@ export const DataSourceZ = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// storage (alternative writable record backend)
+// ---------------------------------------------------------------------------
+
+/** Alternative WRITABLE storage backend for a collection's records —
+ *  unlike `dataSource` (external read-only file), a `storage` collection
+ *  behaves like a normal writable collection; only where the rows live
+ *  changes. v1: `sqlite` — records in a single SQLite database file
+ *  (`node:sqlite`, one JSON record per row keyed by the primaryKey).
+ *  `path` is workspace-relative and containment-checked exactly like
+ *  `dataPath`. The store factory registry (`server/store.ts`) picks the
+ *  implementation by `type` (plans/refactor-storage-virtualization.md). */
+export const StorageZ = z.object({
+  type: z.literal("sqlite"),
+  path: z.string().min(1),
+});
+
+// ---------------------------------------------------------------------------
 // The whole schema
 // ---------------------------------------------------------------------------
 
@@ -779,10 +796,12 @@ const BareCollectionSchemaZ = z
   .object({
     title: z.string().min(1),
     icon: z.string().min(1),
-    // Exactly one of `dataPath` (native JSON-file records) or `dataSource`
-    // (external read-only data file) — enforced by a refine below.
+    // Exactly one of `dataPath` (native JSON-file records), `dataSource`
+    // (external read-only data file), or `storage` (alternative writable
+    // backend) — enforced by a refine below.
     dataPath: z.string().min(1).optional(),
     dataSource: DataSourceZ.optional(),
+    storage: StorageZ.optional(),
     primaryKey: z.string().min(1),
     // When set, the collection holds at most one record whose primary
     // key is this exact value (e.g. `me` for the business profile).
@@ -855,13 +874,20 @@ const BareCollectionSchemaZ = z
     dynamicIcon: DynamicIconSpecZ.optional(),
   })
   // Exactly one storage declaration: native records need `dataPath`, an
-  // external data file needs `dataSource`. Neither (nowhere to read) and
-  // both (ambiguous which wins) are equally meaningless — fail loudly at
-  // load instead of picking silently.
-  .refine((schema) => (schema.dataPath !== undefined) !== (schema.dataSource !== undefined), {
-    message: "declare exactly one of `dataPath` (native JSON records) or `dataSource` (external read-only data file), never both or neither",
+  // external data file needs `dataSource`, an alternative backend needs
+  // `storage`. Zero (nowhere to read) and several (ambiguous which wins)
+  // are equally meaningless — fail loudly at load instead of picking
+  // silently.
+  .refine((schema) => [schema.dataPath, schema.dataSource, schema.storage].filter((declared) => declared !== undefined).length === 1, {
+    message:
+      "declare exactly one of `dataPath` (native JSON records), `dataSource` (external read-only data file), or `storage` (alternative writable backend)",
     path: ["dataPath"],
   })
+  // NOTE: `storage` collections support the full write machinery
+  // (`spawn` / `completionField` / `triggerField` / `singleton` / `ingest`
+  // / mutate actions) — spawn and the watcher reconcilers go through the
+  // CollectionStore seam, and a db-file watcher drives their
+  // reconciliation (collection-watchers/watcher.ts).
   // A `dataSource` collection is read-only by definition, so schema-level
   // write machinery can never fire: `singleton` pins CREATES, `ingest`
   // REFILLS records, `spawn` WRITES successor records. Rejecting them at

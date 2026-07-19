@@ -106,9 +106,9 @@ toggles, embeds) — the same numbers the user sees elsewhere.
 A view can run structured aggregations over the collection — on a
 `dataSource` (CSV) collection this scans the WHOLE file (the record read
 above is row-capped at 5,000 there, so an aggregate computed from it would
-be silently wrong); on a file-backed collection it aggregates the ENRICHED
-records, so computed fields (`derived` / `rollup` / `toggle`) are queryable
-columns:
+be silently wrong); on any other collection (file-backed or sqlite
+`storage`) it aggregates the ENRICHED records, so computed fields
+(`derived` / `rollup` / `toggle`) are queryable columns:
 
 ```js
 const res = await fetch(dataUrl + "/query", {
@@ -188,6 +188,40 @@ if (res.ok) {
   view token (they start LLM work) — you get a 403.
 - A 409 means the record's current state fails the action's `require` — treat
   it as "button disabled", not an error to retry.
+
+### Displaying images — `GET <dataUrl>/image`
+
+An `image`-type field stores a **workspace path** (`data/attachments/…`,
+`data/<name>/logos/…`) that a sandboxed view cannot load directly — the
+iframe has an opaque origin and `<img>` can't attach the bearer token. To
+render one, ask the host to resolve it into a downscaled thumbnail:
+
+```js
+// Request the image field in your projection so you have its path,
+// then resolve each path into a data: URL and assign it to the <img>.
+const res = await fetch(dataUrl + "/image?path=" + encodeURIComponent(item.photo) + "&maxEdge=256", {
+  headers: { Authorization: "Bearer " + token },
+});
+if (res.ok) {
+  const { dataUrl: src } = await res.json();
+  img.src = src; // "data:image/jpeg;base64,…"
+} // non-ok: leave the placeholder — 404 = not an image-field value / unresolvable
+```
+
+- **Only current image-field values resolve.** The host checks `path`
+  against the collection's records: it must be the CURRENT value of a
+  schema `image`-type field — the token cannot read arbitrary workspace
+  files. A stale or hand-built path answers 404.
+- `maxEdge` clamps to 64–1024 (default 512) — request the size you render.
+- Cache the resolved `data:` URLs per path in your view (a simple `Map`)
+  and re-resolve inside your `onChange` callback only for paths you haven't
+  seen — each request re-scans the records server-side.
+- A record field holding a public **`https:` URL needs none of this** —
+  `<img src>` may load any https host directly (see the sandbox rules).
+- **Do NOT base64-embed images into the view HTML itself.** It bloats the
+  file, goes stale the moment a record's image changes, and needs manual
+  regeneration — this endpoint (or an https URL field) is always the
+  better answer.
 
 ### Staying live — `onChange`
 
