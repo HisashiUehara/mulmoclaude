@@ -103,6 +103,7 @@ import { isDockerAvailable, ensureSandboxImage } from "./system/docker.js";
 import { maybeRunJournal } from "./workspace/journal/index.js";
 import { backfillAllSessions } from "./workspace/chat-index/index.js";
 import { feedRefreshTaskDef } from "@mulmoclaude/core/feeds/server";
+import { googleCalendarSyncTaskDef } from "@mulmoclaude/core/google";
 import { configureFeeds } from "./workspace/feeds/configure.js";
 import { createPubSub } from "./events/pub-sub/index.js";
 import { PUBSUB_CHANNELS } from "../src/config/pubsubChannels.js";
@@ -1115,6 +1116,7 @@ function buildSystemTaskDefs(): SystemTaskDef[] {
     // factory so the id/schedule/run can't drift across hosts. The override
     // loop below still mutates `task.schedule` host-side.
     feedRefreshTaskDef(),
+    googleCalendarSyncTaskDef(),
   ];
 
   // Apply user-configurable schedule overrides from
