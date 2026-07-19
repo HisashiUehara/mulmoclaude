@@ -132,8 +132,8 @@ skipped, never crashes the host):
 | `singleton`            | Optional. When set, at most one record exists, pinned to this exact id (e.g. `me`). Host pre-fills + locks the create form and hides Add once it exists.                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `fields`               | Ordered map of field-name → field spec. **Insertion order = column order** in the table. Required.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `actions`              | Optional array of per-record buttons (see below).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `completionField`      | Optional. Name of the field whose value marks an item as "done" — when set, item-create fires a bell notification that clears once the field reaches one of `completionDoneValues`. Must name a real field in `fields`. Paired with `completionDoneValues` (both set, or both omitted).                                                                                                                                                                                                                                                                                            |
-| `completionDoneValues` | Optional. Non-empty array of values that count as "done" for `completionField` (e.g. `["Done"]`, `["paid", "void"]`). Compared as strings.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `completionField`      | Optional. Name of the field whose value marks an item as "done" — when set, item-create fires a bell notification that clears once the item reads as done. Must name a real field in `fields`. Two forms: paired with `completionDoneValues` (done ⇔ the field's value is in that array), or naming a **`flag` field** (done ⇔ the flag's `where` matches — `completionDoneValues` must then be omitted).                                                                                                                                                                            |
+| `completionDoneValues` | Optional. Non-empty array of values that count as "done" for `completionField` (e.g. `["Done"]`, `["paid", "void"]`). Compared as strings. Omit when `completionField` names a `flag` field.                                                                                                                                                                                                                                                                                                                                                                                       |
 | `notifyWhen`           | Optional. A `when` predicate (`{ "field": "...", "in": [...] }`) that **gates** the completion bell: fire it only for records matching the predicate (e.g. `{ "field": "priority", "in": ["high", "urgent"] }`). Requires `completionField`; `field` must name a real field. Absent ⇒ notify for every open record.                                                                                                                                                                                                                                                                |
 | `displayField`         | Optional. Name of a field whose value is shown as the human-readable label in the completion notification's title (e.g. `Contacts: Jane Doe` instead of the opaque primaryKey). Must name a real field in `fields`. Falls back to the primaryKey value when unset or when the record's value is empty.                                                                                                                                                                                                                                                                             |
 | `triggerField`         | Optional. Name of a `date` field that **delays** the completion bell until that date arrives (instead of firing on create). Requires `completionField` / `completionDoneValues` (the bell still clears via the done value). Must name a real `date` field. See "Time-gated bells" below.                                                                                                                                                                                                                                                                                           |
@@ -149,7 +149,7 @@ skipped, never crashes the host):
 
 `string` · `text` (multi-line) · `email` · `number` · `date` (`YYYY-MM-DD`) ·
 `datetime` (`YYYY-MM-DDTHH:MM`) · `boolean` · `markdown` · `money` · `enum` ·
-`ref` · `embed` · `backlinks` · `rollup` · `table` · `derived` · `image` · `file` · `toggle`
+`ref` · `embed` · `backlinks` · `rollup` · `table` · `derived` · `image` · `file` · `toggle` · `flag`
 
 Every field spec needs a `type` and a `label`. Extra keys by type:
 
@@ -249,6 +249,20 @@ Every field spec needs a `type` and a `label`. Extra keys by type:
   "done" checkbox. Without it, `status` only shows as a dropdown and a kanban
   column, with no checkbox to tick. `offValue` is the status to return to on
   uncheck (the default open column, e.g. `"Todo"`).
+- **`flag`** — `where: [<conditions>]`. A **computed boolean**: true when the
+  record matches every condition (AND). **Never stored** (like `derived`); the
+  host recomputes it on every read, so you NEVER write flag values into the
+  JSON. Each condition is `{ "field": "<field>", "op": "<op>", "value": "..." }`
+  with ops `eq` / `ne` / `in` (array value) / `contains` / `gt` / `gte` / `lt` /
+  `lte`, or `{ ..., "valueFrom": { "field": "<sibling>" } }` to compare two
+  fields of the same record (`spent > budget`). Condition fields must name
+  declared fields; cross-record `valueFrom.record` is not allowed. A flag may
+  read `derived` / `rollup` values, and other flags via their stringified
+  boolean (`{ "field": "isDone", "op": "eq", "value": "true" }`). Use it for
+  generic state summaries — done-ness, pass/fail, qualification:
+  `{ "type": "flag", "label": "Passed", "where": [{ "field": "score", "op": "gte", "value": "60" }] }`.
+  A flag can also drive completion tracking (stored-field conditions only) —
+  see `completionField` above and the "Completion tracking" section below.
 
 ### Conditional field visibility (`when`)
 
@@ -473,6 +487,16 @@ with any field type whose stringified value is comparable (`enum`, `string`,
 `boolean`, …) — e.g. `completionField: "status"` + `completionDoneValues:
 ["paid", "void"]` on an invoice, or `completionField: "shipped"` +
 `completionDoneValues: ["true"]` on an order.
+
+**Flag-form alternative**: `completionField` may instead name a **`flag`
+field** — then done ⇔ the flag's `where` matches, and `completionDoneValues`
+must be **omitted** (declaring it fails validation). Use it when done-ness is
+richer than one field's membership (e.g. `"isDone": { "type": "flag", "where":
+[{ "field": "score", "op": "gte", "value": "60" }] }` + `"completionField":
+"isDone"`). Two extra rules apply only to a completion flag: its `where` may
+reference **stored fields only** (no derived/rollup/toggle/flag/embed/backlinks
+— completion is checked against the raw record), and combining it with `spawn`
+requires an explicit `spawn.when`.
 
 Set `displayField` to make the bell title readable: with `displayField:
 "title"` the notification reads `Todos: Buy milk` instead of `Todos: t-0042`.
