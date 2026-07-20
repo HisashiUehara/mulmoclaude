@@ -201,7 +201,7 @@ function mirrorSkillDelete(workspaceRoot2, slug) {
   return { dest };
 }
 
-// server/utils/errors.ts
+// packages/core/dist/errors-eid6Mes3.js
 function errorMessage(err, fallback) {
   if (err instanceof Error) return err.message;
   if (err !== null && typeof err === "object") {
