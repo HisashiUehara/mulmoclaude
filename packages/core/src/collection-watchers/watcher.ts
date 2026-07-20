@@ -68,6 +68,15 @@ const watchers = new Map<string, CollectionWatcher>();
 let rediscoveryTimer: ReturnType<typeof setInterval> | null = null;
 let triggerTimer: ReturnType<typeof setInterval> | null = null;
 let started = false;
+/** Guards the clock tick against overlapping itself. Paired with
+ *  `watcherEpoch`: a teardown while a pass is in flight bumps the epoch, so
+ *  that pass's `finally` knows it belongs to a dead generation and must not
+ *  clear a guard the restarted watcher set now owns. `triggerTickInFlight`
+ *  is what teardown AWAITS — clearing the flag alone would let a restart run
+ *  a second pass alongside the first. */
+let triggerTickRunning = false;
+let watcherEpoch = 0;
+let triggerTickInFlight: Promise<void> | null = null;
 /** Discovery options threaded into every `discoverCollections` /
  *  `loadCollection` / `sweepStaleActiveEntries` call. Production: empty
  *  (live workspace). Tests: `{ workspaceRoot, userSkillsDir }` pointing
@@ -133,9 +142,22 @@ export async function startCollectionWatchers(opts: CollectionWatcherOptions = {
     const triggerMs = opts.triggerTickIntervalMs === undefined ? TRIGGER_TICK_INTERVAL_MS : opts.triggerTickIntervalMs;
     if (triggerMs !== null) {
       triggerTimer = setInterval(() => {
-        tickTimeTriggers().catch((err: unknown) => {
-          log().warn("watcher trigger tick failed", { error: errMsg(err) });
-        });
+        // Skip rather than overlap. The pass is idempotent and the next one
+        // is a minute away, so dropping a tick is harmless — whereas letting
+        // firings pile up on a slow pass is not.
+        if (triggerTickRunning) return;
+        triggerTickRunning = true;
+        const epoch = watcherEpoch;
+        triggerTickInFlight = tickTimeTriggers()
+          .catch((err: unknown) => {
+            log().warn("watcher trigger tick failed", { error: errMsg(err) });
+          })
+          .finally(() => {
+            // Only the generation that set the guard may clear it.
+            if (epoch !== watcherEpoch) return;
+            triggerTickRunning = false;
+            triggerTickInFlight = null;
+          });
       }, triggerMs);
       triggerTimer.unref();
     }
@@ -158,6 +180,15 @@ export async function stopCollectionWatchers(): Promise<void> {
     clearInterval(triggerTimer);
     triggerTimer = null;
   }
+  // Wait for a clock pass that is still running: the interval is disarmed
+  // above, but a pass already in flight keeps touching the notifier and the
+  // slot maps, and a restart would otherwise run a second one beside it.
+  await triggerTickInFlight;
+  triggerTickInFlight = null;
+  // Bump AFTER the await: any later `finally` from that pass is now a dead
+  // generation and becomes a no-op, so it can't undo this teardown.
+  watcherEpoch += 1;
+  triggerTickRunning = false;
   for (const watcher of watchers.values()) {
     try {
       watcher.watcher.close();
@@ -175,8 +206,8 @@ export async function stopCollectionWatchers(): Promise<void> {
 }
 
 /** Test-only: manually trigger one rediscovery + reconcile pass. */
-export async function _syncWatchersForTesting(): Promise<void> {
-  await syncWatchers();
+export async function _syncWatchersForTesting(): Promise<boolean> {
+  return syncWatchers();
 }
 
 /** Test-only: drive one wall-clock tick synchronously, with an optional
@@ -212,21 +243,21 @@ async function tickTimeTriggers(now: Date = evalNow()): Promise<void> {
  *  their items), drops watchers for vanished slugs, and re-reconciles
  *  items for collections whose schema changed. Runs a final sweep when
  *  this tick changed the watcher set or any schema. */
-async function syncWatchers(): Promise<void> {
+async function syncWatchers(): Promise<boolean> {
   let collections;
   try {
     collections = await discoverCollections(discoveryOpts);
   } catch (err) {
     log().warn("watcher discover failed", { error: errMsg(err) });
-    return;
+    return false;
   }
   const liveSlugs = new Set(collections.map((collection) => collection.slug));
   const vanishedMutated = stopVanishedWatchers(liveSlugs);
   const schemaMutated = await reconcileChangedSchemas(collections);
   const addedMutated = await startNewWatchers(collections);
-  if (vanishedMutated || schemaMutated || addedMutated) {
-    await sweepStaleActiveEntries(discoveryOpts);
-  }
+  if (!vanishedMutated && !schemaMutated && !addedMutated) return false;
+  await sweepStaleActiveEntries(discoveryOpts);
+  return true;
 }
 
 function stopVanishedWatchers(liveSlugs: Set<string>): boolean {
@@ -304,14 +335,23 @@ async function reconcileChangedSchemas(collections: readonly LoadedCollection[])
   return mutated;
 }
 
+/** Mount a watcher for every collection that doesn't have one yet. Returns
+ *  whether the watcher SET actually changed — the starters report whether
+ *  they mounted, because ATTEMPTING is not mounting. A start that throws
+ *  (logged and swallowed inside the starter) leaves `watchers` untouched, so
+ *  the collection is retried next tick; counting that as a mutation made
+ *  `syncWatchers` sweep on every tick for as long as the failure persisted. */
 async function startNewWatchers(collections: readonly LoadedCollection[]): Promise<boolean> {
   let mutated = false;
   for (const collection of collections) {
     if (watchers.has(collection.slug)) continue;
-    if (collection.schema.dataSource !== undefined) await startDataSourceWatcher(collection);
-    else if (collection.schema.storage !== undefined) await startStorageWatcher(collection);
-    else await startWatcherFor(collection);
-    mutated = true;
+    const mounted =
+      collection.schema.dataSource !== undefined
+        ? await startDataSourceWatcher(collection)
+        : collection.schema.storage !== undefined
+          ? await startStorageWatcher(collection)
+          : await startWatcherFor(collection);
+    if (mounted) mutated = true;
   }
   return mutated;
 }
@@ -334,9 +374,9 @@ function scheduleDataSourcePublish(slug: string): void {
  *  atomic replace — the inode changes) and filters events to the file's
  *  basename; a null filename (platform quirk) is treated as a hit. No
  *  reconciler involvement — replacing the CSV just refreshes the views. */
-async function startDataSourceWatcher(collection: LoadedCollection): Promise<void> {
+async function startDataSourceWatcher(collection: LoadedCollection): Promise<boolean> {
   const file = collection.dataSourceFile;
-  if (file === undefined) return;
+  if (file === undefined) return false;
   const dir = path.dirname(file);
   const base = path.basename(file);
   try {
@@ -350,8 +390,10 @@ async function startDataSourceWatcher(collection: LoadedCollection): Promise<voi
     });
     watchers.set(collection.slug, { slug: collection.slug, dataDir: dir, watcher, schemaJson: JSON.stringify(collection.schema), collection });
     log().info("dataSource watcher started", { slug: collection.slug, file });
+    return true;
   } catch (err) {
     log().warn("dataSource watcher start failed", { slug: collection.slug, error: errMsg(err) });
+    return false;
   }
 }
 
@@ -362,9 +404,9 @@ async function startDataSourceWatcher(collection: LoadedCollection): Promise<voi
  *  already publish their own change events; the extra ping is debounced
  *  and idempotent). Mounts on the parent dir, same as the dataSource
  *  watcher, so an atomic replace can't strand the watch. */
-async function startStorageWatcher(collection: LoadedCollection): Promise<void> {
+async function startStorageWatcher(collection: LoadedCollection): Promise<boolean> {
   const file = collection.storageFile;
-  if (file === undefined) return;
+  if (file === undefined) return false;
   const dir = path.dirname(file);
   const base = path.basename(file);
   try {
@@ -387,8 +429,10 @@ async function startStorageWatcher(collection: LoadedCollection): Promise<void> 
     });
     watchers.set(collection.slug, { slug: collection.slug, dataDir: dir, watcher, schemaJson: JSON.stringify(collection.schema), collection });
     log().info("storage watcher started", { slug: collection.slug, file });
+    return true;
   } catch (err) {
     log().warn("storage watcher start failed", { slug: collection.slug, error: errMsg(err) });
+    return false;
   }
 }
 
@@ -410,7 +454,7 @@ export function _scheduleStorageReconcileForTesting(slug: string): Promise<void>
   return scheduleStorageReconcile(slug);
 }
 
-async function startWatcherFor(collection: LoadedCollection): Promise<void> {
+async function startWatcherFor(collection: LoadedCollection): Promise<boolean> {
   const { slug, schema, dataDir } = collection;
   try {
     // `fs.watch` throws on a missing dir, so ensure it exists. New
@@ -433,8 +477,10 @@ async function startWatcherFor(collection: LoadedCollection): Promise<void> {
     });
     watchers.set(slug, { slug, dataDir, watcher, schemaJson: JSON.stringify(schema), collection });
     log().info("watcher started", { slug, dataDir });
+    return true;
   } catch (err) {
     log().warn("watcher start failed", { slug, error: errMsg(err) });
+    return false;
   }
 }
 
