@@ -43,7 +43,7 @@ import { useConfirm } from "../useConfirm";
 import { useShortcuts } from "../useShortcuts";
 import PinToggle from "../../components/PinToggle.vue";
 import type { NotifierSeverity } from "../../utils/collections/notifiedItems";
-import type { CollectionsListResponse, FeedsListResponse } from "@mulmoclaude/core/collection";
+import type { CollectionsListResponse, CollectionOntologyResponse, FeedsListResponse } from "@mulmoclaude/core/collection";
 import type { TranslateResponse } from "@mulmoclaude/core/translation/client";
 import type { CollectionDetailResponse, ItemMutationResponse } from "../../components/collectionTypes";
 
@@ -167,6 +167,7 @@ configureCollectionUi({
   // index pages
   listCollections: () => apiGet<CollectionsListResponse>(API_ROUTES.collections.list),
   listFeeds: () => apiGet<FeedsListResponse>(API_ROUTES.feeds.list),
+  fetchOntology: () => apiGet<CollectionOntologyResponse>(API_ROUTES.collections.ontology),
   listRegistry: () => apiGet<RegistryListResponse>(API_ROUTES.collectionsRegistry.list),
   importRegistry: (author, slug, registry) => apiPost<RegistryImportResponse>(API_ROUTES.collectionsRegistry.import, { author, slug, registry }),
   reconcileShortcuts: (kind, live) => useShortcuts().reconcile(kind, live),

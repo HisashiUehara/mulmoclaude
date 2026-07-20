@@ -26,6 +26,7 @@ import {
   readOnlyRefusal,
   buildActionSeedPrompt,
   buildCollectionActionSeedPrompt,
+  buildWorkspaceOntology,
   promptPathsFor,
   resolveCreateItemId,
   storeFor,
@@ -39,6 +40,7 @@ import type {
   CollectionSeededAction,
   CollectionDetail,
   CollectionItem,
+  CollectionOntologyEntry,
   CollectionSummary,
   DeleteViewResult,
   LoadedCollection,
@@ -99,6 +101,10 @@ async function resolveCustomViewOr404(slug: string, viewId: string, res: Respons
 
 interface CollectionsListResponse {
   collections: CollectionSummary[];
+}
+
+interface CollectionOntologyResponse {
+  entries: CollectionOntologyEntry[];
 }
 
 interface CollectionDetailResponse {
@@ -179,6 +185,19 @@ router.get(API_ROUTES.collections.list, async (_req: Request, res: Response<Coll
     res.json({ collections: summaries });
   } catch (err) {
     log.warn("collections", "list failed", { error: errorMessage(err) });
+    serverError(res, errorMessage(err));
+  }
+});
+
+// Raw workspace-ontology entries (buildWorkspaceOntology — derived on
+// demand, never stored); the /collections Map tab builds its graph from
+// these with the shared `buildOntologyGraph`. Registered before the
+// `:slug` routes so "ontology" is never swallowed as a slug.
+router.get(API_ROUTES.collections.ontology, async (_req: Request, res: Response<CollectionOntologyResponse>) => {
+  try {
+    res.json({ entries: await buildWorkspaceOntology() });
+  } catch (err) {
+    log.warn("collections", "ontology failed", { error: errorMessage(err) });
     serverError(res, errorMessage(err));
   }
 });

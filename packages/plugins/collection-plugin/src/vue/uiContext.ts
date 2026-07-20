@@ -15,6 +15,7 @@ import type {
   ItemMutationResponse,
   CollectionNotifySeverity,
   CollectionsListResponse,
+  CollectionOntologyResponse,
   FeedsListResponse,
   CollectionShortcutInfo,
   CollectionItem,
@@ -309,6 +310,11 @@ export interface CollectionUi {
   listCollections: () => Promise<CollectionApiResult<CollectionsListResponse>>;
   /** List feed-backed collections (`apiGet` over `…feeds.list`). */
   listFeeds: () => Promise<CollectionApiResult<FeedsListResponse>>;
+  /** Fetch the raw workspace-ontology entries for the Map tab (`apiGet` over
+   *  `…collections.ontology`); the tab builds the graph client-side via the
+   *  shared `buildOntologyGraph`. Optional: a host without the route omits it
+   *  and the Map tab is hidden (purely additive, like `subscribeChanges`). */
+  fetchOntology?: () => Promise<CollectionApiResult<CollectionOntologyResponse>>;
   /** List the curated registry's collections for the Discover tab (`apiGet` over
    *  `…collectionsRegistry.list`). */
   listRegistry: () => Promise<CollectionApiResult<RegistryListResponse>>;
