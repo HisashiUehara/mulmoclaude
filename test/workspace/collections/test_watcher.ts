@@ -304,3 +304,64 @@ describe("storage (sqlite) collection reconciliation", () => {
     assert.ok(!legacyIds.includes(`collection-completion:${DB_SLUG}:b`), "bell must clear when the record is deleted");
   });
 });
+
+describe("watcher set bookkeeping", () => {
+  const BAD_SLUG = "test-watcher-unmountable";
+
+  // Discovery accepts this collection (the dataPath resolves inside the
+  // workspace and need not exist yet), but mounting it CANNOT succeed: a
+  // regular file sits where the records directory would go, so the starter's
+  // `mkdir` throws ENOTDIR, gets logged, and the collection stays out of
+  // `watchers` — the "attempted but not mounted" shape.
+  function writeUnmountableSchema(): void {
+    // The records dir path itself is a regular FILE: discovery still accepts
+    // the schema (the path resolves inside the workspace), but the starter's
+    // `mkdir` on it throws, so the watcher never mounts.
+    const blocker = path.join(workdir, "data", "blocked", "items");
+    mkdirSync(path.dirname(blocker), { recursive: true });
+    writeFileSync(blocker, "not a directory");
+    const skillDir = path.join(workdir, ".claude/skills", BAD_SLUG);
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(path.join(skillDir, "SKILL.md"), `---\nname: ${BAD_SLUG}\ndescription: test\n---\nbody\n`);
+    writeFileSync(
+      path.join(skillDir, "schema.json"),
+      JSON.stringify({
+        title: "Unmountable",
+        icon: "warning",
+        dataPath: "data/blocked/items",
+        primaryKey: "id",
+        fields: { id: { type: "string", label: "ID", primary: true, required: true } },
+      }),
+    );
+  }
+
+  it("a collection that never mounts does not make every tick look like a mutation", async () => {
+    writeUnmountableSchema();
+    await startCollectionWatchers({
+      discoveryOpts: { workspaceRoot: workdir, userSkillsDir: userDir },
+      rediscoveryIntervalMs: null,
+      triggerTickIntervalMs: null,
+    });
+
+    // Nothing changed between these two ticks. Before the fix, the retried
+    // collection reported a mutation every time, so the stale sweep ran on
+    // every rediscovery poll for as long as the failure persisted.
+    assert.equal(await _syncWatchersForTesting(), false, "a quiet tick must not sweep");
+    assert.equal(await _syncWatchersForTesting(), false, "and must stay quiet");
+  });
+
+  it("still reports a mutation when a watcher really mounts", async () => {
+    writeUnmountableSchema();
+    await startCollectionWatchers({
+      discoveryOpts: { workspaceRoot: workdir, userSkillsDir: userDir },
+      rediscoveryIntervalMs: null,
+      triggerTickIntervalMs: null,
+    });
+    assert.equal(await _syncWatchersForTesting(), false);
+
+    // A real, mountable collection appearing IS a mutation — the fix must not
+    // suppress that signal.
+    writeSchema(buildSchema());
+    assert.equal(await _syncWatchersForTesting(), true, "a newly mounted watcher must still sweep");
+  });
+});
