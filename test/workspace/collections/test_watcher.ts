@@ -370,10 +370,7 @@ describe("watcher set bookkeeping", () => {
 describe("dataSource (csv) collection — bells now reconcile", () => {
   const CSV_SLUG = "test-watcher-csv-bell";
 
-  function writeCsvCollection(rows: string): void {
-    const csv = path.join(workdir, "data", `${CSV_SLUG}.csv`);
-    mkdirSync(path.dirname(csv), { recursive: true });
-    writeFileSync(csv, rows);
+  function writeCsvSchema(overrides: Record<string, unknown> = {}): void {
     const skillDir = path.join(workdir, ".claude/skills", CSV_SLUG);
     mkdirSync(skillDir, { recursive: true });
     writeFileSync(path.join(skillDir, "SKILL.md"), `---\nname: ${CSV_SLUG}\ndescription: test\n---\nbody\n`);
@@ -390,8 +387,16 @@ describe("dataSource (csv) collection — bells now reconcile", () => {
         },
         completionField: "read",
         completionDoneValues: ["true"],
+        ...overrides,
       }),
     );
+  }
+
+  function writeCsvCollection(rows: string): void {
+    const csv = path.join(workdir, "data", `${CSV_SLUG}.csv`);
+    mkdirSync(path.dirname(csv), { recursive: true });
+    writeFileSync(csv, rows);
+    writeCsvSchema();
   }
 
   // `completionField` is NOT among the keys zod forbids on a dataSource
@@ -425,6 +430,34 @@ describe("dataSource (csv) collection — bells now reconcile", () => {
 
     const legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
     assert.ok(!legacyIds.includes(`collection-completion:${CSV_SLUG}:a`), "the bell must clear when the row is done");
+  });
+
+  // Codex review on PR #2243: routing CSV through the shared reconcile made
+  // boot and data events derive bells, but the schema-change pass kept the
+  // old dataSource shortcut of publishing without reconciling. Completion
+  // rules live in the SCHEMA, so editing them changes which rows are pending
+  // while every row stays byte-identical — the one change a data event can
+  // never report.
+  //
+  // The assertion deliberately runs in the CREATE direction. A rule edit that
+  // turns a pending row done is also cleared by the stale sweep that closes
+  // the tick, so it passes with or without the fix; only a row that becomes
+  // NEWLY pending isolates the re-derivation, because no sweep invents bells.
+  it("bells a row that a schema-only edit turns pending", async () => {
+    writeCsvCollection("id,read\na,true\n");
+    await startCollectionWatchers({
+      discoveryOpts: { workspaceRoot: workdir, userSkillsDir: userDir },
+      rediscoveryIntervalMs: null,
+      triggerTickIntervalMs: null,
+    });
+    assert.equal((await activeCompletionEntries()).length, 0, "precondition: the row counts as done, so no bell");
+
+    // Same row, new rule: only "yes" means done, so "true" is now pending.
+    writeCsvSchema({ completionDoneValues: ["yes"] });
+    await _syncWatchersForTesting();
+
+    const legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
+    assert.deepEqual(legacyIds, [`collection-completion:${CSV_SLUG}:a`], "the schema pass must derive the new bell");
   });
 });
 

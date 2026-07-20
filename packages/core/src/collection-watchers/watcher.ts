@@ -322,16 +322,19 @@ async function reconcileChangedSchemas(collections: readonly LoadedCollection[])
     }
     existing.schemaJson = nextJson;
     existing.collection = collection;
-    if (collection.schema.dataSource !== undefined) {
-      // No record files to reconcile — but a schema edit can change what
-      // the views render (fields, displayField, …), so ping them.
-      log().info("dataSource watcher schema changed, publishing", { slug: collection.slug });
-      publishCollectionChange({ slug: collection.slug, op: "upsert" });
-      mutated = true;
-      continue;
-    }
     log().info("watcher schema changed, re-reconciling", { slug: collection.slug });
+    // Completion rules live in the SCHEMA, so a schema-only edit can change
+    // which items are pending without any record changing. This runs for
+    // every backend including dataSource: those rows are read-only, but the
+    // rules applied to them are not. Re-deriving no-ops unless the schema
+    // declares `completionField`; a completionField that was REMOVED is the
+    // sweep's job, which `mutated` schedules at the end of the tick.
     await reconcileAllItems(collection, discoveryOpts);
+    if (collection.schema.dataSource !== undefined) {
+      // Read-only rows can't have changed, but a schema edit changes what the
+      // views render (fields, displayField, …), so ping them.
+      publishCollectionChange({ slug: collection.slug, op: "upsert" });
+    }
     mutated = true;
   }
   return mutated;
