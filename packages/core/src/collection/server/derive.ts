@@ -103,7 +103,7 @@ function projectBacklinks(
 ): CollectionItem[] {
   const source = linked[field.from];
   if (!source) return [];
-  const selfId = String(enriched[schema.primaryKey] ?? "");
+  const selfId = fieldText(enriched[schema.primaryKey]);
   return backlinkRows(field, selfId, Object.values(source.byId)).map((row) => projectBacklinkRow(row, field.display, source.schema.primaryKey));
 }
 
@@ -140,7 +140,7 @@ function projectRollups(schema: CollectionSchema, record: CollectionItem, linked
     if (field.type !== "rollup") continue;
     if (out === record) out = { ...record };
     const source = linked[field.from];
-    const selfId = String(record[schema.primaryKey] ?? "");
+    const selfId = fieldText(record[schema.primaryKey]);
     out[key] = source ? rollupValue(field, selfId, Object.values(source.byId)) : null;
   }
   return out;

@@ -41,6 +41,7 @@
 // params or message types, never change existing response shapes, never
 // let a new backend alter what an existing view observes.
 
+import { fieldText } from "../core/fieldText";
 import type { CollectionItem, CollectionStorageKind } from "../core/schema";
 import type { CollectionQuery } from "../core/queryZ";
 import { isReadOnlySchema, storageKindFor } from "../core/schema";
@@ -109,8 +110,8 @@ export interface CollectionStore {
  *  is filesystem-dependent; paging needs determinism. */
 function sortByRecordId(items: CollectionItem[], primaryKey: string): CollectionItem[] {
   return [...items].sort((left, right) => {
-    const leftId = String(left[primaryKey] ?? "");
-    const rightId = String(right[primaryKey] ?? "");
+    const leftId = fieldText(left[primaryKey]);
+    const rightId = fieldText(right[primaryKey]);
     if (leftId < rightId) return -1;
     return leftId > rightId ? 1 : 0; // 0 on equality — a comparator that never ties breaks sort's contract
   });

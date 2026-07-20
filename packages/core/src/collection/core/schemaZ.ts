@@ -16,6 +16,7 @@
 // `CollectionSchemaZ`). Runtime imports here point only at `./schema`'s
 // consts, so the module graph stays acyclic: schemaZ → schema.
 
+import { fieldTextOrNull } from "./fieldText";
 import { z } from "zod";
 import { isSafeSlug, isSafeRecordId } from "./ids";
 import { paramRefName } from "./mutateAction";
@@ -748,7 +749,8 @@ function fieldDrivenFromFieldCarried(schema: FieldDrivenSchemaView): boolean {
   if (set && Object.prototype.hasOwnProperty.call(set, driven.fromField)) {
     const raw = set[driven.fromField];
     if (raw === undefined || raw === null || raw === "") return false;
-    return Object.prototype.hasOwnProperty.call(driven.map, String(raw));
+    const key = fieldTextOrNull(raw);
+    return key !== null && Object.prototype.hasOwnProperty.call(driven.map, key);
   }
   return (carry ?? []).includes(driven.fromField);
 }
