@@ -18,6 +18,9 @@ export default defineConfig({
   build: {
     lib: {
       entry: {
+        // Browser-safe generic helpers (errorMessage / toError / truncate).
+        // Host re-exports these instead of keeping its own copy (#2217).
+        "utils/index": "src/utils/index.ts",
         "collection/index": "src/collection/index.ts",
         "collection/server/index": "src/collection/server/index.ts",
         "collection/paths": "src/collection/server/templatePath.ts",
