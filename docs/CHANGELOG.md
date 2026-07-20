@@ -30,6 +30,14 @@ Ships `@mulmoclaude/core@0.23.0`, `@mulmoclaude/collection-plugin@0.12.0`, `@mul
 
 ---
 
+## npm packages — 2026-07-20 (10)
+
+`@mulmoclaude/core@0.28.0` — a wiki fix: two files the host reads on its own had no writer.
+
+- **`@mulmoclaude/core@0.28.0`** (#2226) — `server/agent/prompt.ts` loads `data/wiki/summary.md` into the system prompt of **every session**, and points every role at `data/wiki/SCHEMA.md` when it exists. Both are declared `editPolicy: "agent-managed"`, but nothing ever instructed the agent to create or update them — they appeared only in a folder-layout diagram in the help, never in the Ingest or Lint operations. A wiki in real use for two months (202 pages) had neither file, and the failure is silent: with no `summary.md` the host falls back to a generic hint, so accumulated knowledge stops reaching ordinary conversations and nothing reports it. `assets/helps/wiki.md` now instructs Ingest to refresh `summary.md` (about a screenful — it costs context every session; topic areas and anchor pages, not a page list), makes Lint flag both files as missing or stale, marks both as agent-maintained in the layout, and adds a section on what belongs in each. That section also records why `summary.md` must never be phrased as instructions: the host wraps it in a `<reference>` block telling the model to ignore instructions inside it, because the summary derives from user-supplied sources and is therefore a prompt-injection surface. Help-only; no code changed.
+
+---
+
 ## npm packages — 2026-07-20 (9)
 
 Two behaviour fixes, one hardening fix, and a floating-promise sweep across the chat bridges. Shipped alongside `@mulmoclaude/core@0.27.0`, `@mulmoclaude/collection-plugin@0.14.0`, and `@mulmoclaude/google-plugin@0.3.2`.
