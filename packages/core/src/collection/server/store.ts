@@ -50,7 +50,7 @@ import { deleteItem, listItems, readItem, writeItem, type DeleteItemResult, type
 import { csvList, csvRead, csvRunQuery } from "./csvStore";
 import { sqliteStoreFor } from "./sqliteStore";
 import { pageFromFullRead, type ListOptions, type ListPage, type WriteOptions } from "./storePage";
-import { watchDirectory, watchSingleFile, type FsWatchHandle } from "./watchFs";
+import { closerFor, watchDirectory, watchSingleFile } from "./watchFs";
 
 // The pure paging/projection primitives live in storePage.ts (so backend
 // modules can share them without an import cycle); re-exported here to
@@ -224,12 +224,6 @@ function fileStoreFor(collection: LoadedCollection, opts: IoOptions): Collection
         ),
       ),
   };
-}
-
-/** A `watchFs` handle as the contract's unsubscribe — `null` straight
- *  through, so an unarmed watch stays distinguishable from an armed one. */
-export function closerFor(handle: FsWatchHandle | null): StoreUnsubscribe | null {
-  return handle === null ? null : () => handle.close();
 }
 
 export type CollectionStoreFactory = (collection: LoadedCollection, opts: IoOptions) => CollectionStore;

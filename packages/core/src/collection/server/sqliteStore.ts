@@ -27,7 +27,7 @@
 // publishes" true for every backend.
 
 import { lstat, mkdir } from "node:fs/promises";
-import { watchSingleFile } from "./watchFs";
+import { closerFor, watchSingleFile } from "./watchFs";
 import { BackendUnavailableError } from "./backendAvailability";
 import path from "node:path";
 import type { CollectionItem } from "../core/schema";
@@ -36,7 +36,7 @@ import type { DeleteItemResult, IoOptions, WriteItemResult } from "./io";
 import { getWorkspaceRoot, log, publishCollectionChange } from "./host";
 import { isContainedInRoot, safeRecordId } from "./paths";
 import { projectItemFields, type ListOptions, type ListPage, type WriteOptions } from "./storePage";
-import { closerFor, type CollectionStore } from "./store";
+import type { CollectionStore } from "./store";
 
 // Minimal structural view of node:sqlite — typed locally so the build does
 // not depend on @types/node shipping the (still experimental) module types.

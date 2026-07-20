@@ -109,3 +109,11 @@ export async function watchSingleFile(
     },
   };
 }
+
+/** An `FsWatchHandle` as a bare unsubscribe — `null` straight through, so an
+ *  unarmed watch stays distinguishable from an armed one. Lives here rather
+ *  than beside the store contract so both `store.ts` and the backends it
+ *  registers can reach it without importing each other. */
+export function closerFor(handle: FsWatchHandle | null): (() => void) | null {
+  return handle === null ? null : () => handle.close();
+}
