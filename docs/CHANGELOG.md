@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ## [Unreleased]
 
+### Packages
+
+- **`@mulmobridge/web-push@0.2.0`** (#2230, PR #2232) — released 2026-07-20. `SendWebPushOptions` gains `data?: Record<string, string>`, forwarded to FCM's `data` block so a receiver can route the tap. A push carrying only a title and body gives the receiver nothing to act on, so tapping the notification lands on the home screen; with `data` a host can open what the push is about — MulmoTerminal's case is `/terminals/{sessionId}` for the session that just finished. `buildSendPushBody(title, body, data?)` nests the map as `data.data` (the outer key is the Cloud Functions onCall envelope, the inner one is the FCM block). Omitted entirely when absent or empty, so an ordinary push serialises to exactly the 0.1.0 envelope — fully backward compatible. `data` is added **alongside** `notification`, never instead of it: both mulmoserver receivers return early when `payload.notification` is missing, so a data-only message would be silently discarded. The map is deliberately untyped beyond FCM's string-value requirement, since each host picks its own routing keys. Unblocks receptron/mulmoserver#75 and receptron/mulmoterminal#440, which were both waiting on this release.
+
 ---
 
 ## [1.4.0] - 2026-07-20
