@@ -300,6 +300,12 @@ const HOST_API_ROUTES = {
   // host renders its records via `<CollectionView>`.
   collections: {
     list: "/api/collections",
+    /** GET → { entries: CollectionOntologyEntry[] } — the raw workspace
+     *  ontology; the /collections Map tab builds its graph client-side
+     *  from these via the shared `buildOntologyGraph` (server/client
+     *  parity). Must be registered BEFORE `detail` so "ontology" is
+     *  never matched as a `:slug`. */
+    ontology: "/api/collections/ontology",
     /** GET → { collection, items } */
     detail: "/api/collections/:slug",
     /** POST → create one record (auto-id when primaryKey value omitted) */

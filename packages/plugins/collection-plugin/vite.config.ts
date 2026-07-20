@@ -26,7 +26,9 @@ export default defineConfig({
       // + vue + vue-i18n stay external (resolved from node_modules at runtime); only
       // the package's own Vue modules are bundled. `gui-chat-protocol/vue` is
       // externalized so plugin and host share ONE injected PLUGIN_RUNTIME_KEY Symbol.
-      external: [/^node:/, /^@mulmoclaude\/core/, "zod", "gui-chat-protocol", "gui-chat-protocol/vue", "vue", "vue-i18n", "vuedraggable"],
+      // `echarts` is external too (peer dep) so the Map tab reuses the host's
+      // single charting engine, same as chart-plugin.
+      external: [/^node:/, /^@mulmoclaude\/core/, "zod", "gui-chat-protocol", "gui-chat-protocol/vue", "vue", "vue-i18n", "vuedraggable", "echarts"],
       output: {
         exports: "named",
         globals: { vue: "Vue" },
