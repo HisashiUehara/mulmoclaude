@@ -36,7 +36,13 @@ export function toUtcIsoDate(timestamp: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export type FetchWithTimeoutInit = Parameters<typeof fetch>[1] & { timeoutMs?: number };
+/** `signal` is deliberately excluded. This compact port owns the signal it
+ *  passes to `fetch`, so a caller-supplied one would be silently overwritten
+ *  and dropped — no type error, no runtime error, just an abort that never
+ *  arrives (#2221). Omitting it from the type turns that misuse into a compile
+ *  error instead. If external cancellation is ever needed here, port the
+ *  bridging from `server/utils/fetch.ts` rather than re-widening this type. */
+export type FetchWithTimeoutInit = Omit<NonNullable<Parameters<typeof fetch>[1]>, "signal"> & { timeoutMs?: number };
 
 /** `fetch` with a finite timeout that aborts the request once `timeoutMs`
  *  elapses. Compact port of server/utils/fetch.ts `fetchWithTimeout` — the X
