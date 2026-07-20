@@ -81,8 +81,13 @@ describe("validateReferenceDirs — error text", () => {
   });
 
   it("still reports a genuine string path in the error", () => {
-    const result = validateReferenceDirs([{ hostPath: "/etc" }]);
+    // The filesystem root is the one blocked path that holds on every
+    // platform. `/etc` does NOT: Windows resolves it to `<drive>:\etc`, which
+    // matches nothing in the POSIX-only SYSTEM_BLOCKED_PREFIXES list, so the
+    // entry validates and there is no error to inspect.
+    const blocked = path.parse(path.resolve(".")).root;
+    const result = validateReferenceDirs([{ hostPath: blocked }]);
     assert.ok("error" in result);
-    assert.match(result.error, /\/etc/);
+    assert.ok(result.error.includes(blocked), `expected the error to echo ${blocked}, got: ${result.error}`);
   });
 });

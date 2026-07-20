@@ -25,7 +25,7 @@
 // vs `change`, atomic-write coalescence, filename === null on some
 // platforms) don't need special handling.
 
-import { watch, type FSWatcher } from "node:fs";
+import { realpathSync, watch, type FSWatcher } from "node:fs";
 import { access, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { discoverCollections, itemFilePath, loadCollection, publishCollectionChange, type DiscoveryOptions, type LoadedCollection } from "../collection/server";
@@ -369,6 +369,28 @@ function scheduleDataSourcePublish(slug: string): void {
   dataSourceTimers.set(slug, timer);
 }
 
+/** The path to hand `watch()`, with Windows 8.3 short names resolved away.
+ *
+ *  ReadDirectoryChangesW reports filenames against the LONG path, but a watch
+ *  opened on a short path (`C:\Users\RUNNER~1\…` — what `os.tmpdir()` returns
+ *  on GitHub's Windows runners) keeps the short form. libuv's
+ *  `assert(!_wcsnicmp(filename, dir, dirlen))` in `src/win/fs-event.c` then
+ *  aborts the PROCESS on the first event — a native assert, so neither
+ *  `watcher.on("error")` nor a try/catch can contain it.
+ *
+ *  POSIX is deliberately left alone: `realpath` there also collapses symlinks
+ *  (`/var` → `/private/var` on macOS), which we neither need nor want to
+ *  change. A failure falls back to the original path — worst case we are no
+ *  worse off than before. */
+function watchablePath(dir: string): string {
+  if (process.platform !== "win32") return dir;
+  try {
+    return realpathSync.native(dir);
+  } catch {
+    return dir;
+  }
+}
+
 /** Watch a dataSource collection's external data file. The watch mounts
  *  on the PARENT directory (watching the file itself goes stale after an
  *  atomic replace — the inode changes) and filters events to the file's
@@ -381,7 +403,7 @@ async function startDataSourceWatcher(collection: LoadedCollection): Promise<boo
   const base = path.basename(file);
   try {
     await mkdir(dir, { recursive: true });
-    const watcher = watch(dir, { persistent: false }, (_eventType, filename) => {
+    const watcher = watch(watchablePath(dir), { persistent: false }, (_eventType, filename) => {
       if (filename !== null && filename !== base) return;
       scheduleDataSourcePublish(collection.slug);
     });
@@ -412,7 +434,7 @@ async function startStorageWatcher(collection: LoadedCollection): Promise<boolea
   try {
     await mkdir(dir, { recursive: true });
     await reconcileAllItems(collection, discoveryOpts);
-    const watcher = watch(dir, { persistent: false }, (_eventType, rawFilename) => {
+    const watcher = watch(watchablePath(dir), { persistent: false }, (_eventType, rawFilename) => {
       // fs.watch can hand back a Buffer on some platforms despite the
       // string typing — stringify defensively (a Buffer has no startsWith,
       // so calling it directly would throw inside the callback and crash).
@@ -465,7 +487,7 @@ async function startWatcherFor(collection: LoadedCollection): Promise<boolean> {
     // watcher: a pending item the user added during downtime needs its
     // bell entry even if no event fires today.
     await reconcileAllItems(collection, discoveryOpts);
-    const watcher = watch(dataDir, { persistent: false }, (_eventType, filename) => {
+    const watcher = watch(watchablePath(dataDir), { persistent: false }, (_eventType, filename) => {
       // Errors from inside the callback would propagate as unhandled
       // rejections — wrap so a single bad event can't unwind the watcher.
       onEvent(slug, filename).catch((err: unknown) => {
