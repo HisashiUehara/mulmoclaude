@@ -28,6 +28,8 @@
 //     delivered as a method, so the agent never needs to know the help
 //     file's path or that it exists — the gap that made schema EDITS fail
 //     (create-time prompts point at the doc; edit-time had no pointer).
+//     Sectioned via `topic` (see schemaDocs.ts): the full doc outgrew the
+//     agent's per-tool-result limit.
 //   - getSchema / putSchema: read the raw schema.json, and validate it
 //     against `CollectionSchemaZ` BEFORE writing the canonical staging
 //     copy + mirroring it active (an internal write skips the skill-bridge
@@ -61,6 +63,7 @@ import { resolveDataDir } from "./paths";
 import { getWorkspaceRoot } from "./host";
 import { writeFileAtomic } from "./atomic";
 import { dataSkillDir, mirrorSkillWrite } from "../../skill-bridge/index.js";
+import { renderSchemaDocs } from "./schemaDocs";
 // NOTE: only the browser-safe `slug` module — workspace-setup's assets.ts uses
 // `import.meta.url` and is ESM-only (build pass 2), while this entry builds
 // dual ESM+CJS. The bundled-docs dir is injected instead (`bundledHelpsDir`).
@@ -397,18 +400,21 @@ async function handleGetOntology(deps: ManageCollectionDeps): Promise<string> {
   return JSON.stringify({ count: collections.length, collections });
 }
 
-/** Return the collection-authoring reference (`collection-skills.md`).
- *  Workspace copy first (reflects user edits), bundled asset as the
- *  always-present fallback. Both reads guarded; if neither resolves the
- *  agent still gets an actionable message instead of a thrown call. */
-async function handleSchemaDocs(deps: ManageCollectionDeps): Promise<string> {
+/** Return the collection-authoring reference (`collection-skills.md`),
+ *  rendered by `renderSchemaDocs` — the full doc overflows the agent's
+ *  per-result limit, so the default reply is the core guide + a table of
+ *  contents, and `topic` fetches individual sections. Workspace copy
+ *  first (reflects user edits), bundled asset as the always-present
+ *  fallback. Both reads guarded; if neither resolves the agent still
+ *  gets an actionable message instead of a thrown call. */
+async function handleSchemaDocs(deps: ManageCollectionDeps, topic?: string): Promise<string> {
   const candidates = [
     path.join(resolveBase(deps), HELPS_DIR, SCHEMA_DOCS_FILE),
     ...(deps.bundledHelpsDir ? [path.join(deps.bundledHelpsDir(), SCHEMA_DOCS_FILE)] : []),
   ];
   for (const candidate of candidates) {
     try {
-      return await readFile(candidate, "utf-8");
+      return renderSchemaDocs(await readFile(candidate, "utf-8"), topic);
     } catch {
       // try the next source
     }
@@ -516,7 +522,7 @@ async function handlePutSchema(slug: string, schemaArg: unknown, deps: ManageCol
 
 const MANAGE_COLLECTION_PROMPT =
   "Use `manageCollection` instead of raw Read/Write/Edit when working with a collection's records OR its schema (raw file I/O stays available as the escape hatch). " +
-  "Before authoring or changing a collection's `schema.json`, call `schemaDocs` to load the field/DSL reference, then read with `getSchema` and write with `putSchema` — `putSchema` validates the whole schema before writing and returns actionable errors instead of silently failing discovery's validation. " +
+  "Before authoring or changing a collection's `schema.json`, call `schemaDocs` to load the field/DSL reference — the default reply is the core authoring guide plus a table of contents; fetch advanced sections (actions, bells, calendar/kanban views, dataSource, storage) by passing their heading as `topic` rather than dumping `topic: \"all\"`. Then read with `getSchema` and write with `putSchema` — `putSchema` validates the whole schema before writing and returns actionable errors instead of silently failing discovery's validation. " +
   "`getItems` is the only way to see computed values — `derived` fields (e.g. a portfolio's value), `toggle` projections, and `embed` records are host-computed and never present in the stored JSON files. On large collections pass `ids` and/or `fields` to keep the result small. " +
   'For a question that spans collections ("which clients have unpaid invoices?"), start with `getOntology`: it lists every collection with its primaryKey, record count, and outbound `ref`/`embed` relations, so you know which collections to join before reading any records. ' +
   "`putItems` validates every row against the schema before writing (required fields, enum values, primaryKey = record id) and returns `{ written, rejected }`; fix each rejected row using its `problem` text and retry just those rows. Never include computed fields in a row you write. " +
@@ -567,7 +573,7 @@ async function manageCollectionHandler(deps: ManageCollectionDeps, args: Record<
 
 async function dispatchManageCollection(deps: ManageCollectionDeps, args: Record<string, unknown>): Promise<string> {
   const action = typeof args.action === "string" ? args.action : "";
-  if (action === "schemaDocs") return handleSchemaDocs(deps);
+  if (action === "schemaDocs") return handleSchemaDocs(deps, typeof args.topic === "string" ? args.topic : undefined);
   if (action === "getOntology") return handleGetOntology(deps);
   const slug = typeof args.slug === "string" ? args.slug.trim() : "";
   if (!slug) return "manageCollection: `slug` is required (the collection's slug).";
@@ -586,7 +592,7 @@ async function dispatchManageCollection(deps: ManageCollectionDeps, args: Record
 const MANAGE_COLLECTION_DEFINITION = {
   name: "manageCollection",
   description:
-    "Read and write a schema-driven collection through the host — both its records and its structure. getItems returns records WITH computed values (derived formulas, toggles, embeds) the stored JSON files don't contain; putItems validates each row against the schema before writing; deleteItems removes records by id. getOntology maps the whole workspace: every collection with its record count and outbound ref/embed relations — call it first for cross-collection questions. schemaDocs returns the collection-authoring reference; getSchema/putSchema read and validate-then-write the collection's schema.json. Prefer it over raw file I/O on collections.",
+    "Read and write a schema-driven collection through the host — both its records and its structure. getItems returns records WITH computed values (derived formulas, toggles, embeds) the stored JSON files don't contain; putItems validates each row against the schema before writing; deleteItems removes records by id. getOntology maps the whole workspace: every collection with its record count and outbound ref/embed relations — call it first for cross-collection questions. schemaDocs returns the collection-authoring reference — the core guide plus a table of contents by default; pass `topic` for a specific section. getSchema/putSchema read and validate-then-write the collection's schema.json. Prefer it over raw file I/O on collections.",
   inputSchema: {
     type: "object",
     properties: {
@@ -625,6 +631,11 @@ const MANAGE_COLLECTION_DEFINITION = {
         type: "object",
         description:
           "putSchema: the full collection schema object (same shape as schema.json — title, icon, dataPath, primaryKey, fields, …). Call getSchema first for the current one, and schemaDocs for the field DSL.",
+      },
+      topic: {
+        type: "string",
+        description:
+          'schemaDocs: fetch one section of the reference by heading (case-insensitive substring — e.g. "field types", "kanban", "calendar", "dataSource"). Omit for the core authoring guide plus a table of contents of every section; "all" returns the full document (large — it can exceed your tool-result limit).',
       },
       query: {
         type: "object",
