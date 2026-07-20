@@ -26,6 +26,7 @@ import type { PluginRuntime, ToolDefinition } from "gui-chat-protocol";
 import { isPluginFactory } from "gui-chat-protocol";
 import { WORKSPACE_PATHS } from "../workspace/paths.js";
 import { readLedger, type LedgerEntry } from "../utils/files/plugins-io.js";
+import { isRecord } from "../utils/types.js";
 import { log } from "../system/logger/index.js";
 
 const LOG_PREFIX = "plugins/runtime";
@@ -72,8 +73,6 @@ interface PackageJson {
   main?: string;
   module?: string;
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
 
 const isToolDefinition = (value: unknown): value is ToolDefinition => {
   if (!isRecord(value)) return false;
