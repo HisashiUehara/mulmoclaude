@@ -1,4 +1,4 @@
-import { isRecord } from "../../utils/types.js";
+import { isNonEmptyString, isRecord } from "../../utils/types.js";
 import { Router, Request, Response } from "express";
 import { realpathSync } from "fs";
 import { readdir, stat } from "fs/promises";
@@ -40,9 +40,13 @@ interface SessionMeta {
 
 /** The two fields every caller relies on. Both paths below already tested for
  *  them — one behind an `as` cast, one on a `JSON.parse` result typed `any`, so
- *  neither test actually narrowed anything. Same check, now load-bearing. */
+ *  neither test actually narrowed anything. Same check, now load-bearing.
+ *
+ *  `isNonEmptyString`, not `typeof === "string"`: the checks this replaced were
+ *  truthy tests, so a corrupt row like `{ roleId: "", startedAt: "" }` was
+ *  skipped. A plain type check would start letting those through. */
 function isSessionMeta(value: unknown): value is SessionMeta {
-  return isRecord(value) && typeof value.roleId === "string" && typeof value.startedAt === "string";
+  return isRecord(value) && isNonEmptyString(value.roleId) && isNonEmptyString(value.startedAt);
 }
 
 async function readSessionMeta(__chatDir: string, sessionId: string): Promise<SessionMeta | null> {
