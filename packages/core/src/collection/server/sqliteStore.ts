@@ -27,6 +27,7 @@
 // publishes" true for every backend.
 
 import { lstat, mkdir } from "node:fs/promises";
+import { closerFor, watchSingleFile } from "./watchFs";
 import { BackendUnavailableError } from "./backendAvailability";
 import path from "node:path";
 import type { CollectionItem } from "../core/schema";
@@ -309,5 +310,16 @@ export function sqliteStoreFor(collection: LoadedCollection, opts: IoOptions): C
     write: (itemId: string, item: CollectionItem, writeOpts: WriteOptions = {}) =>
       sqliteWrite(file, itemId, item, { workspaceRoot: root(), slug, refuseOverwrite: writeOpts.refuseOverwrite }),
     delete: (itemId: string) => sqliteDelete(file, itemId, { workspaceRoot: root(), slug }),
+    // One db file holds every record, so an event can't name a record. The
+    // sidecars count as hits: sqlite writes land in `<db>-wal` first, and a
+    // change that only touched the WAL is still a change.
+    watch: async (onChange) =>
+      closerFor(
+        await watchSingleFile(
+          file,
+          (base, name) => name.startsWith(base),
+          () => onChange({ kind: "collection" }),
+        ),
+      ),
   };
 }
