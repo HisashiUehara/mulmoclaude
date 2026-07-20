@@ -16,8 +16,16 @@ describe("envSecret", () => {
     assert.equal(envSecret(envWith({ TOKEN: "abc123" }), "TOKEN"), "abc123");
   });
 
+  // The shape this actually guards against: `wrangler secret put < token.txt`
+  // stores the file's trailing newline, which then goes out in an Authorization
+  // header and comes back as an unexplained 401.
   it("trims surrounding whitespace", () => {
-    assert.equal(envSecret(envWith({ TOKEN: "  abc123\n" }), "TOKEN"), "abc123");
+    assert.equal(envSecret(envWith({ TOKEN: "abc123\n" }), "TOKEN"), "abc123");
+    assert.equal(envSecret(envWith({ TOKEN: "  abc123  " }), "TOKEN"), "abc123");
+  });
+
+  it("leaves whitespace inside a secret alone", () => {
+    assert.equal(envSecret(envWith({ TOKEN: "ab c123" }), "TOKEN"), "ab c123");
   });
 
   it("returns null for an unset binding", () => {

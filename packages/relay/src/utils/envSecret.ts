@@ -14,7 +14,15 @@
 import type { Env } from "../types.js";
 
 /** The secret's value, or `null` when it is unset or not a string.
- *  Empty and whitespace-only count as unset — a blank secret is not a secret. */
+ *  Empty and whitespace-only count as unset — a blank secret is not a secret.
+ *
+ *  The value is trimmed, deliberately. Every binding read through here is an
+ *  opaque platform credential — hex, base64url, or a bot token — and none can
+ *  legitimately carry surrounding whitespace. What that whitespace does mean in
+ *  practice is a trailing newline from `wrangler secret put < file` or a
+ *  copy-paste, which otherwise travels into an `Authorization` header and comes
+ *  back as a 401 that says nothing about why. A binding whose surrounding space
+ *  is significant must not use these helpers. */
 export function envSecret(env: Env, key: string): string | null {
   const value = env[key];
   if (typeof value !== "string") return null;
