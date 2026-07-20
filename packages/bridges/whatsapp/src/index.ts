@@ -107,6 +107,12 @@ function isObj(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+// `Array.isArray(x: unknown)` narrows to `any[]`, which reintroduces `any`;
+// this preserves the element type as `unknown` so the spread stays checked.
+function isUnknownArray(value: unknown): value is unknown[] {
+  return Array.isArray(value);
+}
+
 function parseOneMessage(msg: unknown): WhatsAppTextMessage | null {
   if (!isObj(msg)) return null;
   if (msg.type !== "text" || typeof msg.from !== "string") return null;
@@ -124,7 +130,7 @@ function collectRawMessages(body: unknown): unknown[] {
     for (const change of entry.changes) {
       if (!isObj(change) || !isObj(change.value)) continue;
       const { messages } = change.value;
-      if (Array.isArray(messages)) raw.push(...messages);
+      if (isUnknownArray(messages)) raw.push(...messages);
     }
   }
   return raw;

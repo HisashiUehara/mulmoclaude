@@ -75,8 +75,8 @@ async function fetchJwks(): Promise<JwkKey[]> {
     if (!res.ok) {
       throw new Error(`JWKS fetch failed: ${res.status}`);
     }
-    const data: { keys?: unknown[] } = await res.json();
-    if (!Array.isArray(data.keys)) throw new Error("Invalid JWKS response");
+    const data: unknown = await res.json();
+    if (!isObj(data) || !Array.isArray(data.keys)) throw new Error("Invalid JWKS response");
     cachedKeys = data.keys.filter(
       (keyCandidate): keyCandidate is JwkKey =>
         isObj(keyCandidate) && typeof keyCandidate.kid === "string" && typeof keyCandidate.n === "string" && typeof keyCandidate.e === "string",
