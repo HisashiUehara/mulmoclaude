@@ -19,6 +19,24 @@
 // bodies, so a duplicate costs one redundant refetch, whereas a missed
 // event leaves the UI silently stale.
 //
+// FOUR paths can re-derive a collection's bells, and every backend —
+// including read-only `dataSource` — must be covered by all four. They are
+// listed because they were NOT: this module grew up when only JSON records
+// reconciled, so each path had its own `dataSource` short-circuit, and
+// routing every backend through the store contract left the short-circuits
+// behind. Three of the four were separate live bugs (PR #2243 review).
+//
+//   1. mount           — `startWatcherFor`, boot + every remount
+//   2. store change    — `handleStoreChange`, the backend reported bytes moved
+//   3. schema change   — `reconcileChangedSchemas`, the RULES moved instead
+//   4. clock tick      — `tickTimeTriggers`, `triggerField` came due
+//
+// 3 and 4 are the ones that look skippable and are not: a read-only backend's
+// rows never change, but the completion rules applied to them and the wall
+// clock both do, and neither produces a data event to react to. Before adding
+// a `dataSource` (or any per-backend) early-exit here, check it against all
+// four — the surviving ones below are view-refresh publishes, not skips.
+//
 // All decisions live in `reconciler.ts`; this module is pure plumbing:
 // discover, mkdir, fs.watch, forward events into the reconciler. Every
 // reconcile call is idempotent so fs.watch's well-known quirks (`rename`
@@ -232,9 +250,11 @@ async function tickTimeTriggers(now: Date = evalNow()): Promise<void> {
       log().warn("trigger tick: bad cached schema", { slug: entry.slug, error: errMsg(err) });
       continue;
     }
-    // dataSource collections have no reconcilable records (and zod
-    // forbids `spawn` on them) — the clock never changes their state.
-    if (schema.dataSource !== undefined) continue;
+    // dataSource is NOT excluded. Its rows are read-only, but `triggerField`
+    // is not among the keys zod forbids on it, and a trigger date fires from
+    // the CLOCK — the one state change that arrives without the file moving.
+    // Skipping it here left CSV rows that were pending-but-not-yet-due unable
+    // to ever bell unless the file happened to be rewritten.
     if (!schema.triggerField && !schema.spawn) continue;
     await reconcileAllItems(entry.collection, discoveryOpts, now);
   }

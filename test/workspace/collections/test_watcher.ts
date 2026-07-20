@@ -29,6 +29,7 @@ import path from "node:path";
 import { _setFilePathsForTesting, initNotifier, listAll } from "../../../server/notifier/engine.js";
 import {
   _scheduleItemReconcileForTesting,
+  _tickTimeTriggersForTesting,
   _scheduleCollectionReconcileForTesting,
   _handleStoreChangeForTesting,
   _syncWatchersForTesting,
@@ -430,6 +431,38 @@ describe("dataSource (csv) collection — bells now reconcile", () => {
 
     const legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
     assert.ok(!legacyIds.includes(`collection-completion:${CSV_SLUG}:a`), "the bell must clear when the row is done");
+  });
+
+  // Codex review on PR #2243: the clock tick hard-skipped dataSource, with
+  // the rationale "no reconcilable records (and zod forbids `spawn`)". zod
+  // forbids `spawn`, but NOT `triggerField` — and the skip sat BEFORE the
+  // triggerField gate, so it swallowed that case too. A trigger date is the
+  // one state change that arrives with the file untouched, so a CSV row that
+  // was pending-but-not-yet-due could never bell: no data event to react to,
+  // and the clock path refused to look.
+  it("bells a row whose trigger date passes while the file never changes", async () => {
+    writeCsvCollection("id,dueOn,read\na,2026-06-10,false\n");
+    writeCsvSchema({
+      fields: {
+        id: { type: "string", label: "ID", primary: true },
+        dueOn: { type: "date", label: "Due" },
+        read: { type: "string", label: "Read" },
+      },
+      triggerField: "dueOn",
+    });
+    await startCollectionWatchers({
+      discoveryOpts: { workspaceRoot: workdir, userSkillsDir: userDir },
+      rediscoveryIntervalMs: null,
+      triggerTickIntervalMs: null,
+    });
+    await _tickTimeTriggersForTesting(new Date(2026, 5, 9));
+    assert.equal((await activeCompletionEntries()).length, 0, "precondition: not due yet, so no bell");
+
+    // Only the clock moves — the CSV is byte-identical.
+    await _tickTimeTriggersForTesting(new Date(2026, 5, 10));
+
+    const legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
+    assert.deepEqual(legacyIds, [`collection-completion:${CSV_SLUG}:a`], "the clock tick must bell the now-due row");
   });
 
   // Codex review on PR #2243: routing CSV through the shared reconcile made
