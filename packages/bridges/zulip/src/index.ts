@@ -51,8 +51,8 @@ async function zulipPost(path: string, params: Record<string, string>): Promise<
     const text = await res.text().catch(() => "");
     throw new Error(`POST ${path}: ${res.status} ${text.slice(0, 200)}`);
   }
-  const json: JsonRecord = await res.json();
-  return json;
+  const json: unknown = await res.json();
+  return isObj(json) ? json : {};
 }
 
 async function zulipGet(path: string, params?: Record<string, string>): Promise<JsonRecord> {
@@ -65,8 +65,8 @@ async function zulipGet(path: string, params?: Record<string, string>): Promise<
     const text = await res.text().catch(() => "");
     throw new Error(`GET ${path}: ${res.status} ${text.slice(0, 200)}`);
   }
-  const json: JsonRecord = await res.json();
-  return json;
+  const json: unknown = await res.json();
+  return isObj(json) ? json : {};
 }
 
 async function sendMessage(chatId: string, text: string): Promise<void> {
