@@ -42,7 +42,10 @@ let instance: echarts.ECharts | null = null;
 
 // Log-scaled by record count so a big collection reads bigger without
 // dwarfing the graph; ghosts stay minimal.
-const nodeSize = (node: OntologyGraphNode): number => (node.missing ? 14 : Math.min(40, 20 + Math.round(Math.log2(node.recordCount + 1) * 4)));
+// `recordCount === null` means the backend couldn't be counted (engine
+// failed to load, session closed) — size it like an empty collection rather
+// than pretending to know, and let the tooltip say so.
+const nodeSize = (node: OntologyGraphNode): number => (node.missing ? 14 : Math.min(40, 20 + Math.round(Math.log2((node.recordCount ?? 0) + 1) * 4)));
 
 const nodeItem = (node: OntologyGraphNode): object => ({
   id: node.slug,
@@ -66,9 +69,10 @@ const edgeItem = (edge: OntologyGraphEdge): object => ({
   reverseFields: edge.reverseFields,
 });
 
-const nodeTooltip = (data: { id: string; name: string; missing: boolean; recordCount: number }): string => {
+const nodeTooltip = (data: { id: string; name: string; missing: boolean; recordCount: number | null }): string => {
   if (data.missing) return `<b>${escapeHtml(data.id)}</b><br>${escapeHtml(t("collectionsView.mapMissingHint"))}`;
-  return `<b>${escapeHtml(data.name)}</b><br>${escapeHtml(data.id)} · ${escapeHtml(t("collectionsView.mapRecordCount", { count: data.recordCount }))}`;
+  const count = data.recordCount === null ? t("collectionsView.mapRecordCountUnknown") : t("collectionsView.mapRecordCount", { count: data.recordCount });
+  return `<b>${escapeHtml(data.name)}</b><br>${escapeHtml(data.id)} · ${escapeHtml(count)}`;
 };
 
 const edgeTooltip = (data: { source: string; target: string; field: string; kind: string; reverseFields?: string[] }): string => {

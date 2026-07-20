@@ -52,6 +52,7 @@ import { loadCollection, type DiscoveryOptions } from "./discovery";
 import type { LoadedCollection } from "./discoveredCollection";
 import { resolveCreateItemId } from "./io";
 import { readOnlyRefusal, storeFor, type CollectionStore } from "./store";
+import { isBackendUnavailable } from "./backendAvailability";
 import { runCollectionQuery } from "./queryRunner";
 import { enrichItems } from "./derive";
 import { validateCollectionRecords, validateRecordObject } from "./validate";
@@ -172,7 +173,13 @@ async function loadRequestedItems(
     // is null) — for the tool that's a `missing` entry, not a failed call:
     // the warning scan that runs whenever something is missing then names
     // the broken file and how to fix it.
-    const item = await store.read(recordId).catch(() => null);
+    const item = await store.read(recordId).catch((err: unknown) => {
+      // An UNAVAILABLE backend is not an absent record. Flattening it into
+      // `missing` would have the agent hunt a data problem that doesn't
+      // exist — and the repair scan then blames files that are fine.
+      if (isBackendUnavailable(err)) throw err;
+      return null;
+    });
     if (item) items.push(item);
     else missing.push(recordId);
   }
@@ -245,7 +252,11 @@ async function mergeWithExisting(
   let existing: CollectionItem | null;
   try {
     existing = await store.read(itemId);
-  } catch {
+  } catch (err) {
+    // Same distinction as loadRequestedItems: an unreachable backend is not a
+    // broken record, and telling the agent to "fix the file" points it at a
+    // file that may not even exist for this backend.
+    if (isBackendUnavailable(err)) throw err;
     return `'${itemId}' has a malformed stored file — mode "merge" needs to read it; fix the file (Read → correct → Write) or replace it whole with "upsert"`;
   }
   if (!existing) return `'${itemId}' not found — mode "merge" updates an existing record; use "upsert" or "create" to add it`;
@@ -543,6 +554,18 @@ async function dispatchRecordAction(action: string, collection: LoadedCollection
 // `makeManageCollectionTool` stays under the max-lines threshold; each branch
 // already delegates to a handler.
 async function manageCollectionHandler(deps: ManageCollectionDeps, args: Record<string, unknown>): Promise<string> {
+  try {
+    return await dispatchManageCollection(deps, args);
+  } catch (err) {
+    // An unreachable backend is an ANSWER, not a crash: the tool's contract is
+    // actionable text, and the message already says what to do about it.
+    // Letting it throw would surface as a tool failure with no guidance.
+    if (isBackendUnavailable(err)) return `manageCollection: ${err.message}`;
+    throw err;
+  }
+}
+
+async function dispatchManageCollection(deps: ManageCollectionDeps, args: Record<string, unknown>): Promise<string> {
   const action = typeof args.action === "string" ? args.action : "";
   if (action === "schemaDocs") return handleSchemaDocs(deps);
   if (action === "getOntology") return handleGetOntology(deps);

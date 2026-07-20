@@ -59,6 +59,7 @@ const koMessages: CollectionMessages = {
     mapTab: "맵",
     mapEmpty: "아직 표시할 내용이 없습니다. 컬렉션과 그 사이의 링크가 생기면 맵이 자동으로 그려집니다.",
     mapRecordCount: "레코드 {count}개",
+    mapRecordCountUnknown: "레코드 수를 가져올 수 없음",
     mapMissingHint: "이 슬러그의 컬렉션이 없습니다. 관계가 이를 참조하고 있습니다.",
     notFound: "컬렉션을 찾을 수 없습니다",
     loadFailed: "불러오기에 실패했습니다",

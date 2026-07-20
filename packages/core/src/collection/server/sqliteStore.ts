@@ -27,6 +27,7 @@
 // publishes" true for every backend.
 
 import { lstat, mkdir } from "node:fs/promises";
+import { BackendUnavailableError } from "./backendAvailability";
 import path from "node:path";
 import type { CollectionItem } from "../core/schema";
 import type { LoadedCollection } from "./discoveredCollection";
@@ -61,7 +62,7 @@ function loadSqlite(): Promise<SqliteModule> {
     (mod) => mod as unknown as SqliteModule,
     (err: unknown) => {
       sqliteModule = null; // allow a retry (e.g. tests stubbing the runtime)
-      throw new Error(`sqlite storage needs the node:sqlite module (Node.js >= 22.5) — this runtime cannot load it: ${String(err)}`);
+      throw new BackendUnavailableError(`sqlite storage needs the node:sqlite module (Node.js >= 22.5) — this runtime cannot load it: ${String(err)}`);
     },
   );
   return sqliteModule;

@@ -60,6 +60,7 @@ const esMessages: CollectionMessages = {
     mapTab: "Mapa",
     mapEmpty: "Nada que mostrar todavía: el mapa se dibuja solo a medida que aparecen colecciones y los enlaces entre ellas.",
     mapRecordCount: "{count} registros",
+    mapRecordCountUnknown: "recuento de registros no disponible",
     mapMissingHint: "No existe una colección con este slug; una relación apunta a ella.",
     notFound: "Colección no encontrada",
     loadFailed: "Error al cargar",

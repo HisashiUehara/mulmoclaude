@@ -57,6 +57,7 @@ const enMessages = {
     mapTab: "Map",
     mapEmpty: "Nothing to map yet — the map draws itself as collections and the links between them appear.",
     mapRecordCount: "{count} records",
+    mapRecordCountUnknown: "record count unavailable",
     mapMissingHint: "No collection with this slug — a relation points at it.",
     notFound: "Collection not found",
     loadFailed: "Failed to load",
