@@ -21,7 +21,7 @@
   "license": "MIT",
   "author": "Receptron Team",
   "dependencies": {
-    "@mulmobridge/client": "^0.1.4",
+    "@mulmobridge/client": "^0.1.5",
     "@mulmobridge/protocol": "^0.1.4",
     "@xmpp/client": "^0.14.0",
     "dotenv": "^17.0.0"
