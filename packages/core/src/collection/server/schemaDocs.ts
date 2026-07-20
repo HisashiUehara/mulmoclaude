@@ -27,10 +27,14 @@ export const SCHEMA_DOCS_RESULT_BUDGET = 36_000;
 
 /** Hard truncation for a body no sectioning trick can shrink further.
  *  The marker tells the agent it did NOT see everything and how to get
- *  the rest, so a silent cut can't read as complete coverage. */
+ *  the rest, so a silent cut can't read as complete coverage. The limit
+ *  is clamped at zero: a negative limit would make `slice(0, limit)`
+ *  count from the END and return almost the whole body — the exact
+ *  overflow this function exists to prevent. */
 function clip(text: string, limit: number): string {
-  if (text.length <= limit) return text;
-  return `${text.slice(0, limit)}\n\n[…clipped ${text.length - limit} chars — fetch a narrower \`topic\`, or read the doc file directly]`;
+  const max = Math.max(0, limit);
+  if (text.length <= max) return text;
+  return `${text.slice(0, max)}\n\n[…clipped ${text.length - max} chars — fetch a narrower \`topic\`, or read the doc file directly]`;
 }
 
 /** The sections every schema author needs, matched against headings so
@@ -84,9 +88,16 @@ function parseSections(lines: string[]): DocSection[] {
   });
 }
 
+/** Bounded to half the reply budget: every render path appends the TOC,
+ *  so a doc with thousands of headings must not blow the ceiling through
+ *  the TOC itself — and renderDefault subtracts the TOC's length from
+ *  its budget, which must stay positive. */
 function tableOfContents(sections: DocSection[]): string {
   const rows = sections.map((section) => `${"  ".repeat(section.level - 1)}- ${section.heading}`);
-  return `Sections (call schemaDocs with \`topic: "<heading>"\` for any of them; \`topic: "all"\` for the full document):\n${rows.join("\n")}`;
+  return clip(
+    `Sections (call schemaDocs with \`topic: "<heading>"\` for any of them; \`topic: "all"\` for the full document):\n${rows.join("\n")}`,
+    Math.floor(SCHEMA_DOCS_RESULT_BUDGET / 2),
+  );
 }
 
 /** The no-topic reply: the doc's intro + the core authoring sections

@@ -151,6 +151,25 @@ test("default reply drops a core section that no longer fits into a pointer note
   assert.match(reply, /\[Omitted for size — fetch each with `topic`: The DSL\]/, "the dropped section is pointed at, not silently gone");
 });
 
+// Codex finding: a doc with thousands of headings made the TOC alone
+// exceed the budget, `remaining` went negative, and `clip`'s
+// `slice(0, negative)` returned ~the whole body (~549KB observed).
+test("a doc whose TOC alone exceeds the budget still yields a hard-capped default reply", () => {
+  const many = Array.from({ length: 4_000 }, (_, i) => `## Section number ${i}\nbody of section ${i}`).join("\n");
+  const doc = `# Guide\nINTRO_MARK\n${many}`;
+  const reply = renderSchemaDocs(doc);
+  assert.ok(reply.length <= SCHEMA_DOCS_RESULT_BUDGET + 1_000, `default reply stays near the budget (${reply.length})`);
+  assert.match(reply, /INTRO_MARK/, "body content still present");
+  assert.match(reply, /…clipped \d+ chars/, "the TOC cut is flagged");
+});
+
+test("an unmatched topic on a heading-heavy doc is also hard-capped", () => {
+  const many = Array.from({ length: 4_000 }, (_, i) => `## Section number ${i}\nbody of section ${i}`).join("\n");
+  const reply = renderSchemaDocs(`# Guide\nintro\n${many}`, "zebra");
+  assert.match(reply, /no schemaDocs section matches 'zebra'/);
+  assert.ok(reply.length <= SCHEMA_DOCS_RESULT_BUDGET + 1_000, `no-match reply stays near the budget (${reply.length})`);
+});
+
 test("indented code fences also shield their contents from heading parsing", () => {
   const doc = `# Guide\nintro\n${pad(320)}\n## Real section\nREAL_MARK\n  \`\`\`bash\n# not a heading either\n  \`\`\`\n${pad(10)}`;
   const reply = renderSchemaDocs(doc);
