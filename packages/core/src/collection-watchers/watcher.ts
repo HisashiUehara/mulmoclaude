@@ -25,10 +25,17 @@
 // vs `change`, atomic-write coalescence, filename === null on some
 // platforms) don't need special handling.
 
-import { watch, type FSWatcher } from "node:fs";
-import { access, mkdir } from "node:fs/promises";
-import path from "node:path";
-import { discoverCollections, itemFilePath, loadCollection, publishCollectionChange, type DiscoveryOptions, type LoadedCollection } from "../collection/server";
+import { access } from "node:fs/promises";
+import {
+  discoverCollections,
+  itemFilePath,
+  loadCollection,
+  publishCollectionChange,
+  storeFor,
+  type DiscoveryOptions,
+  type LoadedCollection,
+  type StoreChange,
+} from "../collection/server";
 import type { CollectionSchema } from "../collection";
 import { errMsg, log } from "./config.js";
 import { evalNow } from "./clock.js";
@@ -51,7 +58,10 @@ const TRIGGER_TICK_INTERVAL_MS = ONE_MINUTE_MS;
 interface CollectionWatcher {
   slug: string;
   dataDir: string;
-  watcher: FSWatcher;
+  /** Unsubscribe from the store's change stream. The store owns HOW changes
+   *  are detected (which paths, which filenames are noise, how an atomic
+   *  replace is debounced); this module only holds the handle. */
+  unsubscribe: () => void;
   /** Last-seen serialized schema for change detection. When a rediscovery
    *  tick observes a different value, the watcher's items are reconciled
    *  and the cache is refreshed — this catches schema-only edits (e.g.
@@ -92,16 +102,10 @@ interface ReconcileSlot {
 }
 const itemSlots = new Map<string, ReconcileSlot>();
 
-/** Per-slug single-flight for a storage (db-file) collection's full
- *  reconcile pass — a burst of db writes collapses to one pass + one
- *  trailing re-run, mirroring the per-item slots of the file watcher. */
-const storageSlots = new Map<string, ReconcileSlot>();
-
-/** Trailing debounce per dataSource collection: an atomic file replace
- *  (Excel save, editor rename) surfaces as 2-3 fs events — collapse them
- *  into one change publish so live views refetch once. */
-const DATA_SOURCE_DEBOUNCE_MS = 300;
-const dataSourceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+/** Per-slug single-flight for a COLLECTION-granularity reconcile — a burst
+ *  of changes the store couldn't attribute to a record collapses into one
+ *  pass plus one trailing re-run, mirroring the per-item slots. */
+const collectionSlots = new Map<string, ReconcileSlot>();
 
 /** Test-only configuration knobs. Production callers pass nothing and get
  *  the live workspace defaults; tests pass a tmpdir-rooted `discoveryOpts`
@@ -191,16 +195,14 @@ export async function stopCollectionWatchers(): Promise<void> {
   triggerTickRunning = false;
   for (const watcher of watchers.values()) {
     try {
-      watcher.watcher.close();
+      watcher.unsubscribe();
     } catch {
-      /* fs.watch close is best-effort */
+      /* unsubscribe is best-effort */
     }
   }
   watchers.clear();
   itemSlots.clear();
-  storageSlots.clear();
-  for (const timer of dataSourceTimers.values()) clearTimeout(timer);
-  dataSourceTimers.clear();
+  collectionSlots.clear();
   discoveryOpts = {};
   started = false;
 }
@@ -267,7 +269,7 @@ function stopVanishedWatchers(liveSlugs: Set<string>): boolean {
     const watcher = watchers.get(slug);
     if (watcher) {
       try {
-        watcher.watcher.close();
+        watcher.unsubscribe();
       } catch {
         /* best-effort */
       }
@@ -309,7 +311,7 @@ async function reconcileChangedSchemas(collections: readonly LoadedCollection[])
       // refetch against the new file immediately.
       log().info("watcher storage path changed, remounting", { slug: collection.slug });
       try {
-        existing.watcher.close();
+        existing.unsubscribe();
       } catch {
         /* best-effort */
       }
@@ -345,154 +347,89 @@ async function startNewWatchers(collections: readonly LoadedCollection[]): Promi
   let mutated = false;
   for (const collection of collections) {
     if (watchers.has(collection.slug)) continue;
-    const mounted =
-      collection.schema.dataSource !== undefined
-        ? await startDataSourceWatcher(collection)
-        : collection.schema.storage !== undefined
-          ? await startStorageWatcher(collection)
-          : await startWatcherFor(collection);
-    if (mounted) mutated = true;
+    if (await startWatcherFor(collection)) mutated = true;
   }
   return mutated;
 }
 
-/** Publish one (debounced) change event for a dataSource collection —
- *  live views refetch the whole collection; no per-row diffing. */
-function scheduleDataSourcePublish(slug: string): void {
-  const existing = dataSourceTimers.get(slug);
-  if (existing) clearTimeout(existing);
-  const timer = setTimeout(() => {
-    dataSourceTimers.delete(slug);
-    publishCollectionChange({ slug, op: "upsert" });
-  }, DATA_SOURCE_DEBOUNCE_MS);
-  timer.unref?.();
-  dataSourceTimers.set(slug, timer);
-}
-
-/** Watch a dataSource collection's external data file. The watch mounts
- *  on the PARENT directory (watching the file itself goes stale after an
- *  atomic replace — the inode changes) and filters events to the file's
- *  basename; a null filename (platform quirk) is treated as a hit. No
- *  reconciler involvement — replacing the CSV just refreshes the views. */
-async function startDataSourceWatcher(collection: LoadedCollection): Promise<boolean> {
-  const file = collection.dataSourceFile;
-  if (file === undefined) return false;
-  const dir = path.dirname(file);
-  const base = path.basename(file);
-  try {
-    await mkdir(dir, { recursive: true });
-    const watcher = watch(dir, { persistent: false }, (_eventType, filename) => {
-      if (filename !== null && filename !== base) return;
-      scheduleDataSourcePublish(collection.slug);
-    });
-    watcher.on("error", (err) => {
-      log().warn("dataSource watcher error", { slug: collection.slug, error: errMsg(err) });
-    });
-    watchers.set(collection.slug, { slug: collection.slug, dataDir: dir, watcher, schemaJson: JSON.stringify(collection.schema), collection });
-    log().info("dataSource watcher started", { slug: collection.slug, file });
-    return true;
-  } catch (err) {
-    log().warn("dataSource watcher start failed", { slug: collection.slug, error: errMsg(err) });
-    return false;
-  }
-}
-
-/** Watch a `storage` collection's database file. One db file holds every
- *  record, so an event can't name WHICH record changed — each (debounced)
- *  event runs a full `reconcileAllItems` pass (bells / spawn) plus a
- *  change publish so views refetch after EXTERNAL edits too (host writes
- *  already publish their own change events; the extra ping is debounced
- *  and idempotent). Mounts on the parent dir, same as the dataSource
- *  watcher, so an atomic replace can't strand the watch. */
-async function startStorageWatcher(collection: LoadedCollection): Promise<boolean> {
-  const file = collection.storageFile;
-  if (file === undefined) return false;
-  const dir = path.dirname(file);
-  const base = path.basename(file);
-  try {
-    await mkdir(dir, { recursive: true });
-    await reconcileAllItems(collection, discoveryOpts);
-    const watcher = watch(dir, { persistent: false }, (_eventType, rawFilename) => {
-      // fs.watch can hand back a Buffer on some platforms despite the
-      // string typing — stringify defensively (a Buffer has no startsWith,
-      // so calling it directly would throw inside the callback and crash).
-      const filename = rawFilename === null ? null : String(rawFilename);
-      // Null filename (platform quirk) counts as a hit; otherwise accept
-      // the db itself plus its sqlite sidecars (`<db>-wal`, `<db>-journal`).
-      if (filename !== null && !filename.startsWith(base)) return;
-      scheduleStorageReconcile(collection.slug).catch((err: unknown) => {
-        log().warn("storage watcher reconcile failed", { slug: collection.slug, error: errMsg(err) });
-      });
-    });
-    watcher.on("error", (err) => {
-      log().warn("storage watcher error", { slug: collection.slug, error: errMsg(err) });
-    });
-    watchers.set(collection.slug, { slug: collection.slug, dataDir: dir, watcher, schemaJson: JSON.stringify(collection.schema), collection });
-    log().info("storage watcher started", { slug: collection.slug, file });
-    return true;
-  } catch (err) {
-    log().warn("storage watcher start failed", { slug: collection.slug, error: errMsg(err) });
-    return false;
-  }
-}
-
-function scheduleStorageReconcile(slug: string): Promise<void> {
-  return runSingleFlight(storageSlots, slug, async () => {
-    const collection = await loadCollection(slug, discoveryOpts);
-    if (!collection) return;
-    await reconcileAllItems(collection, discoveryOpts);
-    // One db file holds every record, so a DELETED row leaves no per-item
-    // event — sweep the active bell so its entry converges like a
-    // file-backed delete does (same pairing as the unknown-filename path).
-    await sweepStaleActiveEntries(discoveryOpts);
-    publishCollectionChange({ slug, op: "upsert" });
-  });
-}
-
-/** Test-only: drive one storage-collection reconcile pass directly. */
-export function _scheduleStorageReconcileForTesting(slug: string): Promise<void> {
-  return scheduleStorageReconcile(slug);
-}
-
-async function startWatcherFor(collection: LoadedCollection): Promise<boolean> {
-  const { slug, schema, dataDir } = collection;
-  try {
-    // `fs.watch` throws on a missing dir, so ensure it exists. New
-    // collections legitimately start with no records — mkdir is the
-    // canonical first-use bootstrap.
-    await mkdir(dataDir, { recursive: true });
-    // Boot reconcile this collection's existing items BEFORE mounting the
-    // watcher: a pending item the user added during downtime needs its
-    // bell entry even if no event fires today.
-    await reconcileAllItems(collection, discoveryOpts);
-    const watcher = watch(dataDir, { persistent: false }, (_eventType, filename) => {
-      // Errors from inside the callback would propagate as unhandled
-      // rejections — wrap so a single bad event can't unwind the watcher.
-      onEvent(slug, filename).catch((err: unknown) => {
-        log().warn("watcher event failed", { slug, filename, error: errMsg(err) });
-      });
-    });
-    watcher.on("error", (err) => {
-      log().warn("watcher error", { slug, error: errMsg(err) });
-    });
-    watchers.set(slug, { slug, dataDir, watcher, schemaJson: JSON.stringify(schema), collection });
-    log().info("watcher started", { slug, dataDir });
-    return true;
-  } catch (err) {
-    log().warn("watcher start failed", { slug, error: errMsg(err) });
-    return false;
-  }
-}
-
-/** Test-only: the per-key single-flight scheduler. Exported so test code
- *  can drive rapid-fire calls directly and observe the trailing coalesce
- *  — `fs.watch` event timing is too flaky to assert against.
+/** Mount one collection's change subscription, whatever its backend.
  *
- *  Single-flight semantics: while a reconcile is in flight for a given
- *  (slug, itemId), additional events on the same key set `pending = true`
- *  and return — the running reconcile re-runs once after it completes.
- *  This collapses fs.watch's rapid-fire bursts (atomic rename surfaces as
- *  2-3 events) into a single reconcile + one trailing re-run. */
+ *  The store decides how to detect a change and at what granularity; this
+ *  decides what to do about one. That split is the point: adding a backend
+ *  means implementing `watch` on its store, not another branch here.
+ *
+ *  A store without `watch` cannot report external changes at all — it is
+ *  still registered (so bells reconcile at boot and on the clock tick), just
+ *  without live updates. */
+async function startWatcherFor(collection: LoadedCollection): Promise<boolean> {
+  const { slug } = collection;
+  try {
+    // Boot reconcile BEFORE subscribing: an item that went pending while the
+    // server was down needs its bell even if no event ever fires.
+    await reconcileAllItems(collection, discoveryOpts);
+    const store = storeFor(collection, discoveryOpts);
+    const unsubscribe = store.watch
+      ? store.watch((change) => {
+          void handleStoreChange(collection, change).catch((err: unknown) => {
+            log().warn("store change handling failed", { slug, error: errMsg(err) });
+          });
+        })
+      : () => {};
+    watchers.set(slug, { slug, dataDir: collection.dataDir, unsubscribe, schemaJson: JSON.stringify(collection.schema), collection });
+    log().info("collection watcher started", { slug, live: store.watch !== undefined });
+    return true;
+  } catch (err) {
+    log().warn("collection watcher start failed", { slug, error: errMsg(err) });
+    return false;
+  }
+}
+
+/** React to one reported change. Backend-agnostic by construction — it sees
+ *  only the granularity the store reported.
+ *
+ *  `item`: reconcile just that record, then publish it. `collection`: the
+ *  store couldn't say which record, so re-derive everything and pair it with
+ *  a sweep — a record deleted remotely leaves a bell that a walk over the
+ *  SURVIVING records can never clear. */
+async function handleStoreChange(collection: LoadedCollection, change: StoreChange): Promise<void> {
+  if (change.kind === "item") {
+    await scheduleItemReconcile(collection, change.itemId);
+    return;
+  }
+  await scheduleCollectionReconcile(collection.slug);
+}
+
+/** Full re-derivation for a collection-granularity change, single-flighted
+ *  per slug so a burst of writes collapses into one pass plus one trailing
+ *  re-run. */
+function scheduleCollectionReconcile(slug: string): Promise<void> {
+  return runSingleFlight(
+    collectionSlots,
+    slug,
+    async () => {
+      const collection = await loadCollection(slug, discoveryOpts);
+      if (!collection) return;
+      await reconcileAllItems(collection, discoveryOpts);
+      // A record deleted underneath us leaves a bell that a walk over the
+      // SURVIVING records can never clear — the sweep is the other half.
+      await sweepStaleActiveEntries(discoveryOpts);
+    },
+    // Publish from `onSettled`, i.e. even when the pass above threw: the
+    // data changed regardless of whether we managed to re-derive bells from
+    // it, and a missed event leaves every open view silently stale. The slot
+    // is the coalescing unit, so one burst still yields one publish.
+    () => {
+      safePublish({ slug, op: "upsert" });
+      return Promise.resolve();
+    },
+  );
+}
+
+/** Test-only: drive one collection-granularity reconcile directly. */
+export function _scheduleCollectionReconcileForTesting(slug: string): Promise<void> {
+  return scheduleCollectionReconcile(slug);
+}
+
 export function _scheduleItemReconcileForTesting(collection: LoadedCollection, itemId: string): Promise<void> {
   return scheduleItemReconcile(collection, itemId);
 }
@@ -569,37 +506,4 @@ function safePublish(payload: { slug: string; ids?: string[]; op?: "upsert" | "d
   } catch (err) {
     log().warn("collection change publish failed", { slug: payload.slug, error: errMsg(err) });
   }
-}
-
-/** Handle a single fs.watch event. Re-loads the collection (schema may
- *  have changed since startup), filters out non-record files, and
- *  forwards to the single-flighted reconciler. `filename === null` (rare,
- *  platform-specific) triggers a full directory rescan to be safe. */
-async function onEvent(slug: string, filename: string | Buffer | null): Promise<void> {
-  const collection = await loadCollection(slug, discoveryOpts);
-  if (!collection) return;
-  if (filename === null) {
-    // Some platforms omit the filename on a watch event — we don't know
-    // which record changed. `reconcileAllItems` covers items whose file
-    // still exists; pair it with a sweep so any record deleted inside the
-    // same opaque event has its stale bell entry cleared too.
-    try {
-      await reconcileAllItems(collection, discoveryOpts);
-      await sweepStaleActiveEntries(discoveryOpts);
-    } finally {
-      // In `finally` for the same reason as the per-item path: a failed
-      // reconcile still means a file changed. No id and no op — subscribers
-      // refetch the whole collection anyway, and guessing either would lie.
-      safePublish({ slug });
-    }
-    return;
-  }
-  const name = typeof filename === "string" ? filename : filename.toString("utf-8");
-  // Filter: only record files (`*.json`), skip dot-prefixed (atomic
-  // writes / OS metadata / editor swap files). The reconciler is
-  // idempotent so a stray non-record event would be harmless, but
-  // skipping early avoids needless I/O.
-  if (!name.endsWith(".json") || name.startsWith(".")) return;
-  const itemId = name.slice(0, -".json".length);
-  await scheduleItemReconcile(collection, itemId);
 }

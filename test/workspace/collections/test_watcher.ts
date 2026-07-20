@@ -29,7 +29,7 @@ import path from "node:path";
 import { _setFilePathsForTesting, initNotifier, listAll } from "../../../server/notifier/engine.js";
 import {
   _scheduleItemReconcileForTesting,
-  _scheduleStorageReconcileForTesting,
+  _scheduleCollectionReconcileForTesting,
   _syncWatchersForTesting,
   startCollectionWatchers,
   stopCollectionWatchers,
@@ -268,12 +268,12 @@ describe("storage (sqlite) collection reconciliation", () => {
     assert.ok(store.write);
 
     await store.write("a", { id: "a", read: false });
-    await _scheduleStorageReconcileForTesting(DB_SLUG);
+    await _scheduleCollectionReconcileForTesting(DB_SLUG);
     let legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
     assert.ok(legacyIds.includes(`collection-completion:${DB_SLUG}:a`), `expected a bell for a, got ${JSON.stringify(legacyIds)}`);
 
     await store.write("a", { id: "a", read: true });
-    await _scheduleStorageReconcileForTesting(DB_SLUG);
+    await _scheduleCollectionReconcileForTesting(DB_SLUG);
     legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
     assert.ok(!legacyIds.includes(`collection-completion:${DB_SLUG}:a`), "bell must clear once the record is done");
   });
@@ -291,7 +291,7 @@ describe("storage (sqlite) collection reconciliation", () => {
     assert.ok(store.write && store.delete);
 
     await store.write("b", { id: "b", read: false });
-    await _scheduleStorageReconcileForTesting(DB_SLUG);
+    await _scheduleCollectionReconcileForTesting(DB_SLUG);
     let legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
     assert.ok(legacyIds.includes(`collection-completion:${DB_SLUG}:b`));
 
@@ -299,7 +299,7 @@ describe("storage (sqlite) collection reconciliation", () => {
     // so the full-pass reconcile must pair with the stale sweep (PR #2204
     // review finding) to clear the removed record's bell.
     await store.delete("b");
-    await _scheduleStorageReconcileForTesting(DB_SLUG);
+    await _scheduleCollectionReconcileForTesting(DB_SLUG);
     legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
     assert.ok(!legacyIds.includes(`collection-completion:${DB_SLUG}:b`), "bell must clear when the record is deleted");
   });
@@ -363,5 +363,66 @@ describe("watcher set bookkeeping", () => {
     // suppress that signal.
     writeSchema(buildSchema());
     assert.equal(await _syncWatchersForTesting(), true, "a newly mounted watcher must still sweep");
+  });
+});
+
+describe("dataSource (csv) collection — bells now reconcile", () => {
+  const CSV_SLUG = "test-watcher-csv-bell";
+
+  function writeCsvCollection(rows: string): void {
+    const csv = path.join(workdir, "data", `${CSV_SLUG}.csv`);
+    mkdirSync(path.dirname(csv), { recursive: true });
+    writeFileSync(csv, rows);
+    const skillDir = path.join(workdir, ".claude/skills", CSV_SLUG);
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(path.join(skillDir, "SKILL.md"), `---\nname: ${CSV_SLUG}\ndescription: test\n---\nbody\n`);
+    writeFileSync(
+      path.join(skillDir, "schema.json"),
+      JSON.stringify({
+        title: "CSV Bells",
+        icon: "table",
+        dataSource: { type: "csv", path: `data/${CSV_SLUG}.csv` },
+        primaryKey: "id",
+        fields: {
+          id: { type: "string", label: "ID", primary: true },
+          read: { type: "string", label: "Read" },
+        },
+        completionField: "read",
+        completionDoneValues: ["true"],
+      }),
+    );
+  }
+
+  // `completionField` is NOT among the keys zod forbids on a dataSource
+  // collection, so a CSV collection may declare bells — but the old
+  // dataSource watcher only published, never reconciled, and the clock tick
+  // skipped dataSource outright. The bells therefore never fired. Routing
+  // every backend through the same store-reported change fixes it
+  // structurally rather than by adding another special case.
+  it("bells a pending row from the boot reconcile", async () => {
+    writeCsvCollection("id,read\na,false\n");
+    await startCollectionWatchers({
+      discoveryOpts: { workspaceRoot: workdir, userSkillsDir: userDir },
+      rediscoveryIntervalMs: null,
+      triggerTickIntervalMs: null,
+    });
+    const legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
+    assert.ok(legacyIds.includes(`collection-completion:${CSV_SLUG}:a`), "a pending CSV row must bell");
+  });
+
+  it("clears the bell once the row turns done", async () => {
+    writeCsvCollection("id,read\na,false\n");
+    await startCollectionWatchers({
+      discoveryOpts: { workspaceRoot: workdir, userSkillsDir: userDir },
+      rediscoveryIntervalMs: null,
+      triggerTickIntervalMs: null,
+    });
+    assert.equal((await activeCompletionEntries()).length, 1);
+
+    writeFileSync(path.join(workdir, "data", `${CSV_SLUG}.csv`), "id,read\na,true\n");
+    await _scheduleCollectionReconcileForTesting(CSV_SLUG);
+
+    const legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
+    assert.ok(!legacyIds.includes(`collection-completion:${CSV_SLUG}:a`), "the bell must clear when the row is done");
   });
 });

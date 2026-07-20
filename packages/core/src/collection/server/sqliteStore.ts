@@ -27,6 +27,7 @@
 // publishes" true for every backend.
 
 import { lstat, mkdir } from "node:fs/promises";
+import { watchSingleFile } from "./watchFs";
 import { BackendUnavailableError } from "./backendAvailability";
 import path from "node:path";
 import type { CollectionItem } from "../core/schema";
@@ -309,5 +310,33 @@ export function sqliteStoreFor(collection: LoadedCollection, opts: IoOptions): C
     write: (itemId: string, item: CollectionItem, writeOpts: WriteOptions = {}) =>
       sqliteWrite(file, itemId, item, { workspaceRoot: root(), slug, refuseOverwrite: writeOpts.refuseOverwrite }),
     delete: (itemId: string) => sqliteDelete(file, itemId, { workspaceRoot: root(), slug }),
+    // One db file holds every record, so an event can't name a record. The
+    // sidecars count as hits: sqlite writes land in `<db>-wal` first, and a
+    // change that only touched the WAL is still a change.
+    watch: (onChange) =>
+      startWatch(
+        watchSingleFile(
+          file,
+          (base, name) => name.startsWith(base),
+          () => onChange({ kind: "collection" }),
+        ),
+      ),
+  };
+}
+
+/** Bridge the async watch helper to the contract's synchronous unsubscribe.
+ *  Mirrors `startWatch` in store.ts — kept local to avoid an import cycle
+ *  (store.ts imports this module to register the factory). */
+function startWatch(pending: Promise<{ close: () => void } | null>): () => void {
+  let handle: { close: () => void } | null = null;
+  let cancelled = false;
+  void pending.then((opened) => {
+    if (cancelled) opened?.close();
+    else handle = opened;
+  });
+  return () => {
+    cancelled = true;
+    handle?.close();
+    handle = null;
   };
 }
