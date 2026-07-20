@@ -47,9 +47,9 @@ ${pad(30)}
 ## Giant section
 GIANT_MARK
 ### Giant child one
-${pad(250)}
+${pad(300)}
 ### Giant child two
-${pad(250)}
+${pad(300)}
 ## End-to-end: creating a widget
 ENDTOEND_MARK
 ${pad(10)}
@@ -121,4 +121,39 @@ test("an unmatched topic reports it and repeats the table of contents", () => {
   const reply = renderSchemaDocs(DOC, "zebra");
   assert.match(reply, /no schemaDocs section matches 'zebra'/);
   assert.match(reply, /Sections \(call schemaDocs/);
+});
+
+test("an over-budget LEAF section (no subsections to offer) is clipped, not dumped", () => {
+  const doc = `# Guide\nintro\n${pad(30)}\n## Giant leaf\nLEAF_MARK\n${pad(700)}\n## After\nAFTER_MARK\n${pad(10)}`;
+  const reply = renderSchemaDocs(doc, "giant leaf");
+  assert.match(reply, /LEAF_MARK/, "the leaf's opening prose is served");
+  assert.match(reply, /…clipped \d+ chars/, "the cut is flagged, never silent");
+  assert.ok(reply.length <= SCHEMA_DOCS_RESULT_BUDGET + 1_000, `clipped reply stays near the budget (${reply.length})`);
+});
+
+// Codex finding: the default path had no size guard, so a workspace copy
+// with a huge intro/core body recreated the very overflow this module
+// exists to prevent.
+test("default reply stays within budget when the intro alone is huge — clipped, TOC kept", () => {
+  const doc = `# Guide\nINTRO_MARK\n${pad(900)}\n## Anatomy of a widget\nANATOMY_MARK\n${pad(10)}\n## Views\nVIEWS_MARK\n${pad(10)}`;
+  const reply = renderSchemaDocs(doc);
+  assert.ok(reply.length <= SCHEMA_DOCS_RESULT_BUDGET + 1_000, `default reply stays near the budget (${reply.length})`);
+  assert.match(reply, /INTRO_MARK/, "the first core section is clipped, not dropped — the reply is never bodiless");
+  assert.match(reply, /…clipped \d+ chars/);
+  assert.match(reply, /Sections \(call schemaDocs/, "TOC survives the squeeze");
+});
+
+test("default reply drops a core section that no longer fits into a pointer note", () => {
+  const doc = `# Guide\nINTRO_MARK\n${pad(20)}\n## The DSL\nDSL_MARK\n${pad(900)}\n## End-to-end: creating a widget\nENDTOEND_MARK\n${pad(10)}`;
+  const reply = renderSchemaDocs(doc);
+  assert.ok(reply.length <= SCHEMA_DOCS_RESULT_BUDGET + 1_000, `default reply stays near the budget (${reply.length})`);
+  assert.match(reply, /INTRO_MARK/, "what fits is served whole");
+  assert.match(reply, /\[Omitted for size — fetch each with `topic`: The DSL\]/, "the dropped section is pointed at, not silently gone");
+});
+
+test("indented code fences also shield their contents from heading parsing", () => {
+  const doc = `# Guide\nintro\n${pad(320)}\n## Real section\nREAL_MARK\n  \`\`\`bash\n# not a heading either\n  \`\`\`\n${pad(10)}`;
+  const reply = renderSchemaDocs(doc);
+  assert.doesNotMatch(reply, /- not a heading either/, "indented fence contents never reach the TOC");
+  assert.match(reply, /- Real section/);
 });

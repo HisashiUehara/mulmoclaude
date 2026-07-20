@@ -16,11 +16,22 @@ import { defangForPrompt } from "../core/promptSafety";
  *  keeps short user-authored workspace copies (config/helps) verbatim. */
 export const SCHEMA_DOCS_VERBATIM_LIMIT = 20_000;
 
-/** Ceiling for an assembled topic reply, safely inside the agent's
- *  per-result limit (the full doc is what overflowed it). A matched
- *  section too large to fit degrades to its own prose plus a list of its
- *  subsections to fetch individually. */
-export const SCHEMA_DOCS_RESULT_BUDGET = 32_000;
+/** Ceiling for ANY assembled reply — topic or default — safely inside
+ *  the agent's per-result limit (the full doc is what overflowed it).
+ *  A matched section too large to fit degrades to its own prose plus a
+ *  list of its subsections to fetch individually; an oversized leaf is
+ *  clipped outright; the default drops whole core sections into a
+ *  pointer note. Sized so the CURRENT bundled doc's default reply
+ *  (~33KB) fits without degrading. */
+export const SCHEMA_DOCS_RESULT_BUDGET = 36_000;
+
+/** Hard truncation for a body no sectioning trick can shrink further.
+ *  The marker tells the agent it did NOT see everything and how to get
+ *  the rest, so a silent cut can't read as complete coverage. */
+function clip(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit)}\n\n[…clipped ${text.length - limit} chars — fetch a narrower \`topic\`, or read the doc file directly]`;
+}
 
 /** The sections every schema author needs, matched against headings so
  *  the doc can be reorganised without touching this list (an unmatched
@@ -52,7 +63,7 @@ function headingLines(lines: string[]): { index: number; level: number; heading:
   const found: { index: number; level: number; heading: string }[] = [];
   let fenced = false;
   lines.forEach((line, index) => {
-    if (line.startsWith("```")) fenced = !fenced;
+    if (line.trimStart().startsWith("```")) fenced = !fenced;
     const match = fenced ? null : /^(#{1,3}) (.+)$/.exec(line);
     if (match) found.push({ index, level: match[1].length, heading: match[2].trim() });
   });
@@ -80,14 +91,28 @@ function tableOfContents(sections: DocSection[]): string {
 
 /** The no-topic reply: the doc's intro + the core authoring sections
  *  (own prose only — a core parent's advanced subsections stay TOC-only),
- *  closed by the full table of contents. */
+ *  closed by the full table of contents. Budgeted: a core section that
+ *  no longer fits is dropped into a pointer note (the first is clipped
+ *  instead, so the reply is never bodiless) — an oversized workspace
+ *  copy must not recreate the overflow this module exists to prevent. */
 function renderDefault(lines: string[], sections: DocSection[]): string {
-  const isCore = (section: DocSection, i: number) => i === 0 || CORE_SECTION_PATTERNS.some((pattern) => normalize(section.heading).includes(pattern));
-  const body = sections
-    .filter(isCore)
-    .map((section) => sliceLines(lines, section.start, section.ownEnd))
-    .join("\n\n");
-  return `${body}\n\n---\n\n${tableOfContents(sections)}`;
+  const isCore = (section: DocSection, index: number) => index === 0 || CORE_SECTION_PATTERNS.some((pattern) => normalize(section.heading).includes(pattern));
+  const toc = tableOfContents(sections);
+  const parts: string[] = [];
+  const skipped: string[] = [];
+  let remaining = SCHEMA_DOCS_RESULT_BUDGET - toc.length;
+  for (const section of sections.filter(isCore)) {
+    const body = sliceLines(lines, section.start, section.ownEnd);
+    if (body.length > remaining && parts.length > 0) {
+      skipped.push(section.heading);
+      continue;
+    }
+    const fitted = clip(body, remaining);
+    parts.push(fitted);
+    remaining -= fitted.length;
+  }
+  const note = skipped.length > 0 ? `\n\n[Omitted for size — fetch each with \`topic\`: ${skipped.join(" · ")}]` : "";
+  return `${parts.join("\n\n")}${note}\n\n---\n\n${toc}`;
 }
 
 /** Case-insensitive substring match on headings, minus any match already
@@ -99,13 +124,17 @@ function matchSections(sections: DocSection[], topic: string): DocSection[] {
 }
 
 /** One matched section: its whole subtree when that fits the budget,
- *  otherwise its own prose + a pointer list of subsections to fetch. */
+ *  otherwise its own prose (budget-clipped) + a pointer list of
+ *  subsections to fetch — and a leaf with no subsections to offer is
+ *  simply clipped. */
 function renderSection(lines: string[], sections: DocSection[], section: DocSection, budget: number): string {
   const deep = sliceLines(lines, section.start, section.deepEnd);
   if (deep.length <= budget) return deep;
   const children = sections.filter((child) => child.start > section.start && child.start < section.deepEnd && child.level === section.level + 1);
+  const own = clip(sliceLines(lines, section.start, section.ownEnd), budget);
+  if (children.length === 0) return own;
   const list = children.map((child) => `- ${child.heading}`).join("\n");
-  return `${sliceLines(lines, section.start, section.ownEnd)}\n\nSubsections (too large to include together — fetch each with \`topic\`):\n${list}`;
+  return `${own}\n\nSubsections (too large to include together — fetch each with \`topic\`):\n${list}`;
 }
 
 function renderTopic(lines: string[], sections: DocSection[], topic: string): string {
