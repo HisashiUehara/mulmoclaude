@@ -4,6 +4,7 @@
 // implementation. No Vue, no I/O — every function maps a draft + schema
 // to a value, so the omission/validation semantics are unit-testable.
 
+import { fieldText } from "./fieldText";
 import { fieldVisible } from "./actionVisible";
 import { COMPUTED_TYPES } from "./schema";
 import type { CollectionFieldSpec as FieldSpec, CollectionFieldType as FieldType, CollectionItem, CollectionSchema } from "./schema";
@@ -42,7 +43,7 @@ export function rowFromItem(item: Record<string, unknown>, subFields: Record<str
       boolOriginallyPresent[subKey] = typeof raw === "boolean";
       boolTouched[subKey] = false;
     } else {
-      text[subKey] = raw === undefined || raw === null ? "" : String(raw);
+      text[subKey] = fieldText(raw);
     }
   }
   return { text, bool, boolOriginallyPresent, boolTouched };
