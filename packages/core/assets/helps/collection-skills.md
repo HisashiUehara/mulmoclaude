@@ -43,7 +43,8 @@ data/<name>/items/             ← the records (separate from the skill dir)
   without a restart. (Other files you drop in `data/skills/<slug>/` — a README,
   scratch notes — stay put and are NOT mirrored.)
 - **To CHANGE an existing collection's schema, use `manageCollection` — not raw
-  file edits.** Call `schemaDocs` for this very reference, `getSchema` to read
+  file edits.** Call `schemaDocs` for this very reference (sectioned: pass a
+  heading as `topic`, e.g. `topic: "field types"`), `getSchema` to read
   the current `schema.json` (you don't need to know its path), then `putSchema`
   to write it back. `putSchema` validates the whole schema against the same rules
   discovery enforces and reports the exact problem, where a hand-edit can
@@ -1126,7 +1127,8 @@ To change the structure of a collection that already exists (add a field,
 rename a label, add a view or action), go through `manageCollection` rather than
 hand-editing the file:
 
-1. `manageCollection` `schemaDocs` — reload this reference for the field DSL.
+1. `manageCollection` `schemaDocs` — reload this reference for the field DSL
+   (pass the section you need as `topic`, e.g. `topic: "kanban"`).
 2. `manageCollection` `getSchema` (slug) — read the current `schema.json`
    verbatim. You don't need to know where the file lives.
 3. Apply your change to that object, then `manageCollection` `putSchema`

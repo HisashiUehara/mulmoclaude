@@ -440,6 +440,37 @@ describe("manageCollection — schemaDocs", () => {
     assert.match(docs, /Collection skills/); // heading from the bundled collection-skills.md
   });
 
+  // The full doc outgrew the agent's per-tool-result limit, so the default
+  // reply is the core authoring guide + a table of contents (see
+  // @mulmoclaude/core collection/server/schemaDocs.ts for the unit-level
+  // rules; these pin the wiring against the real bundled doc).
+  it("defaults to the core guide + table of contents, not the full doc", async () => {
+    const docs = await run({ action: "schemaDocs" });
+    assert.match(docs, /### Field types/, "field DSL served by default");
+    assert.match(docs, /Sections \(call schemaDocs/, "table of contents present");
+    assert.match(docs, /- Kanban view/, "advanced sections listed in the TOC");
+    assert.doesNotMatch(docs, /gains a \*\*Kanban board\*\* toggle/, "advanced section BODIES stay topic-only");
+    assert.ok(docs.length < 40_000, `default reply must stay well under the full doc (${docs.length} chars)`);
+  });
+
+  it("serves a single section by topic", async () => {
+    const docs = await run({ action: "schemaDocs", topic: "kanban" });
+    assert.match(docs, /gains a \*\*Kanban board\*\* toggle/);
+    assert.doesNotMatch(docs, /### Field types/);
+  });
+
+  it('serves the full doc for topic "all"', async () => {
+    const docs = await run({ action: "schemaDocs", topic: "all" });
+    assert.match(docs, /billing suite/i, "tail of the full doc present");
+    assert.ok(docs.length > 60_000, "the whole reference");
+  });
+
+  it("reports an unmatched topic and repeats the table of contents", async () => {
+    const docs = await run({ action: "schemaDocs", topic: "zebra crossings" });
+    assert.match(docs, /no schemaDocs section matches 'zebra crossings'/);
+    assert.match(docs, /Sections \(call schemaDocs/);
+  });
+
   it("prefers the workspace copy over the bundled asset", async () => {
     const helpsDir = path.join(workdir, "config/helps");
     mkdirSync(helpsDir, { recursive: true });
