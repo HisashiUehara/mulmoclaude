@@ -194,11 +194,21 @@ Every field spec needs a `type` and a `label`. Extra keys by type:
   `filter` narrows rows by a source field's value, same shape as `when`. E.g. a
   client's open invoices:
   `{ "type": "backlinks", "label": "Invoices", "from": "invoice", "via": "clientId", "display": ["issueDate", "total", "status"], "filter": { "field": "status", "in": ["draft", "sent"] } }`.
-  Resolution is fail-soft: an unknown `from` / `via` / `display` column just
-  renders an empty sub-table — no error, so author the `ref` side first.
+  `via` may name a top-level `ref` column, or a `ref` nested one level inside a
+  `table` field as `"<tableField>.<refColumn>"` (split on the first `.`) — the
+  source record matches when **any row** of that table points at this record,
+  and a record referencing it in several rows still appears once. E.g. a
+  chapter whose `characters` table has a `character` ref column backlinks to
+  each character via `"via": "characters.character"`. Only one level of nesting
+  is supported; `display`/`filter` still read the **source record**, not the row.
+  Resolution is fail-soft: an unknown `from` / `via` / `display` column, or a
+  dotted `via` whose table field is absent, just renders an empty sub-table —
+  no error, so author the `ref` side first.
 - **`rollup`** — `from: "<source-slug>"`, `via: "<ref-field-in-source>"`,
   `op: "sum" | "count"`, `column: "<source-col>"` (required for `sum`, omitted
   for `count`), optional `filter` (same shape as `when`, against the source).
+  `via` accepts the same top-level or `"<tableField>.<refColumn>"` nested form
+  as `backlinks` (any matching row counts the source record once).
   A **cross-collection aggregate**: a computed number — never stored — summed
   (or counted) over the records in `from` whose `via` ref points at this
   record. Backlinks show the rows; rollup collapses them to a scalar that

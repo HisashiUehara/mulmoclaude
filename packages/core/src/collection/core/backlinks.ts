@@ -13,10 +13,39 @@ import type { CollectionFieldSpec, CollectionItem } from "./schema";
 /** The `backlinks` member of the field-spec union. */
 export type BacklinksFieldSpec = Extract<CollectionFieldSpec, { type: "backlinks" }>;
 
+/** Does `item` reference `recordId` through `via`? Two shapes:
+ *
+ *  - Top-level ref (`via: "<column>"`): the field holds the id directly —
+ *    compared as text, like every ref deref. A field holding an array/object
+ *    has no id to compare, so it matches nothing (rather than testing
+ *    "[object Object]" against the record id).
+ *  - Nested ref (`via: "<tableField>.<refColumn>"`, split on the FIRST `.`):
+ *    the source stores its ref one level down, inside a `table` field's rows
+ *    (the ontology scanner advertises these as `${key}.${subKey}`). Matches
+ *    when `item[tableField]` is an array and ANY row's `refColumn` derefs to
+ *    `recordId`. A record referencing the target in several rows still matches
+ *    once — the caller filters over source records, each yielded at most once.
+ *
+ *  Fail-soft both ways: a dotted `via` whose table field is absent / non-array,
+ *  or whose rows lack the column, matches nothing — the same "a `via` that
+ *  doesn't resolve matches nothing" contract as the flat case. Deeper nesting
+ *  (`a.b.c`) makes `b.c` the column name, which no row carries → no match. */
+export function viaMatches(via: string, item: CollectionItem, recordId: string): boolean {
+  const dot = via.indexOf(".");
+  if (dot === -1) return fieldTextOrNull(item[via]) === recordId;
+  const tableField = via.slice(0, dot);
+  const refColumn = via.slice(dot + 1);
+  const rows = item[tableField];
+  if (!Array.isArray(rows)) return false;
+  return rows.some((row) => fieldTextOrNull((row as CollectionItem)?.[refColumn]) === recordId);
+}
+
 /** The SOURCE records whose `via` field stores `recordId` (compared as
  *  strings, like every ref deref), with the optional `filter` applied —
- *  in the source items' given order. Fail-soft by construction: a `via`
- *  key that doesn't exist on the source records simply matches nothing.
+ *  in the source items' given order. `via` may be a top-level column or a
+ *  `<tableField>.<refColumn>` path into a `table` field's rows (see
+ *  {@link viaMatches}). Fail-soft by construction: a `via` that doesn't
+ *  resolve on the source records simply matches nothing.
  *  Callers pass DERIVED source records, so a `filter`/`display` on a
  *  derived column works when its formula is SELF-CONTAINED (an invoice
  *  `total` = sum over its own line items); a source column that derefs
@@ -24,9 +53,7 @@ export type BacklinksFieldSpec = Extract<CollectionFieldSpec, { type: "backlinks
  *  against-itself rule ref targets follow. */
 export function backlinkRows(spec: Pick<BacklinksFieldSpec, "via" | "filter">, recordId: string, sourceItems: CollectionItem[]): CollectionItem[] {
   if (!recordId) return [];
-  // A `via` field holding an array/object has no id to compare — skip it
-  // rather than testing "[object Object]" against the record id.
-  return sourceItems.filter((item) => fieldTextOrNull(item[spec.via]) === recordId && whenMatches(spec.filter, item));
+  return sourceItems.filter((item) => viaMatches(spec.via, item, recordId) && whenMatches(spec.filter, item));
 }
 
 /** Project one backlink row to the keys consumers surface: the source
