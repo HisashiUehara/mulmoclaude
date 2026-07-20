@@ -1800,12 +1800,19 @@ function relatedDirectionLabel(direction: RelatedCollection["direction"]): strin
 
 /** Fetch the ontology and derive this slug's neighbors. Fail-soft: a
  *  non-ok result (the `apiGet` wrapper already caught the network/HTTP
- *  error) leaves an empty list, which the panel shows as its empty row. */
+ *  error) leaves an empty list, which the panel shows as its empty row.
+ *
+ *  Sets `relatedFetchedSlug` synchronously (before the await) so a rapid
+ *  re-open can't kick a duplicate fetch, and DROPS a stale response whose
+ *  slug no longer matches the active collection — otherwise a slower fetch
+ *  for a since-abandoned slug, resolving after a fast switch, would apply
+ *  the wrong collection's neighbors (Codex / CodeRabbit on PR #2251). */
 async function loadRelated(slug: string): Promise<void> {
+  relatedFetchedSlug.value = slug;
   relatedLoading.value = true;
   const result = await cui.fetchOntology?.();
+  if (collection.value?.slug !== slug) return;
   relatedLoading.value = false;
-  relatedFetchedSlug.value = slug;
   relatedList.value = result?.ok ? relatedCollections(result.data.entries, slug) : [];
 }
 
@@ -2791,10 +2798,13 @@ watch(
       addMenuOpen.value = false;
       filterMenuOpen.value = false;
       // Drop the previous collection's cached neighbors so the next open
-      // re-derives them for the new slug.
+      // re-derives them for the new slug. Clearing `relatedLoading` too so a
+      // just-abandoned in-flight fetch (dropped by loadRelated's stale guard)
+      // can't strand the spinner.
       relatedMenuOpen.value = false;
       relatedList.value = null;
       relatedFetchedSlug.value = null;
+      relatedLoading.value = false;
       // A sort belongs to a collection's own schema, so don't carry it across —
       // restore the new collection's stored (shared) sort instead. Same for
       // the flag filter chips.
