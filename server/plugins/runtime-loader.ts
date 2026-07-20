@@ -316,6 +316,7 @@ function resolveOauthCallbackAlias(name: string, mod: Record<string, unknown>): 
   const raw = mod.OAUTH_CALLBACK_ALIAS;
   if (raw === undefined) return null;
   if (typeof raw !== "string" || !OAUTH_CALLBACK_ALIAS_RE.test(raw)) {
+    // eslint-disable-next-line @typescript-eslint/no-base-to-string -- this branch exists BECAUSE `raw` is the wrong shape; echoing whatever it stringifies to is the diagnostic.
     log.warn(LOG_PREFIX, "OAUTH_CALLBACK_ALIAS export is not a valid alias — ignoring", { name, raw: String(raw) });
     return null;
   }
