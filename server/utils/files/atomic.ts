@@ -7,9 +7,34 @@ import { shortId } from "../id.js";
 
 export interface WriteAtomicOptions {
   mode?: number;
-  // Adds shortId() to the tmp filename so concurrent writers to the same path don't collide at the OS layer
-  // (chat-index hits this).
+  /** Give the staging file a `shortId()` suffix so concurrent writers to the
+   *  same destination can't collide at the OS layer.
+   *
+   *  Defaults to `true`, and opting out is almost always wrong. A shared
+   *  `${filePath}.tmp` means two writers of one file race: the second write
+   *  overwrites the first's staging file, or one rename/unlink pulls it out
+   *  from under the other, surfacing as `ENOENT … rename '<file>.tmp'`. That is
+   *  not theoretical — it fired in production on session meta, where ten
+   *  distinct callers (`setClaudeSessionId`, `backfillOrigin`,
+   *  `incrementUserQueryCount`, …) all write the same `<sessionId>.json`
+   *  (#2222).
+   *
+   *  The default used to be `false`, leaving every caller to remember the flag.
+   *  Both independently-written copies of this helper — `@mulmoclaude/core`'s
+   *  and accounting-plugin's — chose unique-by-default instead, which is what
+   *  prompted the flip.
+   *
+   *  Pass `false` only when you specifically need the staging path to be
+   *  predictable (e.g. a test that pre-creates it to force a write failure). */
   uniqueTmp?: boolean;
+}
+
+// Unique staging names are the safe default: the cost is a random suffix, the
+// cost of the alternative is a lost update under concurrency (#2222).
+const DEFAULT_UNIQUE_TMP = true;
+
+function tmpPathFor(filePath: string, uniqueTmp: boolean | undefined): string {
+  return (uniqueTmp ?? DEFAULT_UNIQUE_TMP) ? `${filePath}.${shortId()}.tmp` : `${filePath}.tmp`;
 }
 
 // On Windows, AV / Search Indexer / Defender briefly hold handles and rename trips EPERM/EBUSY/EACCES. Retry loop is
@@ -66,7 +91,7 @@ function writeOptionsFor(content: string | Uint8Array, mode: number | undefined)
 }
 
 export async function writeFileAtomic(filePath: string, content: string | Uint8Array, opts: WriteAtomicOptions = {}): Promise<void> {
-  const tmp = opts.uniqueTmp ? `${filePath}.${shortId()}.tmp` : `${filePath}.tmp`;
+  const tmp = tmpPathFor(filePath, opts.uniqueTmp);
   await promises.mkdir(path.dirname(filePath), { recursive: true });
   try {
     await promises.writeFile(tmp, content, writeOptionsFor(content, opts.mode));
@@ -78,7 +103,7 @@ export async function writeFileAtomic(filePath: string, content: string | Uint8A
 }
 
 export function writeFileAtomicSync(filePath: string, content: string | Uint8Array, opts: WriteAtomicOptions = {}): void {
-  const tmp = opts.uniqueTmp ? `${filePath}.${shortId()}.tmp` : `${filePath}.tmp`;
+  const tmp = tmpPathFor(filePath, opts.uniqueTmp);
   mkdirSync(path.dirname(filePath), { recursive: true });
   try {
     writeFileSync(tmp, content, writeOptionsFor(content, opts.mode));
