@@ -93,6 +93,14 @@ const toInt = (value: unknown): number | null => {
 /** Coerce a channel/postMessage offset (arrives as untyped JSON) to a non-negative int. */
 export const clampOffset = (value: unknown): number => Math.max(0, toInt(value) ?? 0);
 
+/** Read a channel/postMessage identifier (a slug, a view id) as a string.
+ *  Params arrive as untyped JSON, so a caller can send anything; `String(...)`
+ *  turned an object into the literal "[object Object]", which then travelled on
+ *  as if the caller had asked for a collection by that name — surfacing as
+ *  `collection '[object Object]' not found` rather than a bad-request. A value
+ *  with no string form is simply absent. */
+export const readIdParam = (value: unknown): string => (typeof value === "string" ? value : "");
+
 /** Coerce a channel/postMessage limit to [1, MAX_PAGE_LIMIT] (default 50). */
 export const clampLimit = (value: unknown): number => {
   const num = toInt(value);

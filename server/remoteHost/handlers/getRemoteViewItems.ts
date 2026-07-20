@@ -10,7 +10,7 @@
 //
 // Factory (createGetRemoteViewItems) keeps the mapping unit-testable with the
 // engine stubbed; the default export wires the real functions.
-import { clampLimit, clampOffset, normalizeFields } from "@mulmoclaude/core/remote-view";
+import { clampLimit, clampOffset, normalizeFields, readIdParam } from "@mulmoclaude/core/remote-view";
 import { loadCollection } from "../../workspace/collections/index.js";
 import { remoteViewItems, remoteViewItemsFailureMessage } from "../../workspace/collections/remoteView.js";
 import type { CommandHandler, JsonObject } from "../commandChannel.js";
@@ -23,8 +23,8 @@ export interface GetRemoteViewItemsDeps {
 export const createGetRemoteViewItems =
   (deps: GetRemoteViewItemsDeps): CommandHandler =>
   async (params: JsonObject) => {
-    const slug = String(params.slug ?? "");
-    const viewId = String(params.viewId ?? "");
+    const slug = readIdParam(params.slug);
+    const viewId = readIdParam(params.viewId);
     const request = { offset: clampOffset(params.offset), limit: clampLimit(params.limit), fields: normalizeFields(params.fields) };
     const collection = await deps.loadCollection(slug);
     if (!collection) throw new Error(`collection '${slug}' not found`);
