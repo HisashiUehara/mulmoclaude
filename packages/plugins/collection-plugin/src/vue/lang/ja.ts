@@ -59,6 +59,7 @@ const jaMessages: CollectionMessages = {
     mapTab: "マップ",
     mapEmpty: "まだ表示するものがありません。コレクションとその間のリンクが増えると、マップが自動的に描かれます。",
     mapRecordCount: "{count} 件のレコード",
+    mapRecordCountUnknown: "レコード数を取得できません",
     mapMissingHint: "このスラッグのコレクションは存在しません。リレーションが参照しています。",
     notFound: "コレクションが見つかりません",
     loadFailed: "読み込みに失敗しました",

@@ -60,6 +60,7 @@ const deMessages: CollectionMessages = {
     mapTab: "Karte",
     mapEmpty: "Noch nichts zu zeigen — die Karte entsteht von selbst, sobald Sammlungen und ihre Verknüpfungen entstehen.",
     mapRecordCount: "{count} Einträge",
+    mapRecordCountUnknown: "Anzahl der Datensätze nicht verfügbar",
     mapMissingHint: "Keine Sammlung mit diesem Slug — eine Relation verweist darauf.",
     notFound: "Sammlung nicht gefunden",
     loadFailed: "Laden fehlgeschlagen",

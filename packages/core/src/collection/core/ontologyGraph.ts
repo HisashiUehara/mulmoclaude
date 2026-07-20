@@ -30,7 +30,11 @@ export interface CollectionOntologyEntry {
   /** The effective display field: the schema's `displayField`, falling
    *  back to the primaryKey exactly as render-time labelling does. */
   displayField: string;
-  recordCount: number;
+  /** Records in the collection, or `null` when the backend couldn't be
+   *  reached to count them (an engine that failed to load, a closed
+   *  session). Deliberately not 0: an unreachable collection reported as
+   *  empty invites "restoring" data that is intact but out of reach. */
+  recordCount: number | null;
   relations: OntologyRelation[];
 }
 
@@ -38,7 +42,7 @@ export interface OntologyGraphNode {
   slug: string;
   title: string;
   icon: string;
-  recordCount: number;
+  recordCount: number | null;
   /** No discovered collection has this slug — the node exists only
    *  because a relation points at it. Rendered as a ghost so the graph
    *  doubles as a broken-ref lint surface (lint, not lock). */
@@ -120,6 +124,8 @@ export const buildOntologyGraph = (entries: CollectionOntologyEntry[]): Ontology
   const known = new Set(entries.map((entry) => entry.slug));
   const nodes: OntologyGraphNode[] = entries.map(({ slug, title, icon, recordCount }) => ({ slug, title, icon, recordCount }));
   for (const slug of ghostSlugs(edges, known)) {
+    // A ghost node has no collection behind it at all, so it genuinely holds
+    // no records — 0, not the "couldn't count" null.
     nodes.push({ slug, title: slug, icon: "", recordCount: 0, missing: true });
   }
   return { nodes, edges };

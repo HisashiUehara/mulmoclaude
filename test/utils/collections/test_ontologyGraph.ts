@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 
 import { buildOntologyGraph, type CollectionOntologyEntry, type OntologyRelation } from "@mulmoclaude/core/collection";
 
-const entry = (slug: string, relations: OntologyRelation[] = [], recordCount = 0): CollectionOntologyEntry => ({
+const entry = (slug: string, relations: OntologyRelation[] = [], recordCount: number | null = 0): CollectionOntologyEntry => ({
   slug,
   title: slug.toUpperCase(),
   icon: "📦",
@@ -138,5 +138,27 @@ describe("buildOntologyGraph — edges", () => {
       entry("invoices", [{ field: "clientCard", kind: "embed", to: "clients" }]),
     ]);
     assert.deepEqual(graph.edges.map((edge) => edge.kind).sort(), ["backlinks", "embed"]);
+  });
+});
+
+describe("recordCount — unreachable is not empty", () => {
+  // A backend that couldn't be counted (engine failed to load, session
+  // closed) reports `null`, never 0. Zero says "this collection is empty",
+  // which invites restoring records that are intact but out of reach.
+  it("carries a null count through to the graph node", () => {
+    const graph = buildOntologyGraph([entry("cloud", [], null)]);
+    const node = graph.nodes.find((candidate) => candidate.slug === "cloud");
+    assert.ok(node);
+    assert.equal(node.recordCount, null, "an uncounted collection must stay null, not collapse to 0");
+  });
+
+  it("still uses 0 for a ghost node, which genuinely holds nothing", () => {
+    // A relation pointing at a slug no collection provides: the node exists
+    // only as a broken-ref marker, so 0 is the honest count.
+    const graph = buildOntologyGraph([entry("orders", [{ kind: "ref", field: "customer", to: "customers" }])]);
+    const ghost = graph.nodes.find((candidate) => candidate.slug === "customers");
+    assert.ok(ghost);
+    assert.equal(ghost.missing, true);
+    assert.equal(ghost.recordCount, 0);
   });
 });

@@ -61,6 +61,7 @@ const frMessages: CollectionMessages = {
     mapTab: "Carte",
     mapEmpty: "Rien à afficher pour l'instant — la carte se dessine d'elle-même à mesure que les collections et leurs liens apparaissent.",
     mapRecordCount: "{count} enregistrements",
+    mapRecordCountUnknown: "nombre d'enregistrements indisponible",
     mapMissingHint: "Aucune collection avec ce slug — une relation pointe vers elle.",
     notFound: "Collection introuvable",
     loadFailed: "Échec du chargement",

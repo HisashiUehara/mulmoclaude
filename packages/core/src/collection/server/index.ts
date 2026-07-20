@@ -21,6 +21,7 @@ export * from "./paths";
 export * from "./templatePath";
 export * from "./io";
 export * from "./store";
+export { BackendUnavailableError, isBackendUnavailable } from "./backendAvailability";
 export { MAX_CSV_ROWS, encodeCsvRecordId, decodeCsvRecordId, normalizeCsvValue, csvRowToItem, dedupeByRecordId } from "./csvStore";
 export { compileCsvQuery, compileJsonlQuery } from "./csvQuery";
 export { runQueryOverRows } from "./jsonlQuery";

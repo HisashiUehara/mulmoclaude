@@ -11,6 +11,7 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { discoverCollections, type DiscoveryOptions } from "./discovery";
 import { storeFor } from "./store";
+import { isBackendUnavailable } from "./backendAvailability";
 import { storageKindFor } from "../core/schema";
 import { isRegularFile } from "./io";
 import { isContainedInRoot } from "./paths";
@@ -67,11 +68,15 @@ async function countRecordFiles(dataDir: string, workspaceRoot: string): Promise
  *  the readdir count would always misreport 0. Fail-soft to 0 like
  *  `countRecordFiles` (an unreadable file / missing engine must not
  *  break the whole ontology). */
-async function countRecords(collection: LoadedCollection, workspaceRoot: string): Promise<number> {
+async function countRecords(collection: LoadedCollection, workspaceRoot: string): Promise<number | null> {
   if (storageKindFor(collection.schema) !== "file") {
     try {
       return (await storeFor(collection, { workspaceRoot }).page({ limit: 0 })).total;
-    } catch {
+    } catch (err) {
+      // `null` = "couldn't count", which is NOT zero. Reporting an
+      // unreachable backend as 0 reads as "this collection is empty" and
+      // invites the agent to repopulate records that are perfectly intact.
+      if (isBackendUnavailable(err)) return null;
       return 0;
     }
   }

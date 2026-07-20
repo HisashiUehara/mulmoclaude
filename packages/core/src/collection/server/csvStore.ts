@@ -27,6 +27,7 @@
 // packages/core/assets/helps/error-recovery.md.
 
 import { fieldTextOrNull } from "../core/fieldText";
+import { BackendUnavailableError } from "./backendAvailability";
 import { lstat, mkdir, open, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { createHash, randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -305,7 +306,9 @@ async function duckDbInstance(): ReturnType<DuckDbModule["DuckDBInstance"]["crea
     return await instancePromise;
   } catch (err) {
     instancePromise = null;
-    throw new Error(`DuckDB is unavailable on this host (@duckdb/node-api failed to load: ${String(err)}) — dataSource collections cannot be read`);
+    throw new BackendUnavailableError(
+      `DuckDB is unavailable on this host (@duckdb/node-api failed to load: ${String(err)}) — dataSource collections cannot be read`,
+    );
   }
 }
 

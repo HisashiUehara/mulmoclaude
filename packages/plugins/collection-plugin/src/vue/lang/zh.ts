@@ -58,6 +58,7 @@ const zhMessages: CollectionMessages = {
     mapTab: "地图",
     mapEmpty: "暂无可显示的内容。随着集合及其之间的链接增多，地图会自动绘制。",
     mapRecordCount: "{count} 条记录",
+    mapRecordCountUnknown: "无法获取记录数",
     mapMissingHint: "不存在此 slug 的集合，但有关系指向它。",
     notFound: "未找到集合",
     loadFailed: "加载失败",

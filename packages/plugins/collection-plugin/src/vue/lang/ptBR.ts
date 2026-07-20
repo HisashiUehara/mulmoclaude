@@ -60,6 +60,7 @@ const ptBRMessages: CollectionMessages = {
     mapTab: "Mapa",
     mapEmpty: "Nada para mostrar ainda — o mapa se desenha sozinho conforme coleções e os vínculos entre elas aparecem.",
     mapRecordCount: "{count} registros",
+    mapRecordCountUnknown: "contagem de registros indisponível",
     mapMissingHint: "Nenhuma coleção com este slug — uma relação aponta para ela.",
     notFound: "Coleção não encontrada",
     loadFailed: "Falha ao carregar",
