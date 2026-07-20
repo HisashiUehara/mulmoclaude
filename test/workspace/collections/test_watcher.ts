@@ -30,6 +30,7 @@ import { _setFilePathsForTesting, initNotifier, listAll } from "../../../server/
 import {
   _scheduleItemReconcileForTesting,
   _scheduleCollectionReconcileForTesting,
+  _handleStoreChangeForTesting,
   _syncWatchersForTesting,
   startCollectionWatchers,
   stopCollectionWatchers,
@@ -424,5 +425,34 @@ describe("dataSource (csv) collection — bells now reconcile", () => {
 
     const legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
     assert.ok(!legacyIds.includes(`collection-completion:${CSV_SLUG}:a`), "the bell must clear when the row is done");
+  });
+});
+
+describe("store change handling uses the CURRENT schema", () => {
+  // Codex review on PR #2243: the subscription callback used to close over
+  // the collection resolved at mount time. A schema-only edit refreshes the
+  // watcher entry in place (nothing remounts, because the storage location
+  // didn't move), so a stale closure would keep reconciling against the old
+  // rules and undo what the schema-change pass had just converged on.
+  it("stops belling an item after completionField is removed from the schema", async () => {
+    writeSchema(buildSchema());
+    writeItem("a", { read: false });
+    await startCollectionWatchers({
+      discoveryOpts: { workspaceRoot: workdir, userSkillsDir: userDir },
+      rediscoveryIntervalMs: null,
+      triggerTickIntervalMs: null,
+    });
+    assert.equal((await activeCompletionEntries()).length, 1, "precondition: the bell exists");
+
+    // Schema-only edit: drop completion tracking. The sync pass converges
+    // the bell away and refreshes the watcher's cached collection.
+    writeSchema(buildSchema({ completionField: undefined, completionDoneValues: undefined }));
+    await _syncWatchersForTesting();
+    assert.equal((await activeCompletionEntries()).length, 0, "the schema pass must clear it");
+
+    // Now a record event arrives, exactly as the live subscription would
+    // deliver it. With a stale snapshot this re-created the bell.
+    await _handleStoreChangeForTesting(SLUG, { kind: "item", itemId: "a" });
+    assert.equal((await activeCompletionEntries()).length, 0, "a later event must not resurrect it under the old schema");
   });
 });

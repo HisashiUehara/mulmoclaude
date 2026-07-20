@@ -370,7 +370,7 @@ async function startWatcherFor(collection: LoadedCollection): Promise<boolean> {
     const store = storeFor(collection, discoveryOpts);
     const unsubscribe = store.watch
       ? store.watch((change) => {
-          void handleStoreChange(collection, change).catch((err: unknown) => {
+          void handleStoreChange(slug, change).catch((err: unknown) => {
             log().warn("store change handling failed", { slug, error: errMsg(err) });
           });
         })
@@ -391,12 +391,20 @@ async function startWatcherFor(collection: LoadedCollection): Promise<boolean> {
  *  store couldn't say which record, so re-derive everything and pair it with
  *  a sweep — a record deleted remotely leaves a bell that a walk over the
  *  SURVIVING records can never clear. */
-async function handleStoreChange(collection: LoadedCollection, change: StoreChange): Promise<void> {
-  if (change.kind === "item") {
-    await scheduleItemReconcile(collection, change.itemId);
+async function handleStoreChange(slug: string, change: StoreChange): Promise<void> {
+  if (change.kind === "collection") {
+    await scheduleCollectionReconcile(slug);
     return;
   }
-  await scheduleCollectionReconcile(collection.slug);
+  // Resolve the collection at EVENT time, not at mount time. A schema-only
+  // edit (one that leaves the storage location alone, so nothing remounts)
+  // refreshes `watchers`' entry in place — a callback closed over the mount-
+  // time snapshot would keep reconciling against the old `completionField` /
+  // `notifyWhen` / `triggerField` and undo what the schema-change pass had
+  // just converged on.
+  const current = watchers.get(slug)?.collection;
+  if (!current) return; // unmounted between the event and now
+  await scheduleItemReconcile(current, change.itemId);
 }
 
 /** Full re-derivation for a collection-granularity change, single-flighted
@@ -423,6 +431,13 @@ function scheduleCollectionReconcile(slug: string): Promise<void> {
       return Promise.resolve();
     },
   );
+}
+
+/** Test-only: feed one store-reported change through the same path a live
+ *  subscription uses, so a test can pin how a change is reacted to without
+ *  depending on fs.watch timing. */
+export function _handleStoreChangeForTesting(slug: string, change: StoreChange): Promise<void> {
+  return handleStoreChange(slug, change);
 }
 
 /** Test-only: drive one collection-granularity reconcile directly. */
