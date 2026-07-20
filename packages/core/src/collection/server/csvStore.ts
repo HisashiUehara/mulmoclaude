@@ -26,6 +26,7 @@
 // dataSource collections break — see
 // packages/core/assets/helps/error-recovery.md.
 
+import { fieldTextOrNull } from "../core/fieldText";
 import { lstat, mkdir, open, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { createHash, randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -68,6 +69,18 @@ export function decodeCsvRecordId(itemId: string): string {
  *  (date-only when the clock is exactly UTC midnight, matching the `date`
  *  field contract), exotic DuckDB values → their string form. Pure +
  *  exported for unit tests. */
+/** `JSON.stringify` restricted to what a CSV cell can survive. Returns the
+ *  serialised value, or `String(value)` when serialisation is impossible —
+ *  losing the content of one cell is bad, failing the entire query is worse. */
+function safeJsonCell(value: object): string {
+  try {
+    const json = JSON.stringify(value, (_key, entry: unknown) => (typeof entry === "bigint" ? entry.toString() : entry));
+    return json ?? String(value);
+  } catch {
+    return String(value);
+  }
+}
+
 export function normalizeCsvValue(value: unknown): unknown {
   if (typeof value === "bigint") {
     return value <= BigInt(Number.MAX_SAFE_INTEGER) && value >= BigInt(-Number.MAX_SAFE_INTEGER) ? Number(value) : value.toString();
@@ -76,7 +89,17 @@ export function normalizeCsvValue(value: unknown): unknown {
     const iso = value.toISOString();
     return iso.endsWith("T00:00:00.000Z") ? iso.slice(0, 10) : iso;
   }
-  if (value !== null && typeof value === "object") return String(value);
+  // A DuckDB STRUCT / LIST / MAP arrives as an object. `String(...)` renders it
+  // "[object Object]" — the cell's content is simply gone. Serialise instead:
+  // this is a data cell, not an id or a matcher key, so preserving what the
+  // column holds beats reducing it to a placeholder.
+  //
+  // Guarded, because `JSON.stringify` is not total on what DuckDB can hand us:
+  // it throws on a BIGINT nested in a struct (the branch above only unwraps a
+  // top-level bigint) and on a circular ref, and returns undefined when an
+  // object's `toJSON` does. A cell that cannot be serialised falls back to the
+  // old rendering rather than aborting the whole read.
+  if (value !== null && typeof value === "object") return safeJsonCell(value);
   return value;
 }
 
@@ -88,8 +111,12 @@ export function normalizeCsvValue(value: unknown): unknown {
 export function csvRowToItem(row: Record<string, unknown>, primaryKey: string): CollectionItem | null {
   const normalized = Object.fromEntries(Object.entries(row).map(([key, value]) => [key, normalizeCsvValue(value)]));
   const rawKey = normalized[primaryKey];
-  if (rawKey === null || rawKey === undefined || String(rawKey) === "") return null;
-  return { ...normalized, [primaryKey]: encodeCsvRecordId(String(rawKey)) };
+  // Identity: same rule as every other primaryKey read. `normalizeCsvValue` has
+  // already flattened objects to JSON, so anything without a text form here is
+  // genuinely unaddressable.
+  const keyText = fieldTextOrNull(rawKey);
+  if (keyText === null || keyText === "") return null;
+  return { ...normalized, [primaryKey]: encodeCsvRecordId(keyText) };
 }
 
 /** Dedupe by record id, LAST row wins (matches `csvRead`'s last-match
