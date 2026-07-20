@@ -17,7 +17,7 @@ router.get(API_ROUTES.roles.list, (_req: Request, res: Response<Role[]>) => {
   res.json(loadCustomRoles());
 });
 
-router.post(API_ROUTES.roles.manage, async (req: Request, res: Response<Record<string, unknown>>) => {
+router.post(API_ROUTES.roles.manage, async (req: Request<object, unknown, ManageRolesInput>, res: Response<Record<string, unknown>>) => {
   const session = getSessionQuery(req);
   const action = typeof req.body?.action === "string" ? req.body.action : undefined;
   const roleId = typeof req.body?.roleId === "string" ? req.body.roleId : typeof req.body?.role?.id === "string" ? req.body.role.id : undefined;
