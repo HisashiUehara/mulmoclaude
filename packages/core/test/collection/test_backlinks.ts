@@ -58,6 +58,17 @@ test("dotted via is fail-soft: absent / non-array table field, or rows missing t
   assert.equal(viaMatches("characters.character", chapterEmpty, "hero"), false, "empty table");
 });
 
+test("an exact top-level key containing a dot keeps flat-match behavior (no nesting regression)", () => {
+  // `schemaZ` allows field names with dots (`z.string()`), so a top-level ref
+  // column literally named "client.id" must still match `item["client.id"]`
+  // rather than be reinterpreted as `item.client[].id`.
+  const item: CollectionItem = { "client.id": "acme", client: [{ id: "other" }] };
+  assert.equal(viaMatches("client.id", item, "acme"), true, "exact dotted key wins over the table path");
+  assert.equal(viaMatches("client.id", item, "other"), false, "does NOT fall through to the client table rows");
+  // With no literal "client.id" key, the same via resolves through the table.
+  assert.equal(viaMatches("client.id", { client: [{ id: "acme" }] }, "acme"), true, "nested path used when no exact key exists");
+});
+
 test("deeper nesting (a.b.c) splits on the first dot and finds no matching column → no match", () => {
   const item: CollectionItem = { characters: [{ character: "hero" }] };
   // `via = "characters.character.deep"` → tableField "characters", column

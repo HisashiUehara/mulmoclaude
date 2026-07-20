@@ -201,6 +201,8 @@ Every field spec needs a `type` and a `label`. Extra keys by type:
   chapter whose `characters` table has a `character` ref column backlinks to
   each character via `"via": "characters.character"`. Only one level of nesting
   is supported; `display`/`filter` still read the **source record**, not the row.
+  An exact top-level field name wins over the dotted interpretation, so a field
+  literally named `"a.b"` still resolves as a flat ref column.
   Resolution is fail-soft: an unknown `from` / `via` / `display` column, or a
   dotted `via` whose table field is absent, just renders an empty sub-table —
   no error, so author the `ref` side first.

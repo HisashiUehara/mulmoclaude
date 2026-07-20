@@ -13,26 +13,33 @@ import type { CollectionFieldSpec, CollectionItem } from "./schema";
 /** The `backlinks` member of the field-spec union. */
 export type BacklinksFieldSpec = Extract<CollectionFieldSpec, { type: "backlinks" }>;
 
-/** Does `item` reference `recordId` through `via`? Two shapes:
+/** Does `item` reference `recordId` through `via`? Three shapes, tried in
+ *  order so the dotted form never regresses an existing flat key:
  *
- *  - Top-level ref (`via: "<column>"`): the field holds the id directly —
- *    compared as text, like every ref deref. A field holding an array/object
- *    has no id to compare, so it matches nothing (rather than testing
- *    "[object Object]" against the record id).
- *  - Nested ref (`via: "<tableField>.<refColumn>"`, split on the FIRST `.`):
- *    the source stores its ref one level down, inside a `table` field's rows
- *    (the ontology scanner advertises these as `${key}.${subKey}`). Matches
- *    when `item[tableField]` is an array and ANY row's `refColumn` derefs to
- *    `recordId`. A record referencing the target in several rows still matches
- *    once — the caller filters over source records, each yielded at most once.
+ *  - Exact key (`via` is an own property of `item`): the field holds the id
+ *    directly — compared as text, like every ref deref. This is checked FIRST
+ *    because `schemaZ` accepts any field name (`z.string()`), so a field
+ *    literally named `"client.id"` keeps its pre-nesting flat-match behaviour
+ *    instead of being reinterpreted as a table path. A field holding an
+ *    array/object has no id to compare, so it matches nothing (rather than
+ *    testing "[object Object]" against the record id).
+ *  - Nested ref (`via: "<tableField>.<refColumn>"`, split on the FIRST `.`,
+ *    only when no exact key exists): the source stores its ref one level down,
+ *    inside a `table` field's rows (the ontology scanner advertises these as
+ *    `${key}.${subKey}`). Matches when `item[tableField]` is an array and ANY
+ *    row's `refColumn` derefs to `recordId`. A record referencing the target in
+ *    several rows still matches once — the caller filters over source records,
+ *    each yielded at most once.
+ *  - No dot and no such key: matches nothing.
  *
- *  Fail-soft both ways: a dotted `via` whose table field is absent / non-array,
+ *  Fail-soft throughout: a dotted `via` whose table field is absent / non-array,
  *  or whose rows lack the column, matches nothing — the same "a `via` that
  *  doesn't resolve matches nothing" contract as the flat case. Deeper nesting
  *  (`a.b.c`) makes `b.c` the column name, which no row carries → no match. */
 export function viaMatches(via: string, item: CollectionItem, recordId: string): boolean {
+  if (Object.hasOwn(item, via)) return fieldTextOrNull(item[via]) === recordId;
   const dot = via.indexOf(".");
-  if (dot === -1) return fieldTextOrNull(item[via]) === recordId;
+  if (dot === -1) return false;
   const tableField = via.slice(0, dot);
   const refColumn = via.slice(dot + 1);
   const rows = item[tableField];
