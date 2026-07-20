@@ -34,7 +34,7 @@
     "@mulmocast/types": "^2.8.1",
     "@mulmochat-plugin/quiz": "0.5.1",
     "@mulmochat-plugin/ui-image": "^0.4.1",
-    "@mulmoclaude/accounting-plugin": "^0.3.2",
+    "@mulmoclaude/accounting-plugin": "^0.3.3",
     "@mulmoclaude/chart-plugin": "^0.1.3",
     "@mulmoclaude/collection-plugin": "^0.14.0",
     "@mulmoclaude/core": "^0.27.0",

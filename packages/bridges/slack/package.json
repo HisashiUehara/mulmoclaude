@@ -1,6 +1,6 @@
 {
   "name": "@mulmobridge/slack",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Slack bridge for MulmoBridge — connect a Slack bot to MulmoClaude",
   "type": "module",
   "main": "./dist/index.js",
