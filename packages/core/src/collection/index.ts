@@ -30,3 +30,4 @@ export * from "./core/calendarGrid";
 export * from "./core/errorMessage";
 export * from "./core/shortHexId";
 export * from "./core/promptSafety";
+export * from "./core/ontologyGraph";
