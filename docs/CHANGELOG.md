@@ -30,6 +30,16 @@ Ships `@mulmoclaude/core@0.23.0`, `@mulmoclaude/collection-plugin@0.12.0`, `@mul
 
 ---
 
+## npm packages — 2026-07-20 (9)
+
+Two behaviour fixes, one hardening fix, and a floating-promise sweep across the chat bridges. Shipped alongside `@mulmoclaude/core@0.27.0`, `@mulmoclaude/collection-plugin@0.14.0`, and `@mulmoclaude/google-plugin@0.3.2`.
+
+- **`@mulmobridge/relay@0.2.1`** — the webhook signature check now **fails closed** when the signing secret is misconfigured, instead of falling through to the handler. Credentials for LINE, Messenger, Teams, Telegram and WhatsApp are read through `envSecret` (strings-or-absent) rather than `String()`-ing the platform binding, so a missing binding can no longer arrive as the literal string `"undefined"` and be treated as a configured secret.
+- **`@mulmoclaude/accounting-plugin@0.3.3`** — the router no longer stringifies action arguments once they pass the service guard, so typed arguments reach the accounting service with their original types.
+- **`@mulmobridge/slack@0.4.2`**, **`@mulmobridge/discord@0.1.2`**, **`@mulmobridge/mattermost@0.1.2`**, **`@mulmobridge/nostr@0.1.2`**, **`@mulmobridge/xmpp@0.1.2`** — unawaited promises in each bridge entry point are now handled explicitly, so a rejection surfaces rather than becoming an unhandled rejection. The lint rules covering this were ratcheted from warning to error across `packages/`.
+
+---
+
 ## npm packages — 2026-07-17 (8)
 
 - **`@mulmoclaude/mulmoscript-plugin@0.2.2`** — presentMulmoScript: updating a beat's `text` via the per-beat JSON source editor now drops that beat's cached narration audio, so the "Generate Audio" button reappears for the new text (previously only Play showed, with no way to re-generate). Audio files are content-addressed by text hash, so the view re-probes disk after the edit — reverting the text restores the existing audio without a paid TTS call.
