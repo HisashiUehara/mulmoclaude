@@ -70,11 +70,11 @@ describe("buildOntologyGraph — edges", () => {
     ]);
   });
 
-  it("collapses backlinks/rollup onto the matching forward ref edge", () => {
+  it("collapses backlinks/rollup onto the ref edge their via names", () => {
     const graph = buildOntologyGraph([
       entry("clients", [
-        { field: "invoiceLinks", kind: "backlinks", to: "invoices" },
-        { field: "totalBilled", kind: "rollup", to: "invoices" },
+        { field: "invoiceLinks", kind: "backlinks", to: "invoices", via: "clientId" },
+        { field: "totalBilled", kind: "rollup", to: "invoices", via: "clientId" },
       ]),
       entry("invoices", [{ field: "clientId", kind: "ref", to: "clients" }]),
     ]);
@@ -84,21 +84,57 @@ describe("buildOntologyGraph — edges", () => {
   it("collapses independently of entry order (reverse declared before the ref owner)", () => {
     const forwardFirst = buildOntologyGraph([
       entry("invoices", [{ field: "clientId", kind: "ref", to: "clients" }]),
-      entry("clients", [{ field: "invoiceLinks", kind: "backlinks", to: "invoices" }]),
+      entry("clients", [{ field: "invoiceLinks", kind: "backlinks", to: "invoices", via: "clientId" }]),
     ]);
     assert.equal(forwardFirst.edges.length, 1);
     assert.deepEqual(forwardFirst.edges[0].reverseFields, ["invoiceLinks"]);
   });
 
+  it("collapses each rollup onto ITS via edge when several refs link the same pair (matches.homeTeam vs awayTeam)", () => {
+    // The W杯2026 standings shape from plans/done/collection-ontology.md:
+    // a match points at a team via homeTeam OR awayTeam, and the team
+    // rolls up each side separately. Pair-only matching would pile both
+    // rollups onto whichever ref edge comes first (Codex review on
+    // #2218) — via keeps them apart.
+    const graph = buildOntologyGraph([
+      entry("matches", [
+        { field: "homeTeam", kind: "ref", to: "teams" },
+        { field: "awayTeam", kind: "ref", to: "teams" },
+      ]),
+      entry("teams", [
+        { field: "homePlayed", kind: "rollup", to: "matches", via: "homeTeam" },
+        { field: "awayPlayed", kind: "rollup", to: "matches", via: "awayTeam" },
+      ]),
+    ]);
+    assert.deepEqual(graph.edges, [
+      { from: "matches", to: "teams", field: "homeTeam", kind: "ref", reverseFields: ["homePlayed"] },
+      { from: "matches", to: "teams", field: "awayTeam", kind: "ref", reverseFields: ["awayPlayed"] },
+    ]);
+  });
+
   it("keeps an uncollapsed backlinks as its own edge in true data direction", () => {
-    const graph = buildOntologyGraph([entry("clients", [{ field: "mentions", kind: "backlinks", to: "notes" }])]);
+    const graph = buildOntologyGraph([entry("clients", [{ field: "mentions", kind: "backlinks", to: "notes", via: "clientId" }])]);
     assert.deepEqual(graph.edges, [{ from: "notes", to: "clients", field: "mentions", kind: "backlinks" }]);
     assert.equal(graph.nodes.find((node) => node.slug === "notes")?.missing, true);
   });
 
-  it("does not collapse a reverse relation onto an embed edge", () => {
+  it("keeps a reverse relation uncollapsed when its via names no forward ref field", () => {
+    // A backlinks whose via points at a nonexistent / renamed ref must
+    // not silently attach to some other ref between the same pair —
+    // fail-soft as its own edge, like every dangling reference.
     const graph = buildOntologyGraph([
-      entry("clients", [{ field: "invoiceLinks", kind: "backlinks", to: "invoices" }]),
+      entry("invoices", [{ field: "clientId", kind: "ref", to: "clients" }]),
+      entry("clients", [{ field: "invoiceLinks", kind: "backlinks", to: "invoices", via: "renamedField" }]),
+    ]);
+    assert.deepEqual(graph.edges, [
+      { from: "invoices", to: "clients", field: "clientId", kind: "ref" },
+      { from: "invoices", to: "clients", field: "invoiceLinks", kind: "backlinks" },
+    ]);
+  });
+
+  it("does not collapse a reverse relation onto an embed edge, even when via matches its field", () => {
+    const graph = buildOntologyGraph([
+      entry("clients", [{ field: "invoiceLinks", kind: "backlinks", to: "invoices", via: "clientCard" }]),
       entry("invoices", [{ field: "clientCard", kind: "embed", to: "clients" }]),
     ]);
     assert.deepEqual(graph.edges.map((edge) => edge.kind).sort(), ["backlinks", "embed"]);

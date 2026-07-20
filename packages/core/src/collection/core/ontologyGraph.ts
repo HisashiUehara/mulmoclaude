@@ -10,7 +10,8 @@
 /** One relationship a schema declares: a `ref` (the record stores the
  *  target's primaryKey slug) or `embed` (display-only pull) pointing at
  *  collection `to`, or `backlinks` / `rollup` (display-only REVERSE
- *  refs — `to` is the relation's source collection, i.e. its `from`).
+ *  refs — `to` is the relation's source collection, i.e. its `from`,
+ *  and `via` names the exact ref field there being reversed).
  *  A `ref` column inside a `table` field is reported with a dotted path
  *  (`lines.clientId`). Whether `to` exists is NOT checked — resolution
  *  is fail-soft at render. */
@@ -18,6 +19,7 @@ export interface OntologyRelation {
   field: string;
   kind: "ref" | "embed" | "backlinks" | "rollup";
   to: string;
+  via?: string;
 }
 
 export interface CollectionOntologyEntry {
@@ -67,13 +69,14 @@ export interface OntologyGraph {
 const isForwardKind = (kind: OntologyRelation["kind"]): boolean => kind === "ref" || kind === "embed";
 
 /** Fold a reverse relation (`backlinks`/`rollup` declared on `owner`)
- *  into the edge list: collapse onto the first matching forward `ref`
- *  edge, else emit its own edge oriented in true data direction
- *  (refs' source → owner). Ambiguity note: with several `ref` fields
- *  between the same pair the entries carry no `via`, so the reverse
- *  collapses onto the first — display-safe, deterministic. */
+ *  into the edge list: collapse onto the forward `ref` edge whose field
+ *  is the relation's declared `via` (several refs can link the same
+ *  pair — matches.homeTeam vs matches.awayTeam — so the pair alone is
+ *  ambiguous), else emit its own edge oriented in true data direction
+ *  (refs' source → owner). A `via` naming no forward edge stays
+ *  uncollapsed — fail-soft, like every other dangling reference. */
 const addReverseRelation = (edges: OntologyGraphEdge[], owner: string, rel: OntologyRelation): void => {
-  const forward = edges.find((edge) => edge.kind === "ref" && edge.from === rel.to && edge.to === owner);
+  const forward = edges.find((edge) => edge.kind === "ref" && edge.from === rel.to && edge.to === owner && (rel.via === undefined || edge.field === rel.via));
   if (forward) {
     forward.reverseFields = [...(forward.reverseFields ?? []), rel.field];
     return;

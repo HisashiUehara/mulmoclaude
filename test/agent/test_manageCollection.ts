@@ -414,8 +414,8 @@ describe("manageCollection — getOntology", () => {
     });
     const invoice = entryFor(await getOntology(), "invoice");
     assert.deepEqual(invoice.relations, [
-      { field: "payments", kind: "backlinks", to: "portfolio" },
-      { field: "paidTotal", kind: "rollup", to: "portfolio" },
+      { field: "payments", kind: "backlinks", to: "portfolio", via: "invoiceId" },
+      { field: "paidTotal", kind: "rollup", to: "portfolio", via: "invoiceId" },
       { field: "lines.clientId", kind: "ref", to: "portfolio" },
     ]);
   });

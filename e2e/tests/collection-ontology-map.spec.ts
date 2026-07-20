@@ -25,7 +25,7 @@ const ONTOLOGY = {
       primaryKey: "clientId",
       displayField: "name",
       recordCount: 3,
-      relations: [{ field: "invoiceLinks", kind: "backlinks", to: "invoices" }],
+      relations: [{ field: "invoiceLinks", kind: "backlinks", to: "invoices", via: "clientId" }],
     },
     {
       slug: "invoices",
