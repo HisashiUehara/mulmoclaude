@@ -37,6 +37,12 @@ function clip(text: string, limit: number): string {
   return `${text.slice(0, max)}\n\n[…clipped ${text.length - max} chars — fetch a narrower \`topic\`, or read the doc file directly]`;
 }
 
+/** Slack a budget-spending assembler must reserve for what it adds
+ *  AROUND the budgeted pieces — clip markers, join separators, pointer
+ *  notes — so the final hard cap doesn't eat the reply's own tail (in
+ *  renderDefault's case, the TOC). */
+const ASSEMBLY_RESERVE = 500;
+
 /** The sections every schema author needs, matched against headings so
  *  the doc can be reorganised without touching this list (an unmatched
  *  pattern is simply skipped): what a collection IS, the schema DSL and
@@ -111,7 +117,7 @@ function renderDefault(lines: string[], sections: DocSection[]): string {
   const toc = tableOfContents(sections);
   const parts: string[] = [];
   const skipped: string[] = [];
-  let remaining = SCHEMA_DOCS_RESULT_BUDGET - toc.length;
+  let remaining = SCHEMA_DOCS_RESULT_BUDGET - toc.length - ASSEMBLY_RESERVE;
   for (const section of sections.filter(isCore)) {
     const body = sliceLines(lines, section.start, section.ownEnd);
     if (body.length > remaining && parts.length > 0) {
@@ -136,15 +142,16 @@ function matchSections(sections: DocSection[], topic: string): DocSection[] {
 
 /** One matched section: its whole subtree when that fits the budget,
  *  otherwise its own prose (budget-clipped) + a pointer list of
- *  subsections to fetch — and a leaf with no subsections to offer is
- *  simply clipped. */
+ *  subsections to fetch — the list clipped to what the prose left over
+ *  (thousands of child headings must not overflow through the list
+ *  itself) — and a leaf with no subsections to offer is simply clipped. */
 function renderSection(lines: string[], sections: DocSection[], section: DocSection, budget: number): string {
   const deep = sliceLines(lines, section.start, section.deepEnd);
   if (deep.length <= budget) return deep;
   const children = sections.filter((child) => child.start > section.start && child.start < section.deepEnd && child.level === section.level + 1);
   const own = clip(sliceLines(lines, section.start, section.ownEnd), budget);
   if (children.length === 0) return own;
-  const list = children.map((child) => `- ${child.heading}`).join("\n");
+  const list = clip(children.map((child) => `- ${child.heading}`).join("\n"), budget - own.length);
   return `${own}\n\nSubsections (too large to include together — fetch each with \`topic\`):\n${list}`;
 }
 
@@ -159,7 +166,12 @@ function renderTopic(lines: string[], sections: DocSection[], topic: string): st
 
 /** Render the authoring reference for one schemaDocs call. Small docs and
  *  docs without headings pass through verbatim — there is nothing better
- *  to key a section off. */
+ *  to key a section off. The assembled reply gets one final hard cap: the
+ *  inner budgeting degrades gracefully, but per-piece overheads (clip
+ *  markers on thousands of matches, join separators, pointer notes) add
+ *  up outside any single piece's budget, and the ceiling must hold no
+ *  matter what shape of document arrives. Only the explicit \`"all"\`
+ *  opt-in and the small-doc verbatim path may exceed it. */
 export function renderSchemaDocs(doc: string, topic?: string): string {
   const requested = topic?.trim() ?? "";
   if (normalize(requested) === "all") return doc;
@@ -167,5 +179,5 @@ export function renderSchemaDocs(doc: string, topic?: string): string {
   const lines = doc.split("\n");
   const sections = parseSections(lines);
   if (sections.length === 0) return doc;
-  return requested ? renderTopic(lines, sections, requested) : renderDefault(lines, sections);
+  return clip(requested ? renderTopic(lines, sections, requested) : renderDefault(lines, sections), SCHEMA_DOCS_RESULT_BUDGET);
 }

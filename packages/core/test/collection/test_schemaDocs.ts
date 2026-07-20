@@ -170,6 +170,25 @@ test("an unmatched topic on a heading-heavy doc is also hard-capped", () => {
   assert.ok(reply.length <= SCHEMA_DOCS_RESULT_BUDGET + 1_000, `no-match reply stays near the budget (${reply.length})`);
 });
 
+// Codex findings, round 3 — topic-mode overflow through per-piece
+// overhead the inner budgets don't see: an oversized parent's child
+// LIST (thousands of `###` headings), and thousands of tiny matches
+// each carrying fixed clip-marker/join overhead.
+test("an oversized parent with thousands of children yields a capped reply — the child list is bounded too", () => {
+  const children = Array.from({ length: 5_000 }, (_, i) => `### Child number ${i}\nbody ${i}`).join("\n");
+  const doc = `# Guide\nintro\n${pad(30)}\n## Parent\nPARENT_MARK\n${pad(600)}\n${children}`;
+  const reply = renderSchemaDocs(doc, "parent");
+  assert.match(reply, /PARENT_MARK/);
+  assert.ok(reply.length <= SCHEMA_DOCS_RESULT_BUDGET + 1_000, `reply stays near the budget (${reply.length})`);
+});
+
+test("a topic matching thousands of headings yields a capped reply", () => {
+  const many = Array.from({ length: 4_000 }, (_, i) => `## Match point ${i}\nbody of match ${i}`).join("\n");
+  const reply = renderSchemaDocs(`# Guide\nintro\n${many}`, "match point");
+  assert.match(reply, /…clipped \d+ chars/, "the cap is flagged, never silent");
+  assert.ok(reply.length <= SCHEMA_DOCS_RESULT_BUDGET + 1_000, `reply stays near the budget (${reply.length})`);
+});
+
 test("indented code fences also shield their contents from heading parsing", () => {
   const doc = `# Guide\nintro\n${pad(320)}\n## Real section\nREAL_MARK\n  \`\`\`bash\n# not a heading either\n  \`\`\`\n${pad(10)}`;
   const reply = renderSchemaDocs(doc);
