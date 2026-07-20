@@ -73,6 +73,65 @@ describe("loadReferenceDirs — non-string fields", () => {
   });
 });
 
+describe("system directory blocklist — per platform", () => {
+  /** The system dir this OS is expected to block. `null` means we have nothing
+   *  reliable to assert on (a Windows box exposing neither SystemRoot nor
+   *  windir), so those cases skip rather than assert something false. */
+  const blockedSystemDir = (): string | null => {
+    if (process.platform === "win32") return process.env.SystemRoot ?? process.env.windir ?? null;
+    return "/etc";
+  };
+
+  const NO_SYSTEM_DIR = "no system dir to assert on (Windows without SystemRoot/windir)";
+
+  const isBlocked = (hostPath: string): boolean => "error" in validateReferenceDirs([{ hostPath, label: "x" }]);
+
+  it("blocks this platform's system directory", (ctx) => {
+    const dir = blockedSystemDir();
+    if (dir === null) {
+      ctx.skip(NO_SYSTEM_DIR);
+      return;
+    }
+    assert.ok(isBlocked(dir), `expected ${dir} to be blocked`);
+  });
+
+  it("blocks a subdirectory of it too", (ctx) => {
+    const dir = blockedSystemDir();
+    if (dir === null) {
+      ctx.skip(NO_SYSTEM_DIR);
+      return;
+    }
+    const sub = path.join(dir, "sub");
+    assert.ok(isBlocked(sub), `expected ${sub} to be blocked`);
+  });
+
+  it("does NOT block a sibling whose name merely starts the same way", (ctx) => {
+    // `/etc-backup` must not be swallowed by `/etc`'s subtree — that is what
+    // the `+ path.sep` guard in isAtOrUnder buys.
+    const dir = blockedSystemDir();
+    if (dir === null) {
+      ctx.skip(NO_SYSTEM_DIR);
+      return;
+    }
+    const sibling = `${dir}-backup`;
+    assert.ok(!isBlocked(sibling), `expected ${sibling} to validate`);
+  });
+
+  it("blocks the lowercase spelling on Windows (case-insensitive filesystem)", (ctx) => {
+    // POSIX filesystems really are case-sensitive, so there is nothing to assert.
+    if (process.platform !== "win32") {
+      ctx.skip("win32 only");
+      return;
+    }
+    const dir = blockedSystemDir();
+    if (dir === null) {
+      ctx.skip(NO_SYSTEM_DIR);
+      return;
+    }
+    assert.ok(isBlocked(dir.toLowerCase()), `expected ${dir.toLowerCase()} to be blocked`);
+  });
+});
+
 describe("validateReferenceDirs — error text", () => {
   it("does not echo [object Object] back as the offending path", () => {
     const result = validateReferenceDirs([{ hostPath: { nested: true } }]);
@@ -81,10 +140,9 @@ describe("validateReferenceDirs — error text", () => {
   });
 
   it("still reports a genuine string path in the error", () => {
-    // The filesystem root is the one blocked path that holds on every
-    // platform. `/etc` does NOT: Windows resolves it to `<drive>:\etc`, which
-    // matches nothing in the POSIX-only SYSTEM_BLOCKED_PREFIXES list, so the
-    // entry validates and there is no error to inspect.
+    // The filesystem root is blocked on every platform, so this test says
+    // nothing about which system dirs a given OS blocks — see the
+    // platform-specific suite below for that.
     const blocked = path.parse(path.resolve(".")).root;
     const result = validateReferenceDirs([{ hostPath: blocked }]);
     assert.ok("error" in result);
