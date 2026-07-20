@@ -71,7 +71,7 @@ const linePlugin: PlatformPlugin = {
 
   async handleWebhook(request: Request, body: string, env: Env): Promise<RelayMessage[]> {
     const signature = request.headers.get("x-line-signature") ?? "";
-    const isValid = await verifyLineSignature(String(env.LINE_CHANNEL_SECRET), body, signature);
+    const isValid = await verifyLineSignature(requireEnvSecret(env, "LINE_CHANNEL_SECRET"), body, signature);
     if (!isValid) {
       throw new Error("LINE signature verification failed");
     }

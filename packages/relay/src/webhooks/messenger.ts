@@ -60,7 +60,7 @@ const messengerPlugin: PlatformPlugin = {
 
   async handleWebhook(request: Request, body: string, env: Env): Promise<RelayMessage[]> {
     const signature = request.headers.get("x-hub-signature-256") ?? "";
-    const valid = await verifyMetaSignature(String(env.MESSENGER_APP_SECRET), body, signature);
+    const valid = await verifyMetaSignature(requireEnvSecret(env, "MESSENGER_APP_SECRET"), body, signature);
     if (!valid) throw new Error("Messenger signature verification failed");
 
     return extractMessages(JSON.parse(body)).map((msg) => ({
