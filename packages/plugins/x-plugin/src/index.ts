@@ -44,7 +44,10 @@ export const readXPost: XTool = {
   prompt: "Use the readXPost tool whenever the user shares a URL from x.com or twitter.com.",
 
   async handler(args: Record<string, unknown>): Promise<string> {
-    const url = String(args.url ?? "");
+    // `args` is model-generated, so `url` can be any JSON type. `String({})` is
+    // "[object Object]", which `extractTweetId` would then reject with a message
+    // quoting that literal back at the user as if they had typed it.
+    const url = typeof args.url === "string" ? args.url : "";
     const tweetId = extractTweetId(url);
     if (!tweetId) return `Could not extract a tweet ID from: ${url}. Provide a full x.com URL or a numeric tweet ID.`;
 
@@ -96,7 +99,7 @@ export const searchX: XTool = {
   prompt: "Use the searchX tool to find recent posts on X by keyword or topic.",
 
   async handler(args: Record<string, unknown>): Promise<string> {
-    const query = String(args.query ?? "").trim();
+    const query = (typeof args.query === "string" ? args.query : "").trim();
     if (!query) return "A search query is required.";
 
     const maxResults = Math.min(100, Math.max(10, Number(args.max_results ?? 10)));

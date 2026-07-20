@@ -18,9 +18,11 @@ export function formatScalarField(value: unknown): string {
       return JSON.stringify(value);
     } catch {
       // Cyclic object → can't stringify; fall back to String() rather than throw inside a template.
+      // eslint-disable-next-line @typescript-eslint/no-base-to-string -- that fallback is the point: rendering "[object Object]" in the doc beats throwing mid-render.
       return String(value);
     }
   }
+  // eslint-disable-next-line @typescript-eslint/no-base-to-string -- unreachable for objects: the `typeof value === "object"` branch above returns. Only primitives arrive here, and the rule does not narrow through the early return.
   return String(value);
 }
 

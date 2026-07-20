@@ -75,8 +75,10 @@ export function decodeCsvRecordId(itemId: string): string {
 function safeJsonCell(value: object): string {
   try {
     const json = JSON.stringify(value, (_key, entry: unknown) => (typeof entry === "bigint" ? entry.toString() : entry));
+    // eslint-disable-next-line @typescript-eslint/no-base-to-string -- last resort: JSON.stringify returned undefined (an object whose toJSON does). "[object Object]" at least says "this cell held an object"; "" would erase that it existed.
     return json ?? String(value);
   } catch {
+    // eslint-disable-next-line @typescript-eslint/no-base-to-string -- the serialiser threw (circular ref). Same reasoning as above: a placeholder beats losing the cell entirely.
     return String(value);
   }
 }

@@ -19,6 +19,14 @@ import "dotenv/config";
 import WebSocket from "ws";
 import { createBridgeClient, chunkText } from "@mulmobridge/client";
 
+// `ws` hands the listener `Buffer | ArrayBuffer | Buffer[]`. The default
+// binaryType is nodebuffer so a Buffer is what actually arrives, but the type
+// admits ArrayBuffer — whose `toString()` is the literal "[object ArrayBuffer]",
+// i.e. a frame silently parsed as garbage. Normalise instead of trusting the
+// runtime default to hold.
+const frameText = (data: Buffer | ArrayBuffer | Buffer[]): string =>
+  Buffer.isBuffer(data) ? data.toString("utf8") : Array.isArray(data) ? Buffer.concat(data).toString("utf8") : Buffer.from(data).toString("utf8");
+
 const TRANSPORT_ID = "signal";
 const MAX_SIGNAL_TEXT = 4_000;
 const FETCH_TIMEOUT_MS = 15_000;
@@ -193,7 +201,7 @@ function connect(): void {
   });
 
   socket.on("message", (buffer) => {
-    handleEnvelope(buffer.toString()).catch((err) => console.error(`[signal] envelope handler error: ${err}`));
+    handleEnvelope(frameText(buffer)).catch((err) => console.error(`[signal] envelope handler error: ${err}`));
   });
 
   socket.on("error", (err) => {

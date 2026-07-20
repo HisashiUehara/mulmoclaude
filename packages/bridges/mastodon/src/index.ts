@@ -25,6 +25,14 @@ import WebSocket from "ws";
 import { createBridgeClient, chunkText, formatAckReply } from "@mulmobridge/client";
 import { isObj, parseNotificationRaw, parseFrame, type JsonRecord, type ParsedStatus } from "./parse.js";
 
+// `ws` hands the listener `Buffer | ArrayBuffer | Buffer[]`. The default
+// binaryType is nodebuffer so a Buffer is what actually arrives, but the type
+// admits ArrayBuffer — whose `toString()` is the literal "[object ArrayBuffer]",
+// i.e. a frame silently parsed as garbage. Normalise instead of trusting the
+// runtime default to hold.
+const frameText = (data: Buffer | ArrayBuffer | Buffer[]): string =>
+  Buffer.isBuffer(data) ? data.toString("utf8") : Array.isArray(data) ? Buffer.concat(data).toString("utf8") : Buffer.from(data).toString("utf8");
+
 const TRANSPORT_ID = "mastodon";
 const MAX_STATUS_LEN = 500; // Mastodon's default soft limit; many instances raise to 1000+
 const FETCH_TIMEOUT_MS = 15_000;
@@ -194,7 +202,7 @@ function connect(): void {
   });
 
   socket.on("message", (buffer) => {
-    const frame = parseFrame(buffer.toString());
+    const frame = parseFrame(frameText(buffer));
     if (!frame || frame.event !== "notification") return;
     handleNotification(frame.payload).catch((err) => console.error(`[mastodon] notification handler error: ${err}`));
   });
