@@ -77,6 +77,60 @@
         <span>{{ t("collectionsView.chat") }}</span>
       </button>
 
+      <!-- Related-collections pulldown: one click to hop to a collection this
+           one links to (its refs) or that links back (their refs/backlinks).
+           Standalone only, and only when the host exposes `fetchOntology` — a
+           host without that capability (MulmoTerminal) simply omits the
+           control, the same additive pattern as the index Map tab. Neighbors
+           are derived lazily on first open (the ontology scan is expensive and
+           most view opens never touch this menu). -->
+      <div v-if="showRelatedMenu" ref="relatedMenuRef" class="relative">
+        <button
+          type="button"
+          class="h-8 px-2.5 flex items-center gap-1 rounded border border-indigo-200 bg-white hover:bg-indigo-50 text-indigo-600 font-bold text-xs transition-colors"
+          :aria-expanded="relatedMenuOpen"
+          data-testid="collections-related-menu"
+          @click="toggleRelatedMenu"
+        >
+          <span class="material-icons text-sm">hub</span>
+          <span>{{ t("collectionsView.related") }}</span>
+        </button>
+        <div
+          v-if="relatedMenuOpen"
+          class="absolute right-0 top-full mt-1 z-20 min-w-max rounded border border-slate-200 bg-white shadow-lg py-1"
+          data-testid="collections-related-menu-panel"
+        >
+          <!-- In-flight: the ontology fetch backing this open. -->
+          <div v-if="relatedLoading" class="w-full h-8 px-3 flex items-center gap-2 text-xs text-slate-400" data-testid="collections-related-loading">
+            <span class="material-icons text-sm animate-spin">hourglass_empty</span>
+            <span>{{ t("common.loading") }}</span>
+          </div>
+          <!-- Fail-soft: a failed fetch or a collection with no relations both
+               land on the same disabled empty-state row (no error toast). -->
+          <div v-else-if="relatedItems.length === 0" class="w-full h-8 px-3 flex items-center text-xs text-slate-400" data-testid="collections-related-empty">
+            {{ t("collectionsView.relatedEmpty") }}
+          </div>
+          <button
+            v-for="related in relatedItems"
+            :key="related.slug"
+            type="button"
+            class="w-full h-8 px-3 flex items-center gap-2 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+            :data-testid="`collections-related-item-${related.slug}`"
+            @click="gotoRelated(related.slug)"
+          >
+            <span class="material-symbols-outlined text-base">{{ related.icon }}</span>
+            <span class="flex-1 text-left">{{ related.title }}</span>
+            <span
+              class="material-icons text-sm text-slate-400"
+              :title="relatedDirectionLabel(related.direction)"
+              :aria-label="relatedDirectionLabel(related.direction)"
+              role="img"
+              >{{ relatedDirectionIcon(related.direction) }}</span
+            >
+          </button>
+        </div>
+      </div>
+
       <!-- Collection-level actions (schema `collectionActions`). No record
            context: each seeds a chat with a progress summary of all items. -->
       <button
@@ -913,6 +967,7 @@ import {
   type FlagFilterState,
 } from "../collectionViewMode";
 import { collectionUi } from "../uiContext";
+import { relatedCollections, type RelatedCollection } from "../relatedCollections";
 import { activateRefLink, activatePathLink } from "../refLink";
 import {
   dateOf,
@@ -1710,6 +1765,76 @@ function openChat(): void {
 
 function closeChat(): void {
   chatOpen.value = false;
+}
+
+// ── Related-collections pulldown (same menu pattern as the filter / "+"
+// menus) ─────────────────────────────────────────────────────────────
+// Offered on the standalone page when the host can fetch the workspace
+// ontology; the derived neighbor list is cached per slug for the
+// component's lifetime and (re)built lazily on the menu's first open, so a
+// view open that never touches the pulldown never pays for the ontology
+// scan.
+const relatedMenuOpen = ref<boolean>(false);
+const relatedMenuRef = ref<HTMLElement | null>(null);
+const relatedLoading = ref<boolean>(false);
+/** Derived neighbors for `relatedFetchedSlug` (null until first fetched). */
+const relatedList = ref<RelatedCollection[] | null>(null);
+/** Slug the cached `relatedList` was built for — a mismatch on open forces
+ *  a re-fetch (e.g. after navigating to a different collection). */
+const relatedFetchedSlug = ref<string | null>(null);
+
+const showRelatedMenu = computed<boolean>(() => Boolean(collection.value) && !embedded.value && cui.fetchOntology !== undefined);
+const relatedItems = computed<RelatedCollection[]>(() => relatedList.value ?? []);
+
+function relatedDirectionIcon(direction: RelatedCollection["direction"]): string {
+  if (direction === "out") return "arrow_outward";
+  if (direction === "in") return "arrow_back";
+  return "sync_alt";
+}
+
+function relatedDirectionLabel(direction: RelatedCollection["direction"]): string {
+  if (direction === "out") return t("collectionsView.relatedOut");
+  if (direction === "in") return t("collectionsView.relatedIn");
+  return t("collectionsView.relatedBoth");
+}
+
+/** Fetch the ontology and derive this slug's neighbors. Fail-soft: a
+ *  non-ok result (the `apiGet` wrapper already caught the network/HTTP
+ *  error) leaves an empty list, which the panel shows as its empty row.
+ *
+ *  Sets `relatedFetchedSlug` synchronously (before the await) so a rapid
+ *  re-open can't kick a duplicate fetch, and DROPS a stale response whose
+ *  slug no longer matches the active collection — otherwise a slower fetch
+ *  for a since-abandoned slug, resolving after a fast switch, would apply
+ *  the wrong collection's neighbors (Codex / CodeRabbit on PR #2251). */
+async function loadRelated(slug: string): Promise<void> {
+  relatedFetchedSlug.value = slug;
+  relatedLoading.value = true;
+  const result = await cui.fetchOntology?.();
+  if (collection.value?.slug !== slug) return;
+  relatedLoading.value = false;
+  relatedList.value = result?.ok ? relatedCollections(result.data.entries, slug) : [];
+}
+
+function toggleRelatedMenu(): void {
+  relatedMenuOpen.value = !relatedMenuOpen.value;
+  const slug = collection.value?.slug;
+  if (relatedMenuOpen.value && slug && relatedFetchedSlug.value !== slug) void loadRelated(slug);
+}
+
+function closeRelatedMenuOnOutsideClick(event: MouseEvent): void {
+  if (!eventInsideElement(event, relatedMenuRef.value)) relatedMenuOpen.value = false;
+}
+
+watch(relatedMenuOpen, (open) => {
+  if (open) document.addEventListener("mousedown", closeRelatedMenuOnOutsideClick);
+  else document.removeEventListener("mousedown", closeRelatedMenuOnOutsideClick);
+});
+
+/** Hop to a related collection's detail page (same nav as the index cards). */
+function gotoRelated(slug: string): void {
+  relatedMenuOpen.value = false;
+  cui.gotoDetail("collection", slug);
 }
 
 /** Build the chat seed text for the current view.
@@ -2672,6 +2797,14 @@ watch(
       kanbanOverride.value = null;
       addMenuOpen.value = false;
       filterMenuOpen.value = false;
+      // Drop the previous collection's cached neighbors so the next open
+      // re-derives them for the new slug. Clearing `relatedLoading` too so a
+      // just-abandoned in-flight fetch (dropped by loadRelated's stale guard)
+      // can't strand the spinner.
+      relatedMenuOpen.value = false;
+      relatedList.value = null;
+      relatedFetchedSlug.value = null;
+      relatedLoading.value = false;
       // A sort belongs to a collection's own schema, so don't carry it across —
       // restore the new collection's stored (shared) sort instead. Same for
       // the flag filter chips.
@@ -2758,6 +2891,7 @@ onUnmounted(() => {
   if (refreshNoteTimer !== undefined) clearTimeout(refreshNoteTimer);
   document.removeEventListener("mousedown", closeAddMenuOnOutsideClick);
   document.removeEventListener("mousedown", closeFilterMenuOnOutsideClick);
+  document.removeEventListener("mousedown", closeRelatedMenuOnOutsideClick);
 });
 
 // Embedded mode: report view/anchor changes so the chat card persists them
