@@ -120,6 +120,7 @@ import { isViewDataPath } from "./api/auth/viewToken.js";
 import { deleteTokenFile, generateAndWriteToken, getCurrentToken } from "./api/auth/token.js";
 import { log } from "./system/logger/index.js";
 import { logBackgroundError } from "./utils/logBackgroundError.js";
+import { isNonEmptyString, isRecord } from "./utils/types.js";
 import { errorMessage } from "./utils/errors.js";
 import { registerScheduledSkills } from "./workspace/skills/scheduler.js";
 import { registerUserTasks } from "./workspace/skills/user-tasks.js";
@@ -671,10 +672,10 @@ async function getSessionHistoryForBridge(sessionId: string, opts: { limit: numb
   // Collect all text events newest-first
   for (let i = lines.length - 1; i >= 0; i--) {
     try {
-      const entry = JSON.parse(lines[i]);
-      if (entry.type === EVENT_TYPES.text && typeof entry.message === "string") {
+      const entry: unknown = JSON.parse(lines[i]);
+      if (isRecord(entry) && entry.type === EVENT_TYPES.text && typeof entry.message === "string") {
         allMessages.push({
-          source: entry.source ?? "unknown",
+          source: isNonEmptyString(entry.source) ? entry.source : "unknown",
           text: entry.message,
         });
       }

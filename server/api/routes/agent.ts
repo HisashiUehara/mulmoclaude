@@ -27,7 +27,7 @@ import { getOrCreateSession, beginRun, endRun, cancelRun, pushSessionEvent, push
 import { workspacePath } from "../../workspace/workspace.js";
 import { discoverSkills } from "../../workspace/skills/discovery.js";
 import type { Skill } from "../../workspace/skills/types.js";
-import { isRecord } from "../../utils/types.js";
+import { isNonEmptyString, isRecord } from "../../utils/types.js";
 import { maybeRunJournal } from "../../workspace/journal/index.js";
 import { maybeIndexSession } from "../../workspace/chat-index/index.js";
 import { maybeAppendWikiBacklinks } from "../../workspace/wiki-backlinks/index.js";
@@ -1330,8 +1330,11 @@ async function readClaudeSessionIdFromSession(chatSessionId: string): Promise<st
   const lines = jsonl.split("\n").filter(Boolean);
   for (let i = lines.length - 1; i >= 0; i--) {
     try {
-      const entry = JSON.parse(lines[i]);
-      if (entry.type === EVENT_TYPES.claudeSessionId && entry.id) return entry.id;
+      // `JSON.parse` hands back `any`, so the `.type`/`.id` reads below were
+      // unchecked — a line of the wrong shape produced whatever it happened to
+      // hold. Narrow first; a malformed line is skipped either way.
+      const entry: unknown = JSON.parse(lines[i]);
+      if (isRecord(entry) && entry.type === EVENT_TYPES.claudeSessionId && isNonEmptyString(entry.id)) return entry.id;
     } catch {
       // skip malformed lines
     }
