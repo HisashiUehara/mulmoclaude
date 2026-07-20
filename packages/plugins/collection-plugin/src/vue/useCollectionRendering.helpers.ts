@@ -4,7 +4,7 @@
 // function of its arguments. The composable imports these and calls them
 // from inside its computed/watch closures; behaviour is identical.
 
-import { deriveAll } from "@mulmoclaude/core/collection";
+import { deriveAll, fieldText } from "@mulmoclaude/core/collection";
 import type {
   CollectionDetailResponse,
   CollectionItem,
@@ -45,8 +45,8 @@ export function isExternalUrl(value: unknown): boolean {
 }
 
 export function detailText(value: unknown): string {
-  if (value === undefined || value === null || value === "") return EM_DASH;
-  return String(value);
+  const text = fieldText(value, EM_DASH);
+  return text === "" ? EM_DASH : text;
 }
 
 export function formatCell(value: unknown, type: FieldType): string {
@@ -75,7 +75,7 @@ export function resolveCurrency(field: FieldSpec, record: CollectionItem | null 
 export function formatMoney(value: unknown, currency: string | undefined, displayLocale: string): string {
   if (value === undefined || value === "") return EM_DASH;
   const amount = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(amount)) return String(value);
+  if (!Number.isFinite(amount)) return fieldText(value, EM_DASH);
   const currencyCode = currency && currency.length > 0 ? currency : DEFAULT_CURRENCY;
   try {
     return new Intl.NumberFormat(displayLocale, { style: "currency", currency: currencyCode }).format(amount);
@@ -193,7 +193,7 @@ export function buildEmbedOptions(schema: CollectionSchema, items: CollectionIte
   const displayField = displayFieldFor(fields, primaryKey);
   return items
     .map((item) => {
-      const slug = String(item[primaryKey] ?? "");
+      const slug = fieldText(item[primaryKey]);
       const labelRaw = item[displayField];
       const display = typeof labelRaw === "string" && labelRaw.length > 0 ? labelRaw : slug;
       return { slug, display };
