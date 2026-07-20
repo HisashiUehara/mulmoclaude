@@ -20,6 +20,7 @@
 // never drifts (it clamps per-month at compute time, not stored
 // clamped). See `advanceTriggerDate`.
 
+import { fieldTextOrNull } from "../core/fieldText";
 import { log } from "./host";
 import { errorMessage, ONE_DAY_MS } from "./util";
 import type { IoOptions } from "./io";
@@ -136,7 +137,8 @@ export function successorId(sourceId: string, next: CivilDate): string {
 function matchesWhen(when: CollectionWhen | undefined, schema: CollectionSchema, item: CollectionItem): boolean {
   if (when) {
     const raw = item[when.field];
-    return raw !== undefined && raw !== null && when.in.includes(String(raw));
+    const text = fieldTextOrNull(raw);
+    return text !== null && when.in.includes(text);
   }
   return itemIsDone(schema, item);
 }
@@ -151,7 +153,8 @@ export function resolveEvery(every: CollectionSpawnEvery, sourceItem: Collection
   if (!isFieldDrivenEvery(every)) return every;
   const raw = sourceItem[every.fromField];
   if (raw === undefined || raw === null || raw === "") return null;
-  return every.map[String(raw)] ?? null;
+  const key = fieldTextOrNull(raw);
+  return key === null ? null : (every.map[key] ?? null);
 }
 
 export interface ComputedSuccessor {
