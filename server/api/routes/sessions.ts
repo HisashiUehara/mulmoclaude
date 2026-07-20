@@ -290,18 +290,18 @@ interface SessionErrorResponse {
 // Narrow type predicate for the presentMulmoScript tool-result shape
 // the enrichment helper inspects. Returning `entry is …` lets the
 // caller drop the redundant nested checks once the predicate passes.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function isPresentMulmoScriptToolResult(entry: any): entry is {
+type PresentMulmoScriptToolResult = {
   source: "tool";
   type: string;
-  result: { toolName: "presentMulmoScript"; data: { filePath: string } & Record<string, unknown> };
-} & Record<string, unknown> {
-  return (
-    entry?.source === "tool" &&
-    entry?.type === EVENT_TYPES.toolResult &&
-    entry?.result?.toolName === "presentMulmoScript" &&
-    typeof entry?.result?.data?.filePath === "string"
-  );
+  result: { toolName: "presentMulmoScript"; data: { filePath: string } & Record<string, unknown> } & Record<string, unknown>;
+} & Record<string, unknown>;
+
+function isPresentMulmoScriptToolResult(entry: unknown): entry is PresentMulmoScriptToolResult {
+  if (!isRecord(entry) || entry.source !== "tool" || entry.type !== EVENT_TYPES.toolResult) return false;
+  const { result } = entry;
+  if (!isRecord(result) || result.toolName !== "presentMulmoScript") return false;
+  const { data } = result;
+  return isRecord(data) && typeof data.filePath === "string";
 }
 
 // Re-read the MulmoScript JSON pointed at by `entry.result.data.filePath`
@@ -310,8 +310,7 @@ function isPresentMulmoScriptToolResult(entry: any): entry is {
 // path) so the detail route never breaks because of a single rotted
 // link. Path-traversal guard is realpath-based — see
 // resolveWithinRoot for why.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function enrichWithMulmoScript(entry: any): Promise<any> {
+async function enrichWithMulmoScript(entry: PresentMulmoScriptToolResult): Promise<unknown> {
   try {
     const storiesDir = path.resolve(WORKSPACE_PATHS.stories);
     let storiesReal: string;
@@ -326,13 +325,14 @@ async function enrichWithMulmoScript(entry: any): Promise<any> {
     const scriptPath = resolveWithinRoot(storiesReal, relFromStories);
     if (!scriptPath) return entry;
     const scriptJson = (await readTextSafe(scriptPath)) ?? "";
+    const script: unknown = JSON.parse(scriptJson);
     return {
       ...entry,
       result: {
         ...entry.result,
         data: {
           ...entry.result.data,
-          script: JSON.parse(scriptJson),
+          script,
         },
       },
     };
@@ -352,12 +352,12 @@ async function parseSessionEntry(line: string): Promise<unknown> {
   } catch {
     return null;
   }
-  // Skip legacy metadata entries now stored in .json
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const typed = entry as any;
-  if (typed?.type === EVENT_TYPES.sessionMeta || typed?.type === EVENT_TYPES.claudeSessionId) return null;
-  if (isPresentMulmoScriptToolResult(typed)) return enrichWithMulmoScript(typed);
-  return typed;
+  // Skip legacy metadata entries now stored in .json. A non-object line
+  // (JSON.parse can return a bare number/string) has no type field, so it
+  // falls through unchanged — same as the previous optional-chaining path.
+  if (isRecord(entry) && (entry.type === EVENT_TYPES.sessionMeta || entry.type === EVENT_TYPES.claudeSessionId)) return null;
+  if (isPresentMulmoScriptToolResult(entry)) return enrichWithMulmoScript(entry);
+  return entry;
 }
 
 router.get(API_ROUTES.sessions.detail, async (req: Request<SessionIdParams>, res: Response<unknown[] | SessionErrorResponse>) => {
