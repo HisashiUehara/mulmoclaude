@@ -1,6 +1,7 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { log } from "./logger/index.js";
+import { isRecord } from "../utils/types.js";
 import { ONE_SECOND_MS, ONE_MINUTE_MS } from "../utils/time.js";
 import { writeFileAtomic } from "../utils/files/atomic.js";
 import { claudeCredentialsPath } from "../utils/claudeConfigPath.js";
@@ -32,14 +33,6 @@ export function looksLikeClaudeResponse(text: string): boolean {
   return RESPONSE_PATTERN_RE.test(text) && text.length >= MIN_RESPONSE_CHARS;
 }
 
-interface CredentialsJson {
-  claudeAiOauth?: {
-    accessToken?: string;
-    refreshToken?: string;
-    expiresAt?: string;
-  };
-}
-
 /**
  * Read the raw credentials string from macOS Keychain.
  */
@@ -56,10 +49,30 @@ async function readFromKeychain(): Promise<string | null> {
 /**
  * Check whether the access token in the credentials JSON is expired.
  */
+/** The token's expiry as written in the Keychain blob, or null when the JSON is
+ *  unparseable or simply doesn't carry one.
+ *
+ *  `JSON.parse` returns `any`, so the previous `CredentialsJson` annotation on
+ *  its result was a claim rather than a check — nothing verified the shape, and
+ *  every read through it was unchecked. Narrowing once here gives the three
+ *  callers a `string | null` they can trust, and keeps the parse in one place.
+ *  (The interface itself is gone: it described a shape nobody validated.) */
+function readExpiresAt(raw: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!isRecord(parsed)) return null;
+  const oauth = parsed.claudeAiOauth;
+  if (!isRecord(oauth)) return null;
+  return typeof oauth.expiresAt === "string" ? oauth.expiresAt : null;
+}
+
 function isTokenExpired(raw: string): boolean {
   try {
-    const creds: CredentialsJson = JSON.parse(raw);
-    const expiresAt = creds.claudeAiOauth?.expiresAt;
+    const expiresAt = readExpiresAt(raw);
     if (!expiresAt) return true; // no expiry info — treat as expired
 
     const expiresMs = new Date(expiresAt).getTime();
@@ -187,13 +200,13 @@ export async function refreshCredentials(): Promise<boolean> {
 
     if (isTokenExpired(credentials)) {
       // Extract expiry for logging
-      try {
-        const creds: CredentialsJson = JSON.parse(credentials);
-        const expiresAt = creds.claudeAiOauth?.expiresAt ?? "unknown";
-        log.warn("credentials", `Access token expired at ${expiresAt}, launching claude CLI to renew...`);
-      } catch {
-        log.warn("credentials", "Access token expired (could not parse expiry), launching claude CLI to renew...");
-      }
+      const expiredAt = readExpiresAt(credentials);
+      log.warn(
+        "credentials",
+        expiredAt
+          ? `Access token expired at ${expiredAt}, launching claude CLI to renew...`
+          : "Access token expired (could not parse expiry), launching claude CLI to renew...",
+      );
 
       const renewed = await renewTokenViaPty();
       if (!renewed) {
@@ -217,13 +230,8 @@ export async function refreshCredentials(): Promise<boolean> {
         return false;
       }
     } else {
-      try {
-        const creds: CredentialsJson = JSON.parse(credentials);
-        const expiresAt = creds.claudeAiOauth?.expiresAt ?? "unknown";
-        log.info("credentials", `Access token is valid, expires at ${expiresAt}`);
-      } catch {
-        log.info("credentials", "Access token appears valid");
-      }
+      const validUntil = readExpiresAt(credentials);
+      log.info("credentials", validUntil ? `Access token is valid, expires at ${validUntil}` : "Access token appears valid");
     }
 
     // Atomic so a readers mid-refresh can't see a truncated creds

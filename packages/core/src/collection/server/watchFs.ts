@@ -15,7 +15,7 @@
 // PARENT directory rather than the file: an atomic replace swaps the inode,
 // and a watch bound to the old one goes silently deaf.
 
-import { watch, type FSWatcher } from "node:fs";
+import { realpathSync, watch, type FSWatcher } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
@@ -24,6 +24,28 @@ import { log } from "./host";
 /** An atomic file replace (editor save, `mv` over the target) surfaces as
  *  2-3 events. Collapse them so one user action reports one change. */
 const REPLACE_DEBOUNCE_MS = 300;
+
+/** The path to hand `watch()`, with Windows 8.3 short names resolved away.
+ *
+ *  ReadDirectoryChangesW reports filenames against the LONG path, but a watch
+ *  opened on a short path (`C:\Users\RUNNER~1\…` — what `os.tmpdir()` returns
+ *  on GitHub's Windows runners) keeps the short form. libuv's
+ *  `assert(!_wcsnicmp(filename, dir, dirlen))` in `src/win/fs-event.c` then
+ *  aborts the PROCESS on the first event — a native assert, so neither
+ *  `watcher.on("error")` nor a try/catch can contain it.
+ *
+ *  POSIX is deliberately left alone: `realpath` there also collapses symlinks
+ *  (`/var` → `/private/var` on macOS), which we neither need nor want to
+ *  change. A failure falls back to the original path — worst case we are no
+ *  worse off than before. */
+function watchablePath(dir: string): string {
+  if (process.platform !== "win32") return dir;
+  try {
+    return realpathSync.native(dir);
+  } catch {
+    return dir;
+  }
+}
 
 export interface FsWatchHandle {
   close: () => void;
@@ -39,7 +61,7 @@ export async function watchDirectory(
 ): Promise<FsWatchHandle | null> {
   try {
     await mkdir(dir, { recursive: true });
-    const watcher: FSWatcher = watch(dir, { persistent: false }, (_eventType, rawFilename) => {
+    const watcher: FSWatcher = watch(watchablePath(dir), { persistent: false }, (_eventType, rawFilename) => {
       // Defensive stringify: the callback's `string` typing is a lie on some
       // platforms, and a Buffer reaching `accept` would throw in here — which
       // kills the watcher, not just the event.
