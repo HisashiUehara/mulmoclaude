@@ -36,7 +36,7 @@ import type { DeleteItemResult, IoOptions, WriteItemResult } from "./io";
 import { getWorkspaceRoot, log, publishCollectionChange } from "./host";
 import { isContainedInRoot, safeRecordId } from "./paths";
 import { projectItemFields, type ListOptions, type ListPage, type WriteOptions } from "./storePage";
-import type { CollectionStore } from "./store";
+import { closerFor, type CollectionStore } from "./store";
 
 // Minimal structural view of node:sqlite — typed locally so the build does
 // not depend on @types/node shipping the (still experimental) module types.
@@ -313,30 +313,13 @@ export function sqliteStoreFor(collection: LoadedCollection, opts: IoOptions): C
     // One db file holds every record, so an event can't name a record. The
     // sidecars count as hits: sqlite writes land in `<db>-wal` first, and a
     // change that only touched the WAL is still a change.
-    watch: (onChange) =>
-      startWatch(
-        watchSingleFile(
+    watch: async (onChange) =>
+      closerFor(
+        await watchSingleFile(
           file,
           (base, name) => name.startsWith(base),
           () => onChange({ kind: "collection" }),
         ),
       ),
-  };
-}
-
-/** Bridge the async watch helper to the contract's synchronous unsubscribe.
- *  Mirrors `startWatch` in store.ts — kept local to avoid an import cycle
- *  (store.ts imports this module to register the factory). */
-function startWatch(pending: Promise<{ close: () => void } | null>): () => void {
-  let handle: { close: () => void } | null = null;
-  let cancelled = false;
-  void pending.then((opened) => {
-    if (cancelled) opened?.close();
-    else handle = opened;
-  });
-  return () => {
-    cancelled = true;
-    handle?.close();
-    handle = null;
   };
 }

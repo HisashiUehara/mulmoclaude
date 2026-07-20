@@ -372,12 +372,21 @@ async function startWatcherFor(collection: LoadedCollection): Promise<boolean> {
     await reconcileAllItems(collection, discoveryOpts);
     const store = storeFor(collection, discoveryOpts);
     const unsubscribe = store.watch
-      ? store.watch((change) => {
+      ? await store.watch((change) => {
           void handleStoreChange(slug, change).catch((err: unknown) => {
             log().warn("store change handling failed", { slug, error: errMsg(err) });
           });
         })
       : () => {};
+    // `null` means the backend HAS a watch but could not arm it this time.
+    // Registering anyway would mark the slug mounted forever: `startNewWatchers`
+    // skips slugs already in `watchers`, so nothing would re-arm it and the
+    // collection would serve stale data until a restart. Leave it out and the
+    // next sync tick retries — the boot reconcile above is idempotent.
+    if (unsubscribe === null) {
+      log().warn("collection watcher could not arm, retrying next sync", { slug });
+      return false;
+    }
     watchers.set(slug, { slug, dataDir: collection.dataDir, unsubscribe, schemaJson: JSON.stringify(collection.schema), collection });
     log().info("collection watcher started", { slug, live: store.watch !== undefined });
     return true;

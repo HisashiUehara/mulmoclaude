@@ -50,7 +50,7 @@ import { deleteItem, listItems, readItem, writeItem, type DeleteItemResult, type
 import { csvList, csvRead, csvRunQuery } from "./csvStore";
 import { sqliteStoreFor } from "./sqliteStore";
 import { pageFromFullRead, type ListOptions, type ListPage, type WriteOptions } from "./storePage";
-import { watchDirectory, watchSingleFile } from "./watchFs";
+import { watchDirectory, watchSingleFile, type FsWatchHandle } from "./watchFs";
 
 // The pure paging/projection primitives live in storePage.ts (so backend
 // modules can share them without an import cycle); re-exported here to
@@ -95,6 +95,9 @@ export type StoreChange = { readonly kind: "item"; readonly itemId: string } | {
 
 export type StoreChangeListener = (change: StoreChange) => void;
 
+/** Detaches a `watch` subscription. */
+export type StoreUnsubscribe = () => void;
+
 export interface CollectionStore {
   readonly capabilities: CollectionStoreCapabilities;
   /** Every record, in the store's stable order. CSV store: capped at
@@ -117,7 +120,14 @@ export interface CollectionStore {
   delete?: (itemId: string) => Promise<DeleteItemResult>;
   /** Subscribe to changes made OUTSIDE this process — a file edited by the
    *  agent, a CSV replaced by the user, a db written by another tool.
-   *  Returns an unsubscribe function.
+   *
+   *  Resolves to an unsubscribe function, or to `null` when the backend
+   *  could not arm the watch (no inotify watches left, an unreadable
+   *  directory). `null` is NOT the same as absent `watch`: absent means the
+   *  backend never reports changes and the caller should settle for its
+   *  periodic pass, while `null` means this attempt failed and mounting
+   *  should be retried. Swallowing the difference strands a collection on
+   *  stale data until the process restarts.
    *
    *  This is the store's job because only it knows where its bytes live and
    *  what its own change events look like (which paths to watch, which
@@ -128,7 +138,7 @@ export interface CollectionStore {
    *
    *  Absent ⇒ the backend cannot report external changes; the caller falls
    *  back to its periodic pass. */
-  watch?: (onChange: StoreChangeListener) => () => void;
+  watch?: (onChange: StoreChangeListener) => Promise<StoreUnsubscribe | null>;
 }
 
 /** The file store's stable order: lexicographic by record id (codepoint
@@ -176,9 +186,9 @@ function csvStoreFor(collection: LoadedCollection, opts: IoOptions): CollectionS
     ...(file === undefined
       ? {}
       : {
-          watch: (onChange) =>
-            startWatch(
-              watchSingleFile(
+          watch: async (onChange) =>
+            closerFor(
+              await watchSingleFile(
                 file,
                 () => false,
                 () => onChange({ kind: "collection" }),
@@ -205,9 +215,9 @@ function fileStoreFor(collection: LoadedCollection, opts: IoOptions): Collection
     // reconcile just that record instead of the whole collection. Dot-
     // prefixed names are skipped: atomic writes, OS metadata and editor swap
     // files are not records.
-    watch: (onChange) =>
-      startWatch(
-        watchDirectory(
+    watch: async (onChange) =>
+      closerFor(
+        await watchDirectory(
           collection.dataDir,
           (name) => name.endsWith(".json") && !name.startsWith("."),
           (filename) => onChange(filename === null ? { kind: "collection" } : { kind: "item", itemId: filename.slice(0, -".json".length) }),
@@ -216,21 +226,10 @@ function fileStoreFor(collection: LoadedCollection, opts: IoOptions): Collection
   };
 }
 
-/** Bridge the async `watchFs` helpers to the synchronous unsubscribe the
- *  store contract hands back: close as soon as the handle lands, and mark it
- *  closed if unsubscribe wins the race. */
-function startWatch(pending: Promise<{ close: () => void } | null>): () => void {
-  let handle: { close: () => void } | null = null;
-  let cancelled = false;
-  void pending.then((opened) => {
-    if (cancelled) opened?.close();
-    else handle = opened;
-  });
-  return () => {
-    cancelled = true;
-    handle?.close();
-    handle = null;
-  };
+/** A `watchFs` handle as the contract's unsubscribe — `null` straight
+ *  through, so an unarmed watch stays distinguishable from an armed one. */
+export function closerFor(handle: FsWatchHandle | null): StoreUnsubscribe | null {
+  return handle === null ? null : () => handle.close();
 }
 
 export type CollectionStoreFactory = (collection: LoadedCollection, opts: IoOptions) => CollectionStore;

@@ -489,3 +489,42 @@ describe("store change handling uses the CURRENT schema", () => {
     assert.equal((await activeCompletionEntries()).length, 0, "a later event must not resurrect it under the old schema");
   });
 });
+
+describe("a watch that cannot arm is retried, not marked mounted", () => {
+  // Codex review on PR #2243: moving the fs.watch behind the store contract
+  // made arming asynchronous, and the bridge that adapted it back to a
+  // synchronous unsubscribe dropped the failure on the floor. The slug was
+  // then registered as mounted, and `startNewWatchers` skips slugs already in
+  // `watchers` — so nothing ever re-armed it and the collection served stale
+  // data until the process restarted. Before the refactor the inline
+  // `fs.watch` threw, `startWatcherFor` returned false, and the next sync
+  // tick retried.
+  //
+  // The arm failure is induced the way it stays deterministic: `watchDirectory`
+  // starts with `mkdir(dir, { recursive: true })`, which throws ENOTDIR when a
+  // REGULAR FILE sits on the records path. No inotify exhaustion needed.
+  function blockRecordsDir(): void {
+    const dataDir = path.join(workdir, "data", SLUG, "items");
+    mkdirSync(path.dirname(dataDir), { recursive: true });
+    writeFileSync(dataDir, "not a directory");
+  }
+
+  it("remounts on a later sync once the obstruction clears", async () => {
+    writeSchema(buildSchema());
+    blockRecordsDir();
+    await startCollectionWatchers({
+      discoveryOpts: { workspaceRoot: workdir, userSkillsDir: userDir },
+      rediscoveryIntervalMs: null,
+      triggerTickIntervalMs: null,
+    });
+
+    // The obstruction goes away (the agent removes the stray file and writes
+    // a real record). A watcher wrongly marked mounted never comes back for it.
+    rmSync(path.join(workdir, "data", SLUG, "items"), { force: true });
+    writeItem("a", { read: false });
+    assert.equal(await _syncWatchersForTesting(), true, "the retry must mount the collection it failed to arm");
+
+    const legacyIds = (await activeCompletionEntries()).map((entry) => entry.legacyId);
+    assert.deepEqual(legacyIds, [`collection-completion:${SLUG}:a`], "and its boot reconcile must bell the pending item");
+  });
+});
