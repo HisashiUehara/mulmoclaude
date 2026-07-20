@@ -10,6 +10,50 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ---
 
+## [1.4.0] - 2026-07-20
+
+**Collections grow a map, and the npm launcher finally ships what it promises.** The `/collections` page gains an ontology graph, calendar events sync into collections, and — importantly for anyone installing from npm — this launcher is the first to carry the current `@mulmoclaude/*` line.
+
+### Highlights
+
+#### Collections — ontology graph panel (#2218)
+
+The `/collections` page gains a **Map** tab that draws the ontology across your collections: each schema is a node, each `ref` field an edge, so you can see how records point at each other instead of inferring it from schema files. Reverse edges collapse by their declared `via`.
+
+#### Collections — calendar sync, file query, flag fields, delete (#2095, #2182, #2184, #2200, #2204)
+
+Google Calendar events now sync into a collection, incrementally after the first pass (#2182, #2184). `manageCollection` can delete items (#2200). New `flag` field type with its own chip styling (#2211, #2101). File-backed queries (`dataSource`) landed alongside storage virtualization for view images (#2204).
+
+#### The `String()`-coercion family (#2208, #2210, #2211, #2213, #2215, #2223, #2225)
+
+A `@typescript-eslint/no-base-to-string` sweep found seven places where a non-string value was being stringified into `"[object Object]"` on its way to a user, a filename, or a webhook signature check — collection scalar values, workspace dir names, MCP skill args, relay webhook secrets, the accounting router's action args, and two collection paths. Each was fixed at the source rather than papered over at the render site.
+
+#### Relay — fail closed on a misconfigured signing secret (#2213)
+
+A malformed or absent webhook signing secret now rejects the request instead of falling through to the handler. Credentials are read as strings-or-absent via `envSecret`, so a missing platform binding can no longer arrive as the literal `"undefined"` and be treated as configured.
+
+#### Shared helpers consolidated into core (#2217, #2219)
+
+`errorMessage` existed 14 times across 4 behaviours — gRPC-shaped errors surfaced as `"quota exceeded"` through the host copy and `"[object Object]"` through the core ones. `truncate`'s core copy had dropped the guard that keeps output inside `max`. Both now live once in the new browser-safe `@mulmoclaude/core/utils`, with the host re-exporting. `docs/shared-utils.md` gained a "Known duplicates" table, since the catalog's failure mode was naming one member of a family and hiding the rest.
+
+#### Sandbox — the frozen-CLI failure mode is now self-diagnosable (#2202, #2214)
+
+The sandbox image installs the Claude CLI unpinned, and neither an upstream release nor `docker rmi` refreshes it (the rebuild reuses the cached `npm install -g` layer). `error-recovery.md` now carries the symptom, the in-image version check, and the `docker builder prune -a -f` recovery; `docs/developer.md` no longer claims `yarn sandbox:remove` forces a rebuild.
+
+#### Google sign-in — retry after abandoning browser consent (#2171)
+
+Abandoning the browser consent screen previously left the link unretryable.
+
+### Fixes
+
+Chat sticky-bottom scroll (#2205), shadow-DOM-safe dropdown dismiss on `/collections` (#2212), collection live-refresh on direct writes (#2199), wiki summary schema left unwritten (#2226), Windows sandbox preset mount drift, floating promises across host and packages (#2191), unreachable type comparisons (#2207).
+
+Ships `@mulmoclaude/core@0.28.0`, `@mulmoclaude/collection-plugin@0.14.0`, `@mulmoclaude/google-plugin@0.3.2`, `@mulmoclaude/accounting-plugin@0.3.3`.
+
+> **Note for npm users:** `mulmoclaude@1.3.0` shipped dep ranges pinned to `@mulmoclaude/core@^0.23.0` and `@mulmoclaude/collection-plugin@^0.12.0`. A caret range on a `0.x` package does not float across minors, so installs of 1.3.0 could not receive anything published since — including most of the above. 1.4.0 is the first launcher that actually delivers it.
+
+---
+
 ## [1.3.0] - 2026-07-18
 
 **Your other calendars, in colour.** The Google tool now sees every calendar you've subscribed to — not just your primary — and carries each event's colour. Plus read-only CSV data collections backed by DuckDB.
