@@ -1,3 +1,4 @@
+import { isNonEmptyString, isRecord } from "../../utils/types.js";
 import { Router, Request, Response } from "express";
 import { realpathSync } from "fs";
 import { readdir, stat } from "fs/promises";
@@ -37,20 +38,29 @@ interface SessionMeta {
   userQueryCount?: number;
 }
 
+/** The two fields every caller relies on. Both paths below already tested for
+ *  them — one behind an `as` cast, one on a `JSON.parse` result typed `any`, so
+ *  neither test actually narrowed anything. Same check, now load-bearing.
+ *
+ *  `isNonEmptyString`, not `typeof === "string"`: the checks this replaced were
+ *  truthy tests, so a corrupt row like `{ roleId: "", startedAt: "" }` was
+ *  skipped. A plain type check would start letting those through. */
+function isSessionMeta(value: unknown): value is SessionMeta {
+  return isRecord(value) && isNonEmptyString(value.roleId) && isNonEmptyString(value.startedAt);
+}
+
 async function readSessionMeta(__chatDir: string, sessionId: string): Promise<SessionMeta | null> {
   // Try new-style .json meta first
   const meta = await readSessionMetaIO(sessionId);
-  if (meta?.roleId && meta?.startedAt) {
-    return meta as SessionMeta;
-  }
+  if (isSessionMeta(meta)) return meta;
   // Legacy: read first line of .jsonl
   const jsonl = await readSessionJsonl(sessionId);
   if (jsonl) {
     const first = jsonl.split("\n").find(Boolean);
     if (first) {
       try {
-        const parsed = JSON.parse(first);
-        if (parsed.roleId && parsed.startedAt) return parsed;
+        const parsed: unknown = JSON.parse(first);
+        if (isSessionMeta(parsed)) return parsed;
       } catch {
         // ignore
       }
