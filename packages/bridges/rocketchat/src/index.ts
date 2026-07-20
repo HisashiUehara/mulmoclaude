@@ -59,6 +59,12 @@ function isObj(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null;
 }
 
+// `Array.isArray(x: unknown)` narrows to `any[]`, which reintroduces `any`;
+// this preserves the element type as `unknown` so downstream stays checked.
+function isUnknownArray(value: unknown): value is unknown[] {
+  return Array.isArray(value);
+}
+
 function authHeaders(): Record<string, string> {
   return {
     "X-Auth-Token": authToken,
@@ -207,7 +213,7 @@ async function pollRoom(roomId: string, oldestIso: string): Promise<string> {
       inclusive: "false",
       count: String(HISTORY_PAGE_SIZE),
     });
-    const messages = Array.isArray(result.messages) ? result.messages : [];
+    const messages: unknown[] = isUnknownArray(result.messages) ? result.messages : [];
     if (messages.length === 0) break;
 
     const sorted = [...messages].reverse(); // API returns newest-first
