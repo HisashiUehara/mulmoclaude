@@ -9,6 +9,15 @@
 import { errorMessage } from "./internal";
 import { EXPANSIONS, extractTweetId, fetchX, formatTweet, TWEET_FIELDS, USER_FIELDS, type XApiResponse, type XTweet, type XUser } from "./client";
 
+/** A tweet URL or bare id from model-emitted args: a string as given, a finite
+ *  integer rendered as its digits, and nothing else. Objects/arrays have no id
+ *  in them and must not reach `extractTweetId` as "[object Object]". */
+export function readUrlArg(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return String(value);
+  return "";
+}
+
 /** Minimal MCP-tool shape these tools conform to. Structurally compatible
  *  with the host's `McpTool` interface (server/agent/mcp-tools/index.ts), so
  *  a host can drop these straight into its `McpTool[]` registry. */
@@ -44,10 +53,14 @@ export const readXPost: XTool = {
   prompt: "Use the readXPost tool whenever the user shares a URL from x.com or twitter.com.",
 
   async handler(args: Record<string, unknown>): Promise<string> {
-    // `args` is model-generated, so `url` can be any JSON type. `String({})` is
-    // "[object Object]", which `extractTweetId` would then reject with a message
-    // quoting that literal back at the user as if they had typed it.
-    const url = typeof args.url === "string" ? args.url : "";
+    // `args` is model-generated, so `url` can be any JSON type. Objects and
+    // arrays must not get through — `String({})` is "[object Object]", which
+    // `extractTweetId` would reject with a message quoting that literal back at
+    // the user as if they had typed it. A NUMBER, though, is a legitimate way
+    // for a model to emit a bare tweet id: the schema calls it a "bare tweet
+    // ID", `extractTweetId` matches `/^\d+$/`, and the failure message offers
+    // it. Accept those two, reject the rest.
+    const url = readUrlArg(args.url);
     const tweetId = extractTweetId(url);
     if (!tweetId) return `Could not extract a tweet ID from: ${url}. Provide a full x.com URL or a numeric tweet ID.`;
 
