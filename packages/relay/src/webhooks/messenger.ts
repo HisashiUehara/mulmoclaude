@@ -6,6 +6,7 @@
 //   MESSENGER_VERIFY_TOKEN      — Arbitrary string for webhook verification
 
 import { chunkText } from "@mulmobridge/client/text";
+import { isRecord } from "@mulmoclaude/common";
 import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
 import { envSecret, requireEnvSecret } from "../utils/envSecret.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
@@ -20,23 +21,19 @@ interface ExtractedMessage {
   text: string;
 }
 
-function isObj(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function parseOneEvent(event: unknown): ExtractedMessage | null {
-  if (!isObj(event) || !isObj(event.sender) || typeof event.sender.id !== "string") return null;
-  if (!isObj(event.message) || typeof event.message.text !== "string") return null;
+  if (!isRecord(event) || !isRecord(event.sender) || typeof event.sender.id !== "string") return null;
+  if (!isRecord(event.message) || typeof event.message.text !== "string") return null;
   const text = event.message.text.trim();
   if (!text) return null;
   return { senderId: event.sender.id, text };
 }
 
 function extractMessages(body: unknown): ExtractedMessage[] {
-  if (!isObj(body) || !Array.isArray(body.entry)) return [];
+  if (!isRecord(body) || !Array.isArray(body.entry)) return [];
   const out: ExtractedMessage[] = [];
   for (const entry of body.entry) {
-    if (!isObj(entry) || !Array.isArray(entry.messaging)) continue;
+    if (!isRecord(entry) || !Array.isArray(entry.messaging)) continue;
     for (const event of entry.messaging) {
       const msg = parseOneEvent(event);
       if (msg) out.push(msg);

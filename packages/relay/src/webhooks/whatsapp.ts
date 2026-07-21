@@ -7,6 +7,7 @@
 //   WHATSAPP_VERIFY_TOKEN      — Arbitrary string for webhook verification
 
 import { chunkText } from "@mulmobridge/client/text";
+import { isRecord } from "@mulmoclaude/common";
 import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
 import { envSecret, requireEnvSecret } from "../utils/envSecret.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
@@ -22,23 +23,19 @@ interface WaTextMessage {
   text: { body: string };
 }
 
-function isObj(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function parseOneWaMessage(msg: unknown): WaTextMessage | null {
-  if (!isObj(msg) || msg.type !== "text" || typeof msg.from !== "string") return null;
-  if (!isObj(msg.text) || typeof msg.text.body !== "string" || !msg.text.body.trim()) return null;
+  if (!isRecord(msg) || msg.type !== "text" || typeof msg.from !== "string") return null;
+  if (!isRecord(msg.text) || typeof msg.text.body !== "string" || !msg.text.body.trim()) return null;
   return { from: msg.from, text: { body: msg.text.body } };
 }
 
 function extractWaMessages(body: unknown): WaTextMessage[] {
-  if (!isObj(body) || !Array.isArray(body.entry)) return [];
+  if (!isRecord(body) || !Array.isArray(body.entry)) return [];
   const raw: unknown[] = [];
   for (const entry of body.entry) {
-    if (!isObj(entry) || !Array.isArray(entry.changes)) continue;
+    if (!isRecord(entry) || !Array.isArray(entry.changes)) continue;
     for (const change of entry.changes) {
-      if (!isObj(change) || !isObj(change.value) || !Array.isArray(change.value.messages)) continue;
+      if (!isRecord(change) || !isRecord(change.value) || !Array.isArray(change.value.messages)) continue;
       raw.push(...change.value.messages);
     }
   }

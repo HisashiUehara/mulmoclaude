@@ -18,6 +18,7 @@
 import "dotenv/config";
 import WebSocket from "ws";
 import { createBridgeClient, chunkText } from "@mulmobridge/client";
+import { isRecord } from "@mulmoclaude/common";
 
 // `ws` hands the listener `Buffer | ArrayBuffer | Buffer[]`. The default
 // binaryType is nodebuffer so a Buffer is what actually arrives, but the type
@@ -92,10 +93,6 @@ async function sendSignal(chatId: string, text: string): Promise<void> {
 
 type JsonRecord = Record<string, unknown>;
 
-function isObj(value: unknown): value is JsonRecord {
-  return typeof value === "object" && value !== null;
-}
-
 interface IncomingSignal {
   sourceNumber: string;
   /** Stable conversation id. For DMs = sourceNumber; for groups =
@@ -114,9 +111,9 @@ function extractGroupId(dataMessage: JsonRecord): string {
   //   - v2: dataMessage.groupInfo.groupId (base64)
   //   - new: dataMessage.groupV2.id (also base64)
   // Either form is accepted as a recipient prefix.
-  const groupV2 = isObj(dataMessage.groupV2) ? dataMessage.groupV2 : null;
+  const groupV2 = isRecord(dataMessage.groupV2) ? dataMessage.groupV2 : null;
   if (groupV2 && typeof groupV2.id === "string" && groupV2.id.length > 0) return groupV2.id;
-  const info = isObj(dataMessage.groupInfo) ? dataMessage.groupInfo : null;
+  const info = isRecord(dataMessage.groupInfo) ? dataMessage.groupInfo : null;
   if (info && typeof info.groupId === "string" && info.groupId.length > 0) return info.groupId;
   return "";
 }
@@ -133,8 +130,8 @@ function parseEnvelope(raw: string): IncomingSignal | null {
   } catch {
     return null;
   }
-  if (!isObj(parsed)) return null;
-  const envelope = isObj(parsed.envelope) ? parsed.envelope : null;
+  if (!isRecord(parsed)) return null;
+  const envelope = isRecord(parsed.envelope) ? parsed.envelope : null;
   if (!envelope) return null;
 
   // Signal envelopes carry both `source` (may be phone or UUID) and
@@ -144,7 +141,7 @@ function parseEnvelope(raw: string): IncomingSignal | null {
   // null — we can't reply to them at all, so drop the message rather
   // than attempt a failing send. See CodeRabbit review on #611.
   const sourceNumber = typeof envelope.sourceNumber === "string" && E164_PHONE.test(envelope.sourceNumber) ? envelope.sourceNumber : "";
-  const dataMessage = isObj(envelope.dataMessage) ? envelope.dataMessage : null;
+  const dataMessage = isRecord(envelope.dataMessage) ? envelope.dataMessage : null;
   const text = dataMessage && typeof dataMessage.message === "string" ? dataMessage.message.trim() : "";
   if (!sourceNumber || !text || !dataMessage) return null;
 

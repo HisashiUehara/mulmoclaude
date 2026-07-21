@@ -12,6 +12,7 @@
 // the message but cannot send replies back.
 
 import { chunkText } from "@mulmobridge/client/text";
+import { isRecord } from "@mulmoclaude/common";
 import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
 import { ONE_HOUR_MS, ONE_HOUR_S, TEN_SECONDS_MS, FIFTEEN_SECONDS_MS } from "../time.js";
@@ -104,21 +105,17 @@ async function verifyGoogleJwt(authHeader: string | undefined, projectNumber: st
 
 // ── Payload parsing ─────────────────────────────────────────────
 
-function isObj(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 interface ChatMessage {
   spaceName: string;
   text: string;
 }
 
 function parseMessage(body: unknown): ChatMessage | null {
-  if (!isObj(body) || body.type !== "MESSAGE") return null;
+  if (!isRecord(body) || body.type !== "MESSAGE") return null;
   const msg = body.message;
-  if (!isObj(msg) || typeof msg.text !== "string") return null;
+  if (!isRecord(msg) || typeof msg.text !== "string") return null;
   const { space } = msg;
-  if (!isObj(space) || typeof space.name !== "string") return null;
+  if (!isRecord(space) || typeof space.name !== "string") return null;
   return { spaceName: space.name, text: msg.text.trim() };
 }
 
@@ -132,7 +129,7 @@ interface ServiceAccount {
 function parseServiceAccount(raw: string): ServiceAccount | null {
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (!isObj(parsed) || typeof parsed.client_email !== "string" || typeof parsed.private_key !== "string") return null;
+    if (!isRecord(parsed) || typeof parsed.client_email !== "string" || typeof parsed.private_key !== "string") return null;
     return { client_email: parsed.client_email, private_key: parsed.private_key };
   } catch {
     return null;
