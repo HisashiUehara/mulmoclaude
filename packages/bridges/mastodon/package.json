@@ -23,6 +23,7 @@
   "dependencies": {
     "@mulmobridge/client": "^0.1.5",
     "@mulmobridge/protocol": "^0.1.4",
+    "@mulmoclaude/common": "^0.1.0",
     "dotenv": "^17.0.0",
     "ws": "^8.21.1"
   },
