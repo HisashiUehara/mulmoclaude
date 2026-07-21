@@ -77,9 +77,12 @@ Body `{ dir: string, filename: string, dataUrl: string }`.
 - Frontend/e2e: dropping onto a folder row saves into that folder and the tree
   shows the new entry.
 
-## Files expected to change
+## Files changed
 
-- `server/api/routes/files.ts` (new handler) + `src/config/apiRoutes.ts` (route)
-- `src/components/FileTree.vue`, `src/components/FileTreePane.vue`
-- `src/i18n/*` (8 locales)
-- `test/…` server handler tests
+- `server/api/routes/files.ts` (upload handler) + `src/config/apiRoutes.ts` (route constant)
+- `server/utils/files/upload-name.ts` (filename rules) + `server/utils/files/upload-io.ts` (exclusive create)
+- `src/components/FileTree.vue`, `src/components/FileTreePane.vue`, `src/components/FilesView.vue`
+- `src/composables/useFileDropZone.ts` (shared window guard + drag-end pulse)
+- `src/lang/*.ts` (8 locales)
+- `test/utils/test_upload_name.ts`, `test/api/routes/test_filesUpload.ts`
+- `docs/shared-utils.md` (helper catalog entries)

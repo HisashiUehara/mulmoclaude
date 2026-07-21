@@ -250,18 +250,36 @@ async function uploadOne(folder: string, file: File): Promise<boolean> {
 // large drops shouldn't open one request per file at once.
 async function handleUploadFiles(args: { folder: string; files: File[] }): Promise<void> {
   const { folder, files } = args;
-  if (uploadClearTimer !== null) clearTimeout(uploadClearTimer);
-  uploadState.value = { done: 0, total: files.length, failed: 0 };
+  if (uploadClearTimer !== null) {
+    clearTimeout(uploadClearTimer);
+    uploadClearTimer = null;
+  }
+  // Fold this batch into any still-running one. Overwriting instead would let
+  // a second drop reset the counters, and the first batch's clear-timer could
+  // then null the state mid-flight — making the second batch abandon its
+  // remaining files silently.
+  const started: UploadState | null = uploadState.value;
+  uploadState.value =
+    started === null ? { done: 0, total: files.length, failed: 0 } : { done: started.done, total: started.total + files.length, failed: started.failed };
+
   for (const file of files) {
     const ok = await uploadOne(folder, file);
     const current: UploadState | null = uploadState.value;
-    if (current === null) return;
-    uploadState.value = { done: current.done + 1, total: current.total, failed: current.failed + (ok ? 0 : 1) };
+    // Re-seed rather than bail if something cleared the banner underneath us.
+    uploadState.value =
+      current === null
+        ? { done: 1, total: files.length, failed: ok ? 0 : 1 }
+        : { done: current.done + 1, total: current.total, failed: current.failed + (ok ? 0 : 1) };
   }
   await reloadDirChildren(folder);
-  uploadClearTimer = setTimeout(() => {
-    uploadState.value = null;
-  }, UPLOAD_STATUS_CLEAR_MS);
+
+  // Only retire the banner once every in-flight batch has landed.
+  const settled: UploadState | null = uploadState.value;
+  if (settled !== null && settled.done >= settled.total) {
+    uploadClearTimer = setTimeout(() => {
+      uploadState.value = null;
+    }, UPLOAD_STATUS_CLEAR_MS);
+  }
 }
 
 const recentPaths = computed(() => {

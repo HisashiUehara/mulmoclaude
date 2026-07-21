@@ -103,6 +103,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useExpandedDirs } from "../composables/useExpandedDirs";
+import { useDragSessionEnd } from "../composables/useFileDropZone";
 import { sortChildren } from "../utils/files/sortChildren";
 import { descriptorForPath, EDIT_POLICY_ICON_COLOR } from "../config/systemFileDescriptors";
 import { isVisibleTopLevel } from "../config/visibleWorkspaceDirs";
@@ -260,6 +261,11 @@ function resetDropState(): void {
   dragDepth = 0;
   isDropTarget.value = false;
 }
+
+// Safety net for drags that end without a matching `dragleave` on this row —
+// released outside the tree, or cancelled with Escape. One shared window
+// listener drives every row, so the highlight can't get stuck on.
+watch(useDragSessionEnd(), resetDropState);
 
 // Mirrors the server's AUDIO_EXTENSIONS in server/api/routes/files.ts
 // so the tree icon agrees with how /api/files/content classifies the

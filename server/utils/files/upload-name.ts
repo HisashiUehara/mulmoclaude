@@ -21,6 +21,22 @@ function lastSegment(rawName: string): string {
   return parts[parts.length - 1] ?? "";
 }
 
+/** Windows silently drops trailing dots and spaces when creating a file, so
+ *  `malware.exe.` lands on disk as `malware.exe` while `path.extname` reports
+ *  `"."` — sailing straight past an extension blocklist. Normalise the name
+ *  before any policy check reads it. */
+function stripTrailingDotsAndSpaces(segment: string): string {
+  // Walked rather than regexed: `/[. ]+$/` backtracks super-linearly on a name
+  // that is all dots, which is exactly the input an attacker controls.
+  let end = segment.length;
+  while (end > 0) {
+    const char = segment[end - 1];
+    if (char !== "." && char !== " ") break;
+    end -= 1;
+  }
+  return segment.slice(0, end);
+}
+
 function stripControls(segment: string): string {
   return [...segment].filter((char) => (char.codePointAt(0) ?? 0) > LAST_CONTROL_CODE_POINT).join("");
 }
@@ -35,7 +51,7 @@ function truncateKeepingExtension(base: string): string {
  *  nothing usable survives. Directory components are dropped rather than
  *  honoured: the target folder comes from the drop target, never the filename. */
 export function sanitizeUploadFilename(rawName: string): string | null {
-  const base = stripControls(lastSegment(rawName)).trim();
+  const base = stripTrailingDotsAndSpaces(stripControls(lastSegment(rawName)).trim());
   if (base === "" || base === "." || base === "..") return null;
   return base.length > MAX_FILENAME_LENGTH ? truncateKeepingExtension(base) : base;
 }

@@ -57,6 +57,25 @@ describe("sanitizeUploadFilename", () => {
   it("preserves a dotfile name", () => {
     assert.equal(sanitizeUploadFilename(".gitignore"), ".gitignore");
   });
+
+  // Windows drops trailing dots/spaces when it creates the file, so a name
+  // ending in one would reach disk as the stripped form while `extname` saw
+  // something harmless — an extension-blocklist bypass.
+  it("strips a trailing dot so the real extension is visible to policy", () => {
+    assert.equal(sanitizeUploadFilename("malware.exe."), "malware.exe");
+  });
+
+  it("strips several trailing dots", () => {
+    assert.equal(sanitizeUploadFilename("malware.exe..."), "malware.exe");
+  });
+
+  it("strips trailing spaces", () => {
+    assert.equal(sanitizeUploadFilename("report.pdf  "), "report.pdf");
+  });
+
+  it("still rejects a name that is only dots", () => {
+    assert.equal(sanitizeUploadFilename("..."), null);
+  });
 });
 
 describe("renamedCandidate", () => {

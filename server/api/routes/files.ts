@@ -5,6 +5,7 @@ import path from "path";
 import { workspacePath } from "../../workspace/workspace.js";
 import { statSafe, statSafeAsync, readDirSafeAsync, resolveWithinRoot, writeFileAtomic } from "../../utils/files/index.js";
 import { stripDataUri } from "../../utils/files/attachment-store.js";
+import { writeNewFileExclusive } from "../../utils/files/upload-io.js";
 import { MAX_RENAME_ATTEMPTS, renamedCandidate, sanitizeUploadFilename } from "../../utils/files/upload-name.js";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, notFound, sendError, serverError } from "../../utils/httpError.js";
@@ -1111,9 +1112,14 @@ router.post(API_ROUTES.files.create, async (req: Request<object, unknown, WriteC
   });
 });
 
-/** Cap on one dropped file. The payload arrives base64-inflated in memory, so
- *  this bounds the request body as much as the resulting file. */
-const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+/** Cap on one dropped file, in decoded bytes.
+ *
+ *  Deliberately well under the 50 MB `express.json` body cap (server/index.ts):
+ *  the file travels as a base64 `data:` URI inside JSON, which inflates it by
+ *  4/3 before the envelope is even counted. Advertising 50 MB would be a limit
+ *  this handler never gets to enforce — express would reject a 40 MB file with
+ *  a generic 413 first. 32 MB decoded is ~43 MB encoded, comfortably inside. */
+const MAX_UPLOAD_BYTES = 32 * 1024 * 1024;
 
 /** Refused on upload: things a later double-click would execute. A drop into
  *  the workspace is for data, not for programs. */
@@ -1125,22 +1131,38 @@ interface UploadFileBody {
   dataUrl?: unknown;
 }
 
+/** Seams for `writeUploadWithRename`, so its collision / containment behaviour
+ *  can be exercised without touching the real workspace. */
+export interface UploadWriteDeps {
+  resolve: (relPath: string) => Promise<{ ok: true; absPath: string; workspaceRoot: string } | { ok: false; status: 400; message: string }>;
+  write: (absPath: string, bytes: Buffer) => Promise<void>;
+}
+
+const defaultUploadWriteDeps: UploadWriteDeps = {
+  resolve: resolveNewFilePath,
+  // Exclusive create lives in its own I/O module; EEXIST drives the rename retry.
+  write: writeNewFileExclusive,
+};
+
 // Write the bytes under `dirRel`, never clobbering: on EEXIST the name gets a
 // ` (n)` suffix and we retry. Each candidate re-runs the containment check, so
 // a rename can't walk the write out of the workspace either.
-async function writeUploadWithRename(
+export async function writeUploadWithRename(
   dirRel: string,
   safeName: string,
   bytes: Buffer,
-): Promise<{ ok: true; relPath: string } | { ok: false; status: number; message: string }> {
+  deps: UploadWriteDeps = defaultUploadWriteDeps,
+): Promise<{ ok: true; relPath: string; absPath: string } | { ok: false; status: number; message: string }> {
   for (let attempt = 0; attempt <= MAX_RENAME_ATTEMPTS; attempt += 1) {
     const relPath = path.join(dirRel, attempt === 0 ? safeName : renamedCandidate(safeName, attempt));
-    const resolved = await resolveNewFilePath(relPath);
+    const resolved = await deps.resolve(relPath);
     if (!resolved.ok) return { ok: false, status: resolved.status, message: resolved.message };
     try {
-      await mkdir(path.dirname(resolved.absPath), { recursive: true });
-      await writeFile(resolved.absPath, bytes, { flag: "wx" });
-      return { ok: true, relPath };
+      await deps.write(resolved.absPath, bytes);
+      // Hand back the resolver's realpath'd target: rebuilding it from
+      // `workspaceReal + relPath` would skip symlink resolution and could stat
+      // the wrong file (or nothing).
+      return { ok: true, relPath, absPath: resolved.absPath };
     } catch (err) {
       const { code } = err as { code?: string };
       if (code !== "EEXIST") return { ok: false, status: 500, message: errorMessage(err) };
@@ -1149,7 +1171,7 @@ async function writeUploadWithRename(
   return { ok: false, status: 409, message: "Could not find an unused filename" };
 }
 
-function validateUploadBody(body: UploadFileBody): { ok: true; dir: string; safeName: string; bytes: Buffer } | { ok: false; message: string } {
+export function validateUploadBody(body: UploadFileBody): { ok: true; dir: string; safeName: string; bytes: Buffer } | { ok: false; message: string } {
   const { dir, filename, dataUrl } = body;
   if (typeof dir !== "string" || typeof filename !== "string" || typeof dataUrl !== "string") {
     return { ok: false, message: "dir, filename and dataUrl are required" };
@@ -1179,7 +1201,7 @@ router.post(API_ROUTES.files.upload, async (req: Request<object, unknown, Upload
     sendError(res, written.status, written.message);
     return;
   }
-  const fresh = await statSafeAsync(path.join(workspaceReal, written.relPath));
+  const fresh = await statSafeAsync(written.absPath);
   log.info("files", "POST upload: ok", { pathPreview: previewSnippet(written.relPath), bytes: bytes.byteLength });
   void publishFileChange(written.relPath);
   res.json({ path: written.relPath, size: fresh?.size ?? bytes.byteLength, modifiedMs: fresh?.mtimeMs ?? Date.now() });
