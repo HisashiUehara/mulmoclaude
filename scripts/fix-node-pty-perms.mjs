@@ -52,4 +52,9 @@ function main() {
   }
 }
 
-main();
+try {
+  main();
+} catch (err) {
+  // Best-effort: a permission fixer must never fail `yarn install`.
+  console.warn(`[fix-node-pty-perms] skipped: ${err}`);
+}
