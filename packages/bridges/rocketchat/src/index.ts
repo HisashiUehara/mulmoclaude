@@ -18,7 +18,7 @@
 
 import "dotenv/config";
 import { createBridgeClient, chunkText } from "@mulmobridge/client";
-import { isRecord } from "@mulmoclaude/common";
+import { isRecord, parseCsvSet } from "@mulmoclaude/common";
 
 const TRANSPORT_ID = "rocketchat";
 const MAX_MSG_LEN = 4_000;
@@ -36,12 +36,7 @@ function readRequiredEnv(): { baseUrl: string; userId: string; authToken: string
 }
 const { baseUrl, userId, authToken } = readRequiredEnv();
 
-const allowedUsers = new Set(
-  (process.env.ROCKETCHAT_ALLOWED_USERS ?? "")
-    .split(",")
-    .map((name) => name.trim())
-    .filter(Boolean),
-);
+const allowedUsers = parseCsvSet(process.env.ROCKETCHAT_ALLOWED_USERS);
 const allowAll = allowedUsers.size === 0;
 const pollIntervalSec = Math.max(2, Number(process.env.ROCKETCHAT_POLL_INTERVAL_SEC) || 5);
 

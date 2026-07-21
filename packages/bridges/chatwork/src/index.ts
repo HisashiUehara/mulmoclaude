@@ -25,7 +25,7 @@
 
 import "dotenv/config";
 import { createBridgeClient, chunkText } from "@mulmobridge/client";
-import { isRecord } from "@mulmoclaude/common";
+import { isRecord, parseCsvSet } from "@mulmoclaude/common";
 
 const TRANSPORT_ID = "chatwork";
 const API_BASE = "https://api.chatwork.com/v2";
@@ -42,12 +42,7 @@ function readRequiredEnv(): { apiToken: string } {
 }
 const { apiToken } = readRequiredEnv();
 
-const allowedRooms = new Set(
-  (process.env.CHATWORK_ALLOWED_ROOMS ?? "")
-    .split(",")
-    .map((roomId) => roomId.trim())
-    .filter(Boolean),
-);
+const allowedRooms = parseCsvSet(process.env.CHATWORK_ALLOWED_ROOMS);
 const allowAll = allowedRooms.size === 0;
 const pollIntervalSec = Math.max(2, Number(process.env.CHATWORK_POLL_INTERVAL_SEC) || 5);
 const roomsTtlMs = Math.max(30, Number(process.env.CHATWORK_ROOMS_TTL_SEC) || 180) * 1000;

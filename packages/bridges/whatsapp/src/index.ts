@@ -17,7 +17,7 @@ import "dotenv/config";
 import type { Request, Response } from "express";
 import { createBridgeClient } from "@mulmobridge/client";
 import { createWebhookApp, createWebhookRateLimit, verifyHmacSignature } from "@mulmobridge/webhook-runtime";
-import { isRecord } from "@mulmoclaude/common";
+import { isRecord, parseCsvSet } from "@mulmoclaude/common";
 import { narrowChallenge } from "./verify.js";
 
 const TRANSPORT_ID = "whatsapp";
@@ -39,12 +39,7 @@ function readRequiredEnv(): { accessToken: string; phoneNumberId: string; verify
 }
 const { accessToken, phoneNumberId, verifyToken, appSecret } = readRequiredEnv();
 
-const allowedNumbers = new Set(
-  (process.env.WHATSAPP_ALLOWED_NUMBERS ?? "")
-    .split(",")
-    .map((phoneNumber) => phoneNumber.trim())
-    .filter(Boolean),
-);
+const allowedNumbers = parseCsvSet(process.env.WHATSAPP_ALLOWED_NUMBERS);
 const allowAll = allowedNumbers.size === 0;
 
 const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });

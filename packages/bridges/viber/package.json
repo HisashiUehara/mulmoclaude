@@ -24,7 +24,7 @@
     "@mulmobridge/client": "^0.1.5",
     "@mulmobridge/protocol": "^0.1.4",
     "@mulmobridge/webhook-runtime": "^0.1.0",
-    "@mulmoclaude/common": "^0.1.0",
+    "@mulmoclaude/common": "^1.0.0",
     "dotenv": "^17.0.0",
     "express": "^5.0.0",
     "express-rate-limit": "^8.6.0"

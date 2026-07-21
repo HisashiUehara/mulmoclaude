@@ -23,7 +23,7 @@
 import "dotenv/config";
 import WebSocket from "ws";
 import { createBridgeClient, chunkText, formatAckReply } from "@mulmobridge/client";
-import { isRecord } from "@mulmoclaude/common";
+import { isRecord, parseCsvSet } from "@mulmoclaude/common";
 import { parseNotificationRaw, parseFrame, type JsonRecord, type ParsedStatus } from "./parse.js";
 
 // `ws` hands the listener `Buffer | ArrayBuffer | Buffer[]`. The default
@@ -47,12 +47,7 @@ if (!instanceUrl || !accessToken) {
   process.exit(1);
 }
 
-const allowedAccts = new Set(
-  (process.env.MASTODON_ALLOWED_ACCTS ?? "")
-    .split(",")
-    .map((acct) => acct.trim())
-    .filter(Boolean),
-);
+const allowedAccts = parseCsvSet(process.env.MASTODON_ALLOWED_ACCTS);
 const allowAll = allowedAccts.size === 0;
 const dmOnly = (process.env.MASTODON_DM_ONLY ?? "true").toLowerCase() !== "false";
 

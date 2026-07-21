@@ -13,7 +13,7 @@
 import "dotenv/config";
 import WebSocket from "ws";
 import { createBridgeClient, chunkText } from "@mulmobridge/client";
-import { isRecord } from "@mulmoclaude/common";
+import { isRecord, parseCsvSet } from "@mulmoclaude/common";
 
 const TRANSPORT_ID = "mattermost";
 
@@ -28,12 +28,7 @@ function readRequiredEnv(): { mmUrl: string; botToken: string } {
 }
 const { mmUrl, botToken } = readRequiredEnv();
 
-const allowedChannels = new Set(
-  (process.env.MATTERMOST_ALLOWED_CHANNELS ?? "")
-    .split(",")
-    .map((channelId) => channelId.trim())
-    .filter(Boolean),
-);
+const allowedChannels = parseCsvSet(process.env.MATTERMOST_ALLOWED_CHANNELS);
 const allowAll = allowedChannels.size === 0;
 
 const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });

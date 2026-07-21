@@ -18,7 +18,7 @@
 import "dotenv/config";
 import WebSocket from "ws";
 import { createBridgeClient, chunkText } from "@mulmobridge/client";
-import { isRecord } from "@mulmoclaude/common";
+import { isRecord, parseCsvSet } from "@mulmoclaude/common";
 
 // `ws` hands the listener `Buffer | ArrayBuffer | Buffer[]`. The default
 // binaryType is nodebuffer so a Buffer is what actually arrives, but the type
@@ -41,12 +41,7 @@ if (!apiUrl || !botNumber) {
   process.exit(1);
 }
 
-const allowedNumbers = new Set(
-  (process.env.SIGNAL_ALLOWED_NUMBERS ?? "")
-    .split(",")
-    .map((num) => num.trim())
-    .filter(Boolean),
-);
+const allowedNumbers = parseCsvSet(process.env.SIGNAL_ALLOWED_NUMBERS);
 const allowAll = allowedNumbers.size === 0;
 
 const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });
