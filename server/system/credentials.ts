@@ -46,18 +46,14 @@ async function readFromKeychain(): Promise<string | null> {
   }
 }
 
-/**
- * Check whether the access token in the credentials JSON is expired.
- */
-/** The token's expiry as written in the Keychain blob, or null when the JSON is
- *  unparseable or simply doesn't carry one.
+/** The token's expiry as epoch milliseconds, or null when the JSON is
+ *  unparseable or carries no usable expiry.
  *
- *  `JSON.parse` returns `any`, so the previous `CredentialsJson` annotation on
- *  its result was a claim rather than a check — nothing verified the shape, and
- *  every read through it was unchecked. Narrowing once here gives the three
- *  callers a `string | null` they can trust, and keeps the parse in one place.
- *  (The interface itself is gone: it described a shape nobody validated.) */
-function readExpiresAt(raw: string): string | null {
+ *  Claude's Keychain blob stores `expiresAt` as a number (epoch ms); older CLI
+ *  builds wrote an ISO string. Accept both. A prior `typeof === "string"` guard
+ *  silently rejected the numeric form, so every token read as "no expiry →
+ *  expired" and forced a PTY renew of the CLI on every Docker run. */
+export function readExpiresAt(raw: string): number | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -67,22 +63,19 @@ function readExpiresAt(raw: string): string | null {
   if (!isRecord(parsed)) return null;
   const oauth = parsed.claudeAiOauth;
   if (!isRecord(oauth)) return null;
-  return typeof oauth.expiresAt === "string" ? oauth.expiresAt : null;
+  const { expiresAt } = oauth;
+  if (typeof expiresAt === "number") return Number.isFinite(expiresAt) ? expiresAt : null;
+  if (typeof expiresAt === "string") {
+    const parsedMs = Date.parse(expiresAt);
+    return Number.isNaN(parsedMs) ? null : parsedMs;
+  }
+  return null;
 }
 
 function isTokenExpired(raw: string): boolean {
-  try {
-    const expiresAt = readExpiresAt(raw);
-    if (!expiresAt) return true; // no expiry info — treat as expired
-
-    const expiresMs = new Date(expiresAt).getTime();
-    if (isNaN(expiresMs)) return true;
-
-    return Date.now() >= expiresMs - EXPIRY_MARGIN_MS;
-  } catch {
-    log.error("credentials", "Failed to parse credentials JSON from Keychain");
-    return true;
-  }
+  const expiresMs = readExpiresAt(raw);
+  if (expiresMs === null) return true; // no usable expiry — treat as expired
+  return Date.now() >= expiresMs - EXPIRY_MARGIN_MS;
 }
 
 /**
@@ -199,12 +192,11 @@ export async function refreshCredentials(): Promise<boolean> {
     }
 
     if (isTokenExpired(credentials)) {
-      // Extract expiry for logging
-      const expiredAt = readExpiresAt(credentials);
+      const expiresMs = readExpiresAt(credentials);
       log.warn(
         "credentials",
-        expiredAt
-          ? `Access token expired at ${expiredAt}, launching claude CLI to renew...`
+        expiresMs !== null
+          ? `Access token expired at ${new Date(expiresMs).toISOString()}, launching claude CLI to renew...`
           : "Access token expired (could not parse expiry), launching claude CLI to renew...",
       );
 
@@ -230,8 +222,8 @@ export async function refreshCredentials(): Promise<boolean> {
         return false;
       }
     } else {
-      const validUntil = readExpiresAt(credentials);
-      log.info("credentials", validUntil ? `Access token is valid, expires at ${validUntil}` : "Access token appears valid");
+      const expiresMs = readExpiresAt(credentials);
+      log.info("credentials", expiresMs !== null ? `Access token is valid, expires at ${new Date(expiresMs).toISOString()}` : "Access token appears valid");
     }
 
     // Atomic so a readers mid-refresh can't see a truncated creds
