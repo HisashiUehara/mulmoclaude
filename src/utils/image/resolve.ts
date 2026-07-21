@@ -1,5 +1,5 @@
 import { API_ROUTES } from "../../config/apiRoutes";
-import { getImageBump } from "./cacheBust";
+import { getImageBump } from "@mulmoclaude/markdown-utils/image/cacheBust";
 
 // Files saved by `saveImage()` (Gemini, canvas, image edit) all live
 // under this prefix — see server/utils/files/image-store.ts and

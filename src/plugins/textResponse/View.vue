@@ -126,14 +126,14 @@ import { marked } from "marked";
 import type { ToolResult, ToolResultComplete } from "gui-chat-protocol/vue";
 import type { TextResponseData } from "./types";
 import SentAttachmentChip from "../../components/SentAttachmentChip.vue";
-import { handleExternalLinkClick } from "../../utils/dom/externalLink";
+import { handleExternalLinkClick } from "@mulmoclaude/markdown-utils/dom/externalLink";
 import { classifyWorkspacePath } from "../../utils/path/workspaceLinkRouter";
 import { useMermaidRenderer } from "../../utils/markdown/useMermaid";
 import { useAppApi } from "../../composables/useAppApi";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { useMarkdownZip } from "../../composables/useMarkdownZip";
 import { useClipboardCopy } from "../../composables/useClipboardCopy";
-import { buildPdfFilename } from "../../utils/files/filename";
+import { buildPdfFilename } from "@mulmoclaude/markdown-utils/files/filename";
 import { extractTextResponseTitle, truncateForRender } from "./utils";
 
 const { t, locale } = useI18n();

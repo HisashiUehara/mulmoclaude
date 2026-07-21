@@ -1,4 +1,4 @@
-import { getImageBump } from "./cacheBust";
+import { getImageBump } from "@mulmoclaude/markdown-utils/image/cacheBust";
 
 // Host-configurable base URL for the workspace file server (workspace-
 // relative image paths that aren't under the `artifacts/images/` static

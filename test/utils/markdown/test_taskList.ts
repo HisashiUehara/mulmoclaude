@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { marked } from "marked";
-import { findTaskLines, toggleTaskAt, makeTasksInteractive } from "../../../src/utils/markdown/taskList.js";
+import { findTaskLines, toggleTaskAt, makeTasksInteractive } from "@mulmoclaude/markdown-utils/markdown/taskList";
 
 describe("toggleTaskAt", () => {
   it("toggles unchecked → checked", () => {

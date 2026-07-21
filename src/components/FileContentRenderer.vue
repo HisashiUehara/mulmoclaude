@@ -275,8 +275,8 @@ import { useSharePack } from "../composables/useSharePack";
 import { useOpenInOs } from "../composables/useOpenInOs";
 import { toRef } from "vue";
 import { descriptorForPath, jsonEditableByPolicy } from "../config/systemFileDescriptors";
-import { isMarpDocument } from "../utils/markdown/marpDetect";
-import { buildPdfFilename } from "../utils/files/filename";
+import { isMarpDocument } from "@mulmoclaude/markdown-utils/markdown/marpDetect";
+import { buildPdfFilename } from "@mulmoclaude/markdown-utils/files/filename";
 import { MarpView as MarpViewRaw, MarpSplitEditor as MarpSplitEditorRaw } from "@mulmoclaude/markdown-plugin/vue";
 import { wrapWithScope } from "../plugins/scope";
 // MarpView / MarpSplitEditor call useRuntime() (for marpThemes + PDF

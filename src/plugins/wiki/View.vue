@@ -410,12 +410,12 @@ import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { useMarkdownZip } from "../../composables/useMarkdownZip";
 import { useAppApi } from "../../composables/useAppApi";
-import { buildPdfFilename } from "../../utils/files/filename";
+import { buildPdfFilename } from "@mulmoclaude/markdown-utils/files/filename";
 import PageChatComposer from "../../components/PageChatComposer.vue";
 import { pluginBuiltinRoleIds, pluginEndpoints, pluginPageRoute } from "../api";
-import { parseFrontmatter } from "../../utils/markdown/frontmatter";
+import { parseFrontmatter } from "@mulmoclaude/markdown-utils/markdown/frontmatter";
 import { useMarkdownDoc } from "../../composables/useMarkdownDoc";
-import { findTaskLines, toggleTaskAt } from "../../utils/markdown/taskList";
+import { findTaskLines, toggleTaskAt } from "@mulmoclaude/markdown-utils/markdown/taskList";
 import { apiPost } from "../../utils/api";
 import {
   WIKI_ACTION,

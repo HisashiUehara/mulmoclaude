@@ -6,7 +6,7 @@
 import { marked } from "marked";
 import { renderWikiLinks } from "@mulmoclaude/core/wiki";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
-import { makeTasksInteractive } from "../../utils/markdown/taskList";
+import { makeTasksInteractive } from "@mulmoclaude/markdown-utils/markdown/taskList";
 
 // Re-export so existing host importers (and tests) keep a single
 // `./helpers` entry point for the renderer.

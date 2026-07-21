@@ -2,7 +2,7 @@
 // malformed header degrades to "render the whole input as body" instead of breaking the view.
 
 import { computed, type ComputedRef, type Ref } from "vue";
-import { parseFrontmatter, type ParsedMarkdown } from "../utils/markdown/frontmatter";
+import { parseFrontmatter, type ParsedMarkdown } from "@mulmoclaude/markdown-utils/markdown/frontmatter";
 
 export interface MarkdownDocField {
   key: string;
