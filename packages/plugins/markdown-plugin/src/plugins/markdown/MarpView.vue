@@ -44,7 +44,7 @@ import { useRuntime } from "gui-chat-protocol/vue";
 import { usePdfExport } from "./usePdfExport";
 import type { MarpThemeEntry } from "./contract";
 import { errorMessage } from "../../utils/errors";
-import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
+import { rewriteMarkdownImageRefs } from "@mulmoclaude/markdown-utils/image/rewriteMarkdownImageRefs";
 import { renderMarpDeck, type RenderMarpResult } from "../../render/marp";
 import { useT } from "../../lang";
 

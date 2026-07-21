@@ -5,7 +5,7 @@
 
 import { marked } from "marked";
 import { renderWikiLinks } from "@mulmoclaude/core/wiki";
-import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
+import { rewriteMarkdownImageRefs } from "@mulmoclaude/markdown-utils/image/rewriteMarkdownImageRefs";
 import { makeTasksInteractive } from "@mulmoclaude/markdown-utils/markdown/taskList";
 
 // Re-export so existing host importers (and tests) keep a single

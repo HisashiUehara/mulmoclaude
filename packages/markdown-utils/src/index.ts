@@ -8,3 +8,5 @@ export * from "./image/cacheBust.js";
 export * from "./image/htmlSrcAttrs.js";
 export * from "./dom/externalLink.js";
 export * from "./files/filename.js";
+export * from "./image/resolve.js";
+export * from "./image/rewriteMarkdownImageRefs.js";

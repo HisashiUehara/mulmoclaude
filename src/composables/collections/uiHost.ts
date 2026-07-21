@@ -35,7 +35,7 @@ import router from "../../router/index";
 import hostI18n from "../../lib/vue-i18n";
 import { htmlPreviewUrlFor, svgPreviewUrlFor } from "../useContentDisplay";
 import { isValidFilePath } from "../useFileSelection";
-import { resolveImageSrc } from "../../utils/image/resolve";
+import { resolveImageSrc, setFilesRawUrl } from "@mulmoclaude/markdown-utils/image/resolve";
 import { buildCustomViewSrcdoc } from "../../utils/html/customViewSrcdoc";
 import { cspExtra, loadCspExtra } from "../useCspExtra";
 import { registerViewNonce } from "../useCspViolations";
@@ -46,6 +46,11 @@ import type { NotifierSeverity } from "../../utils/collections/notifiedItems";
 import type { CollectionsListResponse, CollectionOntologyResponse, FeedsListResponse } from "@mulmoclaude/core/collection";
 import type { TranslateResponse } from "@mulmoclaude/core/translation/client";
 import type { CollectionDetailResponse, ItemMutationResponse } from "../../components/collectionTypes";
+
+// @mulmoclaude/markdown-utils resolves workspace-relative image paths against a
+// module-global URL that defaults to "/api/files/raw"; point it at API_ROUTES so
+// that stays the single source of truth (MulmoTerminal overrides it likewise).
+setFilesRawUrl(API_ROUTES.files.raw);
 
 const { openConfirm } = useConfirm();
 // NOTE: useShortcuts() is resolved lazily inside the unpin/reconcile capabilities

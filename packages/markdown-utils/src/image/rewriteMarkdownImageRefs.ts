@@ -1,7 +1,7 @@
 import { marked } from "marked";
 import type { Token, Tokens } from "marked";
 import { resolveImageSrc } from "./resolve";
-import { transformResolvableUrlsInHtml } from "@mulmoclaude/markdown-utils/image/htmlSrcAttrs";
+import { transformResolvableUrlsInHtml } from "./htmlSrcAttrs";
 
 // Pre-`marked` pass that rewrites workspace-relative image references
 // in markdown source so they render through the backend file server.
