@@ -197,6 +197,12 @@ const jaMessages = {
       "エージェント内部の top-level ディレクトリ (conversations/ や feeds/ など) をユーザーデータ (data/ artifacts/ config/) と合わせて表示します。",
   },
   fileTree: {
+    dropHint: "ここにファイルをドロップするとこのフォルダに保存されます",
+    upload: {
+      progress: "アップロード中 {done}/{total}…",
+      done: "{count} 件のファイルを保存しました",
+      failed: "{count} 件のファイルを保存できませんでした",
+    },
     workspace: "（ワークスペース）",
     recentlyChanged: "最近変更されました",
     newFileMenuItem: "新規ファイル",

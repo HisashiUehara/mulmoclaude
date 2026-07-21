@@ -199,6 +199,12 @@ const esMessages = {
       "Muestra los directorios raíz internos del agente (conversations/, feeds/, etc.) además del contenido del usuario (data/, artifacts/, config/).",
   },
   fileTree: {
+    dropHint: "Suelta archivos aquí para guardarlos en esta carpeta",
+    upload: {
+      progress: "Subiendo {done} de {total}…",
+      done: "Se guardaron {count} archivo(s)",
+      failed: "No se pudieron guardar {count} archivo(s)",
+    },
     workspace: "(área de trabajo)",
     recentlyChanged: "Modificados recientemente",
     newFileMenuItem: "Nuevo archivo",

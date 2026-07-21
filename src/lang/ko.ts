@@ -198,6 +198,12 @@ const koMessages = {
     showSystemFilesTitle: "사용자 콘텐츠(data/, artifacts/, config/)에 더해 에이전트 내부 최상위 디렉터리(conversations/, feeds/ 등)까지 표시합니다.",
   },
   fileTree: {
+    dropHint: "여기에 파일을 놓으면 이 폴더에 저장됩니다",
+    upload: {
+      progress: "업로드 중 {done}/{total}…",
+      done: "파일 {count}개를 저장했습니다",
+      failed: "파일 {count}개를 저장하지 못했습니다",
+    },
     workspace: "(워크스페이스)",
     recentlyChanged: "최근 변경됨",
     newFileMenuItem: "새 파일",

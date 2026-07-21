@@ -4,6 +4,8 @@ import { mkdir, realpath, writeFile } from "fs/promises";
 import path from "path";
 import { workspacePath } from "../../workspace/workspace.js";
 import { statSafe, statSafeAsync, readDirSafeAsync, resolveWithinRoot, writeFileAtomic } from "../../utils/files/index.js";
+import { stripDataUri } from "../../utils/files/attachment-store.js";
+import { MAX_RENAME_ATTEMPTS, renamedCandidate, sanitizeUploadFilename } from "../../utils/files/upload-name.js";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, notFound, sendError, serverError } from "../../utils/httpError.js";
 import { getOptionalStringQuery } from "../../utils/request.js";
@@ -977,7 +979,6 @@ async function resolveNewFilePath(
     if (HIDDEN_DIRS.has(seg)) return { ok: false, status: 400, message: "Path not allowed" };
   }
   if (isSensitivePath(relativeFromWorkspace)) return { ok: false, status: 400, message: "Path not allowed" };
-  if (classify(candidate) !== "text") return { ok: false, status: 400, message: "File type not editable" };
   // Walk up the candidate's ancestors until we find one that exists.
   // Realpath THAT ancestor — a symlinked in-workspace folder pointing
   // outside `workspaceReal` would otherwise let the create land outside.
@@ -1083,6 +1084,12 @@ router.post(API_ROUTES.files.create, async (req: Request<object, unknown, WriteC
     badRequest(res, resolved.message);
     return;
   }
+  // Type policy lives with the caller: create/edit only accept editable text,
+  // while `files.upload` deliberately writes arbitrary bytes.
+  if (classify(resolved.absPath) !== "text") {
+    badRequest(res, "File type not editable");
+    return;
+  }
   const jsonError = jsonSyntaxError(relPath, content);
   if (jsonError !== null) {
     log.warn("files", "POST create: invalid JSON", { pathPreview: previewSnippet(relPath) });
@@ -1102,6 +1109,80 @@ router.post(API_ROUTES.files.create, async (req: Request<object, unknown, WriteC
     size: fresh?.size ?? contentBytes,
     modifiedMs: fresh?.mtimeMs ?? Date.now(),
   });
+});
+
+/** Cap on one dropped file. The payload arrives base64-inflated in memory, so
+ *  this bounds the request body as much as the resulting file. */
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+
+/** Refused on upload: things a later double-click would execute. A drop into
+ *  the workspace is for data, not for programs. */
+const BLOCKED_UPLOAD_EXTENSIONS = new Set([".exe", ".dll", ".so", ".dylib", ".bat", ".cmd", ".com", ".scr", ".msi", ".app", ".sh", ".ps1"]);
+
+interface UploadFileBody {
+  dir?: unknown;
+  filename?: unknown;
+  dataUrl?: unknown;
+}
+
+// Write the bytes under `dirRel`, never clobbering: on EEXIST the name gets a
+// ` (n)` suffix and we retry. Each candidate re-runs the containment check, so
+// a rename can't walk the write out of the workspace either.
+async function writeUploadWithRename(
+  dirRel: string,
+  safeName: string,
+  bytes: Buffer,
+): Promise<{ ok: true; relPath: string } | { ok: false; status: number; message: string }> {
+  for (let attempt = 0; attempt <= MAX_RENAME_ATTEMPTS; attempt += 1) {
+    const relPath = path.join(dirRel, attempt === 0 ? safeName : renamedCandidate(safeName, attempt));
+    const resolved = await resolveNewFilePath(relPath);
+    if (!resolved.ok) return { ok: false, status: resolved.status, message: resolved.message };
+    try {
+      await mkdir(path.dirname(resolved.absPath), { recursive: true });
+      await writeFile(resolved.absPath, bytes, { flag: "wx" });
+      return { ok: true, relPath };
+    } catch (err) {
+      const { code } = err as { code?: string };
+      if (code !== "EEXIST") return { ok: false, status: 500, message: errorMessage(err) };
+    }
+  }
+  return { ok: false, status: 409, message: "Could not find an unused filename" };
+}
+
+function validateUploadBody(body: UploadFileBody): { ok: true; dir: string; safeName: string; bytes: Buffer } | { ok: false; message: string } {
+  const { dir, filename, dataUrl } = body;
+  if (typeof dir !== "string" || typeof filename !== "string" || typeof dataUrl !== "string") {
+    return { ok: false, message: "dir, filename and dataUrl are required" };
+  }
+  const safeName = sanitizeUploadFilename(filename);
+  if (safeName === null) return { ok: false, message: "Invalid filename" };
+  if (BLOCKED_UPLOAD_EXTENSIONS.has(path.extname(safeName).toLowerCase())) return { ok: false, message: "File type not allowed" };
+  const parsed = stripDataUri(dataUrl);
+  if (!parsed) return { ok: false, message: "dataUrl must be a data: URI" };
+  const bytes = Buffer.from(parsed.base64, "base64");
+  if (bytes.byteLength > MAX_UPLOAD_BYTES) return { ok: false, message: `File exceeds the ${MAX_UPLOAD_BYTES} byte upload limit` };
+  return { ok: true, dir, safeName, bytes };
+}
+
+router.post(API_ROUTES.files.upload, async (req: Request<object, unknown, UploadFileBody>, res: Response<WriteContentResponse | ErrorResponse>) => {
+  const validation = validateUploadBody(req.body);
+  if (!validation.ok) {
+    log.warn("files", "POST upload: rejected", { reason: validation.message });
+    badRequest(res, validation.message);
+    return;
+  }
+  const { dir, safeName, bytes } = validation;
+  log.info("files", "POST upload: start", { pathPreview: previewSnippet(path.join(dir, safeName)), bytes: bytes.byteLength });
+
+  const written = await writeUploadWithRename(dir, safeName, bytes);
+  if (!written.ok) {
+    sendError(res, written.status, written.message);
+    return;
+  }
+  const fresh = await statSafeAsync(path.join(workspaceReal, written.relPath));
+  log.info("files", "POST upload: ok", { pathPreview: previewSnippet(written.relPath), bytes: bytes.byteLength });
+  void publishFileChange(written.relPath);
+  res.json({ path: written.relPath, size: fresh?.size ?? bytes.byteLength, modifiedMs: fresh?.mtimeMs ?? Date.now() });
 });
 
 router.put(API_ROUTES.files.content, async (req: Request<object, unknown, WriteContentRequest>, res: Response<WriteContentResponse | ErrorResponse>) => {

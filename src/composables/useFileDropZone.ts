@@ -45,6 +45,14 @@ function isFileDrag(event: DragEvent): boolean {
   return event.dataTransfer?.types.includes("Files") ?? false;
 }
 
+/** Install the window-level `preventDefault` guard on its own, for callers that
+ *  roll their own per-element handlers (the File Explorer attaches a drop zone
+ *  to every folder row, so one `useFileDropZone` per row would mean one window
+ *  listener per row). Idempotent — the module-scope handle makes it install-once. */
+export function installFileDropWindowGuard(): void {
+  installWindowDefaultGuard();
+}
+
 function installWindowDefaultGuard(): void {
   if (windowGuardHandler !== null) return;
   if (typeof window === "undefined") return;

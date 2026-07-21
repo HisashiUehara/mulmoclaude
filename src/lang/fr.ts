@@ -194,6 +194,12 @@ const frMessages = {
       "Affiche les répertoires racine internes de l'agent (conversations/, feeds/, etc.) en plus des contenus utilisateur (data/, artifacts/, config/).",
   },
   fileTree: {
+    dropHint: "Déposez des fichiers ici pour les enregistrer dans ce dossier",
+    upload: {
+      progress: "Téléversement {done} sur {total}…",
+      done: "{count} fichier(s) enregistré(s)",
+      failed: "{count} fichier(s) n'ont pas pu être enregistrés",
+    },
     workspace: "(espace de travail)",
     recentlyChanged: "Modifiés récemment",
     newFileMenuItem: "Nouveau fichier",
