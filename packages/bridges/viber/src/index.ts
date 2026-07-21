@@ -19,7 +19,7 @@ import "dotenv/config";
 import type { Request, Response as ExpressResponse } from "express";
 import { createBridgeClient, chunkText } from "@mulmobridge/client";
 import { createWebhookApp, createWebhookRateLimit, verifyHmacSignature } from "@mulmobridge/webhook-runtime";
-import { isRecord } from "@mulmoclaude/common";
+import { isRecord, parseCsvSet } from "@mulmoclaude/common";
 
 const TRANSPORT_ID = "viber";
 const MAX_VIBER_TEXT = 7_000;
@@ -38,12 +38,7 @@ function readRequiredEnv(): { authToken: string } {
 const { authToken } = readRequiredEnv();
 
 const senderName = process.env.VIBER_SENDER_NAME ?? "MulmoClaude";
-const allowedUsers = new Set(
-  (process.env.VIBER_ALLOWED_USERS ?? "")
-    .split(",")
-    .map((user) => user.trim())
-    .filter(Boolean),
-);
+const allowedUsers = parseCsvSet(process.env.VIBER_ALLOWED_USERS);
 const allowAll = allowedUsers.size === 0;
 
 const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });

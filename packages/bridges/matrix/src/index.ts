@@ -15,6 +15,7 @@
 import "dotenv/config";
 import { createClient, RoomEvent, type MatrixClient, type MatrixEvent, type Room } from "matrix-js-sdk";
 import { createBridgeClient } from "@mulmobridge/client";
+import { parseCsvSet } from "@mulmoclaude/common";
 
 const TRANSPORT_ID = "matrix";
 
@@ -26,12 +27,7 @@ if (!homeserverUrl || !accessToken || !userId) {
   process.exit(1);
 }
 
-const allowedRooms = new Set(
-  (process.env.MATRIX_ALLOWED_ROOMS ?? "")
-    .split(",")
-    .map((roomId) => roomId.trim())
-    .filter(Boolean),
-);
+const allowedRooms = parseCsvSet(process.env.MATRIX_ALLOWED_ROOMS);
 const allowAll = allowedRooms.size === 0;
 
 const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });

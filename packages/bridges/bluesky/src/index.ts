@@ -19,7 +19,7 @@
 
 import "dotenv/config";
 import { createBridgeClient, chunkText } from "@mulmobridge/client";
-import { isRecord } from "@mulmoclaude/common";
+import { isRecord, parseCsvSet } from "@mulmoclaude/common";
 
 const TRANSPORT_ID = "bluesky";
 const MAX_DM_LEN = 10_000;
@@ -35,12 +35,7 @@ if (!handle || !appPassword) {
   process.exit(1);
 }
 
-const allowedDids = new Set(
-  (process.env.BLUESKY_ALLOWED_DIDS ?? "")
-    .split(",")
-    .map((did) => did.trim())
-    .filter(Boolean),
-);
+const allowedDids = parseCsvSet(process.env.BLUESKY_ALLOWED_DIDS);
 const allowAll = allowedDids.size === 0;
 
 const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });
