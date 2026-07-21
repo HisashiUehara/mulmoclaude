@@ -15,6 +15,7 @@
     "packages/services/*"
   ],
   "scripts": {
+    "postinstall": "node scripts/fix-node-pty-perms.mjs",
     "plugins:codegen": "tsx scripts/codegen-plugin-barrels.ts",
     "plugins:codegen:check": "tsx scripts/codegen-plugin-barrels.ts --check",
     "check:launcher-sync": "node scripts/mulmoclaude/launcherSync.mjs",
