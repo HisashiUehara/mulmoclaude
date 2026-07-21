@@ -13,10 +13,9 @@
 
 import "dotenv/config";
 import type { Request, Response } from "express";
-import { createWebhookApp, createWebhookRateLimit, verifyHmacSignature } from "@mulmobridge/webhook-runtime";
+import { createWebhookApp, createWebhookRateLimit, narrowChallenge, verifyHmacSignature } from "@mulmobridge/webhook-runtime";
 import { createBridgeClient, chunkText } from "@mulmobridge/client";
 import { isRecord } from "@mulmoclaude/common";
-import { narrowChallenge } from "./verify.js";
 
 const TRANSPORT_ID = "messenger";
 const PORT = Number(process.env.MESSENGER_BRIDGE_PORT) || 3004;

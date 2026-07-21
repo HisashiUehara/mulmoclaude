@@ -91,3 +91,21 @@ export function verifyHmacSignature(
   if (expected.length !== provided.length) return false;
   return crypto.timingSafeEqual(expected, provided);
 }
+
+// ── Meta (Messenger / WhatsApp) webhook verification ───────────
+//
+// Meta's GET handshake echoes back `hub.challenge`. Narrowing it to a
+// known shape before it reaches `res.send()` is the CodeQL sanitiser that
+// clears the `js/reflected-xss` alert (Codex review on #1328) and gives
+// defence-in-depth. `[A-Za-z0-9_-]{1,256}` covers every observed base64url
+// nonce (~32 chars); widen it HERE if Meta ever extends the format.
+export const SAFE_CHALLENGE_RE = /^[A-Za-z0-9_-]{1,256}$/;
+
+/** The challenge string when `raw` matches the shape we'll echo, else
+ *  `null`. Non-string query forms (`?hub.challenge[]=…`) return `null`
+ *  rather than coercing to "", so callers can't compare a coerced empty. */
+export function narrowChallenge(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  if (!SAFE_CHALLENGE_RE.test(raw)) return null;
+  return raw;
+}
