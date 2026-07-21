@@ -64,9 +64,9 @@ function placeLoadError(nodes: HTMLElement[], err: unknown, labels: MermaidRende
 // Distinct per-diagram DOM id. Two diagrams on one page must not collide
 // (mermaid uses the id as the SVG root id).
 let renderCounter = 0;
-function nextRenderId(): string {
+function nextRenderId(idPrefix: string): string {
   renderCounter += 1;
-  return `mulmo-mermaid-${renderCounter}`;
+  return `${idPrefix}-${renderCounter}`;
 }
 
 function pendingNodes(root: Element | Document): HTMLElement[] {
@@ -97,12 +97,12 @@ export function adoptSvg(svgMarkup: string): SVGElement | null {
   return document.importNode(svgEl, true) as unknown as SVGElement;
 }
 
-async function renderOne(node: HTMLElement, mermaid: MermaidRuntime, labels: MermaidRenderLabels): Promise<void> {
+async function renderOne(node: HTMLElement, mermaid: MermaidRuntime, labels: MermaidRenderLabels, idPrefix: string): Promise<void> {
   // `textContent` gives us the raw source — DOMPurify preserves it
   // verbatim inside `<pre>` and we escaped it going in, so entity
   // decoding is browser-native from the DOM read.
   const source = node.textContent ?? "";
-  const svgId = nextRenderId();
+  const svgId = nextRenderId(idPrefix);
   try {
     const { svg } = await mermaid.render(svgId, source);
     const svgNode = adoptSvg(svg);
@@ -127,7 +127,11 @@ async function renderOne(node: HTMLElement, mermaid: MermaidRuntime, labels: Mer
  *  Returns once every discovered node has been resolved. `labels`
  *  defaults to English fallbacks so the pure module remains callable
  *  from tests / node environments without an i18n runtime. */
-export async function renderMermaidNodes(root: Element | Document | null | undefined, labels: MermaidRenderLabels = DEFAULT_LABELS): Promise<void> {
+export async function renderMermaidNodes(
+  root: Element | Document | null | undefined,
+  labels: MermaidRenderLabels = DEFAULT_LABELS,
+  idPrefix = "mulmo-mermaid",
+): Promise<void> {
   if (!root) return;
   const nodes = pendingNodes(root);
   if (nodes.length === 0) return;
@@ -143,5 +147,5 @@ export async function renderMermaidNodes(root: Element | Document | null | undef
     placeLoadError(nodes, err, labels);
     return;
   }
-  await Promise.all(nodes.map((node) => renderOne(node, mermaid, labels)));
+  await Promise.all(nodes.map((node) => renderOne(node, mermaid, labels, idPrefix)));
 }
