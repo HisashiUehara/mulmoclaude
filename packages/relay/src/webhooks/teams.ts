@@ -25,6 +25,7 @@
 // existing RelayMessage.replyToken channel (opaque to the relay core).
 
 import { chunkText } from "@mulmobridge/client/text";
+import { isRecord } from "@mulmoclaude/common";
 import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
 import { ONE_HOUR_MS, ONE_HOUR_S, TEN_SECONDS_MS, FIFTEEN_SECONDS_MS } from "../time.js";
@@ -41,10 +42,6 @@ const JWKS_CACHE_TTL_MS = ONE_HOUR_MS;
 const TOKEN_REFRESH_SKEW_SEC = 300; // refresh 5 min before expiry
 
 // ── Type guards ─────────────────────────────────────────────────
-
-function isObj(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 // ── Config helpers ──────────────────────────────────────────────
 
@@ -113,7 +110,7 @@ async function fetchJwks(url: string): Promise<JwkKey[]> {
   const data: { keys?: unknown[] } = await res.json();
   if (!Array.isArray(data.keys)) return cached?.keys ?? [];
   const keys = data.keys
-    .filter((key): key is Record<string, unknown> => isObj(key) && typeof key.kid === "string" && typeof key.n === "string")
+    .filter((key): key is Record<string, unknown> => isRecord(key) && typeof key.kid === "string" && typeof key.n === "string")
     .map((key): JwkKey => {
       const endorsements = Array.isArray(key.endorsements) ? key.endorsements.filter((entry): entry is string => typeof entry === "string") : undefined;
       return {
@@ -217,7 +214,7 @@ export function parseWebhookBody(body: string): TeamsMessage | null {
 }
 
 function parseActivity(body: unknown): TeamsMessage | null {
-  if (!isObj(body)) return null;
+  if (!isRecord(body)) return null;
   // Non-message activities (conversationUpdate, invoke, typing, …) are
   // legit but we don't forward them to MulmoClaude.
   if (body.type !== "message") return null;
@@ -227,8 +224,8 @@ function parseActivity(body: unknown): TeamsMessage | null {
   const { from } = body;
   const serviceUrl = typeof body.serviceUrl === "string" ? body.serviceUrl.trim() : "";
   const channelId = typeof body.channelId === "string" ? body.channelId.trim() : "";
-  if (!isObj(conversation) || typeof conversation.id !== "string") return null;
-  if (!isObj(from) || typeof from.id !== "string") return null;
+  if (!isRecord(conversation) || typeof conversation.id !== "string") return null;
+  if (!isRecord(from) || typeof from.id !== "string") return null;
   if (!serviceUrl) return null;
   return {
     conversationId: conversation.id,

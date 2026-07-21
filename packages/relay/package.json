@@ -32,6 +32,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@mulmobridge/client": "^0.1.5"
+    "@mulmobridge/client": "^0.1.5",
+    "@mulmoclaude/common": "^0.1.0"
   }
 }
