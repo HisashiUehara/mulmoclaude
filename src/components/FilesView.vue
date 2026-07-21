@@ -24,6 +24,9 @@
       class="fixed bottom-4 left-4 z-50 px-3 py-2 rounded shadow-md text-sm"
       :class="uploadStatus.failed ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-blue-50 text-blue-700 border border-blue-200'"
       data-testid="file-upload-status"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
     >
       {{ uploadStatus.message }}
     </div>

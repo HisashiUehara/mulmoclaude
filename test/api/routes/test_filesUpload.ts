@@ -61,6 +61,20 @@ describe("validateUploadBody", () => {
     assert.match(result.message, /limit/i);
   });
 
+  // The tree hides the drop affordance on reference roots, but that's UI only —
+  // the endpoint has to refuse them so a direct POST can't write into a
+  // read-only mount.
+  it("refuses an upload targeting a reference root", () => {
+    const result = validateUploadBody({ dir: "@ref/docs", filename: "photo.png", dataUrl: PNG_DATA_URL });
+    assert.ok(!result.ok);
+    assert.match(result.message, /read-only/i);
+  });
+
+  it("refuses a nested path inside a reference root", () => {
+    const result = validateUploadBody({ dir: "@ref/docs/sub", filename: "photo.png", dataUrl: PNG_DATA_URL });
+    assert.ok(!result.ok);
+  });
+
   it("refuses a non-data: URL", () => {
     const result = validateUploadBody({ dir: "data", filename: "photo.png", dataUrl: "https://example.com/photo.png" });
     assert.ok(!result.ok);

@@ -1176,6 +1176,10 @@ export function validateUploadBody(body: UploadFileBody): { ok: true; dir: strin
   if (typeof dir !== "string" || typeof filename !== "string" || typeof dataUrl !== "string") {
     return { ok: false, message: "dir, filename and dataUrl are required" };
   }
+  // Reference roots are read-only mounts. The tree hides the drop affordance
+  // for them, but that's UI, not enforcement — a direct POST must be refused
+  // too, or `@ref/<label>/…` would resolve like any other folder.
+  if (isRefPath(dir)) return { ok: false, message: "Reference roots are read-only" };
   const safeName = sanitizeUploadFilename(filename);
   if (safeName === null) return { ok: false, message: "Invalid filename" };
   if (BLOCKED_UPLOAD_EXTENSIONS.has(path.extname(safeName).toLowerCase())) return { ok: false, message: "File type not allowed" };
