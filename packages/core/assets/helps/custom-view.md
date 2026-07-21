@@ -131,6 +131,11 @@ const { rows } = await res.json(); // [{ Category, total, n }, ...] — chart th
   ops: `eq/ne/in/gt/gte/lt/lte/contains`; at least one of
   `groupBy`/`aggregates`; `orderBy` sorts by a groupBy column or an
   aggregate alias; result rows clamp at 1,000 by default.
+- Aggregate aliases (the keys of `aggregates`) must be simple ASCII
+  identifiers (`/^[A-Za-z_]\w{0,63}$/`) — non-ASCII keys (e.g. Japanese)
+  are rejected by validation. This applies **only to aliases**: column
+  references (`column`, `groupBy`, `where.field`) accept the source's
+  headers as-is, including non-ASCII CSV headers like `価格`.
 - Structured JSON only — there is **no SQL surface**, by design.
 - Combine with `onChange` (below) to stay live: in the callback, re-run
   **this POST query** (wrap it in your own `refresh()` and register that)
