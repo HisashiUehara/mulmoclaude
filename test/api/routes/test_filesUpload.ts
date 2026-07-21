@@ -75,6 +75,20 @@ describe("validateUploadBody", () => {
     assert.ok(!result.ok);
   });
 
+  // The bare segment isn't caught by the `@ref/` prefix test, but writing into
+  // it yields `@ref/<file>`, which the other file APIs read back as a
+  // reference path — ambiguous and unreachable.
+  it("refuses the bare `@ref` directory", () => {
+    const result = validateUploadBody({ dir: "@ref", filename: "photo.png", dataUrl: PNG_DATA_URL });
+    assert.ok(!result.ok);
+    assert.match(result.message, /read-only/i);
+  });
+
+  it("refuses `@ref` reached via a non-normalised path", () => {
+    const result = validateUploadBody({ dir: "./@ref", filename: "photo.png", dataUrl: PNG_DATA_URL });
+    assert.ok(!result.ok);
+  });
+
   it("refuses a non-data: URL", () => {
     const result = validateUploadBody({ dir: "data", filename: "photo.png", dataUrl: "https://example.com/photo.png" });
     assert.ok(!result.ok);

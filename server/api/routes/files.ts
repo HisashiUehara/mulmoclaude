@@ -309,6 +309,9 @@ function resolveSafe(relPath: string): string | null {
 // ── Reference directory path resolution ──────────────────────────
 
 const REF_PREFIX = "@ref/";
+/** The prefix without its separator — a directory named exactly this is still
+ *  reference territory even though it fails the `@ref/` prefix test. */
+const REF_ROOT_SEGMENT = REF_PREFIX.slice(0, -1);
 
 function isRefPath(relPath: string): boolean {
   return relPath.startsWith(REF_PREFIX);
@@ -1178,8 +1181,14 @@ export function validateUploadBody(body: UploadFileBody): { ok: true; dir: strin
   }
   // Reference roots are read-only mounts. The tree hides the drop affordance
   // for them, but that's UI, not enforcement — a direct POST must be refused
-  // too, or `@ref/<label>/…` would resolve like any other folder.
-  if (isRefPath(dir)) return { ok: false, message: "Reference roots are read-only" };
+  // too, or `@ref/<label>/…` would resolve like any other folder. The bare
+  // `@ref` segment has to go as well: it isn't a ref path by the prefix test,
+  // yet writing into it produces `@ref/<file>`, which every other file API
+  // then reads back as a reference path.
+  const normalisedDir = path.normalize(dir);
+  if (isRefPath(normalisedDir) || normalisedDir === REF_ROOT_SEGMENT) {
+    return { ok: false, message: "Reference roots are read-only" };
+  }
   const safeName = sanitizeUploadFilename(filename);
   if (safeName === null) return { ok: false, message: "Invalid filename" };
   if (BLOCKED_UPLOAD_EXTENSIONS.has(path.extname(safeName).toLowerCase())) return { ok: false, message: "File type not allowed" };
