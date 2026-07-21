@@ -147,6 +147,7 @@ const frMessages = {
     qrHint: "Ou scannez ce code QR avec l'appareil photo de votre téléphone.",
   },
   sidebarHeader: {
+    newMessages: "Nouveaux messages",
     home: "Aller à la dernière conversation",
     toolCallHistory: "Historique des appels d'outils",
     settings: "Paramètres",

@@ -152,6 +152,7 @@ const esMessages = {
     qrHint: "O escanea este código QR con la cámara de tu teléfono.",
   },
   sidebarHeader: {
+    newMessages: "Mensajes nuevos",
     home: "Ir al chat más reciente",
     toolCallHistory: "Historial de llamadas a herramientas",
     settings: "Ajustes",

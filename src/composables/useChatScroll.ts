@@ -8,7 +8,7 @@
 // read (#2179). A run starting is treated as an explicit user action
 // (they just sent something), so that one re-arms and jumps.
 
-import { computed, nextTick, watch, type ComputedRef, type Ref } from "vue";
+import { computed, nextTick, ref, watch, type ComputedRef, type Ref } from "vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import { useStickToBottom } from "./useStickToBottom";
 
@@ -45,7 +45,20 @@ export function useChatScroll<T extends { focus: () => void }>(opts: {
     chatInputRef.value?.focus();
   }
 
-  watch(latestResultScrollKey, () => scrollChatToBottom());
+  // Whether output actually arrived while the reader was detached. `stuck`
+  // alone can't answer that: scrolling up to re-read something old also
+  // un-sticks, and a "new messages" badge shown then would be claiming
+  // something that never happened. Set on append-while-detached, cleared the
+  // moment following is re-armed.
+  const hasNewWhileDetached = ref(false);
+
+  watch(latestResultScrollKey, () => {
+    if (!stuck.value) hasNewWhileDetached.value = true;
+    scrollChatToBottom();
+  });
+  watch(stuck, (isStuck) => {
+    if (isStuck) hasNewWhileDetached.value = false;
+  });
   watch(isRunning, (running) => {
     if (running) {
       resume();
@@ -55,5 +68,13 @@ export function useChatScroll<T extends { focus: () => void }>(opts: {
     }
   });
 
-  return { scrollChatToBottom, focusChatInput, stuckToBottom: stuck };
+  /** Jump to the newest output and re-arm following. Bound to the "new
+   *  messages" affordance — the reader scrolled away, so `scrollChatToBottom`
+   *  alone would no-op on the `stuck` gate; resume first, then force. */
+  function jumpToLatest(): void {
+    resume();
+    scrollChatToBottom({ force: true });
+  }
+
+  return { scrollChatToBottom, focusChatInput, jumpToLatest, stuckToBottom: stuck, hasNewWhileDetached };
 }

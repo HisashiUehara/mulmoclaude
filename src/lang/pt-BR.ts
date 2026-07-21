@@ -147,6 +147,7 @@ const ptBRMessages = {
     qrHint: "Ou escaneie este código QR com a câmera do seu celular.",
   },
   sidebarHeader: {
+    newMessages: "Novas mensagens",
     home: "Ir para o chat mais recente",
     toolCallHistory: "Histórico de chamadas de ferramentas",
     settings: "Configurações",

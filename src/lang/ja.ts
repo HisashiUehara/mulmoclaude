@@ -152,6 +152,7 @@ const jaMessages = {
     qrHint: "スマートフォンのカメラでこの QR コードを読み取っても開けます。",
   },
   sidebarHeader: {
+    newMessages: "新着",
     home: "最新のチャットに移動",
     toolCallHistory: "ツール呼び出し履歴",
     settings: "設定",
