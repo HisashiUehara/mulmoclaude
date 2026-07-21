@@ -24,6 +24,7 @@
   "dependencies": {
     "@mulmobridge/client": "^0.1.5",
     "@mulmobridge/protocol": "^0.1.4",
+    "@mulmoclaude/common": "^1.0.0",
     "@slack/socket-mode": "^3.0.0",
     "@slack/web-api": "^8.0.0",
     "dotenv": "^17.0.0",

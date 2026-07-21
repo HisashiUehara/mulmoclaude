@@ -38,7 +38,7 @@
     "@mulmoclaude/accounting-plugin": "^0.3.3",
     "@mulmoclaude/chart-plugin": "^0.1.3",
     "@mulmoclaude/collection-plugin": "^0.15.0",
-    "@mulmoclaude/common": "^0.1.0",
+    "@mulmoclaude/common": "^1.0.0",
     "@mulmoclaude/core": "^0.30.1",
     "@mulmoclaude/form-plugin": "^0.1.4",
     "@mulmoclaude/google-plugin": "^0.3.4",

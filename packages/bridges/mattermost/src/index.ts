@@ -13,6 +13,7 @@
 import "dotenv/config";
 import WebSocket from "ws";
 import { createBridgeClient, chunkText } from "@mulmobridge/client";
+import { isRecord, parseCsvSet } from "@mulmoclaude/common";
 
 const TRANSPORT_ID = "mattermost";
 
@@ -27,12 +28,7 @@ function readRequiredEnv(): { mmUrl: string; botToken: string } {
 }
 const { mmUrl, botToken } = readRequiredEnv();
 
-const allowedChannels = new Set(
-  (process.env.MATTERMOST_ALLOWED_CHANNELS ?? "")
-    .split(",")
-    .map((channelId) => channelId.trim())
-    .filter(Boolean),
-);
+const allowedChannels = parseCsvSet(process.env.MATTERMOST_ALLOWED_CHANNELS);
 const allowAll = allowedChannels.size === 0;
 
 const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });
@@ -115,10 +111,6 @@ function connectWebSocket(): void {
   });
 }
 
-function isObj(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 interface PostedMessage {
   userId: string;
   channelId: string;
@@ -130,9 +122,9 @@ interface PostedMessage {
 // returns null for anything that isn't a usable posted message.
 function parsePostedMessage(raw: string): PostedMessage | null {
   const event: unknown = JSON.parse(raw);
-  if (!isObj(event) || event.event !== "posted" || !isObj(event.data) || typeof event.data.post !== "string" || !event.data.post) return null;
+  if (!isRecord(event) || event.event !== "posted" || !isRecord(event.data) || typeof event.data.post !== "string" || !event.data.post) return null;
   const post: unknown = JSON.parse(event.data.post);
-  if (!isObj(post)) return null;
+  if (!isRecord(post)) return null;
   return {
     userId: typeof post.user_id === "string" ? post.user_id : "",
     channelId: typeof post.channel_id === "string" ? post.channel_id : "",

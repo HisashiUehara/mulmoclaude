@@ -54,3 +54,19 @@ export function hasStringProp<K extends string>(value: unknown, key: K): value i
 export function hasNumberProp<K extends string>(value: unknown, key: K): value is Record<K, number> & Record<string, unknown> {
   return isRecord(value) && typeof value[key] === "number";
 }
+
+/** Split a comma-separated env value into trimmed, non-empty entries.
+ *  `lowercase` folds case for identifiers compared case-insensitively
+ *  (JIDs, email addresses, hex pubkeys). Absent/empty input → empty list. */
+export function parseCsvList(raw: string | undefined, opts?: { lowercase?: boolean }): string[] {
+  return (raw ?? "")
+    .split(",")
+    .map((entry) => (opts?.lowercase ? entry.trim().toLowerCase() : entry.trim()))
+    .filter(Boolean);
+}
+
+/** A comma-separated env value as a Set — the canonical allowlist shape,
+ *  where an empty set is the "allow all" sentinel (`set.size === 0`). */
+export function parseCsvSet(raw: string | undefined, opts?: { lowercase?: boolean }): Set<string> {
+  return new Set(parseCsvList(raw, opts));
+}

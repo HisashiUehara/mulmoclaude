@@ -13,9 +13,9 @@
 
 import "dotenv/config";
 import type { Request, Response } from "express";
-import { createWebhookApp, createWebhookRateLimit, verifyHmacSignature } from "@mulmobridge/webhook-runtime";
+import { createWebhookApp, createWebhookRateLimit, narrowChallenge, verifyHmacSignature } from "@mulmobridge/webhook-runtime";
 import { createBridgeClient, chunkText } from "@mulmobridge/client";
-import { narrowChallenge } from "./verify.js";
+import { isRecord } from "@mulmoclaude/common";
 
 const TRANSPORT_ID = "messenger";
 const PORT = Number(process.env.MESSENGER_BRIDGE_PORT) || 3004;
@@ -153,24 +153,20 @@ interface ExtractedMessage {
   text: string;
 }
 
-function isObj(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function parseOneEvent(event: unknown): ExtractedMessage | null {
-  if (!isObj(event)) return null;
-  if (!isObj(event.sender) || typeof event.sender.id !== "string") return null;
-  if (!isObj(event.message) || typeof event.message.text !== "string") return null;
+  if (!isRecord(event)) return null;
+  if (!isRecord(event.sender) || typeof event.sender.id !== "string") return null;
+  if (!isRecord(event.message) || typeof event.message.text !== "string") return null;
   const text = event.message.text.trim();
   if (!text) return null;
   return { senderId: event.sender.id, text };
 }
 
 function extractMessages(body: unknown): ExtractedMessage[] {
-  if (!isObj(body) || !Array.isArray(body.entry)) return [];
+  if (!isRecord(body) || !Array.isArray(body.entry)) return [];
   const out: ExtractedMessage[] = [];
   for (const entry of body.entry) {
-    if (!isObj(entry) || !Array.isArray(entry.messaging)) continue;
+    if (!isRecord(entry) || !Array.isArray(entry.messaging)) continue;
     for (const event of entry.messaging) {
       const msg = parseOneEvent(event);
       if (msg) out.push(msg);

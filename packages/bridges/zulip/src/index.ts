@@ -10,6 +10,7 @@
 
 import "dotenv/config";
 import { createBridgeClient, chunkText } from "@mulmobridge/client";
+import { isRecord } from "@mulmoclaude/common";
 
 const TRANSPORT_ID = "zulip";
 const POLL_TIMEOUT_SEC = 30;
@@ -52,7 +53,7 @@ async function zulipPost(path: string, params: Record<string, string>): Promise<
     throw new Error(`POST ${path}: ${res.status} ${text.slice(0, 200)}`);
   }
   const json: unknown = await res.json();
-  return isObj(json) ? json : {};
+  return isRecord(json) ? json : {};
 }
 
 async function zulipGet(path: string, params?: Record<string, string>): Promise<JsonRecord> {
@@ -66,7 +67,7 @@ async function zulipGet(path: string, params?: Record<string, string>): Promise<
     throw new Error(`GET ${path}: ${res.status} ${text.slice(0, 200)}`);
   }
   const json: unknown = await res.json();
-  return isObj(json) ? json : {};
+  return isRecord(json) ? json : {};
 }
 
 async function sendMessage(chatId: string, text: string): Promise<void> {
@@ -99,10 +100,6 @@ async function sendMessage(chatId: string, text: string): Promise<void> {
 
 // ── Event polling ───────────────────────────────────────────────
 
-function isObj(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 async function registerQueue(): Promise<{
   queue_id: string;
   last_event_id: number;
@@ -118,9 +115,9 @@ async function registerQueue(): Promise<{
 async function processEvents(events: unknown[]): Promise<number | undefined> {
   let latestId: number | undefined;
   for (const event of events) {
-    if (!isObj(event)) continue;
+    if (!isRecord(event)) continue;
     if (typeof event.id === "number") latestId = event.id;
-    if (event.type !== "message" || !isObj(event.message)) continue;
+    if (event.type !== "message" || !isRecord(event.message)) continue;
     await handleMessage(event.message);
   }
   return latestId;

@@ -11,6 +11,8 @@ import {
   isErrorWithCode,
   hasStringProp,
   hasNumberProp,
+  parseCsvList,
+  parseCsvSet,
 } from "../src/index.ts";
 
 test("isRecord: plain objects only, arrays and null excluded", () => {
@@ -84,4 +86,22 @@ test("hasNumberProp: narrows a specific key to number", () => {
   assert.equal(hasNumberProp({ count: "3" }, "count"), false);
   assert.equal(hasNumberProp({}, "count"), false);
   assert.equal(hasNumberProp(undefined, "count"), false);
+});
+
+test("parseCsvList: trims, drops empties, optional lowercase", () => {
+  assert.deepEqual(parseCsvList("a, b ,,c"), ["a", "b", "c"]);
+  assert.deepEqual(parseCsvList(undefined), []);
+  assert.deepEqual(parseCsvList(""), []);
+  assert.deepEqual(parseCsvList("   "), []);
+  assert.deepEqual(parseCsvList("A,B"), ["A", "B"]);
+  assert.deepEqual(parseCsvList("A, B", { lowercase: true }), ["a", "b"]);
+});
+
+test("parseCsvSet: dedupes into a Set; empty input is the allow-all sentinel", () => {
+  const set = parseCsvSet("x,y,x");
+  assert.equal(set.size, 2);
+  assert.equal(set.has("x"), true);
+  assert.equal(parseCsvSet(undefined).size, 0);
+  assert.equal(parseCsvSet("").size, 0);
+  assert.equal(parseCsvSet("A,a", { lowercase: true }).size, 1);
 });

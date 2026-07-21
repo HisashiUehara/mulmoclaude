@@ -16,8 +16,8 @@
 import "dotenv/config";
 import type { Request, Response } from "express";
 import { createBridgeClient } from "@mulmobridge/client";
-import { createWebhookApp, createWebhookRateLimit, verifyHmacSignature } from "@mulmobridge/webhook-runtime";
-import { narrowChallenge } from "./verify.js";
+import { createWebhookApp, createWebhookRateLimit, narrowChallenge, verifyHmacSignature } from "@mulmobridge/webhook-runtime";
+import { isRecord, parseCsvSet } from "@mulmoclaude/common";
 
 const TRANSPORT_ID = "whatsapp";
 const PORT = Number(process.env.WHATSAPP_BRIDGE_PORT) || 3003;
@@ -38,12 +38,7 @@ function readRequiredEnv(): { accessToken: string; phoneNumberId: string; verify
 }
 const { accessToken, phoneNumberId, verifyToken, appSecret } = readRequiredEnv();
 
-const allowedNumbers = new Set(
-  (process.env.WHATSAPP_ALLOWED_NUMBERS ?? "")
-    .split(",")
-    .map((phoneNumber) => phoneNumber.trim())
-    .filter(Boolean),
-);
+const allowedNumbers = parseCsvSet(process.env.WHATSAPP_ALLOWED_NUMBERS);
 const allowAll = allowedNumbers.size === 0;
 
 const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });
@@ -103,10 +98,6 @@ interface WhatsAppTextMessage {
   text: { body: string };
 }
 
-function isObj(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 // `Array.isArray(x: unknown)` narrows to `any[]`, which reintroduces `any`;
 // this preserves the element type as `unknown` so the spread stays checked.
 function isUnknownArray(value: unknown): value is unknown[] {
@@ -114,21 +105,21 @@ function isUnknownArray(value: unknown): value is unknown[] {
 }
 
 function parseOneMessage(msg: unknown): WhatsAppTextMessage | null {
-  if (!isObj(msg)) return null;
+  if (!isRecord(msg)) return null;
   if (msg.type !== "text" || typeof msg.from !== "string") return null;
-  if (!isObj(msg.text)) return null;
+  if (!isRecord(msg.text)) return null;
   const { body } = msg.text;
   if (typeof body !== "string" || !body.trim()) return null;
   return { from: msg.from, text: { body } };
 }
 
 function collectRawMessages(body: unknown): unknown[] {
-  if (!isObj(body) || !Array.isArray(body.entry)) return [];
+  if (!isRecord(body) || !Array.isArray(body.entry)) return [];
   const raw: unknown[] = [];
   for (const entry of body.entry) {
-    if (!isObj(entry) || !Array.isArray(entry.changes)) continue;
+    if (!isRecord(entry) || !Array.isArray(entry.changes)) continue;
     for (const change of entry.changes) {
-      if (!isObj(change) || !isObj(change.value)) continue;
+      if (!isRecord(change) || !isRecord(change.value)) continue;
       const { messages } = change.value;
       if (isUnknownArray(messages)) raw.push(...messages);
     }
