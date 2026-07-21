@@ -173,8 +173,11 @@ export function makeTasksInteractive(html: string): string {
   // marked v18 default output:
   //   <input disabled="" type="checkbox">         (unchecked)
   //   <input checked="" disabled="" type="checkbox">  (checked)
-  // Both end with ` type="checkbox">`. Capture everything between
-  // `<input ` and `disabled=""` (typically empty or `checked="" `)
-  // and re-emit with `class="md-task"` in disabled's slot.
-  return html.replace(/<input ([^>]*)disabled="" type="checkbox">/g, '<input $1class="md-task" type="checkbox">');
+  // Match those two shapes exactly and re-emit with `class="md-task"` in
+  // disabled's slot. The middle was `[^>]*` once, which is what made this
+  // quadratic: on input full of `<input =` the engine re-scans the run for
+  // every start position looking for a `disabled=""` that never arrives.
+  // An optional literal group can't backtrack, and marked emits nothing else
+  // here — the checked/unchecked pair above is the whole surface.
+  return html.replace(/<input (checked="" )?disabled="" type="checkbox">/g, '<input $1class="md-task" type="checkbox">');
 }
