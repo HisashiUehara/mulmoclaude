@@ -152,7 +152,7 @@ import { marked } from "marked";
 import { formatScalarField, useMarkdownDoc } from "../../composables/useMarkdownDoc";
 import type { ToolResult } from "gui-chat-protocol";
 import { isFilePath, type MarkdownToolData } from "./definition";
-import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
+import { rewriteMarkdownImageRefs } from "@mulmoclaude/markdown-utils/image/rewriteMarkdownImageRefs";
 import { findTaskLines, makeTasksInteractive, toggleTaskAt } from "@mulmoclaude/markdown-utils/markdown/taskList";
 import { mermaidExtension } from "../../utils/markdown/mermaidExtension";
 import { useMermaidRenderer } from "../../utils/markdown/useMermaid";

@@ -105,7 +105,7 @@ import type { ToolResult } from "gui-chat-protocol/vue";
 import type { ImageToolData } from "./definition";
 import { apiPut } from "../../utils/api";
 import { pluginEndpoints } from "../api";
-import { resolveImageSrc } from "../../utils/image/resolve";
+import { resolveImageSrc } from "@mulmoclaude/markdown-utils/image/resolve";
 import { bumpImage } from "@mulmoclaude/markdown-utils/image/cacheBust";
 
 const imageStoreEndpoints = pluginEndpoints<{ update: string }>("imageStore");

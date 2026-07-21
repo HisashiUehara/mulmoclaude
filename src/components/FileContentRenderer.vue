@@ -269,7 +269,7 @@ import type { TextResponseData } from "../plugins/textResponse/types";
 import { JSON_TOKEN_CLASS } from "../utils/format/jsonSyntax";
 import type { JsonToken, JsonlLine } from "../utils/format/jsonSyntax";
 import { formatScalarField, type MarkdownDocView } from "../composables/useMarkdownDoc";
-import { rewriteMarkdownImageRefs } from "../utils/image/rewriteMarkdownImageRefs";
+import { rewriteMarkdownImageRefs } from "@mulmoclaude/markdown-utils/image/rewriteMarkdownImageRefs";
 import { API_ROUTES } from "../config/apiRoutes";
 import { useSharePack } from "../composables/useSharePack";
 import { useOpenInOs } from "../composables/useOpenInOs";
