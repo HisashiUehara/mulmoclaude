@@ -16,9 +16,8 @@
 import "dotenv/config";
 import type { Request, Response } from "express";
 import { createBridgeClient } from "@mulmobridge/client";
-import { createWebhookApp, createWebhookRateLimit, verifyHmacSignature } from "@mulmobridge/webhook-runtime";
+import { createWebhookApp, createWebhookRateLimit, narrowChallenge, verifyHmacSignature } from "@mulmobridge/webhook-runtime";
 import { isRecord, parseCsvSet } from "@mulmoclaude/common";
-import { narrowChallenge } from "./verify.js";
 
 const TRANSPORT_ID = "whatsapp";
 const PORT = Number(process.env.WHATSAPP_BRIDGE_PORT) || 3003;
