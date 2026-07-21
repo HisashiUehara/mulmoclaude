@@ -7,7 +7,7 @@
 import { apiGet } from "../../utils/api";
 import { pluginEndpoints } from "../api";
 import type { WikiEndpoints } from "./index";
-import { serializeWithFrontmatter } from "../../utils/markdown/frontmatter";
+import { serializeWithFrontmatter } from "@mulmoclaude/markdown-utils/markdown/frontmatter";
 
 export type PageEditLoadResult = { kind: "snapshot"; content: string; ts: string } | { kind: "current"; content: string } | { kind: "deleted" };
 

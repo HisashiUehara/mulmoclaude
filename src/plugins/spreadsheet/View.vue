@@ -124,7 +124,7 @@ import {
 } from "./engine";
 import { applyCellHighlights, clearCellHighlights } from "./cellHighlights";
 import { getArrowKeyOffset, isWithinSheetBounds } from "./keyboardNav";
-import { handleExternalLinkClick } from "../../utils/dom/externalLink";
+import { handleExternalLinkClick } from "@mulmoclaude/markdown-utils/dom/externalLink";
 import { errorMessage as formatErrorMessage } from "../../utils/errors";
 import { escapeHtml } from "../../utils/markdown/wikiEmbeds";
 

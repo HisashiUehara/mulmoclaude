@@ -106,7 +106,7 @@ import type { ImageToolData } from "./definition";
 import { apiPut } from "../../utils/api";
 import { pluginEndpoints } from "../api";
 import { resolveImageSrc } from "../../utils/image/resolve";
-import { bumpImage } from "../../utils/image/cacheBust";
+import { bumpImage } from "@mulmoclaude/markdown-utils/image/cacheBust";
 
 const imageStoreEndpoints = pluginEndpoints<{ update: string }>("imageStore");
 

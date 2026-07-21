@@ -487,7 +487,7 @@ import { marked } from "marked";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { ManageSkillsData, SkillSummary } from "./index";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../utils/api";
-import { handleExternalLinkClick } from "../../utils/dom/externalLink";
+import { handleExternalLinkClick } from "@mulmoclaude/markdown-utils/dom/externalLink";
 import { sanitizeMarkdownHtml } from "../../utils/markdown/sanitize";
 import { useMermaidRenderer } from "../../utils/markdown/useMermaid";
 import { pluginEndpoints } from "../api";
