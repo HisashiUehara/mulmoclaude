@@ -165,13 +165,31 @@ function awaitTokenRenewal(pty: typeof import("node-pty")): Promise<boolean> {
 /** node-pty's prebuilds directory, resolved from wherever it's installed
  *  (hoisted or nested), or null when node-pty can't be found. */
 export function nodePtyPrebuildsDir(): string | null {
-  const require = createRequire(import.meta.url);
-  let dir = dirname(require.resolve("node-pty"));
-  while (dir !== dirname(dir)) {
-    if (existsSync(join(dir, "prebuilds"))) return join(dir, "prebuilds");
-    dir = dirname(dir);
+  try {
+    const require = createRequire(import.meta.url);
+    let dir = dirname(require.resolve("node-pty"));
+    while (dir !== dirname(dir)) {
+      if (existsSync(join(dir, "prebuilds"))) return join(dir, "prebuilds");
+      dir = dirname(dir);
+    }
+  } catch {
+    // node-pty not resolvable — nothing to fix
   }
   return null;
+}
+
+/** Restore +x on one prebuild's `spawn-helper`, if it's a regular file that
+ *  lacks it. Errors are per-entry so one bad platform bundle can't abort the
+ *  repair of the others. */
+function restoreSpawnHelperExec(helper: string): void {
+  try {
+    if (!existsSync(helper)) return;
+    const info = statSync(helper);
+    if (!info.isFile()) return;
+    if ((info.mode | SPAWN_HELPER_EXEC_BITS) !== info.mode) chmodSync(helper, info.mode | SPAWN_HELPER_EXEC_BITS);
+  } catch {
+    // best-effort — skip this entry, keep repairing the rest
+  }
 }
 
 /** Runtime backstop for `posix_spawnp failed`. node-pty execs its prebuilt
@@ -182,19 +200,15 @@ export function nodePtyPrebuildsDir(): string | null {
  *  so it also protects end users who never run the test suite. Best-effort:
  *  any failure is swallowed and we still attempt the spawn. */
 export function ensureSpawnHelperExecutable(): void {
+  const prebuilds = nodePtyPrebuildsDir();
+  if (prebuilds === null) return;
+  let platforms: string[];
   try {
-    const prebuilds = nodePtyPrebuildsDir();
-    if (!prebuilds || !existsSync(prebuilds)) return;
-    for (const platform of readdirSync(prebuilds)) {
-      const helper = join(prebuilds, platform, "spawn-helper");
-      if (!existsSync(helper)) continue;
-      const info = statSync(helper);
-      if (!info.isFile()) continue;
-      if ((info.mode | SPAWN_HELPER_EXEC_BITS) !== info.mode) chmodSync(helper, info.mode | SPAWN_HELPER_EXEC_BITS);
-    }
+    platforms = readdirSync(prebuilds);
   } catch {
-    // best-effort — fall through to the spawn attempt regardless
+    return;
   }
+  for (const platform of platforms) restoreSpawnHelperExec(join(prebuilds, platform, "spawn-helper"));
 }
 
 async function renewTokenViaPty(): Promise<boolean> {
