@@ -1,5 +1,8 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { chmodSync, existsSync, readdirSync, statSync } from "fs";
+import { createRequire } from "module";
+import { dirname, join } from "path";
 import { log } from "./logger/index.js";
 import { isRecord } from "../utils/types.js";
 import { ONE_SECOND_MS, ONE_MINUTE_MS } from "../utils/time.js";
@@ -7,6 +10,8 @@ import { writeFileAtomic } from "../utils/files/atomic.js";
 import { claudeCredentialsPath } from "../utils/claudeConfigPath.js";
 
 const execFileAsync = promisify(execFile);
+
+const SPAWN_HELPER_EXEC_BITS = 0o111;
 
 const CREDENTIALS_PATH = claudeCredentialsPath();
 const KEYCHAIN_SERVICE = "Claude Code-credentials";
@@ -157,6 +162,40 @@ function awaitTokenRenewal(pty: typeof import("node-pty")): Promise<boolean> {
   });
 }
 
+/** node-pty's prebuilds directory, resolved from wherever it's installed
+ *  (hoisted or nested), or null when node-pty can't be found. */
+function nodePtyPrebuildsDir(): string | null {
+  const require = createRequire(import.meta.url);
+  let dir = dirname(require.resolve("node-pty"));
+  while (dir !== dirname(dir)) {
+    if (existsSync(join(dir, "prebuilds"))) return join(dir, "prebuilds");
+    dir = dirname(dir);
+  }
+  return null;
+}
+
+/** Runtime backstop for `posix_spawnp failed`. node-pty execs its prebuilt
+ *  `spawn-helper` before the target command, but ships it mode 644 in the npm
+ *  tarball; an install that skipped lifecycle scripts (`--ignore-scripts`,
+ *  some `npm ci` setups) leaves it non-executable and every spawn throws. The
+ *  postinstall normally restores +x — this covers installs that never ran it,
+ *  so it also protects end users who never run the test suite. Best-effort:
+ *  any failure is swallowed and we still attempt the spawn. */
+export function ensureSpawnHelperExecutable(): void {
+  try {
+    const prebuilds = nodePtyPrebuildsDir();
+    if (!prebuilds || !existsSync(prebuilds)) return;
+    for (const platform of readdirSync(prebuilds)) {
+      const helper = join(prebuilds, platform, "spawn-helper");
+      if (!existsSync(helper)) continue;
+      const { mode } = statSync(helper);
+      if ((mode | SPAWN_HELPER_EXEC_BITS) !== mode) chmodSync(helper, mode | SPAWN_HELPER_EXEC_BITS);
+    }
+  } catch {
+    // best-effort — fall through to the spawn attempt regardless
+  }
+}
+
 async function renewTokenViaPty(): Promise<boolean> {
   // Dynamic import — node-pty is a native module that may not be present
   // on all platforms. Guard with try/catch.
@@ -168,6 +207,7 @@ async function renewTokenViaPty(): Promise<boolean> {
     return false;
   }
 
+  ensureSpawnHelperExecutable();
   return awaitTokenRenewal(pty);
 }
 
