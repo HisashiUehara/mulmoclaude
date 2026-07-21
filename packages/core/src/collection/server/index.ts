@@ -20,6 +20,7 @@ export type { LoadedCollection } from "./discoveredCollection";
 export * from "./paths";
 export * from "./templatePath";
 export * from "./io";
+export * from "./skillAssets";
 export * from "./store";
 export { BackendUnavailableError, isBackendUnavailable } from "./backendAvailability";
 export { MAX_CSV_ROWS, encodeCsvRecordId, decodeCsvRecordId, normalizeCsvValue, csvRowToItem, dedupeByRecordId } from "./csvStore";
