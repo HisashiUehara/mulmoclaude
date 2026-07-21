@@ -23,7 +23,8 @@
 import "dotenv/config";
 import WebSocket from "ws";
 import { createBridgeClient, chunkText, formatAckReply } from "@mulmobridge/client";
-import { isObj, parseNotificationRaw, parseFrame, type JsonRecord, type ParsedStatus } from "./parse.js";
+import { isRecord } from "@mulmoclaude/common";
+import { parseNotificationRaw, parseFrame, type JsonRecord, type ParsedStatus } from "./parse.js";
 
 // `ws` hands the listener `Buffer | ArrayBuffer | Buffer[]`. The default
 // binaryType is nodebuffer so a Buffer is what actually arrives, but the type
@@ -98,7 +99,7 @@ async function postOneStatus(chunk: string, opts: PostStatusOptions): Promise<st
   const payload: unknown = await res.json().catch((err) => {
     throw new Error(`Mastodon status POST returned invalid JSON: ${err instanceof Error ? err.message : String(err)}`);
   });
-  if (!isObj(payload) || typeof payload.id !== "string") {
+  if (!isRecord(payload) || typeof payload.id !== "string") {
     throw new Error("Mastodon status POST response is missing id");
   }
   return payload.id;
@@ -148,7 +149,7 @@ async function collectImageAttachments(media: unknown): Promise<MulmoAttachment[
   if (!Array.isArray(media)) return [];
   const out: MulmoAttachment[] = [];
   for (const item of media) {
-    if (!isObj(item) || item.type !== "image" || typeof item.url !== "string") continue;
+    if (!isRecord(item) || item.type !== "image" || typeof item.url !== "string") continue;
     const att = await fetchImageAttachment(item.url);
     if (att) out.push(att);
   }
