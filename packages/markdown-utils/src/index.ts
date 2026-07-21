@@ -10,3 +10,5 @@ export * from "./dom/externalLink.js";
 export * from "./files/filename.js";
 export * from "./image/resolve.js";
 export * from "./image/rewriteMarkdownImageRefs.js";
+export * from "./markdown/mermaidRender.js";
+export * from "./markdown/mermaidExtension.js";

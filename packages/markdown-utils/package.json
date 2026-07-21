@@ -1,6 +1,6 @@
 {
   "name": "@mulmoclaude/markdown-utils",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Browser-safe markdown / image rendering utilities shared by the MulmoClaude host and the markdown plugin",
   "type": "module",
   "main": "./dist/index.js",
@@ -37,9 +37,11 @@
     "js-yaml": "^5.2.1"
   },
   "peerDependencies": {
+    "mermaid": "^11.16.0",
     "vue": "^3.5.0"
   },
   "devDependencies": {
+    "mermaid": "^11.16.0",
     "typescript": "^6.0.3",
     "vue": "^3.5.40"
   }
