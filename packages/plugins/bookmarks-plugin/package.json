@@ -27,7 +27,7 @@
     "test": "echo 'no in-package tests; covered by host integration test test/plugins/test_bookmarks_integration.ts'"
   },
   "peerDependencies": {
-    "gui-chat-protocol": "^0.4.0",
+    "gui-chat-protocol": "^1.1.0",
     "vue": "^3.5.0",
     "zod": "^4.3.6"
   },

@@ -24,7 +24,7 @@
     "@mulmoclaude/core": "^0.30.0"
   },
   "peerDependencies": {
-    "gui-chat-protocol": "^0.4.0",
+    "gui-chat-protocol": "^1.1.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
