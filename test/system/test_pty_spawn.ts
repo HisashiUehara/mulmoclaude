@@ -9,23 +9,19 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, readdirSync, statSync } from "node:fs";
-import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
 import { spawn, type IPty } from "node-pty";
 
-import { ensureSpawnHelperExecutable } from "../../server/system/credentials.js";
+import { ensureSpawnHelperExecutable, nodePtyPrebuildsDir } from "../../server/system/credentials.js";
 
 const EXEC_BITS = 0o111;
 const PTY_TIMEOUT_MS = 10_000;
 const MARKER = "pty-spawn-ok";
 
 function spawnHelperPaths(): string[] {
-  const require = createRequire(import.meta.url);
-  let dir = dirname(require.resolve("node-pty"));
-  while (dir !== dirname(dir) && !existsSync(join(dir, "prebuilds"))) dir = dirname(dir);
-  const prebuilds = join(dir, "prebuilds");
-  if (!existsSync(prebuilds)) return [];
+  const prebuilds = nodePtyPrebuildsDir();
+  if (prebuilds === null) return [];
   return readdirSync(prebuilds)
     .map((platform) => join(prebuilds, platform, "spawn-helper"))
     .filter((helper) => existsSync(helper));

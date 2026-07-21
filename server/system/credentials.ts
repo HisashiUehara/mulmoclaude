@@ -164,7 +164,7 @@ function awaitTokenRenewal(pty: typeof import("node-pty")): Promise<boolean> {
 
 /** node-pty's prebuilds directory, resolved from wherever it's installed
  *  (hoisted or nested), or null when node-pty can't be found. */
-function nodePtyPrebuildsDir(): string | null {
+export function nodePtyPrebuildsDir(): string | null {
   const require = createRequire(import.meta.url);
   let dir = dirname(require.resolve("node-pty"));
   while (dir !== dirname(dir)) {
@@ -188,8 +188,9 @@ export function ensureSpawnHelperExecutable(): void {
     for (const platform of readdirSync(prebuilds)) {
       const helper = join(prebuilds, platform, "spawn-helper");
       if (!existsSync(helper)) continue;
-      const { mode } = statSync(helper);
-      if ((mode | SPAWN_HELPER_EXEC_BITS) !== mode) chmodSync(helper, mode | SPAWN_HELPER_EXEC_BITS);
+      const info = statSync(helper);
+      if (!info.isFile()) continue;
+      if ((info.mode | SPAWN_HELPER_EXEC_BITS) !== info.mode) chmodSync(helper, info.mode | SPAWN_HELPER_EXEC_BITS);
     }
   } catch {
     // best-effort — fall through to the spawn attempt regardless
