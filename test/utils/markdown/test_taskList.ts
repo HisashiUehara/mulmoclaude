@@ -233,6 +233,23 @@ describe("makeTasksInteractive", () => {
     const transformed = '<input class="md-task" type="checkbox">';
     assert.equal(makeTasksInteractive(transformed), transformed);
   });
+
+  it("leaves a checkbox with unexpected extra attributes alone", () => {
+    // The pattern is deliberately narrow — anything outside marked's two
+    // shapes is passed through rather than half-rewritten.
+    const html = '<input data-x="1" disabled="" type="checkbox">';
+    assert.equal(makeTasksInteractive(html), html);
+  });
+
+  // Regression: the previous `[^>]*` middle made this quadratic, so a long run
+  // of near-misses took superlinear time. It should now finish promptly and
+  // return the input untouched.
+  it("stays fast on input full of partial `<input` matches", () => {
+    const hostile = `<input ${"<input =".repeat(40000)}`;
+    const startedAt = Date.now();
+    assert.equal(makeTasksInteractive(hostile), hostile);
+    assert.ok(Date.now() - startedAt < 2000, "makeTasksInteractive should not scan superlinearly");
+  });
 });
 
 // `makeTasksInteractive` is a regex over the literal string `marked`
