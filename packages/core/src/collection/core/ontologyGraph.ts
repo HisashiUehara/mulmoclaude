@@ -1,6 +1,6 @@
 // Pure builder for the workspace ontology graph — the `/collections` Map
 // panel (phase 2 of plans/done/collection-ontology.md step ①; plan:
-// plans/feat-collection-ontology-graph.md). Consumes the per-collection
+// plans/done/feat-collection-ontology-graph.md). Consumes the per-collection
 // ontology entries `buildWorkspaceOntology` derives server-side and turns
 // them into a node/edge structure a graph view can render directly.
 // Browser-safe (no `node:*` imports) so the Vue plugin builds the same

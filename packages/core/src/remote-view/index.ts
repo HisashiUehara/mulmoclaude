@@ -1,4 +1,4 @@
-// The remote custom-view contract (phase 3 — plans/feat-remote-custom-view.md).
+// The remote custom-view contract (phase 3 — plans/done/feat-remote-custom-view.md).
 //
 // Browser-safe single source of truth shared by the host server (which wraps
 // the view HTML into a sandboxed srcdoc), the desktop phone-frame preview, and
@@ -54,7 +54,7 @@ export const MAX_PAGE_LIMIT = 200;
  *  command document (1 MiB total), so leave envelope headroom. */
 export const REMOTE_VIEW_MAX_BYTES = 900_000;
 
-/** Hard cap on ONE `getItems` page (phase 5 — plans/feat-remote-view-images.md).
+/** Hard cap on ONE `getItems` page (phase 5 — plans/done/feat-remote-view-images.md).
  *  Same 1 MiB command-document envelope as the srcdoc: when a view inlines image
  *  fields as `data:` URLs, the host stops inlining once the serialized page would
  *  exceed this, leaving the remaining image fields as their original path (which

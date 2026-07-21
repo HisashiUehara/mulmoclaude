@@ -1204,7 +1204,7 @@ const filteredItems = computed<CollectionItem[]>(() => {
 // a synthesized "done" chip driven by the shared `itemIsDone`, so #2174's
 // hide-completed works without a schema edit. Calendar / kanban / custom
 // views deliberately see the UNfiltered list (plan scope —
-// plans/feat-collection-flag-fields.md). Chip state is a SHARED
+// plans/done/feat-collection-flag-fields.md). Chip state is a SHARED
 // per-collection localStorage preference, exactly like the table sort.
 
 /** Chip key (state/testid/localStorage) for the synthesized

@@ -417,7 +417,7 @@ export const CustomViewZ = z.object({
   // token/dataUrl contract), so every pre-existing view keeps its behavior.
   // "mobile" ⇒ served to the phone remote via getRemoteView (postMessage
   // contract, @mulmoclaude/core/remote-view) and phone-frame-previewed on
-  // desktop. See plans/feat-remote-custom-view.md.
+  // desktop. See plans/done/feat-remote-custom-view.md.
   target: z.enum(["desktop", "mobile"]).optional(),
   file: z
     .string()
@@ -442,14 +442,14 @@ export const CustomViewZ = z.object({
   // deliberately no "delete" — a view can never do more than the agent's own
   // manageCollection tool.
   capabilities: z.array(z.enum(["read", "write"])).optional(),
-  // Mobile-only write policy (plans/feat-remote-writable-view.md). Default-deny:
+  // Mobile-only write policy (plans/done/feat-remote-writable-view.md). Default-deny:
   // a `target: "mobile"` view may patch ONLY these fields via
   // `__MC_VIEW.updateItem`, and may delete only when `allowDelete` is true. The
   // host re-derives + enforces both on every mutate — never trusting the client.
   // Ignored for desktop views (they use the token-scoped `capabilities` above).
   editableFields: z.array(z.string().trim().min(1)).optional(),
   allowDelete: z.boolean().optional(),
-  // Mobile-only image inlining (plans/feat-remote-view-images.md). A
+  // Mobile-only image inlining (plans/done/feat-remote-view-images.md). A
   // `target: "mobile"` view can't reach the host's localhost, so an `image`-type
   // field's workspace path is unrenderable on the phone; listing it here makes
   // the host inline it as a downscaled `data:` URL thumbnail in getItems pages.
@@ -587,7 +587,7 @@ export const IngestZ = z.discriminatedUnion("kind", [DeclarativeIngestZ, AgentIn
 // target schema (that collection may not even be loaded yet); a bad
 // `source.collection`/`orderBy`/condition `field` fails soft at compute
 // time instead (`computeCollectionIcon`), matching this feature's locked
-// design (see plans/feat-dynamic-collection-icons.md "Open questions").
+// design (see plans/done/feat-dynamic-collection-icons.md "Open questions").
 //
 // `where` is the AND-of-conditions predicate defined at the top of this
 // file (`WhereZ`, shared with `flag` fields) — see `./where` for the
@@ -784,7 +784,7 @@ export const DataSourceZ = z.object({
  *  (`node:sqlite`, one JSON record per row keyed by the primaryKey).
  *  `path` is workspace-relative and containment-checked exactly like
  *  `dataPath`. The store factory registry (`server/store.ts`) picks the
- *  implementation by `type` (plans/refactor-storage-virtualization.md). */
+ *  implementation by `type` (plans/done/refactor-storage-virtualization.md). */
 export const StorageZ = z.object({
   type: z.literal("sqlite"),
   path: z.string().min(1),

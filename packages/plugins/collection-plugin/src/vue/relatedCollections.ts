@@ -1,5 +1,5 @@
 // Pure neighbor derivation for the collection view's related-collections
-// pulldown (plans/feat-collection-related-dropdown.md). Given the raw
+// pulldown (plans/done/feat-collection-related-dropdown.md). Given the raw
 // workspace-ontology entries (the same list the /collections Map tab builds
 // its graph from) and the active collection's slug, list the collections it
 // links to or that link back to it — one entry per neighbor, with the

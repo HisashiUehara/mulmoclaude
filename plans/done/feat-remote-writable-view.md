@@ -4,7 +4,7 @@
 
 Phases 2–3 made the mobile remote (`mulmoserver`) **read** collections: the
 default `CollectionCardList` (phase 2) and per-collection LLM-authored mobile
-HTML views (phase 3, `plans/feat-remote-custom-view.md`). Both are strictly
+HTML views (phase 3, `plans/done/feat-remote-custom-view.md`). Both are strictly
 read-only — the phase-3 remote-view contract exposes only `getItems`,
 `startChat`, and `t`.
 

@@ -1,6 +1,6 @@
 // SQLite-backed WRITABLE store (schema `storage: { type: "sqlite" }`) —
 // the first non-file backend, added to validate the CollectionStore
-// abstraction (plans/refactor-storage-virtualization.md, Stage 4).
+// abstraction (plans/done/refactor-storage-virtualization.md, Stage 4).
 //
 // Layout: one database file (`schema.storage.path`, workspace-contained at
 // discovery AND re-checked here), one table

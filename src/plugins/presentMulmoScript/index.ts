@@ -1,5 +1,5 @@
 // MulmoClaude's thin built-in adapter for the shared mulmoscript plugin
-// (plans/feat-mulmoscript-plugin.md phase 2). View / Preview /
+// (plans/done/feat-mulmoscript-plugin.md phase 2). View / Preview /
 // TOOL_DEFINITION come from @mulmoclaude/mulmoscript-plugin; the View
 // reaches host backends via useRuntime().dispatch → the built-in
 // "mulmoScript" dispatch handler (server/plugins/mulmoscript-server.ts)

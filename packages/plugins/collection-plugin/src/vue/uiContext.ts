@@ -108,7 +108,7 @@ export interface CollectionRemoteViewResult {
  *  the merged record for an update, the removed id for a delete. Mirrors the
  *  command channel's `mutateRemoteViewItem` result so the phone-frame preview
  *  and the phone client see the identical shape
- *  (plans/feat-remote-writable-view.md). */
+ *  (plans/done/feat-remote-writable-view.md). */
 export type CollectionRemoteViewMutateResult = { op: "update"; item: CollectionItem } | { op: "delete"; id: string };
 
 /** Server response for `fetchRemoteViewItems` — one page of a mobile view's
@@ -116,7 +116,7 @@ export type CollectionRemoteViewMutateResult = { op: "update"; item: CollectionI
  *  thumbnails host-side. `inlined` / `omitted` count how many images fit the
  *  per-page byte budget (surfaced while the user iterates on the view).
  *  Mirrors the command channel's `getRemoteViewItems` result so preview ===
- *  phone (plans/feat-remote-view-images.md). */
+ *  phone (plans/done/feat-remote-view-images.md). */
 export interface CollectionRemoteViewItemsResult {
   page: RemoteViewPage;
   inlined: number;

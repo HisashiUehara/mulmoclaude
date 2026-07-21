@@ -67,5 +67,5 @@ Signed off for this change.
 ## Provenance
 
 Split out of PR #1993 (remote offline queue). See the "Implementation order"
-note in `plans/feat-remote-offline-queue.md` and the memory
+note in `plans/done/feat-remote-offline-queue.md` and the memory
 `feedback_bump_in_pr_publish_after_merge` for the constraint this removes.

@@ -119,7 +119,7 @@ presentMulmoScript `filePath` base clarified (the wire form `stories/<name>.json
 
 ## npm packages — 2026-07-17 (6)
 
-Package release riding PR #2137 (presentMulmoScript extraction, phase 3a of `plans/feat-mulmoscript-plugin.md`):
+Package release riding PR #2137 (presentMulmoScript extraction, phase 3a of `plans/done/feat-mulmoscript-plugin.md`):
 
 - **`@mulmoclaude/mulmoscript-plugin@0.2.0`** — the entire server ops layer moves into a new Node-only **`./server`** entry so any host runs the SAME mulmocast orchestration: all op cores (probes, beat/character rendering, audio, uploads, movie/PDF pipelines, background `autoGenerateMovie`), the edge-triggered generation tracker + `pendingGenerations` snapshot, the dispatch kind router (`createMulmoScriptDispatchHandler`, carrying the realpath symlink-containment guard), and the GraphAI provider-error capture. Host transport is injected via `MulmoScriptServerBackend`; `mulmocast` + `graphai` become peers (must resolve to the host's single hoisted copies). Review hardening: `toStoryRef` relativizes against the realpath stories root; `fileToDataUri` reads asynchronously. MulmoClaude's four host-side files (`mulmo-script-ops.ts`, `mulmoscript-builtin.ts`, `events/mulmoscript-generation.ts`, `utils/mulmoErrorCapture.ts`) collapsed into one ~60-line binding (`server/plugins/mulmoscript-server.ts`). MulmoTerminal wiring is phase 3b.
 
@@ -127,7 +127,7 @@ Package release riding PR #2137 (presentMulmoScript extraction, phase 3a of `pla
 
 ## npm packages — 2026-07-17 (5)
 
-Package release riding PR #2133 (presentMulmoScript extraction, phases 1+2 of `plans/feat-mulmoscript-plugin.md`):
+Package release riding PR #2133 (presentMulmoScript extraction, phases 1+2 of `plans/done/feat-mulmoscript-plugin.md`):
 
 - **`@mulmoclaude/mulmoscript-plugin@0.1.0`** — NEW shared package for the `presentMulmoScript` tool, extracted so MulmoTerminal can import it like `@mulmoclaude/{markdown,form,chart,html}-plugin` (phase 3 does that wiring). **Server core (`.`)**: tool definition, body validators (former `mulmoScriptValidate.ts`), and save / reopen / update-beat / update-script logic against the generic `files.artifacts` capability. **`./vue` + `./style.css`**: the 1,950-line storyboard View + Preview with their own 8-locale i18n; the View reaches every backend through kind-discriminated `useRuntime().dispatch` envelopes, hears generation progress on the plugin pubsub `generation` channel (SSE streams and the `useActiveSession()` watcher both retired; a `pendingGenerations` snapshot dispatch covers views mounted mid-generation), and takes host transport (`chatSessionId`, authenticated `fetchMediaBlob`) via the optional host-adapter injection. MulmoClaude's route bodies moved to shared ops (`mulmo-script-ops.ts`) backing both the legacy REST routes and the new dispatch handler. Review hardening on the way in: non-negative-integer `beatIndex` validation on both surfaces, string-typed query guards, realpath symlink containment restored host-side (`guardStoryWirePath`), edge-triggered (refcounted) generation events, and stale-response guards on every View probe/mutator.
 
@@ -476,7 +476,7 @@ Two threads dominate this release: **writable remote custom views for the mobile
 
 - **Root ↔ launcher ↔ plugin peer dep sync gate** ([#1923](https://github.com/receptron/mulmoclaude/pull/1923)) — new `scripts/mulmoclaude/launcherSync.mjs` audits every PR for three invariants (root ↔ launcher common dep range identical, workspace source satisfies launcher range, plugin `peerDependencies` satisfied by launcher pins). Catches the [#1920](https://github.com/receptron/mulmoclaude/issues/1920) class of bug at PR time.
 - **CHANGELOG.md for 0.9.2 with PR / issue links** ([#1926](https://github.com/receptron/mulmoclaude/pull/1926)) — retroactive entry documenting the 30 PRs shipped in 0.9.2.
-- **Fix plan archived** ([#1935](https://github.com/receptron/mulmoclaude/pull/1935)) — `plans/fix-1915-chat-ui-stuck-mid-turn.md` → `plans/done/` after merge.
+- **Fix plan archived** ([#1935](https://github.com/receptron/mulmoclaude/pull/1935)) — `plans/done/fix-1915-chat-ui-stuck-mid-turn.md` → `plans/done/` after merge.
 
 ### Cascade publishes
 

@@ -1,5 +1,5 @@
 // getRemoteViewItems command handler (remote-host phase 5 —
-// plans/feat-remote-view-images.md).
+// plans/done/feat-remote-view-images.md).
 //
 // One page of a mobile view's records, view-aware so the host can inline the
 // view's declared `imageFields` as `data:` URL thumbnails (a phone can't reach

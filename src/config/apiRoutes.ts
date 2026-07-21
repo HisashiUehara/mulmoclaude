@@ -170,7 +170,7 @@ const HOST_API_ROUTES = {
   // Remote host over Firestore (phase 1). The server signs in to Firebase as
   // the user (connect, body carries a browser-minted Google idToken), runs the
   // command-loop + presence heartbeat, and exposes its running state. See
-  // plans/feat-remote-host-firestore-list-collections.md.
+  // plans/done/feat-remote-host-firestore-list-collections.md.
   remoteHost: {
     connect: "/api/remote-host/connect",
     reconnect: "/api/remote-host/reconnect",
@@ -332,21 +332,21 @@ const HOST_API_ROUTES = {
      *  view wrapped into its sandboxed srcdoc (global-bearer auth) →
      *  { view, srcdoc, bytes }. Same builder as the command channel's
      *  `getRemoteView`, so the desktop phone-frame preview renders the exact
-     *  artifact the phone receives (plans/feat-remote-custom-view.md). */
+     *  artifact the phone receives (plans/done/feat-remote-custom-view.md). */
     remoteView: "/api/collections/:slug/remote-view",
     /** POST { op: "update"|"delete", id, patch? } → apply one mutate on behalf
      *  of a `target: "mobile"` view, authorized by that view's declared
      *  editableFields / allowDelete and enforced host-side (global-bearer auth).
      *  The desktop phone-frame preview's write channel — same builder the
      *  command channel's `mutateRemoteViewItem` uses, so preview === phone
-     *  (plans/feat-remote-writable-view.md). */
+     *  (plans/done/feat-remote-writable-view.md). */
     remoteViewMutate: "/api/collections/:slug/remote-view/:viewId/mutate",
     /** GET ?offset&limit&fields=<csv> → one page of a `target: "mobile"` view's
      *  records with its declared `imageFields` inlined as `data:` URL thumbnails
      *  (global-bearer auth) → { page, inlined, omitted }. Same builder as the
      *  command channel's `getRemoteViewItems`, so the desktop phone-frame preview
      *  pages the exact data (incl. real thumbnails) the phone will
-     *  (plans/feat-remote-view-images.md). */
+     *  (plans/done/feat-remote-view-images.md). */
     remoteViewItems: "/api/collections/:slug/remote-view/:viewId/items",
     /** GET ?id=<viewId>&locale=<tag> → translation dict for one custom view
      *  (global-bearer auth) → { locale, dict }. `dict` is the host-picked

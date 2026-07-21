@@ -122,7 +122,7 @@ and that an explicit provider with a missing key fails per-call.
   `@google/genai` dependency, version `0.29.0` → `0.30.0` (new
   subpath + moved module + help asset). Launcher dep-range lockstep in
   `packages/mulmoclaude/package.json`; no plugin range ratchet.
-  Collision note: `plans/fix-backlinks-table-nested-via.md` also
+  Collision note: `plans/done/fix-backlinks-table-nested-via.md` also
   targets `0.30.0` — whichever PR lands second rebases to `0.31.0`.
 - `packages/core/assets/helps/error-recovery.md` — new section.
 - `server/system/env.ts` — env entries + `imageGenConfig()`.
