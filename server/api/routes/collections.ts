@@ -721,7 +721,7 @@ function sendRemoteViewFailure(res: Response, result: Exclude<RemoteViewBuildRes
 // srcdoc — the desktop phone-frame preview's data source. Behind the global
 // bearer. Same builder as the command channel's `getRemoteView`, so the
 // preview renders the exact artifact the phone receives
-// (plans/feat-remote-custom-view.md).
+// (plans/done/feat-remote-custom-view.md).
 router.get(API_ROUTES.collections.remoteView, async (req: Request<{ slug: string }>, res: Response) => {
   try {
     const { slug } = req.params;
@@ -755,7 +755,7 @@ function sendMutateRemoteViewFailure(res: Response, result: Exclude<MutateRemote
 // Apply one update/delete on behalf of a mobile view — the desktop phone-frame
 // preview's write channel. Behind the global bearer. Same builder + policy as
 // the command channel's `mutateRemoteViewItem`, so a preview mutation runs the
-// EXACT enforcement the phone will (plans/feat-remote-writable-view.md).
+// EXACT enforcement the phone will (plans/done/feat-remote-writable-view.md).
 router.post(API_ROUTES.collections.remoteViewMutate, async (req: Request<{ slug: string; viewId: string }>, res: Response) => {
   try {
     const { slug, viewId } = req.params;
@@ -800,7 +800,7 @@ function sendRemoteViewItemsFailure(res: Response, result: Exclude<RemoteViewIte
 // `data:` URL thumbnails — the desktop phone-frame preview's paging source.
 // Behind the global bearer. Same builder as the command channel's
 // `getRemoteViewItems`, so the preview pages the exact data (real thumbnails)
-// the phone will (plans/feat-remote-view-images.md).
+// the phone will (plans/done/feat-remote-view-images.md).
 router.get(API_ROUTES.collections.remoteViewItems, async (req: Request<{ slug: string; viewId: string }>, res: Response) => {
   try {
     const { slug, viewId } = req.params;

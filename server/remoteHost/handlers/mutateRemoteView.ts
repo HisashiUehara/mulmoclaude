@@ -1,5 +1,5 @@
 // mutateRemoteViewItem command handler (remote-host phase 4 —
-// plans/feat-remote-writable-view.md).
+// plans/done/feat-remote-writable-view.md).
 //
 // Applies one update/delete requested by a `target: "mobile"` custom view on
 // the phone, authorized by that view's OWN declared surface

@@ -494,7 +494,7 @@ export default [
       ],
     },
   },
-  // Storage-virtualization seam (plans/refactor-storage-virtualization.md):
+  // Storage-virtualization seam (plans/done/refactor-storage-virtualization.md):
   // host + plugin code must read collection records through `storeFor(...)`
   // (the CollectionStore seam), never through the raw io readers — a direct
   // `listItems` / `readItem` import silently bypasses whatever storage
@@ -515,7 +515,7 @@ export default [
               name: "@mulmoclaude/core/collection/server",
               importNames: ["listItems", "readItem", "writeItem", "deleteItem"],
               message:
-                "Access records through `storeFor(collection)` — `.list()`/`.page()`/`.read()`, and `.write()`/`.delete()` (present only on writable stores). The raw io functions bypass the storage seam (plans/refactor-storage-virtualization.md).",
+                "Access records through `storeFor(collection)` — `.list()`/`.page()`/`.read()`, and `.write()`/`.delete()` (present only on writable stores). The raw io functions bypass the storage seam (plans/done/refactor-storage-virtualization.md).",
             },
           ],
         },

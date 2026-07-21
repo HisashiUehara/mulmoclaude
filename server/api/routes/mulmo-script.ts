@@ -110,7 +110,7 @@ function parseBeatQuery<TRes>(req: Request<object, TRes, object, BeatQuery>, res
 
 // The save / reopen / update slice lives in the shared
 // @mulmoclaude/mulmoscript-plugin package (single source of truth, also
-// consumable by MulmoTerminal — plans/feat-mulmoscript-plugin.md). These
+// consumable by MulmoTerminal — plans/done/feat-mulmoscript-plugin.md). These
 // routes are THIN host adapters: they inject the GENERIC `files.artifacts`
 // runtime capability, map the package's discriminated failures back onto
 // the pre-extraction 400/404 wire contract, and keep the host-only

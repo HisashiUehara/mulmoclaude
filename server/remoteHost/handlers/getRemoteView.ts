@@ -1,5 +1,5 @@
 // getRemoteView command handler (remote-host phase 3 —
-// plans/feat-remote-custom-view.md).
+// plans/done/feat-remote-custom-view.md).
 //
 // Returns one mobile (`target: "mobile"`) custom view wrapped HOST-side into
 // its sandboxed srcdoc (CSP + postMessage bootstrap), so the phone renders the

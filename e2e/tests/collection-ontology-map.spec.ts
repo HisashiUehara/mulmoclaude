@@ -1,6 +1,6 @@
 // E2E for the /collections Map tab (phase 2 of
 // plans/done/collection-ontology.md step ①, plan
-// plans/feat-collection-ontology-graph.md): the tab renders the
+// plans/done/feat-collection-ontology-graph.md): the tab renders the
 // workspace-ontology graph canvas from the /api/collections/ontology
 // entries, and shows the dedicated empty state when there is nothing
 // to map. The graph itself is an ECharts canvas, so assertions stay at

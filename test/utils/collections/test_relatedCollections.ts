@@ -1,7 +1,7 @@
 // Unit tests for the pure related-collections helper
 // (packages/plugins/collection-plugin/src/vue/relatedCollections.ts) — the
 // neighbor derivation backing the collection view's related-collections
-// pulldown (plans/feat-collection-related-dropdown.md). Its
+// pulldown (plans/done/feat-collection-related-dropdown.md). Its
 // direction/collapse/ghost/self-edge semantics are pinned here so the
 // component can stay a thin renderer.
 

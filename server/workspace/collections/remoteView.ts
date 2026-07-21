@@ -4,7 +4,7 @@
 // (CSP + postMessage bootstrap — @mulmoclaude/core/remote-view), and enforce
 // the 1 MiB command-document budget. Shared by the `getRemoteView` channel
 // handler and the desktop preview's HTTP route so both serve the IDENTICAL
-// artifact (plans/feat-remote-custom-view.md, decision 2).
+// artifact (plans/done/feat-remote-custom-view.md, decision 2).
 //
 // Discriminated result (not throw) so the HTTP route can map each failure to
 // its status; the channel handler converts non-ok to a thrown error via
@@ -85,7 +85,7 @@ export function remoteViewFailureMessage(result: Exclude<RemoteViewBuildResult, 
   return `mobile view srcdoc is ${result.bytes} bytes — over the ${REMOTE_VIEW_MAX_BYTES}-byte command-channel budget; slim the HTML`;
 }
 
-// ── Mutate (phase 4 — plans/feat-remote-writable-view.md) ──
+// ── Mutate (phase 4 — plans/done/feat-remote-writable-view.md) ──
 // A `target: "mobile"` view's update/delete, authorized by its OWN declared
 // surface (editableFields / allowDelete) and enforced HOST-side — the client is
 // never trusted. Shared by the `mutateRemoteViewItem` channel handler (phone)
@@ -203,7 +203,7 @@ async function updateViaView(
 
 export const mutateRemoteView = createMutateRemoteView({ storeFor, enrichItems, resolveThumbnail });
 
-// ── Item pages with inlined image thumbnails (phase 5 — plans/feat-remote-view-images.md) ──
+// ── Item pages with inlined image thumbnails (phase 5 — plans/done/feat-remote-view-images.md) ──
 // A mobile view's `getItems`, view-aware so it can inline the `imageFields` its
 // declaration whitelists: derive computed fields → slice/project (the phase-2
 // page semantics) → replace each declared image-type field's workspace path with

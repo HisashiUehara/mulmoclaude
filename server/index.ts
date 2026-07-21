@@ -77,7 +77,7 @@ import { onSessionEvent, initSessionStore } from "./events/session-store/index.j
 import { initFileChangePublisher } from "./events/file-change.js";
 // Importing also binds the shared mulmoScript server ops to this host's
 // backend and registers the built-in "mulmoScript" dispatch handler (side
-// effect at module load — plans/feat-mulmoscript-plugin.md phase 3).
+// effect at module load — plans/done/feat-mulmoscript-plugin.md phase 3).
 import { initMulmoScriptGenerationPublisher } from "./plugins/mulmoscript-server.js";
 import { initCollectionChangePublisher } from "./events/collection-change.js";
 import { getRole, loadAllRoles } from "./workspace/roles.js";

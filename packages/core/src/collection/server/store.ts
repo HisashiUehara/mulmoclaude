@@ -228,7 +228,7 @@ function fileStoreFor(collection: LoadedCollection, opts: IoOptions): Collection
 
 export type CollectionStoreFactory = (collection: LoadedCollection, opts: IoOptions) => CollectionStore;
 
-// The store factory registry (plans/refactor-storage-virtualization.md,
+// The store factory registry (plans/done/refactor-storage-virtualization.md,
 // Stage 3): schema storage kind → implementation. Factories live in CORE
 // (dependency-direction rule — never plugin-registered); a new backend is
 // one factory + a `StorageZ` variant + a pass of the contract test suite.

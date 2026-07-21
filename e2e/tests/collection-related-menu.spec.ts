@@ -1,5 +1,5 @@
 // E2E for the collection view's related-collections pulldown
-// (plans/feat-collection-related-dropdown.md). The header trigger appears
+// (plans/done/feat-collection-related-dropdown.md). The header trigger appears
 // on the standalone page (this host binds `fetchOntology`); opening it
 // lazily fetches the workspace ontology, derives the active collection's
 // neighbors, and lists them — one click hops to the target's detail page.
