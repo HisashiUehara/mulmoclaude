@@ -213,6 +213,12 @@ const enMessages = {
     showSystemFilesTitle: "Show agent-internal top-level dirs (conversations/, feeds/, etc.) in addition to your user content (data/, artifacts/, config/).",
   },
   fileTree: {
+    dropHint: "Drop files here to save them in this folder",
+    upload: {
+      progress: "Uploading {done} of {total}…",
+      done: "Saved {count} file(s)",
+      failed: "{count} file(s) couldn't be saved",
+    },
     workspace: "(workspace)",
     recentlyChanged: "Recently changed",
     newFileMenuItem: "New file",

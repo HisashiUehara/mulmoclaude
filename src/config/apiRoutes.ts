@@ -113,6 +113,11 @@ const HOST_API_ROUTES = {
      *  client doesn't have to gate creation through PUT, which is
      *  update-only and 404s on non-existent paths (#1598). */
     create: "/api/files/create",
+    /** POST { dir, filename, dataUrl } — save dropped OS files into a
+     *  workspace folder. Unlike `create` this takes binary (a `data:`
+     *  URI) and never overwrites: a name collision is resolved by
+     *  auto-renaming to `name (n).ext` (#2270). */
+    upload: "/api/files/upload",
     raw: "/api/files/raw",
     refRoots: "/api/files/ref-roots",
     /** POST { path } — spawn the host OS's default handler for the

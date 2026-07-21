@@ -4,6 +4,9 @@ import { mkdir, realpath, writeFile } from "fs/promises";
 import path from "path";
 import { workspacePath } from "../../workspace/workspace.js";
 import { statSafe, statSafeAsync, readDirSafeAsync, resolveWithinRoot, writeFileAtomic } from "../../utils/files/index.js";
+import { stripDataUri } from "../../utils/files/attachment-store.js";
+import { writeNewFileExclusive } from "../../utils/files/upload-io.js";
+import { MAX_RENAME_ATTEMPTS, renamedCandidate, sanitizeUploadFilename } from "../../utils/files/upload-name.js";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, notFound, sendError, serverError } from "../../utils/httpError.js";
 import { getOptionalStringQuery } from "../../utils/request.js";
@@ -306,6 +309,9 @@ function resolveSafe(relPath: string): string | null {
 // ── Reference directory path resolution ──────────────────────────
 
 const REF_PREFIX = "@ref/";
+/** The prefix without its separator — a directory named exactly this is still
+ *  reference territory even though it fails the `@ref/` prefix test. */
+const REF_ROOT_SEGMENT = REF_PREFIX.slice(0, -1);
 
 function isRefPath(relPath: string): boolean {
   return relPath.startsWith(REF_PREFIX);
@@ -977,7 +983,6 @@ async function resolveNewFilePath(
     if (HIDDEN_DIRS.has(seg)) return { ok: false, status: 400, message: "Path not allowed" };
   }
   if (isSensitivePath(relativeFromWorkspace)) return { ok: false, status: 400, message: "Path not allowed" };
-  if (classify(candidate) !== "text") return { ok: false, status: 400, message: "File type not editable" };
   // Walk up the candidate's ancestors until we find one that exists.
   // Realpath THAT ancestor — a symlinked in-workspace folder pointing
   // outside `workspaceReal` would otherwise let the create land outside.
@@ -1083,6 +1088,12 @@ router.post(API_ROUTES.files.create, async (req: Request<object, unknown, WriteC
     badRequest(res, resolved.message);
     return;
   }
+  // Type policy lives with the caller: create/edit only accept editable text,
+  // while `files.upload` deliberately writes arbitrary bytes.
+  if (classify(resolved.absPath) !== "text") {
+    badRequest(res, "File type not editable");
+    return;
+  }
   const jsonError = jsonSyntaxError(relPath, content);
   if (jsonError !== null) {
     log.warn("files", "POST create: invalid JSON", { pathPreview: previewSnippet(relPath) });
@@ -1102,6 +1113,115 @@ router.post(API_ROUTES.files.create, async (req: Request<object, unknown, WriteC
     size: fresh?.size ?? contentBytes,
     modifiedMs: fresh?.mtimeMs ?? Date.now(),
   });
+});
+
+/** Cap on one dropped file, in decoded bytes.
+ *
+ *  Deliberately well under the 50 MB `express.json` body cap (server/index.ts):
+ *  the file travels as a base64 `data:` URI inside JSON, which inflates it by
+ *  4/3 before the envelope is even counted. Advertising 50 MB would be a limit
+ *  this handler never gets to enforce — express would reject a 40 MB file with
+ *  a generic 413 first. 32 MB decoded is ~43 MB encoded, comfortably inside. */
+const MAX_UPLOAD_BYTES = 32 * 1024 * 1024;
+
+/** Refused on upload: things a later double-click would execute. A drop into
+ *  the workspace is for data, not for programs. */
+const BLOCKED_UPLOAD_EXTENSIONS = new Set([".exe", ".dll", ".so", ".dylib", ".bat", ".cmd", ".com", ".scr", ".msi", ".app", ".sh", ".ps1"]);
+
+interface UploadFileBody {
+  dir?: unknown;
+  filename?: unknown;
+  dataUrl?: unknown;
+}
+
+/** Seams for `writeUploadWithRename`, so its collision / containment behaviour
+ *  can be exercised without touching the real workspace. */
+export interface UploadWriteDeps {
+  resolve: (relPath: string) => Promise<{ ok: true; absPath: string; workspaceRoot: string } | { ok: false; status: 400; message: string }>;
+  write: (absPath: string, bytes: Buffer) => Promise<void>;
+}
+
+const defaultUploadWriteDeps: UploadWriteDeps = {
+  resolve: resolveNewFilePath,
+  // Exclusive create lives in its own I/O module; EEXIST drives the rename retry.
+  write: writeNewFileExclusive,
+};
+
+// Write the bytes under `dirRel`, never clobbering: on EEXIST the name gets a
+// ` (n)` suffix and we retry. Each candidate re-runs the containment check, so
+// a rename can't walk the write out of the workspace either.
+export async function writeUploadWithRename(
+  dirRel: string,
+  safeName: string,
+  bytes: Buffer,
+  deps: UploadWriteDeps = defaultUploadWriteDeps,
+): Promise<{ ok: true; relPath: string; absPath: string } | { ok: false; status: number; message: string }> {
+  for (let attempt = 0; attempt <= MAX_RENAME_ATTEMPTS; attempt += 1) {
+    const relPath = path.join(dirRel, attempt === 0 ? safeName : renamedCandidate(safeName, attempt));
+    const resolved = await deps.resolve(relPath);
+    if (!resolved.ok) return { ok: false, status: resolved.status, message: resolved.message };
+    try {
+      await deps.write(resolved.absPath, bytes);
+      // Hand back the resolver's realpath'd target: rebuilding it from
+      // `workspaceReal + relPath` would skip symlink resolution and could stat
+      // the wrong file (or nothing).
+      return { ok: true, relPath, absPath: resolved.absPath };
+    } catch (err) {
+      const { code } = err as { code?: string };
+      if (code !== "EEXIST") return { ok: false, status: 500, message: errorMessage(err) };
+    }
+  }
+  return { ok: false, status: 409, message: "Could not find an unused filename" };
+}
+
+export function validateUploadBody(body: UploadFileBody): { ok: true; dir: string; safeName: string; bytes: Buffer } | { ok: false; message: string } {
+  const { dir, filename, dataUrl } = body;
+  if (typeof dir !== "string" || typeof filename !== "string" || typeof dataUrl !== "string") {
+    return { ok: false, message: "dir, filename and dataUrl are required" };
+  }
+  // Reference roots are read-only mounts. The tree hides the drop affordance
+  // for them, but that's UI, not enforcement — a direct POST must be refused
+  // too, or `@ref/<label>/…` would resolve like any other folder. The bare
+  // `@ref` segment has to go as well: it isn't a ref path by the prefix test,
+  // yet writing into it produces `@ref/<file>`, which every other file API
+  // then reads back as a reference path.
+  // Compare on a POSIX-shaped path. `path.normalize` is host-dependent: on
+  // Windows it rewrites "@ref/docs" to "@ref\docs", and the prefix test looks
+  // for the literal "@ref/" — so normalising the host way would let a ref-root
+  // upload through on Windows while blocking it on POSIX.
+  const normalisedDir = path.posix.normalize(dir.replace(/\\/g, "/"));
+  if (isRefPath(normalisedDir) || normalisedDir === REF_ROOT_SEGMENT) {
+    return { ok: false, message: "Reference roots are read-only" };
+  }
+  const safeName = sanitizeUploadFilename(filename);
+  if (safeName === null) return { ok: false, message: "Invalid filename" };
+  if (BLOCKED_UPLOAD_EXTENSIONS.has(path.extname(safeName).toLowerCase())) return { ok: false, message: "File type not allowed" };
+  const parsed = stripDataUri(dataUrl);
+  if (!parsed) return { ok: false, message: "dataUrl must be a data: URI" };
+  const bytes = Buffer.from(parsed.base64, "base64");
+  if (bytes.byteLength > MAX_UPLOAD_BYTES) return { ok: false, message: `File exceeds the ${MAX_UPLOAD_BYTES} byte upload limit` };
+  return { ok: true, dir, safeName, bytes };
+}
+
+router.post(API_ROUTES.files.upload, async (req: Request<object, unknown, UploadFileBody>, res: Response<WriteContentResponse | ErrorResponse>) => {
+  const validation = validateUploadBody(req.body);
+  if (!validation.ok) {
+    log.warn("files", "POST upload: rejected", { reason: validation.message });
+    badRequest(res, validation.message);
+    return;
+  }
+  const { dir, safeName, bytes } = validation;
+  log.info("files", "POST upload: start", { pathPreview: previewSnippet(path.join(dir, safeName)), bytes: bytes.byteLength });
+
+  const written = await writeUploadWithRename(dir, safeName, bytes);
+  if (!written.ok) {
+    sendError(res, written.status, written.message);
+    return;
+  }
+  const fresh = await statSafeAsync(written.absPath);
+  log.info("files", "POST upload: ok", { pathPreview: previewSnippet(written.relPath), bytes: bytes.byteLength });
+  void publishFileChange(written.relPath);
+  res.json({ path: written.relPath, size: fresh?.size ?? bytes.byteLength, modifiedMs: fresh?.mtimeMs ?? Date.now() });
 });
 
 router.put(API_ROUTES.files.content, async (req: Request<object, unknown, WriteContentRequest>, res: Response<WriteContentResponse | ErrorResponse>) => {

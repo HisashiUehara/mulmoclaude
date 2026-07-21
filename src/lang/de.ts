@@ -196,6 +196,12 @@ const deMessages = {
       "Zeigt agent-interne Top-Level-Verzeichnisse (conversations/, feeds/ usw.) zusätzlich zu den Nutzer-Daten (data/, artifacts/, config/) an.",
   },
   fileTree: {
+    dropHint: "Dateien hier ablegen, um sie in diesem Ordner zu speichern",
+    upload: {
+      progress: "Hochladen {done} von {total}…",
+      done: "{count} Datei(en) gespeichert",
+      failed: "{count} Datei(en) konnten nicht gespeichert werden",
+    },
     workspace: "(Arbeitsbereich)",
     recentlyChanged: "Kürzlich geändert",
     newFileMenuItem: "Neue Datei",

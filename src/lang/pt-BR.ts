@@ -194,6 +194,12 @@ const ptBRMessages = {
       "Mostra os diretórios raiz internos do agente (conversations/, feeds/ etc.) além do conteúdo do usuário (data/, artifacts/, config/).",
   },
   fileTree: {
+    dropHint: "Solte arquivos aqui para salvá-los nesta pasta",
+    upload: {
+      progress: "Enviando {done} de {total}…",
+      done: "{count} arquivo(s) salvo(s)",
+      failed: "Não foi possível salvar {count} arquivo(s)",
+    },
     workspace: "(workspace)",
     recentlyChanged: "Alterados recentemente",
     newFileMenuItem: "Novo arquivo",

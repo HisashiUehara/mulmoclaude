@@ -193,6 +193,12 @@ const zhMessages = {
     showSystemFilesTitle: "在用户内容(data/、artifacts/、config/)之外同时显示代理内部的顶层目录(conversations/、feeds/ 等)。",
   },
   fileTree: {
+    dropHint: "将文件拖放到此处以保存到该文件夹",
+    upload: {
+      progress: "正在上传 {done}/{total}…",
+      done: "已保存 {count} 个文件",
+      failed: "{count} 个文件保存失败",
+    },
     workspace: "(工作区)",
     recentlyChanged: "最近修改",
     newFileMenuItem: "新建文件",
