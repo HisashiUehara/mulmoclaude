@@ -1185,7 +1185,11 @@ export function validateUploadBody(body: UploadFileBody): { ok: true; dir: strin
   // `@ref` segment has to go as well: it isn't a ref path by the prefix test,
   // yet writing into it produces `@ref/<file>`, which every other file API
   // then reads back as a reference path.
-  const normalisedDir = path.normalize(dir);
+  // Compare on a POSIX-shaped path. `path.normalize` is host-dependent: on
+  // Windows it rewrites "@ref/docs" to "@ref\docs", and the prefix test looks
+  // for the literal "@ref/" — so normalising the host way would let a ref-root
+  // upload through on Windows while blocking it on POSIX.
+  const normalisedDir = path.posix.normalize(dir.replace(/\\/g, "/"));
   if (isRefPath(normalisedDir) || normalisedDir === REF_ROOT_SEGMENT) {
     return { ok: false, message: "Reference roots are read-only" };
   }

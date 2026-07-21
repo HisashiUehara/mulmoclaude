@@ -89,6 +89,15 @@ describe("validateUploadBody", () => {
     assert.ok(!result.ok);
   });
 
+  // Host-independence: `path.normalize` would rewrite this to "@ref\docs" on
+  // Windows and the "@ref/" prefix test would miss it, so the guard has to
+  // compare on a POSIX-shaped path. Asserted on every platform.
+  it("refuses a reference root written with backslashes", () => {
+    const result = validateUploadBody({ dir: "@ref\\docs", filename: "photo.png", dataUrl: PNG_DATA_URL });
+    assert.ok(!result.ok);
+    assert.match(result.message, /read-only/i);
+  });
+
   it("refuses a non-data: URL", () => {
     const result = validateUploadBody({ dir: "data", filename: "photo.png", dataUrl: "https://example.com/photo.png" });
     assert.ok(!result.ok);
