@@ -9,6 +9,7 @@ import { writeNewFileExclusive } from "../../utils/files/upload-io.js";
 import { MAX_RENAME_ATTEMPTS, renamedCandidate, sanitizeUploadFilename } from "../../utils/files/upload-name.js";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, notFound, sendError, serverError } from "../../utils/httpError.js";
+import { jsonSyntaxError, MAX_PREVIEW_BYTES, validatePutContentRequest } from "../../utils/files/content-write-validate.js";
 import { getOptionalStringQuery } from "../../utils/request.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { GitignoreFilter } from "../../utils/gitignore.js";
@@ -81,7 +82,6 @@ export function revealInHostOs(absPath: string): Promise<boolean> {
 
 const router = Router();
 
-const MAX_PREVIEW_BYTES = 1024 * 1024; // 1 MB — text content embedded in JSON
 const MAX_RAW_BYTES = 50 * 1024 * 1024; // 50 MB — cap for non-media streaming (images/pdf/binary load whole into the browser)
 // Audio/video are streamed via HTTP Range requests (see GET /raw),
 // so the browser never buffers the whole file. Podcasts commonly
@@ -846,44 +846,6 @@ router.get(API_ROUTES.files.content, (req: Request<object, unknown, unknown, Pat
   res.json({ kind: "text", ...meta, content });
 });
 
-type PutContentValidation =
-  { ok: true; relPath: string; content: string; bytes: number } | { ok: false; logMsg: string; logExtra?: Record<string, unknown>; message: string };
-
-// Runtime-shape gate for PUT /api/files/content's body. Returns either
-// the narrowed inputs + their byte length (computed once and reused
-// downstream), or a structured rejection carrying the log message,
-// log extras, and the response message — so the caller can fan them
-// out into log.warn + badRequest without rebuilding context. `logExtra`
-// is optional so the missing-path branch can omit it: passing `{}` to
-// `log.warn` would emit `data: {}` (an observable change vs the
-// pre-refactor no-third-arg call); passing `undefined` skips the
-// `data` field entirely.
-function validatePutContentRequest(body: unknown): PutContentValidation {
-  const obj = (body ?? {}) as { path?: unknown; content?: unknown };
-  const { path: relPathRaw, content: contentRaw } = obj;
-  if (typeof relPathRaw !== "string" || relPathRaw.length === 0) {
-    return { ok: false, logMsg: "PUT content: missing path", message: "path required" };
-  }
-  if (typeof contentRaw !== "string") {
-    return {
-      ok: false,
-      logMsg: "PUT content: missing content",
-      logExtra: { pathPreview: previewSnippet(relPathRaw) },
-      message: "content required",
-    };
-  }
-  const bytes = Buffer.byteLength(contentRaw, "utf-8");
-  if (bytes > MAX_PREVIEW_BYTES) {
-    return {
-      ok: false,
-      logMsg: "PUT content: too large",
-      logExtra: { pathPreview: previewSnippet(relPathRaw), bytes },
-      message: `content exceeds ${MAX_PREVIEW_BYTES} byte limit`,
-    };
-  }
-  return { ok: true, relPath: relPathRaw, content: contentRaw, bytes };
-}
-
 type ResolvedTextFile = { ok: true; absPath: string } | { ok: false; status: 400 | 404; message: string };
 
 // Two-step path resolution + text-only gate for PUT /api/files/content.
@@ -938,16 +900,6 @@ async function writeFileContent(absPath: string, content: string): Promise<void>
 // hits disk so the editor can surface the parser error inline. `.jsonl`
 // is intentionally excluded — each line is its own document, not one
 // JSON value, so `JSON.parse` of the whole file would always fail.
-function jsonSyntaxError(relPath: string, content: string): string | null {
-  if (!relPath.toLowerCase().endsWith(".json")) return null;
-  try {
-    JSON.parse(content);
-    return null;
-  } catch (err) {
-    return `Invalid JSON: ${errorMessage(err)}`;
-  }
-}
-
 // Write the body of an existing text file. Only text-classified files
 // (per `classify`) are editable — binary, image, audio, etc. are
 // refused so the endpoint can't be used to ship arbitrary uploads.
