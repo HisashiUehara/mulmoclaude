@@ -7,6 +7,7 @@
 import { formatNumber } from "./formatter";
 import { columnToIndex } from "./parser";
 import { evaluateFormula as evaluateFormulaFn } from "./evaluator";
+import { expandRangeOrCell } from "./formulaRefs";
 import { parseDate, getDefaultDateFormat } from "./date-parser";
 import type { SheetData, CellValue, CalculatedSheet, CalculationError, FormulaInfo, SpreadsheetCell } from "./types";
 import { isObj } from "../../../utils/types";
@@ -316,29 +317,22 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[]): Calcu
       }
     }
 
-    const match = rangeRef.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
-    if (!match) return [];
-
-    const startCol = columnToIndex(match[1]);
-    const startRow = parseInt(match[2]) - 1;
-    const endCol = columnToIndex(match[3]);
-    const endRow = parseInt(match[4]) - 1;
+    const coords = expandRangeOrCell(rangeRef);
+    if (!coords) return [];
 
     const values: CellValue[] = [];
-    for (let row = startRow; row <= endRow; row++) {
-      for (let col = startCol; col <= endCol; col++) {
-        if (row >= 0 && row < sheetData.length && col >= 0 && col < sheetData[row].length) {
-          const cell = sheetData[row][col];
-          // Pass row/col only if current sheet (for recursive evaluation)
-          const rawValue = getRawValue(cell, isCurrentSheet ? row : undefined, isCurrentSheet ? col : undefined);
+    for (const { row, col } of coords) {
+      if (row >= 0 && row < sheetData.length && col >= 0 && col < sheetData[row].length) {
+        const cell = sheetData[row][col];
+        // Pass row/col only if current sheet (for recursive evaluation)
+        const rawValue = getRawValue(cell, isCurrentSheet ? row : undefined, isCurrentSheet ? col : undefined);
 
-          if (options.numericOnly) {
-            if (!isNaN(rawValue as number)) {
-              values.push(rawValue);
-            }
-          } else {
+        if (options.numericOnly) {
+          if (!isNaN(rawValue as number)) {
             values.push(rawValue);
           }
+        } else {
+          values.push(rawValue);
         }
       }
     }
