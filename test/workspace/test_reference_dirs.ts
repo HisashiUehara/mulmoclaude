@@ -148,4 +148,34 @@ describe("validateReferenceDirs — error text", () => {
     assert.ok("error" in result);
     assert.ok(result.error.includes(blocked), `expected the error to echo ${blocked}, got: ${result.error}`);
   });
+
+  // The wording is the HTTP response body, so it is pinned verbatim: the
+  // generic `validateEntryList` behind this wrapper must not reword it.
+  it("reports a non-array input", () => {
+    assert.deepEqual(validateReferenceDirs("/tmp"), { error: "expected an array" });
+  });
+
+  it("names the offending entry by index", () => {
+    const result = validateReferenceDirs([{ hostPath: path.join(homedir(), "docs"), label: "docs" }, { hostPath: "relative/path" }]);
+    assert.deepEqual(result, { error: 'entry 1: invalid or blocked path "relative/path"' });
+  });
+
+  it("accepts exactly 20 entries", () => {
+    const result = validateReferenceDirs(capCandidates(20));
+    assert.ok(!("error" in result), `expected 20 entries to pass, got: ${JSON.stringify(result)}`);
+    assert.equal(result.entries.length, 20);
+  });
+
+  it("rejects 21 entries with the cap in the message", () => {
+    assert.deepEqual(validateReferenceDirs(capCandidates(21)), { error: "too many entries (max 20)" });
+  });
 });
+
+/** Absolute, non-sensitive, uniquely-labelled paths. They need not exist —
+ *  `validateReferenceDirs` checks shape, not the filesystem. */
+function capCandidates(count: number): unknown[] {
+  return Array.from({ length: count }, (_unused, i) => ({
+    hostPath: path.join(homedir(), `mulmoclaude-cap-${i}`),
+    label: `cap-${i}`,
+  }));
+}
