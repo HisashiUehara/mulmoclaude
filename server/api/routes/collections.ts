@@ -36,15 +36,18 @@ import {
   validateCollectionRecords,
 } from "../../workspace/collections/index.js";
 import type {
+  CollectionAction,
   CollectionMutateAction,
   CollectionSeededAction,
   CollectionDetail,
   CollectionItem,
   CollectionOntologyEntry,
   CollectionSummary,
+  DeleteItemResult,
   DeleteViewResult,
   LoadedCollection,
   RecordIssue,
+  WriteItemResult,
 } from "../../workspace/collections/index.js";
 import {
   buildRemoteView,
@@ -68,7 +71,7 @@ import { refreshOne } from "@mulmoclaude/core/feeds/server";
 import { manageCollection } from "../../agent/mcp-tools/manageCollection.js";
 import { dispatchAgentAction, runningAgentActions } from "./collectionAgentActions.js";
 import { clampCapabilities, mintViewToken, requireViewToken } from "../auth/viewToken.js";
-import { csvParam, extractRecord, parseCapabilities, parseListParam } from "./collectionParams.js";
+import { csvParam, extractRecord, parseCapabilities, parseListParam, stringParam } from "./collectionParams.js";
 
 const router = Router();
 
@@ -86,18 +89,91 @@ async function loadCollectionOr404(slug: string, res: Response): Promise<LoadedC
 
 type CustomView = NonNullable<LoadedCollection["schema"]["views"]>[number];
 
+interface ResolvedCustomView {
+  collection: LoadedCollection;
+  view: CustomView;
+}
+
+/** Find a custom view by id on an already-loaded collection, or send the
+ *  404 and return null. Exported for the unit test. */
+export function findViewOr404(collection: LoadedCollection, viewId: string, res: Response): CustomView | null {
+  const view = (collection.schema.views ?? []).find((entry) => entry.id === viewId);
+  if (!view) {
+    notFound(res, `custom view '${viewId}' not found on collection '${collection.slug}'`);
+    return null;
+  }
+  return view;
+}
+
 // Resolve a collection + one of its custom views by id, or send a 404
 // (missing collection or missing view) and return null. Shared by the
 // view-file / view-i18n / view-token routes.
-async function resolveCustomViewOr404(slug: string, viewId: string, res: Response): Promise<{ collection: LoadedCollection; view: CustomView } | null> {
+async function resolveCustomViewOr404(slug: string, viewId: string, res: Response): Promise<ResolvedCustomView | null> {
   const collection = await loadCollectionOr404(slug, res);
   if (!collection) return null;
-  const view = (collection.schema.views ?? []).find((entry) => entry.id === viewId);
-  if (!view) {
-    notFound(res, `custom view '${viewId}' not found on collection '${slug}'`);
+  const view = findViewOr404(collection, viewId, res);
+  if (!view) return null;
+  return { collection, view };
+}
+
+// `:slug` + `?id=` → the custom view they name, or a 404 + null. The
+// view-file and view-i18n routes share this whole preamble; an absent
+// `?id=` reads as "" and 404s like an unknown id.
+async function resolveViewRequest(req: Request<{ slug: string }>, res: Response): Promise<ResolvedCustomView | null> {
+  return resolveCustomViewOr404(req.params.slug, stringParam(req.query.id), res);
+}
+
+/** Find a record-level action by id, or send the 404 and return null.
+ *  Shared by the bearer item-action route and the token-scoped view
+ *  action route. Exported for the unit test. */
+export function findActionOr404(collection: LoadedCollection, actionId: string, res: Response): CollectionAction | null {
+  const action = collection.schema.actions?.find((entry) => entry.id === actionId);
+  if (!action) {
+    notFound(res, `action '${actionId}' not found on collection '${collection.slug}'`);
     return null;
   }
-  return { collection, view };
+  return action;
+}
+
+/** Every non-ok outcome a collection store's write / delete can report. */
+export type StoreFailure = Exclude<WriteItemResult | DeleteItemResult, { kind: "ok" }>;
+
+/** What a `kind: "conflict"` means to the caller. Create writes with
+ *  `refuseOverwrite`, so a duplicate id is a real 409. Update never sets
+ *  the flag — its conflict branch is unreachable and survives only to
+ *  keep the union exhaustive — so it answers 500 rather than a
+ *  misleading "already exists"; delete's result carries no conflict at
+ *  all and passes the same value. */
+type ConflictOutcome = "duplicate" | "unreachable";
+
+interface StoreFailureContext {
+  slug: string;
+  onConflict: ConflictOutcome;
+}
+
+/** Map a store write / delete failure onto its HTTP response — the same
+ *  ladder was hand-written in the item create / update / delete handlers.
+ *  `path-escape` is a workspace-escape REFUSAL (403, never a 400): with
+ *  one site, downgrading it can no longer happen in one handler and go
+ *  unnoticed in the others. Exported for the unit test. */
+export function sendStoreFailure(res: Response, failure: StoreFailure, context: StoreFailureContext): void {
+  if (failure.kind === "invalid-id") {
+    badRequest(res, `invalid item id: ${failure.itemId}`);
+    return;
+  }
+  if (failure.kind === "path-escape") {
+    forbidden(res, `data directory for collection '${context.slug}' escapes the workspace`);
+    return;
+  }
+  if (failure.kind === "not-found") {
+    notFound(res, `item '${failure.itemId}' not found`);
+    return;
+  }
+  if (context.onConflict === "duplicate") {
+    conflict(res, `item '${failure.itemId}' already exists`);
+    return;
+  }
+  serverError(res, "unexpected conflict on update");
 }
 
 interface CollectionsListResponse {
@@ -278,16 +354,8 @@ router.post(API_ROUTES.collections.items, async (req: Request<{ slug: string }>,
   const recordWithId: CollectionItem = { ...record, [collection.schema.primaryKey]: itemId };
   try {
     const result = await createStore(itemId, recordWithId, { refuseOverwrite: true });
-    if (result.kind === "invalid-id") {
-      badRequest(res, `invalid item id: ${result.itemId}`);
-      return;
-    }
-    if (result.kind === "path-escape") {
-      forbidden(res, `data directory for collection '${collection.slug}' escapes the workspace`);
-      return;
-    }
-    if (result.kind === "conflict") {
-      conflict(res, `item '${result.itemId}' already exists`);
+    if (result.kind !== "ok") {
+      sendStoreFailure(res, result, { slug: collection.slug, onConflict: "duplicate" });
       return;
     }
     log.info("collections", "item created", { slug: collection.slug, itemId: result.itemId });
@@ -324,18 +392,8 @@ router.put(API_ROUTES.collections.item, async (req: Request<{ slug: string; item
   const recordWithId: CollectionItem = { ...record, [primaryKey]: req.params.itemId };
   try {
     const result = await updateStore(req.params.itemId, recordWithId);
-    if (result.kind === "invalid-id") {
-      badRequest(res, `invalid item id: ${result.itemId}`);
-      return;
-    }
-    if (result.kind === "path-escape") {
-      forbidden(res, `data directory for collection '${collection.slug}' escapes the workspace`);
-      return;
-    }
-    if (result.kind === "conflict") {
-      // refuseOverwrite was false — this branch is unreachable, but
-      // typescript needs the exhaustive switch.
-      serverError(res, "unexpected conflict on update");
+    if (result.kind !== "ok") {
+      sendStoreFailure(res, result, { slug: collection.slug, onConflict: "unreachable" });
       return;
     }
     log.info("collections", "item updated", { slug: collection.slug, itemId: result.itemId });
@@ -356,16 +414,8 @@ router.delete(API_ROUTES.collections.item, async (req: Request<{ slug: string; i
   }
   try {
     const result = await deleteStore(req.params.itemId);
-    if (result.kind === "invalid-id") {
-      badRequest(res, `invalid item id: ${result.itemId}`);
-      return;
-    }
-    if (result.kind === "path-escape") {
-      forbidden(res, `data directory for collection '${collection.slug}' escapes the workspace`);
-      return;
-    }
-    if (result.kind === "not-found") {
-      notFound(res, `item '${result.itemId}' not found`);
+    if (result.kind !== "ok") {
+      sendStoreFailure(res, result, { slug: collection.slug, onConflict: "unreachable" });
       return;
     }
     log.info("collections", "item deleted", { slug: collection.slug, itemId: result.itemId });
@@ -483,11 +533,8 @@ async function respondForMutateAction(
 router.post(API_ROUTES.collections.itemAction, async (req: Request<{ slug: string; itemId: string; actionId: string }>, res: Response<ActionRunResponse>) => {
   const collection = await loadCollectionOr404(req.params.slug, res);
   if (!collection) return;
-  const action = collection.schema.actions?.find((entry) => entry.id === req.params.actionId);
-  if (!action) {
-    notFound(res, `action '${req.params.actionId}' not found on collection '${collection.slug}'`);
-    return;
-  }
+  const action = findActionOr404(collection, req.params.actionId, res);
+  if (!action) return;
   try {
     const record = await storeFor(collection).read(req.params.itemId);
     if (!record) {
@@ -672,9 +719,7 @@ router.options(API_ROUTES.collections.viewData, viewDataCors, (_req: Request, re
 // `views/*.html` file, resolved with realpath containment.
 router.get(API_ROUTES.collections.viewFile, async (req: Request<{ slug: string }>, res: Response) => {
   try {
-    const { slug } = req.params;
-    const viewId = typeof req.query.id === "string" ? req.query.id : "";
-    const resolved = await resolveCustomViewOr404(slug, viewId, res);
+    const resolved = await resolveViewRequest(req, res);
     if (!resolved) return;
     const { collection, view } = resolved;
     // Path-safe, source-aware read through the collections domain layer (no raw
@@ -707,8 +752,8 @@ function sendRemoteViewFailure(res: Response, result: Exclude<RemoteViewBuildRes
 router.get(API_ROUTES.collections.remoteView, async (req: Request<{ slug: string }>, res: Response) => {
   try {
     const { slug } = req.params;
-    const viewId = typeof req.query.id === "string" ? req.query.id : "";
-    const locale = typeof req.query.locale === "string" ? req.query.locale : "";
+    const viewId = stringParam(req.query.id);
+    const locale = stringParam(req.query.locale);
     const collection = await loadCollectionOr404(slug, res);
     if (!collection) return;
     const result = await buildRemoteView(collection, viewId, locale);
@@ -810,10 +855,8 @@ router.get(API_ROUTES.collections.remoteViewItems, async (req: Request<{ slug: s
 // key, so an i18n-less view keeps working unchanged.
 router.get(API_ROUTES.collections.viewI18n, async (req: Request<{ slug: string }>, res: Response) => {
   try {
-    const { slug } = req.params;
-    const viewId = typeof req.query.id === "string" ? req.query.id : "";
-    const locale = typeof req.query.locale === "string" ? req.query.locale : "";
-    const resolved = await resolveCustomViewOr404(slug, viewId, res);
+    const locale = stringParam(req.query.locale);
+    const resolved = await resolveViewRequest(req, res);
     if (!resolved) return;
     const { collection, view } = resolved;
     if (!view.i18n) {
@@ -1059,11 +1102,8 @@ router.post(
     try {
       const collection = await loadCollectionOr404(req.params.slug, res);
       if (!collection) return;
-      const action = collection.schema.actions?.find((entry) => entry.id === req.params.actionId);
-      if (!action) {
-        notFound(res, `action '${req.params.actionId}' not found on collection '${collection.slug}'`);
-        return;
-      }
+      const action = findActionOr404(collection, req.params.actionId, res);
+      if (!action) return;
       if (action.kind !== "mutate") {
         forbidden(res, `action '${action.id}' has kind "${action.kind}" — view tokens can only invoke "mutate" actions`);
         return;
