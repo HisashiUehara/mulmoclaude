@@ -6,30 +6,45 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import type { Request, Response, NextFunction } from "express";
 import { makeViewQueryConcurrencyGuard } from "../../../server/api/routes/collections.js";
 
-/** Captures the `close` handler so a test can end the request explicitly —
- *  that is the only thing that returns a slot. */
+/** A real `EventEmitter` backs the `close` event rather than a handler array.
+ *  Express's `Response` IS an emitter, so `once` must actually deregister after
+ *  the first emit — a stub that re-invokes handlers on every emit lets a test
+ *  assert behaviour that cannot happen in production (Codex review). */
+function closeEvents() {
+  const emitter = new EventEmitter();
+  return {
+    subscribeOnce: (event: string, handler: () => void): void => void emitter.once(event, handler),
+    emitClose: (): void => void emitter.emit("close"),
+  };
+}
+
+interface ResponseState {
+  statusCode: number;
+  body: unknown;
+}
+
 function fakeRes() {
-  let statusCode = 0;
-  let body: unknown;
-  const closeHandlers: (() => void)[] = [];
+  const state: ResponseState = { statusCode: 0, body: undefined };
+  const events = closeEvents();
   const res = {
     status: (code: number) => {
-      statusCode = code;
+      state.statusCode = code;
       return res;
     },
     json: (payload: unknown) => {
-      body = payload;
+      state.body = payload;
       return res;
     },
     once: (event: string, handler: () => void) => {
-      if (event === "close") closeHandlers.push(handler);
+      events.subscribeOnce(event, handler);
       return res;
     },
   } as unknown as Response;
-  return { res, status: () => statusCode, body: () => body, close: () => closeHandlers.forEach((handler) => handler()) };
+  return { res, status: () => state.statusCode, body: () => state.body, close: events.emitClose };
 }
 
 const request = (slug?: string) => ({ params: slug === undefined ? {} : { slug } }) as unknown as Request<{ slug?: string }>;
@@ -67,14 +82,16 @@ describe("makeViewQueryConcurrencyGuard", () => {
     assert.equal(call(guard, "tasks").nexted, true);
   });
 
-  // `close` also fires on a mid-request client disconnect, and nothing stops a
-  // second emit. A second release must be a no-op — otherwise it frees a slot
-  // another still-running scan is holding and the cap drifts upward.
+  // `close` can be emitted more than once (response finish, then a client
+  // disconnect). One emitted event must free exactly one slot, or the cap
+  // drifts upward and lets extra concurrent scans through. Two mechanisms
+  // uphold that together: `once` deregisters the listener, and the guard's own
+  // `released` latch. Neither alone is asserted here — the invariant is.
   //
-  // This needs a second request in flight to detect: with the counter already
-  // at zero, a stray release is absorbed by the `?? 1` fallback and looks
-  // identical to the correct behaviour.
-  it("releases a slot exactly once even if close fires twice", () => {
+  // Detecting a violation needs a second request still in flight: with the
+  // counter already at zero, a stray release is absorbed by the guard's `?? 1`
+  // fallback and looks identical to the correct behaviour.
+  it("frees exactly one slot even if close is emitted twice", () => {
     const guard = makeViewQueryConcurrencyGuard(2);
     const stillRunning = call(guard, "tasks");
     const finished = call(guard, "tasks");
