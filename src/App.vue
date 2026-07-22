@@ -607,6 +607,7 @@ const { focusChatInput, jumpToLatest, hasNewWhileDetached } = useChatScroll({
   toolResults,
   isRunning: activeSessionRunning,
   chatInputRef,
+  sessionId: computed(() => activeSession.value?.id ?? null),
 });
 
 // Panel-wide file drop (#1289 Step 2). The handlers are bound on
