@@ -154,7 +154,14 @@ export function resolveEvery(every: CollectionSpawnEvery, sourceItem: Collection
   const raw = sourceItem[every.fromField];
   if (raw === undefined || raw === null || raw === "") return null;
   const key = fieldTextOrNull(raw);
-  return key === null ? null : (every.map[key] ?? null);
+  // Own-property lookup, not a bare index: a record whose driver field reads
+  // `constructor` / `toString` would otherwise resolve to an `Object.prototype`
+  // member. `?? null` cannot catch that — a function is not undefined — so the
+  // interval would flow into `advanceTriggerDate` and produce a NaN successor
+  // date. Matches the own-property check `schemaRules` already uses on the same
+  // map at validation time.
+  if (key === null || !Object.hasOwn(every.map, key)) return null;
+  return every.map[key] ?? null;
 }
 
 export interface ComputedSuccessor {

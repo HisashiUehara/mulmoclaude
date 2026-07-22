@@ -73,6 +73,18 @@ export function findHostPluginCollisions(hostRecord: Readonly<Record<string, unk
   return Object.keys(pluginRecord).filter((key) => hostKeys.has(key));
 }
 
+// `Object.hasOwn` needs the es2022 lib, which this project's frontend config
+// does not enable; `hasOwnProperty.call` is the same check and is what the
+// collection schema rules already use.
+const hasOwnKey = (record: Readonly<Record<string, unknown>>, key: string): boolean => Object.prototype.hasOwnProperty.call(record, key);
+
+/** The plugin that claimed `key`, or "" when none did. Own-property only: a
+ *  key named after an `Object.prototype` member would otherwise attribute the
+ *  collision to a function. */
+function ownAttribution(pluginByKey: Readonly<Record<string, string>>, key: string): string {
+  return hasOwnKey(pluginByKey, key) ? (pluginByKey[key] ?? "") : "";
+}
+
 /** Build an attributed collision list — one entry per (key, plugin)
  *  pair, where `pluginAttribution[key]` names the plugin claiming
  *  that key. Used by aggregators that aggregate ACROSS plugins
@@ -84,7 +96,7 @@ export function attributeHostPluginCollisions(
   pluginRecord: Readonly<Record<string, unknown>>,
   pluginByKey: Readonly<Record<string, string>>,
 ): HostPluginCollision[] {
-  return findHostPluginCollisions(hostRecord, pluginRecord).map((key) => ({ label, key, plugin: pluginByKey[key] ?? "" }));
+  return findHostPluginCollisions(hostRecord, pluginRecord).map((key) => ({ label, key, plugin: ownAttribution(pluginByKey, key) }));
 }
 
 /** Build a first-write-wins aggregate of a per-plugin record across
@@ -112,8 +124,12 @@ export function buildPluginAggregate<V>(
     const record = extract(meta);
     if (!record) continue;
     for (const [key, value] of Object.entries(record)) {
-      const priorPlugin = owner[key];
-      if (priorPlugin !== undefined) {
+      // Own-property check, not a bare index: a key named `constructor` or
+      // `toString` reads an `Object.prototype` member here, so the very first
+      // plugin to claim it is reported as colliding with a plugin that does
+      // not exist, and its entry is dropped.
+      if (hasOwnKey(owner, key)) {
+        const priorPlugin = owner[key];
         // Two distinct plugins claim the same key. Keep the first
         // entry; report the offender so diagnostics can warn.
         collisions.push({ dimension, key, plugins: [priorPlugin, meta.toolName] });
@@ -144,7 +160,7 @@ export function filterPluginKeys<V>(
   const dropped: HostPluginCollision[] = [];
   for (const [key, value] of Object.entries(pluginRecord)) {
     if (hostKeys.has(key)) {
-      dropped.push({ label, key, plugin: pluginByKey[key] ?? "" });
+      dropped.push({ label, key, plugin: ownAttribution(pluginByKey, key) });
       continue;
     }
     cleaned[key] = value;

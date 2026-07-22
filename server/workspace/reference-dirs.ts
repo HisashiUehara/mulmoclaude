@@ -12,6 +12,7 @@ import { homedir } from "os";
 import { log } from "../system/logger/index.js";
 import { readReferenceDirsJson, writeReferenceDirsJson, isExistingDirectory } from "../utils/files/reference-dirs-io.js";
 import { hasStringProp, isRecord } from "../utils/types.js";
+import { validateEntryList, type EntryListResult } from "../utils/validateEntryList.js";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -171,39 +172,24 @@ export function saveReferenceDirs(entries: readonly ReferenceDirEntry[], root?: 
 
 // ── Validate input array (for API) ─────────────────────────────
 
-export function validateReferenceDirs(raw: unknown): { entries: ReferenceDirEntry[] } | { error: string } {
-  if (!Array.isArray(raw)) {
-    return { error: "expected an array" };
-  }
-  if (raw.length > MAX_ENTRIES) {
-    return { error: `too many entries (max ${MAX_ENTRIES})` };
-  }
-  const entries: ReferenceDirEntry[] = [];
-  const errors: string[] = [];
-  raw.forEach((item, i) => {
-    const entry = validateEntry(item);
-    if (entry) {
-      entries.push(entry);
-    } else {
-      // Echo the path back only when it really is one — a non-string entry is
-      // precisely where "[object Object]" would misreport the user's config.
-      const hostPath = hasStringProp(item, "hostPath") ? item.hostPath : "";
-      errors.push(`entry ${i}: invalid or blocked path "${hostPath}"`);
-    }
+export function validateReferenceDirs(raw: unknown): EntryListResult<ReferenceDirEntry> {
+  const result = validateEntryList(raw, {
+    maxEntries: MAX_ENTRIES,
+    validateEntry,
+    echoProp: "hostPath",
+    describeInvalid: (hostPath) => `invalid or blocked path "${hostPath}"`,
   });
-  if (errors.length > 0) {
-    return { error: errors.join("; ") };
-  }
+  if ("error" in result) return result;
 
   // Reject duplicate labels — @ref/<label> routing requires uniqueness
   const seenLabels = new Set<string>();
-  for (const entry of entries) {
+  for (const entry of result.entries) {
     if (seenLabels.has(entry.label)) {
       return { error: `duplicate label "${entry.label}"` };
     }
     seenLabels.add(entry.label);
   }
-  return { entries };
+  return result;
 }
 
 // ── Cached loader (for system prompt + Docker mounts) ───────────

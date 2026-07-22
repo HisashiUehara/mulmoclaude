@@ -20,7 +20,7 @@ import { markRead, getSession, evictSession, publishSessionsChanged } from "../.
 import { notFound } from "../../utils/httpError.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
-import { SESSION_ORIGINS, type SessionOrigin } from "../../../src/types/session.js";
+import { SESSION_ORIGINS, type SessionOrigin, type SessionSummary } from "../../../src/types/session.js";
 import { env } from "../../system/env.js";
 import { ONE_DAY_MS } from "../../utils/time.js";
 import { encodeCursor, parseCursor, sessionChangeMs } from "./sessionsCursor.js";
@@ -67,46 +67,6 @@ async function readSessionMeta(__chatDir: string, sessionId: string): Promise<Se
     }
   }
   return null;
-}
-
-export interface SessionSummary {
-  id: string;
-  roleId: string;
-  startedAt: string;
-  // ISO timestamp of the jsonl file's most recent mtime — i.e. the
-  // last time the session had an event appended. Clients sort the
-  // sidebar history list by this so active sessions float to the top.
-  updatedAt: string;
-  preview: string;
-  // Populated when the chat indexer has produced a summary for this
-  // session. The frontend renders `summary` as a smaller second line
-  // under the preview in the history popup. See #123.
-  summary?: string;
-  keywords?: string[];
-  // Where this session originated (#486). Missing = "human".
-  origin?: SessionOrigin;
-  // User-toggled bookmark — surfaced in the history panel as a
-  // dedicated filter chip and a green role-icon tint.
-  isBookmarked?: boolean;
-  // Number of user turns sent to this session. Lets the history panel
-  // tell a one-shot (1) apart from a long-running conversation.
-  userQueryCount?: number;
-  // Live state from the in-memory session store. Absent when the
-  // session has no active entry in the store (i.e. idle / historical).
-  //
-  // `isRunning` is the BROAD predicate: agent turn live OR any
-  // background generation (image/audio/movie) still pending. Drives
-  // the sidebar "busy" indicator that must stay lit across nav.
-  //
-  // `liveIsRunning` is the NARROW predicate: exactly the
-  // `DELETE /api/sessions/:id` 409 gate (`getSession()?.isRunning`).
-  // Exposed for cleanup-style callers (e2e-live `waitForSessionIdle`)
-  // that need to poll "is DELETE accepted yet" without over-waiting
-  // on lingering pendingGenerations. See issue #1195.
-  isRunning?: boolean;
-  liveIsRunning?: boolean;
-  hasUnread?: boolean;
-  statusMessage?: string;
 }
 
 // Public response envelope for GET /api/sessions (issue #205).
