@@ -192,7 +192,7 @@ function isValidDate(year: number, month: number, day: number): boolean {
  * @param originalStr - Original date string
  * @returns Appropriate format code
  */
-export function getDefaultDateFormat(originalStr: string): string {
+export function getDefaultDateFormat(originalStr: string, preferDDMMYYYY: boolean = false): string {
   const trimmed = originalStr.trim();
 
   // YYYY-MM-DD → use same format
@@ -215,6 +215,18 @@ export function getDefaultDateFormat(originalStr: string): string {
     return "MMMM D, YYYY";
   }
 
-  // Default to MM/DD/YYYY for slash-separated dates
-  return "MM/DD/YYYY";
+  // A slash date must render in the order it was READ, or the cell shows the
+  // user's own input with its two halves swapped. `parseDate` takes the first
+  // number as the day whenever it cannot be a month, whatever the preference
+  // says, so that case is decided here the same way.
+  const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/\d{2,4}$/);
+  if (slashMatch) {
+    const first = parseInt(slashMatch[1]);
+    const second = parseInt(slashMatch[2]);
+    const isDayFirst = first > 12 || (second <= 12 && first <= 12 && preferDDMMYYYY);
+    return isDayFirst ? "DD/MM/YYYY" : "MM/DD/YYYY";
+  }
+
+  // Anything unrecognised keeps the reading order's default.
+  return preferDDMMYYYY ? "DD/MM/YYYY" : "MM/DD/YYYY";
 }
