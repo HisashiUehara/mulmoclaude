@@ -85,6 +85,7 @@ import { discoverSkills } from "./workspace/skills/index.js";
 import { WORKSPACE_PATHS } from "./workspace/paths.js";
 import { resolveClientDir } from "./utils/clientDir.js";
 import { serverError } from "./utils/httpError.js";
+import { browserVisibleOrigin } from "./utils/forwardedOrigin.js";
 import { makeUuid } from "./utils/id.js";
 import { mcpToolsRouter, mcpTools, isMcpToolEnabled } from "./agent/mcp-tools/index.js";
 import { preflightUserServers, logPreflightResult } from "./agent/mcpPreflight.js";
@@ -429,31 +430,6 @@ const HTML_PREVIEW_EXT_RE = /\.(html?|png|jpe?g|webp|gif|svg|ico|mp4|webm|mov|m4
 const HTML_DOCUMENT_EXT_RE = /\.html?$/i;
 const getHtmlsDirReal = makeCachedRealpath(WORKSPACE_PATHS.htmls);
 
-// Honour `X-Forwarded-*` so dev (Vite proxies `/artifacts/html` →
-// `localhost:3001` with `changeOrigin: true`) emits the browser-
-// visible origin (`localhost:5173`) rather than the upstream socket.
-// In prod (no proxy) the headers are absent and we fall back to the
-// raw `Host` / `req.protocol`.
-//
-// `X-Forwarded-*` values can be a comma-separated proxy chain (each
-// hop appends its own value). The CSP origin only needs the
-// outermost hop — the value the browser actually sees — so we take
-// the first entry and trim. Without this, a multi-hop deployment
-// would emit `https://a.example.com, b.example.com://x` and break
-// preview resource loading at the browser (#1056 review).
-function browserVisibleOrigin(req: Request): string {
-  const fwdHost = firstForwardedValue(req.get("x-forwarded-host"));
-  const fwdProto = firstForwardedValue(req.get("x-forwarded-proto"));
-  const host = fwdHost ?? req.get("host");
-  const proto = fwdProto ?? req.protocol;
-  return `${proto}://${host}`;
-}
-
-function firstForwardedValue(raw: string | undefined): string | undefined {
-  if (!raw) return undefined;
-  const first = raw.split(",")[0]?.trim();
-  return first && first.length > 0 ? first : undefined;
-}
 app.use(
   "/artifacts/html",
   async (req, res, next) => {
