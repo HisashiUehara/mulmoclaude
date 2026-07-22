@@ -18,6 +18,17 @@ export interface EvaluatorContext {
   evaluateFormula: (formula: string) => CellValue;
 }
 
+/** Render a cell's value as the text that stands in for it inside an
+ *  expression. Strings are quoted so they cannot be read as identifiers or
+ *  operators, and their own quotes and backslashes are escaped so the literal
+ *  cannot be closed early. A missing value becomes 0, matching how blanks are
+ *  treated everywhere else in the engine. */
+export function renderOperand(value: CellValue | null | undefined): string {
+  if (value === null || value === undefined) return "0";
+  if (typeof value === "string") return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  return value.toString();
+}
+
 /**
  * Parse function arguments, handling nested functions and quoted strings
  *
@@ -221,7 +232,7 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
 
     // Then replace cell references with their values
     // Match cell references manually to avoid complex regex
-    const cellRefs: string[] = [];
+    const cellRefs: { ref: string; start: number }[] = [];
     let i = 0;
     while (i < expr.length) {
       // Check for cross-sheet reference (quoted or unquoted)
@@ -233,7 +244,7 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
           const cellPart = expr.substring(endQuote + 2).match(/^(\$?[A-Z]+\$?\d+)/);
           if (cellPart) {
             ref = expr.substring(i, endQuote + 2 + cellPart[0].length);
-            cellRefs.push(ref);
+            cellRefs.push({ ref, start: i });
             i += ref.length;
             continue;
           }
@@ -245,7 +256,7 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
           const cellPart = expr.substring(i + sheetMatch[0].length).match(/^(\$?[A-Z]+\$?\d+)/);
           if (cellPart) {
             ref = sheetMatch[0] + cellPart[0];
-            cellRefs.push(ref);
+            cellRefs.push({ ref, start: i });
             i += ref.length;
             continue;
           }
@@ -254,7 +265,7 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
         const cellMatch = expr.substring(i).match(/^(\$?[A-Z]+\$?\d+)/);
         if (cellMatch) {
           ref = cellMatch[0];
-          cellRefs.push(ref);
+          cellRefs.push({ ref, start: i });
           i += ref.length;
           continue;
         }
@@ -262,23 +273,13 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
       i++;
     }
 
-    if (cellRefs.length > 0) {
-      for (const ref of cellRefs) {
-        const value = context.getCellValue(ref);
-        // Escape special regex characters
-        const escapedRef = ref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        // Wrap string values in quotes for proper evaluation
-        // Handle null/undefined values by treating them as 0
-        let replacement: string;
-        if (value === null || value === undefined) {
-          replacement = "0";
-        } else if (typeof value === "string") {
-          replacement = `"${value}"`;
-        } else {
-          replacement = value.toString();
-        }
-        expr = expr.replace(new RegExp(escapedRef, "g"), replacement);
-      }
+    // Substitute by POSITION, back to front. A global string replace rewrote
+    // every occurrence of the shorter reference first, so `=A1+A10` had its
+    // `A10` broken into `<A1's value>0` and produced a plausible wrong number
+    // (#2357). Walking backwards keeps the earlier spans valid as we go.
+    for (let index = cellRefs.length - 1; index >= 0; index--) {
+      const { ref, start } = cellRefs[index];
+      expr = expr.slice(0, start) + renderOperand(context.getCellValue(ref)) + expr.slice(start + ref.length);
     }
 
     // Parse date strings in arithmetic expressions (e.g., "06/01/2025" → serial number)
