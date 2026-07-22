@@ -167,6 +167,7 @@ const enMessages = {
     qrHint: "Or scan this QR code with your phone's camera.",
   },
   sidebarHeader: {
+    newMessages: "New messages",
     home: "Go to latest chat",
     toolCallHistory: "Tool call history",
     settings: "Settings",

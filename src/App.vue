@@ -126,10 +126,12 @@
           :session-role-icon="sessionRoleIcon"
           :layout-mode="layoutMode"
           :show-right-sidebar="showRightSidebar"
+          :has-new-messages="hasNewWhileDetached"
           @select="onSidebarItemClick"
           @activate="activePane = 'sidebar'"
           @update:layout-mode="setLayoutMode"
           @toggle-right-sidebar="toggleRightSidebar"
+          @jump-to-latest="jumpToLatest"
         />
 
         <!-- Shared Thinking indicator. Sits between the sidebar and
@@ -600,11 +602,12 @@ const chatInputRef = ref<{
   refreshVoiceAvailability: () => Promise<void>;
 } | null>(null);
 
-const { focusChatInput } = useChatScroll({
+const { focusChatInput, jumpToLatest, hasNewWhileDetached } = useChatScroll({
   sessionSidebarRef,
   toolResults,
   isRunning: activeSessionRunning,
   chatInputRef,
+  sessionId: computed(() => activeSession.value?.id ?? null),
 });
 
 // Panel-wide file drop (#1289 Step 2). The handlers are bound on

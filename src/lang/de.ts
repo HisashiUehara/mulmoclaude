@@ -149,6 +149,7 @@ const deMessages = {
     qrHint: "Oder scanne diesen QR-Code mit der Handykamera.",
   },
   sidebarHeader: {
+    newMessages: "Neue Nachrichten",
     home: "Zum neuesten Chat",
     toolCallHistory: "Tool-Aufrufverlauf",
     settings: "Einstellungen",

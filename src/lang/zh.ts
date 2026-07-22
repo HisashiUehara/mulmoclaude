@@ -148,6 +148,7 @@ const zhMessages = {
     qrHint: "也可以用手机相机扫描此二维码打开。",
   },
   sidebarHeader: {
+    newMessages: "新消息",
     home: "前往最新对话",
     toolCallHistory: "工具调用历史",
     settings: "设置",

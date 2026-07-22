@@ -153,6 +153,7 @@ const koMessages = {
     qrHint: "휴대폰 카메라로 이 QR 코드를 스캔해도 열 수 있습니다.",
   },
   sidebarHeader: {
+    newMessages: "새 메시지",
     home: "최신 채팅으로 이동",
     toolCallHistory: "도구 호출 기록",
     settings: "설정",
