@@ -9,6 +9,7 @@ export * from "./types";
 
 // Export utilities
 export * from "./parser";
+export * from "./condition";
 export * from "./formatter";
 export * from "./evaluator";
 export * from "./calculator";

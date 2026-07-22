@@ -2,6 +2,7 @@
  * Logical Functions
  */
 
+import { evaluateCondition } from "../condition";
 import { functionRegistry, type FunctionHandler } from "../registry";
 
 const ifHandler: FunctionHandler = (args, context) => {
@@ -139,23 +140,12 @@ const ifsHandler: FunctionHandler = (args, context) => {
       }
     }
 
-    // Evaluate the condition. Direct `eval()` is required here so the
-    // expression runs in strict-mode caller scope — switching to
-    // indirect eval (`globalThis.eval`) widens semantics to sloppy
-    // global script context (an expression like `x=1` would silently
-    // create a global, `this` flips from `undefined` to `globalThis`).
-    // The rolldown `[EVAL]` build warning is suppressed via the
-    // `onwarn` filter in `vite.config.ts` rather than by changing call
-    // semantics. (Codex review on PR #1855.)
-    let conditionResult = false;
-
-    if (/>=|<=|>|<|==|!=/.test(condExpr)) {
-      conditionResult = eval(condExpr);
-    } else {
-      conditionResult = !!eval(condExpr);
-    }
-
-    if (conditionResult) {
+    // Parsed, not executed. This used to call `eval` on `condExpr`, which is
+    // the substituted text — so a cell containing `globalThis.x = 1` ran as
+    // code whenever an IFS referenced it, and so did anything written into the
+    // formula itself. A condition is one comparison or a bare value, which
+    // `evaluateCondition` reads directly.
+    if (evaluateCondition(condExpr)) {
       // If result is a quoted string, return without quotes
 
       if (/^["'](.*)["']$/.test(value)) {

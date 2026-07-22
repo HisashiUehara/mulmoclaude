@@ -1,0 +1,96 @@
+/**
+ * Evaluating a spreadsheet condition without running it as code.
+ *
+ * A condition is one comparison, or a bare value tested for truthiness. That is
+ * the whole grammar — small enough to read directly, which is the point: the
+ * previous implementation handed the substituted text to `eval`, so a cell
+ * containing `globalThis.x = 1` executed when any IFS referenced it.
+ */
+
+import type { CellValue } from "./types";
+
+export type ComparisonOperator = ">=" | "<=" | "<>" | "!=" | "==" | "=" | ">" | "<";
+
+// Longest first: `>=` must win over `>`, and `<>` / `<=` over `<`.
+const OPERATORS: readonly ComparisonOperator[] = [">=", "<=", "<>", "!=", "==", "=", ">", "<"];
+
+export interface Comparison {
+  left: string;
+  operator: ComparisonOperator;
+  right: string;
+}
+
+/** Split a condition into its two sides, or null when it holds no comparison.
+ *  Only the FIRST top-level operator counts — `a>b>c` is not a chain here, and
+ *  treating it as one is what let `1=1=1` reach a JS parser before. */
+export function splitComparison(condition: string): Comparison | null {
+  const text = condition.trim();
+  for (let index = 0; index < text.length; index++) {
+    for (const operator of OPERATORS) {
+      if (!text.startsWith(operator, index)) continue;
+      // An operator at position 0 has no left side; treat the text as a value.
+      if (index === 0) return null;
+      return { left: text.slice(0, index).trim(), operator, right: text.slice(index + operator.length).trim() };
+    }
+  }
+  return null;
+}
+
+/** Strip one matching pair of surrounding quotes, if present. */
+function unquote(text: string): { value: string; quoted: boolean } {
+  const isQuoted = text.length >= 2 && ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'")));
+  return isQuoted ? { value: text.slice(1, -1), quoted: true } : { value: text, quoted: false };
+}
+
+/** Read an operand as the value it denotes: a quoted string stays text, a
+ *  numeric literal becomes a number, `TRUE`/`FALSE` become booleans, and
+ *  anything else stays the text it already is. */
+export function readOperand(raw: string): CellValue {
+  const { value, quoted } = unquote(raw.trim());
+  if (quoted) return value;
+  if (value === "") return "";
+  const upper = value.toUpperCase();
+  if (upper === "TRUE") return true;
+  if (upper === "FALSE") return false;
+  // `Number` rather than `parseFloat`: it rejects trailing garbage, so "12abc"
+  // stays text instead of becoming 12.
+  const numeric = Number(value);
+  return Number.isNaN(numeric) ? value : numeric;
+}
+
+function compareValues(left: CellValue, right: CellValue): number | null {
+  if (typeof left === "number" && typeof right === "number") return left - right;
+  if (typeof left === "boolean" || typeof right === "boolean") return null;
+  return String(left).localeCompare(String(right));
+}
+
+function applyOperator(operator: ComparisonOperator, left: CellValue, right: CellValue): boolean {
+  // Equality does not need an ordering, so it works for every type pair —
+  // including the boolean combinations `compareValues` refuses to order.
+  if (operator === "=" || operator === "==") return left === right;
+  if (operator === "<>" || operator === "!=") return left !== right;
+  const ordering = compareValues(left, right);
+  if (ordering === null) return false;
+  if (operator === ">") return ordering > 0;
+  if (operator === ">=") return ordering >= 0;
+  if (operator === "<") return ordering < 0;
+  return ordering <= 0;
+}
+
+/** True when a bare (non-comparison) condition counts as satisfied. Mirrors
+ *  the spreadsheet convention rather than JavaScript's: 0 and an empty string
+ *  are false, every other value is true. */
+export function isTruthyCondition(raw: string): boolean {
+  const value = readOperand(raw);
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  return value !== "";
+}
+
+/** Evaluate a condition — one comparison, or a value tested for truthiness.
+ *  Never executes its input. */
+export function evaluateCondition(condition: string): boolean {
+  const comparison = splitComparison(condition);
+  if (!comparison) return isTruthyCondition(condition);
+  return applyOperator(comparison.operator, readOperand(comparison.left), readOperand(comparison.right));
+}
