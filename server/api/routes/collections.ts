@@ -67,7 +67,8 @@ import { workspacePath } from "../../workspace/workspace.js";
 import { refreshOne } from "@mulmoclaude/core/feeds/server";
 import { manageCollection } from "../../agent/mcp-tools/manageCollection.js";
 import { dispatchAgentAction, runningAgentActions } from "./collectionAgentActions.js";
-import { clampCapabilities, mintViewToken, requireViewToken, type ViewCapability } from "../auth/viewToken.js";
+import { clampCapabilities, mintViewToken, requireViewToken } from "../auth/viewToken.js";
+import { csvParam, extractRecord, parseCapabilities, parseListParam } from "./collectionParams.js";
 
 const router = Router();
 
@@ -252,11 +253,6 @@ router.delete(API_ROUTES.collections.detail, async (req: Request<{ slug: string 
     serverError(res, errorMessage(err));
   }
 });
-
-function extractRecord(body: unknown): CollectionItem | null {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
-  return body as CollectionItem;
-}
 
 router.post(API_ROUTES.collections.items, async (req: Request<{ slug: string }>, res: Response<ItemMutationResponse>) => {
   const collection = await loadCollectionOr404(req.params.slug, res);
@@ -588,20 +584,6 @@ router.post(API_ROUTES.collections.collectionAction, async (req: Request<{ slug:
 // failure (unknown slug, over-limit unselective read, bad putItems shape) —
 // forward parsed JSON as 200, the bare string as a 400 `{ error }`.
 
-/** Parse a `read`/`write` capability list from a request body value. */
-function parseCapabilities(value: unknown): ViewCapability[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const caps = value.filter((entry): entry is ViewCapability => entry === "read" || entry === "write");
-  return caps.length > 0 ? caps : undefined;
-}
-
-/** Parse a comma-separated or repeated query param into a string list. */
-function parseListParam(value: unknown): string[] | undefined {
-  const parts = typeof value === "string" ? value.split(",") : Array.isArray(value) ? value.map(String) : [];
-  const cleaned = parts.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
-  return cleaned.length > 0 ? cleaned : undefined;
-}
-
 function sendToolResult(res: Response, raw: string): void {
   try {
     res.json(JSON.parse(raw));
@@ -782,12 +764,6 @@ router.post(API_ROUTES.collections.remoteViewMutate, async (req: Request<{ slug:
 
 /** A `fields` projection arrives as a CSV query string (`?fields=title,photo`)
  *  or repeated params; hand `normalizeFields` an array either way. */
-function csvParam(value: unknown): string[] | undefined {
-  if (Array.isArray(value)) return value.map((entry) => String(entry));
-  if (typeof value === "string" && value.length > 0) return value.split(",");
-  return undefined;
-}
-
 /** Map a non-ok item-page build to its HTTP error (message shared with the
  *  channel handler via `remoteViewItemsFailureMessage`). */
 function sendRemoteViewItemsFailure(res: Response, result: Exclude<RemoteViewItemsResult, { kind: "ok" }>, slug: string): void {
