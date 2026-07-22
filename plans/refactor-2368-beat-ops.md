@@ -36,8 +36,8 @@ when the next beat endpoint (caption, subtitle, …) is written.
    the new `makeBeatOpHandler` factory. A separate module keeps the guard
    testable without importing `server/plugins/mulmoscript-server.ts` (which
    boots the whole plugin runtime).
-3. `makeBeatOpHandler(op, toResponse)` returns the Express handler.
-   `op` is generic over its success result; `toResponse` names the one
+3. `makeBeatOpHandler(runOp, toResponse)` returns the Express handler.
+   `runOp` is generic over its success result; `toResponse` names the one
    response key. No `any`, no `as`, validation and failure mapping shared.
 4. Each endpoint becomes a `bindRoute(router, route, makeBeatOpHandler(op, map))`
    declaration.

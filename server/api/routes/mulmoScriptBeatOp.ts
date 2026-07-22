@@ -59,13 +59,13 @@ export interface BeatOpBody {
 export type BeatOpHandler<TBody> = (req: Request<object, unknown, BeatOpBody>, res: Response<TBody | ErrorResponse>) => Promise<void>;
 
 /**
- * Build the handler for one beat endpoint. `op` is the only thing that
+ * Build the handler for one beat endpoint. `runOp` is the only thing that
  * generates, and `toResponse` is the only thing that names the success key
  * (`audio`, `image`, …) — validation, failure mapping, and the 200 shape
  * are shared.
  */
 export function makeBeatOpHandler<TResult extends { ok: true }, TBody extends object>(
-  op: (args: BeatOpArgs) => Promise<TResult | OpFailure>,
+  runOp: (args: BeatOpArgs) => Promise<TResult | OpFailure>,
   toResponse: (result: TResult) => TBody,
 ): BeatOpHandler<TBody> {
   return async (req, res) => {
@@ -74,7 +74,7 @@ export function makeBeatOpHandler<TResult extends { ok: true }, TBody extends ob
       badRequest(res, "filePath and beatIndex are required");
       return;
     }
-    const result = await op({ filePath, beatIndex, force, chatSessionId });
+    const result = await runOp({ filePath, beatIndex, force, chatSessionId });
     if (!result.ok) {
       sendOpFailure(res, result);
       return;

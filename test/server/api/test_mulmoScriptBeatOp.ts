@@ -16,7 +16,7 @@ import { makeBeatOpHandler, sendOpFailure, validBeatIndex, type BeatOpArgs, type
 // without importing the plugin package.
 type OpFailure = Parameters<typeof sendOpFailure>[1];
 
-const FAILURE_STATUSES: Array<[OpFailure["code"], number]> = [
+const FAILURE_STATUSES: [OpFailure["code"], number][] = [
   ["bad_request", 400],
   ["not_found", 404],
   ["unavailable", 503],
