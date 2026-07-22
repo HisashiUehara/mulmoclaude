@@ -112,4 +112,8 @@ describe("memory/llm-json — skipStringBody", () => {
     assert.equal(skipStringBody("", 0), 0);
     assert.equal(skipStringBody('"', 1), 1);
   });
+
+  it("clamps a start index past the end to the text length", () => {
+    assert.equal(skipStringBody("abc", 4), 3);
+  });
 });
