@@ -133,6 +133,7 @@ This catalog only covers **cross-cutting** helpers — formatters, error helpers
 | `src/config/pubsubChannels.ts` | `PUBSUB_CHANNELS`                                                             | Host-fixed entries + plugin `META.staticChannels` auto-merged.                                                                  |
 | `gui-chat-protocol/vue`        | `useRuntime()`                                                                | Inside a plugin's Vue component, the typed `endpoints` map.                                                                     |
 | `src/plugins/api.ts`           | `pluginEndpoints<E>(scope)`                                                   | Inside a plugin's executor, the typed endpoints.                                                                                |
+| `src/plugins/execute.ts`       | `makeRouteExecute<E, D>(scope, routeKey, toolName)` / `makePostExecute<E, D>(scope, urlKey, toolName)` | A plugin's `execute()` when it is a pass-through to one host route. Owns the tool-result convention (failure → `{toolName, uuid, message}`, success → spread + fresh `uuid`). `makePostExecute` is for host-shared groups whose entries are bare URL strings (`image`, `roles`). Reshaping the response (`manageSkills`) or decorating `data` (`presentHtml`) means writing the body by hand. |
 
 ## Logging
 
