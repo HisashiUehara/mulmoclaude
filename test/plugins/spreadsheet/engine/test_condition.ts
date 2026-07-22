@@ -38,8 +38,24 @@ describe("splitComparison", () => {
     assert.deepEqual(splitComparison("1=1=1"), { left: "1", operator: "=", right: "1=1" });
   });
 
-  it("treats a leading operator as no comparison", () => {
-    assert.equal(splitComparison(">5"), null);
+  // A blank cell substitutes to nothing, leaving the operator at position 0.
+  // That is a comparison against an empty left side, not a bare value — reading
+  // it as text made `IFS` pick branches for empty cells (Codex review).
+  it("treats a leading operator as a comparison with an empty left side", () => {
+    assert.deepEqual(splitComparison(">5"), { left: "", operator: ">", right: "5" });
+    assert.deepEqual(splitComparison(">=1"), { left: "", operator: ">=", right: "1" });
+  });
+
+  // A cell holding `a>b` substitutes as the literal `"a>b"`. Splitting on that
+  // `>` would compare two fragments of one string (Codex review).
+  it("ignores operators inside quoted text", () => {
+    assert.deepEqual(splitComparison('"a>b"="a>b"'), { left: '"a>b"', operator: "=", right: '"a>b"' });
+    assert.deepEqual(splitComparison("'x=y'='x=y'"), { left: "'x=y'", operator: "=", right: "'x=y'" });
+    assert.deepEqual(splitComparison('A1="a>b"'), { left: "A1", operator: "=", right: '"a>b"' });
+  });
+
+  it("finds an operator that follows a quoted section", () => {
+    assert.deepEqual(splitComparison('"a>b" = "c"'), { left: '"a>b"', operator: "=", right: '"c"' });
   });
 });
 
@@ -89,6 +105,21 @@ describe("evaluateCondition — comparisons", () => {
     assert.equal(evaluateCondition("5==5"), true);
     assert.equal(evaluateCondition("5<>3"), true);
     assert.equal(evaluateCondition("5!=5"), false);
+  });
+
+  // The regression the quote-aware scan exists for: both sides are one string
+  // each, so this is equality between them, not a comparison of fragments.
+  it("compares text containing operator characters", () => {
+    assert.equal(evaluateCondition('"a>b"="a>b"'), true);
+    assert.equal(evaluateCondition('"a>b"="a>c"'), false);
+  });
+
+  it("compares an empty left side, as a blank cell produces", () => {
+    assert.equal(evaluateCondition(">5"), false, "blank is not greater than 5");
+    assert.equal(evaluateCondition(">=1"), false);
+    assert.equal(evaluateCondition("<>5"), true, "blank does differ from 5");
+    assert.equal(evaluateCondition("=5"), false);
+    assert.equal(evaluateCondition('=""'), true, "blank equals blank");
   });
 
   it("compares text", () => {

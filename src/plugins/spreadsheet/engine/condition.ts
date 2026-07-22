@@ -22,14 +22,26 @@ export interface Comparison {
 
 /** Split a condition into its two sides, or null when it holds no comparison.
  *  Only the FIRST top-level operator counts — `a>b>c` is not a chain here, and
- *  treating it as one is what let `1=1=1` reach a JS parser before. */
+ *  treating it as one is what let `1=1=1` reach a JS parser before.
+ *
+ *  "Top-level" means outside quotes: a cell holding `a>b` substitutes into the
+ *  condition as `"a>b"`, and splitting on that `>` would compare two fragments
+ *  of one string literal. */
 export function splitComparison(condition: string): Comparison | null {
   const text = condition.trim();
+  let quote: string | null = null;
   for (let index = 0; index < text.length; index++) {
+    const char = text[index];
+    if (quote !== null) {
+      if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
     for (const operator of OPERATORS) {
       if (!text.startsWith(operator, index)) continue;
-      // An operator at position 0 has no left side; treat the text as a value.
-      if (index === 0) return null;
       return { left: text.slice(0, index).trim(), operator, right: text.slice(index + operator.length).trim() };
     }
   }
