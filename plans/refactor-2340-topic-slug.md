@@ -35,7 +35,7 @@ code points from `for…of` are skipped, never stored). Therefore
 `out` after the tail `pop()` loop is exactly `compactAlnum`'s return value
 (`compactAlnum` ends with the same pop loop). Order of operations is preserved:
 
-```
+```text
 lowercase → compact (leading/trailing seps already gone) → slice(0, 60)
           → trimTrailing("-")  ← only fires when the slice lands on a separator
           → reserved-basename gate → return
