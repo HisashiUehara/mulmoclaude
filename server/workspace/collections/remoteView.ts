@@ -35,6 +35,23 @@ import {
 } from "./index.js";
 import { resolveThumbnail } from "../../utils/files/thumbnail-store.js";
 
+/** Shared head of every remote-view operation. Its non-ok members are shaped to
+ *  be assignable to all three public result types below, so a caller can return
+ *  a refusal straight through without re-mapping it. */
+export type ResolveMobileViewResult =
+  { kind: "ok"; view: CollectionCustomView } | { kind: "view-not-found"; viewId: string } | { kind: "not-mobile"; viewId: string };
+
+/** Look up a declared view and refuse it unless it targets mobile. EVERY remote
+ *  entry point resolves its view through here, so the guard cannot be forgotten
+ *  by a new one: a desktop view's HTML assumes the token/dataUrl contract and
+ *  would just break on the phone — refuse it instead of serving a broken page. */
+export function resolveMobileView(collection: LoadedCollection, viewId: string): ResolveMobileViewResult {
+  const view = (collection.schema.views ?? []).find((entry) => entry.id === viewId);
+  if (!view) return { kind: "view-not-found", viewId };
+  if (view.target !== "mobile") return { kind: "not-mobile", viewId };
+  return { kind: "ok", view };
+}
+
 export interface RemoteViewInfo {
   id: string;
   label: string;
@@ -57,11 +74,9 @@ export interface BuildRemoteViewDeps {
 export const createBuildRemoteView =
   (deps: BuildRemoteViewDeps) =>
   async (collection: LoadedCollection, viewId: string, locale: string): Promise<RemoteViewBuildResult> => {
-    const view = (collection.schema.views ?? []).find((entry) => entry.id === viewId);
-    if (!view) return { kind: "view-not-found", viewId };
-    // A desktop view's HTML assumes the token/dataUrl contract and would just
-    // break on the phone — refuse it instead of serving a broken page.
-    if (view.target !== "mobile") return { kind: "not-mobile", viewId };
+    const resolved = resolveMobileView(collection, viewId);
+    if (resolved.kind !== "ok") return resolved;
+    const { view } = resolved;
     const html = await deps.readCustomViewHtml(collection, view.file);
     if (html === null) return { kind: "file-missing", file: view.file };
     const i18n = view.i18n ? await deps.readCustomViewI18n(collection, view.i18n, locale) : { locale: "", dict: {} };
@@ -123,9 +138,9 @@ export interface MutateRemoteViewDeps {
 export const createMutateRemoteView =
   (deps: MutateRemoteViewDeps) =>
   async (collection: LoadedCollection, viewId: string, request: RemoteViewMutateRequest): Promise<MutateRemoteViewResult> => {
-    const view = (collection.schema.views ?? []).find((entry) => entry.id === viewId);
-    if (!view) return { kind: "view-not-found", viewId };
-    if (view.target !== "mobile") return { kind: "not-mobile", viewId };
+    const resolved = resolveMobileView(collection, viewId);
+    if (resolved.kind !== "ok") return resolved;
+    const { view } = resolved;
     // A dataSource collection is read-only regardless of what write surface
     // the view declares — the collection-level rule outranks the view's. The
     // store encodes it as absent write/delete methods.
@@ -270,9 +285,9 @@ async function inlineImages(
 export const createRemoteViewItems =
   (deps: RemoteViewItemsDeps) =>
   async (collection: LoadedCollection, viewId: string, request: RemoteViewPageRequest): Promise<RemoteViewItemsResult> => {
-    const view = (collection.schema.views ?? []).find((entry) => entry.id === viewId);
-    if (!view) return { kind: "view-not-found", viewId };
-    if (view.target !== "mobile") return { kind: "not-mobile", viewId };
+    const resolved = resolveMobileView(collection, viewId);
+    if (resolved.kind !== "ok") return resolved;
+    const { view } = resolved;
     // Hydrate through the SAME server resolver the desktop `dataUrl` route uses
     // (manageCollection.getItems → enrichItems): ref targets loaded once, derived
     // formulas evaluated with a full ref cache (`ticker.price`, `shares * ticker.price`
