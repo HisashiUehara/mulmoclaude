@@ -276,9 +276,16 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
     // A formula that is nothing but one reference returns that cell's value
     // directly. Rendering it into an expression first would mean escaping the
     // text, and the escapes would survive into the result — `=A1` on a cell
-    // holding `say "hi"` would come back `say \"hi\"`.
-    if (cellRefs.length === 1 && cellRefs[0].start === 0 && cellRefs[0].ref.length === expr.length) {
-      return context.getCellValue(cellRefs[0].ref);
+    // holding `say "hi"` would come back `say \"hi\"`. Surrounding whitespace
+    // (`= A1`, `=A1 `) is part of "nothing but one reference", so compare the
+    // span against the trimmed expression rather than the raw one.
+    if (cellRefs.length === 1) {
+      const { ref, start } = cellRefs[0];
+      const before = expr.slice(0, start);
+      const after = expr.slice(start + ref.length);
+      if (before.trim() === "" && after.trim() === "") {
+        return context.getCellValue(ref);
+      }
     }
 
     // Substitute by POSITION, back to front. A global string replace rewrote

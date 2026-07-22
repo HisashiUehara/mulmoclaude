@@ -56,6 +56,21 @@ describe("a lone reference returns the cell value unchanged", () => {
     assert.equal(row[2], 'say "hi"', "absolute form too");
   });
 
+  // `= A1` and `=A1 ` are still nothing but one reference; the whitespace must
+  // not push them onto the substitution path, where the text would be escaped
+  // and the escapes kept (Codex review).
+  it("takes the fast path despite surrounding whitespace", () => {
+    for (const formula of ["= A1", "=A1 ", "=  A1  "]) {
+      const sheet: SheetData = { name: "S", data: [[{ v: 'say "hi"' }, { v: formula }]] };
+      assert.equal(new SpreadsheetEngine().calculate(sheet).data[0][1], 'say "hi"', `${formula} should return the value verbatim`);
+    }
+  });
+
+  it("still substitutes when whitespace surrounds a reference inside an expression", () => {
+    const sheet: SheetData = { name: "S", data: [[{ v: 3 }, { v: "= A1 + 1" }]] };
+    assert.equal(new SpreadsheetEngine().calculate(sheet).data[0][1], 4);
+  });
+
   it("returns a backslash-bearing string intact", () => {
     const sheet: SheetData = { name: "S", data: [[{ v: "C:\\path" }, { v: "=A1" }]] };
     assert.equal(new SpreadsheetEngine().calculate(sheet).data[0][1], "C:\\path");
