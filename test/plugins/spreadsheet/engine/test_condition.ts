@@ -4,7 +4,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateCondition, isTruthyCondition, readOperand, splitComparison } from "../../../../src/plugins/spreadsheet/engine/condition.ts";
+import { evaluateCondition, isTruthyCondition, readOperand, splitComparison, stripOuterParens } from "../../../../src/plugins/spreadsheet/engine/condition.ts";
 
 describe("splitComparison", () => {
   it("splits on each operator", () => {
@@ -59,6 +59,39 @@ describe("splitComparison", () => {
   });
 });
 
+describe("stripOuterParens", () => {
+  // `IFS((A1>0), ...)` is valid, and the parser used to split it into `(1` and
+  // `0)` — two operands that compare as text and never match (Codex review).
+  it("removes parentheses that wrap the whole expression", () => {
+    assert.equal(stripOuterParens("(1>0)"), "1>0");
+    assert.equal(stripOuterParens("((1>0))"), "1>0");
+    assert.equal(stripOuterParens("  ( 1>0 )  "), "1>0");
+  });
+
+  // The leading `(` closes before the end, so it wraps only its own operand.
+  // Removing the outer characters here would corrupt the expression into
+  // `A)=(B`.
+  it("keeps parentheses that wrap only part of the expression", () => {
+    assert.equal(stripOuterParens("(A)=(B)"), "(A)=(B)");
+    assert.equal(stripOuterParens("(1)>(0)"), "(1)>(0)");
+  });
+
+  it("leaves unbalanced input untouched rather than guessing", () => {
+    assert.equal(stripOuterParens("(1>0"), "(1>0");
+    assert.equal(stripOuterParens("("), "(");
+    assert.equal(stripOuterParens(")("), ")(");
+  });
+
+  it("ignores parentheses inside quoted text", () => {
+    assert.equal(stripOuterParens('("a)b")'), '"a)b"');
+  });
+
+  it("leaves an expression with no outer parentheses alone", () => {
+    assert.equal(stripOuterParens("1>0"), "1>0");
+    assert.equal(stripOuterParens(""), "");
+  });
+});
+
 describe("readOperand", () => {
   it("reads numbers", () => {
     assert.equal(readOperand("42"), 42);
@@ -109,6 +142,18 @@ describe("evaluateCondition — comparisons", () => {
 
   // The regression the quote-aware scan exists for: both sides are one string
   // each, so this is equality between them, not a comparison of fragments.
+  it("evaluates a parenthesised comparison the same as a bare one", () => {
+    assert.equal(evaluateCondition("(1>0)"), true);
+    assert.equal(evaluateCondition("((5>=5))"), true);
+    assert.equal(evaluateCondition("(3>5)"), false);
+    assert.equal(evaluateCondition('("a"="a")'), true);
+  });
+
+  it("evaluates a parenthesised bare value", () => {
+    assert.equal(evaluateCondition("(1)"), true);
+    assert.equal(evaluateCondition("(0)"), false);
+  });
+
   it("compares text containing operator characters", () => {
     assert.equal(evaluateCondition('"a>b"="a>b"'), true);
     assert.equal(evaluateCondition('"a>b"="a>c"'), false);

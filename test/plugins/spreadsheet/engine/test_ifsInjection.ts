@@ -32,6 +32,14 @@ describe("IFS — normal use", () => {
     assert.equal(calculate("No", '=IFS(A1="Yes", "confirmed", A1="No", "declined")'), "declined");
   });
 
+  // `IFS((A1>0), ...)` is ordinary usage; the parser used to split the
+  // parenthesised form into two text operands that never matched.
+  it("accepts a parenthesised condition", () => {
+    assert.equal(calculate("5", '=IFS((A1>3), "big")'), "big");
+    assert.equal(calculate("1", '=IFS((A1>3), "big", (A1>0), "small")'), "small");
+    assert.equal(calculate("5", '=IFS(((A1>3)), "big")'), "big");
+  });
+
   it("handles the boundary operators", () => {
     assert.equal(calculate("3", '=IFS(A1>=3, "atLeast3")'), "atLeast3");
     assert.equal(calculate("3", '=IFS(A1>3, "over3")'), "#N/A");

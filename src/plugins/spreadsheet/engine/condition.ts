@@ -20,6 +20,43 @@ export interface Comparison {
   right: string;
 }
 
+/** Remove parentheses that wrap the WHOLE expression, repeatedly. `(1>0)` is
+ *  the same condition as `1>0`, but `(A)=(B)` is not `A)=(B` — the leading `(`
+ *  closes before the end, so it wraps only its own operand and must stay.
+ *  Unbalanced input is left untouched rather than guessed at. */
+export function stripOuterParens(condition: string): string {
+  let text = condition.trim();
+  while (text.startsWith("(") && text.endsWith(")")) {
+    let depth = 0;
+    let quote: string | null = null;
+    let wrapsAll = true;
+    for (let index = 0; index < text.length; index++) {
+      const char = text[index];
+      if (quote !== null) {
+        if (char === quote) quote = null;
+        continue;
+      }
+      if (char === '"' || char === "'") {
+        quote = char;
+        continue;
+      }
+      if (char === "(") depth++;
+      else if (char === ")") {
+        depth--;
+        // Back to zero before the end means this `(` closed early.
+        if (depth === 0 && index < text.length - 1) {
+          wrapsAll = false;
+          break;
+        }
+        if (depth < 0) return text; // unbalanced
+      }
+    }
+    if (!wrapsAll || depth !== 0) return text;
+    text = text.slice(1, -1).trim();
+  }
+  return text;
+}
+
 /** Split a condition into its two sides, or null when it holds no comparison.
  *  Only the FIRST top-level operator counts — `a>b>c` is not a chain here, and
  *  treating it as one is what let `1=1=1` reach a JS parser before.
@@ -28,7 +65,7 @@ export interface Comparison {
  *  condition as `"a>b"`, and splitting on that `>` would compare two fragments
  *  of one string literal. */
 export function splitComparison(condition: string): Comparison | null {
-  const text = condition.trim();
+  const text = stripOuterParens(condition);
   let quote: string | null = null;
   for (let index = 0; index < text.length; index++) {
     const char = text[index];
@@ -93,7 +130,7 @@ function applyOperator(operator: ComparisonOperator, left: CellValue, right: Cel
  *  the spreadsheet convention rather than JavaScript's: 0 and an empty string
  *  are false, every other value is true. */
 export function isTruthyCondition(raw: string): boolean {
-  const value = readOperand(raw);
+  const value = readOperand(stripOuterParens(raw));
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value !== 0;
   return value !== "";
