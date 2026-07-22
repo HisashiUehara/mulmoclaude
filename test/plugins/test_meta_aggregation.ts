@@ -209,3 +209,25 @@ test("defineHostAggregate without additionalReservedKeys preserves original beha
   assert.equal(result.merged.reservedFile, "data/x");
   assert.equal(result.hostCollisions.length, 0);
 });
+
+// A key named after an `Object.prototype` member used to read a function out
+// of the bare `{}` used as the owner map, so the FIRST plugin to claim it was
+// reported as colliding with a plugin that does not exist — and its entry was
+// dropped. The warning even named `null` as the prior claimant (#2315).
+test("a key named after an Object.prototype member is registered, not dropped as a collision", () => {
+  for (const key of ["constructor", "toString", "valueOf", "hasOwnProperty"]) {
+    const meta: PluginMeta = { toolName: "only", apiNamespace: "only", workspaceDirs: { [key]: "data/x" } };
+    const result = buildPluginAggregate<string>([meta], (entry) => entry.workspaceDirs, "workspaceDirs");
+    assert.equal(result.aggregate[key], "data/x", `${key} should be registered`);
+    assert.deepEqual(result.collisions, [], `${key} should not be reported as a collision`);
+    assert.equal(result.owner[key], "only");
+  }
+});
+
+test("two plugins claiming an Object.prototype-named key still collide, attributed to the first", () => {
+  const first: PluginMeta = { toolName: "first", apiNamespace: "first", workspaceDirs: { constructor: "data/a" } };
+  const second: PluginMeta = { toolName: "second", apiNamespace: "second", workspaceDirs: { constructor: "data/b" } };
+  const result = buildPluginAggregate<string>([first, second], (entry) => entry.workspaceDirs, "workspaceDirs");
+  assert.equal(result.aggregate.constructor, "data/a", "first write wins");
+  assert.deepEqual(result.collisions, [{ dimension: "workspaceDirs", key: "constructor", plugins: ["first", "second"] }]);
+});
