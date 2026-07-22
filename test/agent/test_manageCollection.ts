@@ -453,10 +453,30 @@ describe("manageCollection — schemaDocs", () => {
     assert.ok(docs.length < 40_000, `default reply must stay well under the full doc (${docs.length} chars)`);
   });
 
+  // #2312: the agent authored Google Calendar collections with an MCP
+  // connector + an `ingest: { kind: "agent" }` worker because the DEFAULT
+  // reply — the only part it reads before writing a schema — never named the
+  // LLM-free `googleCalendar` block. A mention in a `###` subsection would
+  // not fix that: renderDefault serves only the core sections' own prose, so
+  // the pointer has to live in the top-level shape table.
+  it("names the googleCalendar block in the default reply and routes to its help file", async () => {
+    const docs = await run({ action: "schemaDocs" });
+    assert.match(docs, /`googleCalendar`/, "the sync block is discoverable without a topic");
+    assert.match(docs, /config\/helps\/google-calendar-collection\.md/, "the default reply routes to the full contract");
+    assert.match(docs, /- Google Calendar sync \(`googleCalendar`\)/, "the section is listed in the TOC");
+  });
+
   it("serves a single section by topic", async () => {
     const docs = await run({ action: "schemaDocs", topic: "kanban" });
     assert.match(docs, /gains a \*\*Kanban board\*\* toggle/);
     assert.doesNotMatch(docs, /### Field types/);
+  });
+
+  it('serves the Google Calendar sync section for topic "google calendar"', async () => {
+    const docs = await run({ action: "schemaDocs", topic: "google calendar" });
+    assert.match(docs, /### Google Calendar sync \(`googleCalendar`\)/);
+    assert.match(docs, /"map": \{ "title": "summary"/, "the block example is included");
+    assert.doesNotMatch(docs, /### Field types/, "one section, not the whole doc");
   });
 
   it('serves the full doc for topic "all"', async () => {
