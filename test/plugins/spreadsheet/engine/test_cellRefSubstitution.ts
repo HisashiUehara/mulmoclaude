@@ -44,6 +44,36 @@ describe("cell reference substitution — prefix collisions", () => {
   });
 });
 
+describe("a lone reference returns the cell value unchanged", () => {
+  // `=A1` is not an expression to substitute into — it IS the cell. Rendering
+  // the value into expression text first would escape a string's quotes and
+  // backslashes, and those escapes would survive into the result (Codex
+  // review): `=A1` on `say "hi"` came back `say \"hi\"`.
+  it("returns text with quotes and backslashes intact", () => {
+    const sheet: SheetData = { name: "S", data: [[{ v: 'say "hi"' }, { v: "=A1" }, { v: "=$A$1" }]] };
+    const [row] = new SpreadsheetEngine().calculate(sheet).data;
+    assert.equal(row[1], 'say "hi"');
+    assert.equal(row[2], 'say "hi"', "absolute form too");
+  });
+
+  it("returns a backslash-bearing string intact", () => {
+    const sheet: SheetData = { name: "S", data: [[{ v: "C:\\path" }, { v: "=A1" }]] };
+    assert.equal(new SpreadsheetEngine().calculate(sheet).data[0][1], "C:\\path");
+  });
+
+  it("returns a number, not its string form", () => {
+    const sheet: SheetData = { name: "S", data: [[{ v: 42 }, { v: "=A1" }]] };
+    assert.equal(new SpreadsheetEngine().calculate(sheet).data[0][1], 42);
+  });
+
+  // The fast path is only for a formula that is EXACTLY one reference; the
+  // moment it is part of an expression the substitution path takes over.
+  it("does not take the fast path when the reference is part of an expression", () => {
+    const sheet: SheetData = { name: "S", data: [[{ v: 3 }, { v: "=A1+1" }]] };
+    assert.equal(new SpreadsheetEngine().calculate(sheet).data[0][1], 4);
+  });
+});
+
 describe("renderOperand", () => {
   it("renders numbers and booleans verbatim", () => {
     assert.equal(renderOperand(42), "42");

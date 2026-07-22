@@ -273,6 +273,14 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
       i++;
     }
 
+    // A formula that is nothing but one reference returns that cell's value
+    // directly. Rendering it into an expression first would mean escaping the
+    // text, and the escapes would survive into the result — `=A1` on a cell
+    // holding `say "hi"` would come back `say \"hi\"`.
+    if (cellRefs.length === 1 && cellRefs[0].start === 0 && cellRefs[0].ref.length === expr.length) {
+      return context.getCellValue(cellRefs[0].ref);
+    }
+
     // Substitute by POSITION, back to front. A global string replace rewrote
     // every occurrence of the shorter reference first, so `=A1+A10` had its
     // `A10` broken into `<A1's value>0` and produced a plausible wrong number
