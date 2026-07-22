@@ -172,7 +172,7 @@
     "test": "tsx --test test/**/test_*.ts"
   },
   "dependencies": {
-    "@duckdb/node-api": "^1.5.4-r.1",
+    "@duckdb/node-api": "^1.5.5-r.1",
     "fast-xml-parser": "^5.10.1",
     "google-auth-library": "^10.9.0",
     "iconv-lite": "^0.7.3",
