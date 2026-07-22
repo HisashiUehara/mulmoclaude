@@ -21,7 +21,7 @@
     "sandbox-entrypoint.sh"
   ],
   "dependencies": {
-    "@google/genai": "^2.12.0",
+    "@google/genai": "^2.13.0",
     "@gui-chat-plugin/browse": "^0.5.1",
     "@gui-chat-plugin/camera": "^0.5.1",
     "@gui-chat-plugin/google-map": "^0.6.1",
@@ -62,7 +62,7 @@
     "js-yaml": "^5.2.1",
     "jszip": "^3.10.1",
     "mammoth": "^1.12.0",
-    "marked": "^18.0.6",
+    "marked": "^18.0.7",
     "mulmocast": "^2.9.0",
     "node-html-parser": "^9",
     "puppeteer": "^25.3.0",
