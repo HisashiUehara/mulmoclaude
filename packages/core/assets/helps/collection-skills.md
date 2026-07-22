@@ -146,6 +146,7 @@ skipped, never crashes the host):
 | `calendarTimeField`    | Optional. Name of a string field holding a free-form time or time-range (`"14:00-17:00"`, `"17:00-"`, `"16:30"`) used to place records on the calendar's **day (time-allocation) view**. Consulted only when the date fields are date-only — a `datetime` anchor/end pair carries its own clock and takes precedence. Requires `calendarField`. See "Calendar view" below.                                                                                                                                                                                                         |
 | `kanbanField`          | Optional. Name of an `enum` field that groups records into columns on the **Kanban board** (one column per declared value). When unset, the Kanban toggle still appears if the schema has any `enum` field — the first one is used, switchable in-view. Set this to pin a specific group field. Must name a real `enum` field. See "Kanban view" below.                                                                                                                                                                                                                            |
 | `views`                | Optional. Custom (LLM-authored) HTML views: `[{ id, label, icon?, file, capabilities?, target? }]`. Each renders an HTML file under `views/*.html` in a sandboxed iframe over the records, for layouts the built-ins don't cover (year/quarter overview, Gantt, report). `capabilities` is `["read"]` (default) or `["read","write"]`. `target: "mobile"` makes it a **remote view** for the phone app (different runtime contract — **`config/helps/custom-view-remote.md`**). See "Custom views" below and **`config/helps/custom-view.md`** for the desktop authoring contract. |
+| `googleCalendar`       | Optional. `{ "calendarId": "primary", "map": { "<field>": "summary" } }` — the host mirrors one of the user's **Google calendars** into this collection on a schedule, **LLM-free**: no tool call, no tokens per sync. Reach for it whenever the user asks for a collection that syncs with Google Calendar — never an `ingest.kind: "agent"` worker or the `google` MCP tools, which spend an LLM turn per refresh doing what the host does for free. Needs `dataPath`. See "Google Calendar sync" below and **`config/helps/google-calendar-collection.md`**.                    |
 
 ### Field types
 
@@ -709,6 +710,33 @@ chat list. Host stays generic: all the domain logic lives in the template prose.
 Reach for `ingest.kind: "agent"` (not a `manageAutomations` task) whenever the
 schedule belongs to one collection: it travels with the schema, dies with the
 collection, and needs no separate setup.
+
+### Google Calendar sync (`googleCalendar`)
+
+A collection opts into **Google Calendar sync** the same way a feed opts into
+retrieval — by declaring a block. Add `googleCalendar` and the host pulls the
+user's changed events on a schedule and writes them as records **without calling
+you**: no tool call, no tokens per sync.
+
+```json
+"googleCalendar": {
+  "calendarId": "primary",
+  "map": { "title": "summary", "on": "start", "until": "end" }
+}
+```
+
+This is the answer whenever the user asks for a collection that syncs with
+Google Calendar — **not** an `ingest.kind: "agent"` worker and **not** the
+`google` MCP calendar tools, both of which spend an LLM turn on every refresh to
+produce what the host produces for free. `map` reads _your_ field name → the
+Google event field (`summary`, `start`, `end`, `htmlLink`, `colorId`, `status`);
+at least one entry is required. Never map the `primaryKey` — it always holds the
+Google event id, which is what makes a re-sync update a record instead of
+duplicating it.
+
+The rest of the contract — finding a non-primary `calendarId`, how deletions
+propagate, and the first-run caveat — is
+**`config/helps/google-calendar-collection.md`**. Read it before authoring one.
 
 ### Calendar view
 

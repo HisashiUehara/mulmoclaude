@@ -36,6 +36,14 @@ export function csvParam(value: unknown): string[] | undefined {
   return undefined;
 }
 
+/** A single-valued query param (`?id=`, `?locale=`): the string only when it
+ *  arrived exactly once, "" otherwise. A repeated param parses as an array,
+ *  and stringifying that would forge an id/locale nobody asked for — reading
+ *  it as absent lets the caller's own 404 / fallback answer instead. */
+export function stringParam(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
 /** A request body is a record only if it is a plain object — an array would
  *  otherwise pass a bare `typeof === "object"` check and be written as a
  *  record with numeric keys. */
