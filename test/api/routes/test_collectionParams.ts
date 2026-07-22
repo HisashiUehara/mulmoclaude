@@ -7,7 +7,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { csvParam, extractRecord, parseCapabilities, parseListParam } from "../../../server/api/routes/collectionParams.js";
+import { csvParam, extractRecord, parseCapabilities, parseListParam, stringParam } from "../../../server/api/routes/collectionParams.js";
 
 describe("parseCapabilities", () => {
   it("keeps the known capabilities", () => {
@@ -101,6 +101,31 @@ describe("csvParam", () => {
     assert.equal(csvParam(undefined), undefined);
     assert.equal(csvParam(null), undefined);
     assert.equal(csvParam(7), undefined);
+  });
+});
+
+describe("stringParam", () => {
+  it("returns the value of a single-valued param verbatim", () => {
+    assert.equal(stringParam("board"), "board");
+    assert.equal(stringParam(" board "), " board "); // no trimming — the id is matched exactly
+  });
+
+  // A repeated param (`?id=a&id=b`) parses as an array. Stringifying it
+  // would forge an id nobody asked for; "" lets the caller's 404 answer.
+  it("reads a repeated param as absent", () => {
+    assert.equal(stringParam(["a", "b"]), "");
+    assert.equal(stringParam(["a"]), "");
+  });
+
+  it("reads a missing or non-string param as an empty string", () => {
+    assert.equal(stringParam(undefined), "");
+    assert.equal(stringParam(null), "");
+    assert.equal(stringParam(7), "");
+    assert.equal(stringParam({ id: "board" }), "");
+  });
+
+  it("preserves an explicitly empty value", () => {
+    assert.equal(stringParam(""), "");
   });
 });
 
