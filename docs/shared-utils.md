@@ -17,6 +17,7 @@ This catalog only covers **cross-cutting** helpers — formatters, error helpers
 | `src/utils/format/date.ts` | `formatDate`, `formatDateTime`, `formatTime`, `formatShortDate`, `formatShortTime`, `formatMonthYear`, `formatSmartTime`, `formatRelativeTime`            | User-facing date display in Vue Views. Prefer over inline `toLocaleString()`.                                 |
 | `src/utils/format/date.ts` | `isSameDay`, `isToday`                                                                                                                                    | Day-boundary comparisons.                                                                                     |
 | `server/utils/date.ts`     | `toUtcIsoDate(...)` and friends                                                                                                                            | Server-side UTC date normalisation (`YYYY-MM-DD`). Distinct from the frontend display formatters above.        |
+| `packages/core/src/google/collectionDateTime.ts` (`@mulmoclaude/core/google`) | `toCollectionDateTime(value)` | RFC3339-with-zone / date-only → the `YYYY-MM-DDTHH:MM[:SS]` shape a collection `datetime` field is linted and rendered against (#2310): the zone designator is dropped (wall clock kept, never converted to host-local) and an all-day date gains `T00:00`. Pure. Used by the Google Calendar → collection sync; reuse it for any other importer writing into a `datetime` field instead of re-deriving the stripping. |
 
 ## Errors
 
