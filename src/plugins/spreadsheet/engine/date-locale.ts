@@ -13,16 +13,35 @@
 // date just as US order does.
 const DAY_FIRST_LANGUAGES = new Set(["es", "pt", "fr", "de", "it", "nl", "ru", "pl", "tr", "id", "vi", "th"]);
 
+// English regions that write month-first. Everywhere else that speaks English
+// writes day-first.
+const MONTH_FIRST_EN_REGIONS = new Set(["us", "ca", "ph"]);
+
+/** The region subtag, or "" when the tag carries none. Scanning rather than
+ *  taking position 1: a script subtag (`en-Latn-US`) sits between the language
+ *  and the region, and reading it as the region flips month-first English
+ *  locales to day-first. A region is two letters or three digits; a
+ *  single-character subtag starts an extension, so nothing past it is one. */
+function regionOf(subtags: readonly string[]): string {
+  for (const subtag of subtags) {
+    if (subtag.length === 1) break;
+    if (/^[a-z]{2}$/.test(subtag) || /^[0-9]{3}$/.test(subtag)) return subtag;
+  }
+  return "";
+}
+
 /** True when an ambiguous `A/B/YYYY` should read as day-first. Accepts a full
  *  BCP 47 tag or a bare language subtag; the region is used when present so a
  *  caller that can supply `en-GB` gets the right answer even though the app's
  *  own locale resolution discards it. */
 export function prefersDayFirst(locale: string | undefined | null): boolean {
   if (!locale) return false;
-  const [language = "", region = ""] = locale.toLowerCase().split(/[-_]/);
-  // English splits on region rather than language: US, Canada and the
-  // Philippines write month-first, the rest of the English-speaking world does
-  // not. A bare `en` cannot be resolved, so it keeps the US default.
-  if (language === "en") return region !== "" && !["us", "ca", "ph"].includes(region);
+  const [language = "", ...rest] = locale.toLowerCase().split(/[-_]/);
+  // English splits on region rather than language. A bare `en` carries no
+  // region to split on, so it keeps the US default.
+  if (language === "en") {
+    const region = regionOf(rest);
+    return region !== "" && !MONTH_FIRST_EN_REGIONS.has(region);
+  }
   return DAY_FIRST_LANGUAGES.has(language);
 }

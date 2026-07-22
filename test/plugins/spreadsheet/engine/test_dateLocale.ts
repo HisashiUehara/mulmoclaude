@@ -55,10 +55,33 @@ describe("prefersDayFirst — tag shapes", () => {
     assert.equal(prefersDayFirst("en-us"), false);
   });
 
-  it("reads the region past a script subtag", () => {
-    // `zh-Hans-CN` has the script in the second position; only the language
-    // decides for non-English tags, so this stays month-first regardless.
+  // A script subtag sits between the language and the region, so reading
+  // position 1 as the region flips `en-Latn-US` to day-first (Codex review).
+  // The earlier `zh-Hans-CN` case looked like it covered this and did not —
+  // non-English tags never consult the region at all.
+  it("reads past a script subtag to find the region", () => {
+    assert.equal(prefersDayFirst("en-Latn-US"), false, "en-Latn-US is month-first");
+    assert.equal(prefersDayFirst("en-Latn-GB"), true, "en-Latn-GB is day-first");
+  });
+
+  // An extension starts with a single-character subtag, and nothing after it
+  // is a region. `-u-nu-latn` is the case that distinguishes: "nu" is two
+  // letters and would otherwise be taken as a region, flipping a bare `en` to
+  // day-first. (`-u-ca-gregory` does NOT distinguish — "ca" happens to be a
+  // month-first region, so both readings agree by accident.)
+  it("does not read an extension subtag as a region", () => {
+    assert.equal(prefersDayFirst("en-u-nu-latn"), false, "no region: keeps the US default");
+    assert.equal(prefersDayFirst("en-u-ca-gregory"), false);
+    assert.equal(prefersDayFirst("en-GB-u-nu-latn"), true, "a real region before the extension still wins");
+  });
+
+  it("accepts a numeric UN M.49 region", () => {
+    assert.equal(prefersDayFirst("es-419"), true, "Latin American Spanish is still day-first by language");
+  });
+
+  it("ignores the region for non-English tags", () => {
     assert.equal(prefersDayFirst("zh-Hans-CN"), false);
+    assert.equal(prefersDayFirst("fr-CA"), true, "decided by language, not region");
   });
 
   // Falling back to month-first keeps the existing behaviour for anything
