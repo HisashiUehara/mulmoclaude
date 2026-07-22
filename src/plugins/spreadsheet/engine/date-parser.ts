@@ -200,6 +200,14 @@ export function getDefaultDateFormat(originalStr: string, preferDDMMYYYY: boolea
     return "YYYY-MM-DD";
   }
 
+  // YYYY/MM/DD parses as ISO, so it must keep a year-first label. Without this
+  // branch it fell through to the slash default and re-rendered as MM/DD or
+  // DD/MM — the same digits in a different order, which reads as a different
+  // date (Codex review).
+  if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(trimmed)) {
+    return "YYYY/MM/DD";
+  }
+
   // DD-MMM-YYYY → use same format
   if (/^\d{1,2}-[A-Za-z]{3}-\d{2,4}$/.test(trimmed)) {
     return "DD-MMM-YYYY";

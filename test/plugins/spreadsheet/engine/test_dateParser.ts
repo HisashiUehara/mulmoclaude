@@ -171,6 +171,7 @@ describe("parseDate — validity and range", () => {
 describe("getDefaultDateFormat", () => {
   it("echoes the shape it was given", () => {
     assert.equal(getDefaultDateFormat("2025-03-04"), "YYYY-MM-DD");
+    assert.equal(getDefaultDateFormat("2025/03/04"), "YYYY/MM/DD");
     assert.equal(getDefaultDateFormat("4-Mar-2025"), "DD-MMM-YYYY");
     assert.equal(getDefaultDateFormat("Mar 4, 2025"), "MMM D, YYYY");
     assert.equal(getDefaultDateFormat("March 4, 2025"), "MMMM D, YYYY");
@@ -190,6 +191,16 @@ describe("getDefaultDateFormat", () => {
     assert.equal(getDefaultDateFormat("03/04/2025", true), "DD/MM/YYYY", "ambiguous: day-first when preferred");
     assert.equal(getDefaultDateFormat("13/04/2025"), "DD/MM/YYYY", "13 can only be a day, whatever the preference");
     assert.equal(getDefaultDateFormat("03/13/2025", true), "MM/DD/YYYY", "13 can only be a day here too");
+  });
+
+  // Slash-separated ISO parses year-first, so it must be LABELLED year-first
+  // too. Falling through to the slash default re-rendered it as MM/DD or DD/MM
+  // — the same digits in a different order, which reads as a different date
+  // (Codex review).
+  it("keeps a year-first label for YYYY/MM/DD under either preference", () => {
+    assert.equal(getDefaultDateFormat("2025/03/04"), "YYYY/MM/DD");
+    assert.equal(getDefaultDateFormat("2025/03/04", true), "YYYY/MM/DD");
+    assert.equal(getDefaultDateFormat("2025/3/4", true), "YYYY/MM/DD", "unpadded too");
   });
 
   it("falls back to the preference for anything unrecognised", () => {
