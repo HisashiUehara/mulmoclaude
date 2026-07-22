@@ -27,7 +27,8 @@ import { getOrCreateSession, beginRun, endRun, cancelRun, pushSessionEvent, push
 import { workspacePath } from "../../workspace/workspace.js";
 import { discoverSkills } from "../../workspace/skills/discovery.js";
 import type { Skill } from "../../workspace/skills/types.js";
-import { isNonEmptyString, isRecord } from "../../utils/types.js";
+import { isNonEmptyString } from "../../utils/types.js";
+import { findLastSessionEntry } from "../../utils/sessionJsonl.js";
 import { maybeRunJournal } from "../../workspace/journal/index.js";
 import { maybeIndexSession } from "../../workspace/chat-index/index.js";
 import { maybeAppendWikiBacklinks } from "../../workspace/wiki-backlinks/index.js";
@@ -1149,19 +1150,7 @@ async function readClaudeSessionIdFromSession(chatSessionId: string): Promise<st
   // Legacy scan: search jsonl lines backwards for a claudeSessionId event
   const jsonl = await readSessionJsonl(chatSessionId);
   if (!jsonl) return undefined;
-  const lines = jsonl.split("\n").filter(Boolean);
-  for (let i = lines.length - 1; i >= 0; i--) {
-    try {
-      // `JSON.parse` hands back `any`, so the `.type`/`.id` reads below were
-      // unchecked — a line of the wrong shape produced whatever it happened to
-      // hold. Narrow first; a malformed line is skipped either way.
-      const entry: unknown = JSON.parse(lines[i]);
-      if (isRecord(entry) && entry.type === EVENT_TYPES.claudeSessionId && isNonEmptyString(entry.id)) return entry.id;
-    } catch {
-      // skip malformed lines
-    }
-  }
-  return undefined;
+  return findLastSessionEntry(jsonl, (entry) => (entry.type === EVENT_TYPES.claudeSessionId && isNonEmptyString(entry.id) ? entry.id : undefined));
 }
 
 // Read the session jsonl and render the transcript preamble used on
