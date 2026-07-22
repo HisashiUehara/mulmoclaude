@@ -90,6 +90,26 @@ describe("collection schema rules — dataSource is read-only", () => {
     assertRejects({ ...readOnly, ingest: { kind: "agent", schedule: "daily", role: "assistant", template: "templates/refresh.md" } }, "read-only");
   });
 
+  // The rule is a conjunction over four write mechanisms; each needs its own
+  // case, or an inverted clause stays invisible behind the ones that are
+  // covered (CodeRabbit).
+  it("rejects spawn on a dataSource collection", () => {
+    assertRejects(
+      {
+        ...readOnly,
+        completionField: "status",
+        completionDoneValues: ["done"],
+        triggerField: "due",
+        spawn: { every: { unit: "week", interval: 1 }, set: { status: "todo" } },
+      },
+      "read-only",
+    );
+  });
+
+  it("rejects googleCalendar on a dataSource collection", () => {
+    assertRejects({ ...readOnly, googleCalendar: { calendarId: "primary", map: { name: "summary" } } }, "read-only");
+  });
+
   it("rejects a mutate action on a dataSource collection", () => {
     assertRejects(
       { ...readOnly, actions: [{ id: "done", kind: "mutate", label: "Done", set: { status: "done" } }] },
