@@ -20,9 +20,17 @@ export type PutContentValidation =
  *  `logExtra` is optional so the missing-path branch can omit it: passing `{}`
  *  to `log.warn` would emit `data: {}`, an observable change from the original
  *  no-third-arg call; `undefined` skips the field entirely. */
+/** Read a request field, ignoring anything reached through the prototype
+ *  chain. A real `express.json()` body is `JSON.parse` output and carries only
+ *  own properties, so this rejects nothing legitimate — it closes the door on a
+ *  polluted `Object.prototype` supplying a `path` the caller never sent. */
+function ownField(body: unknown, key: string): unknown {
+  return typeof body === "object" && body !== null && Object.hasOwn(body, key) ? (body as Record<string, unknown>)[key] : undefined;
+}
+
 export function validatePutContentRequest(body: unknown): PutContentValidation {
-  const obj = (body ?? {}) as { path?: unknown; content?: unknown };
-  const { path: relPathRaw, content: contentRaw } = obj;
+  const relPathRaw = ownField(body, "path");
+  const contentRaw = ownField(body, "content");
   if (typeof relPathRaw !== "string" || relPathRaw.length === 0) {
     return { ok: false, logMsg: "PUT content: missing path", message: "path required" };
   }

@@ -70,11 +70,24 @@ describe("validatePutContentRequest", () => {
     }
   });
 
-  // A body carrying `__proto__` must not be treated as though it inherited a
-  // usable `path`.
+  // Inherited fields must not satisfy the gate: a polluted `Object.prototype`
+  // would otherwise supply a `path` the caller never sent. A real
+  // `express.json()` body carries only own properties, so requiring them
+  // rejects nothing legitimate.
   it("does not read path or content off the prototype chain", () => {
-    const body = JSON.parse('{"__proto__": {"path": "evil.txt", "content": "x"}}') as unknown;
+    const body = Object.create({ path: "evil.txt", content: "pwned" }) as unknown;
     assert.equal(validatePutContentRequest(body).ok, false);
+  });
+
+  // `JSON.parse` gives `__proto__` as an OWN data property rather than setting
+  // the prototype, so this body has no `path` at all. Kept as its own case
+  // because it looks like the prototype-chain test and is not one — the check
+  // above is what covers inheritance.
+  it("treats a JSON-parsed __proto__ key as an ordinary absent path", () => {
+    const body = JSON.parse('{"__proto__": {"path": "evil.txt", "content": "x"}}') as unknown;
+    const result = validatePutContentRequest(body);
+    assert.equal(result.ok, false);
+    assert.equal(result.ok === false && result.message, "path required");
   });
 });
 
