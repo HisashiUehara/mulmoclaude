@@ -71,6 +71,27 @@ describe("IFS — a cell's contents are data, not code", () => {
   });
 });
 
+describe("IFS — a text cell's operators are data, not syntax", () => {
+  // A cell holding `x>y` used to substitute as bare `x>y`, so `A1="x>y"` became
+  // `x>y="x>y"` and never matched. Quoting the operand fixes it (Codex review).
+  it("compares against a cell whose text contains operators", () => {
+    assert.equal(calculate("x>y", '=IFS(A1="x>y", "match", TRUE, "no")'), "match");
+    assert.equal(calculate("x>y", '=IFS(A1="other", "match", TRUE, "no")'), "no");
+  });
+
+  it("treats a bare operator-bearing cell as truthy text, not a comparison", () => {
+    assert.equal(calculate("x>y", '=IFS(A1, "truthy", TRUE, "no")'), "truthy");
+    assert.equal(calculate("", '=IFS(A1, "truthy", TRUE, "empty")'), "empty");
+  });
+
+  // A cell holding a quote must not corrupt the comparison: `renderConditionOperand`
+  // escapes it, and the condition parser tracks the escape.
+  it("compares a quote-bearing cell without corrupting the parse", () => {
+    assert.equal(calculate('a"b', '=IFS(A1="z", "match", TRUE, "no")'), "no", 'a"b is not z');
+    assert.equal(calculate('a"b', '=IFS(A1, "truthy", TRUE, "no")'), "truthy", "still non-empty text");
+  });
+});
+
 describe("IFS — the formula itself is data too", () => {
   it("does not execute an expression written into the condition", () => {
     marker.__ifsProbe4 = false;

@@ -2,7 +2,7 @@
  * Logical Functions
  */
 
-import { evaluateCondition } from "../condition";
+import { evaluateCondition, renderConditionOperand } from "../condition";
 import { functionRegistry, type FunctionHandler } from "../registry";
 
 const ifHandler: FunctionHandler = (args, context) => {
@@ -134,9 +134,12 @@ const ifsHandler: FunctionHandler = (args, context) => {
     const cellRefs = condition.match(/(?:'[^']+'|[^'!\s]+)![A-Z]+\d+|\$?[A-Z]+\$?\d+/g);
     if (cellRefs) {
       for (const ref of cellRefs) {
-        const cellValue = context.getCellValue(ref);
+        // `renderConditionOperand`, not `String(...)`: a text cell must land in
+        // the condition as a quoted literal. `String("x>y")` is bare `x>y`, so
+        // the `>` reads as a comparison operator and `A1="x>y"` became
+        // `x>y="x>y"` — parsed as `x` compared against `y="x>y"`, never a match.
         const escapedRef = ref.replace(/\$/g, "\\$").replace(/'/g, "\\'");
-        condExpr = condExpr.replace(new RegExp(escapedRef.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), String(cellValue));
+        condExpr = condExpr.replace(new RegExp(escapedRef.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), renderConditionOperand(context.getCellValue(ref)));
       }
     }
 

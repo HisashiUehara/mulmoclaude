@@ -33,7 +33,9 @@ export function stripOuterParens(condition: string): string {
     for (let index = 0; index < text.length; index++) {
       const char = text[index];
       if (quote !== null) {
-        if (char === quote) quote = null;
+        if (char === "\\")
+          index++; // skip the escaped character
+        else if (char === quote) quote = null;
         continue;
       }
       if (char === '"' || char === "'") {
@@ -70,7 +72,9 @@ export function splitComparison(condition: string): Comparison | null {
   for (let index = 0; index < text.length; index++) {
     const char = text[index];
     if (quote !== null) {
-      if (char === quote) quote = null;
+      if (char === "\\")
+        index++; // skip the escaped character
+      else if (char === quote) quote = null;
       continue;
     }
     if (char === '"' || char === "'") {
@@ -85,10 +89,13 @@ export function splitComparison(condition: string): Comparison | null {
   return null;
 }
 
-/** Strip one matching pair of surrounding quotes, if present. */
+/** Strip one matching pair of surrounding quotes, and undo the `\"` / `\\`
+ *  escaping that `renderConditionOperand` applies when it quotes a cell value. */
 function unquote(text: string): { value: string; quoted: boolean } {
   const isQuoted = text.length >= 2 && ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'")));
-  return isQuoted ? { value: text.slice(1, -1), quoted: true } : { value: text, quoted: false };
+  if (!isQuoted) return { value: text, quoted: false };
+  const inner = text.slice(1, -1).replace(/\\(["'\\])/g, "$1");
+  return { value: inner, quoted: true };
 }
 
 /** Read an operand as the value it denotes: a quoted string stays text, a
@@ -142,4 +149,15 @@ export function evaluateCondition(condition: string): boolean {
   const comparison = splitComparison(condition);
   if (!comparison) return isTruthyCondition(condition);
   return applyOperator(comparison.operator, readOperand(comparison.left), readOperand(comparison.right));
+}
+
+/** Render a cell's value as an operand for a condition string. A string is
+ *  quoted, with its own quotes and backslashes escaped, so its contents cannot
+ *  be re-parsed as operators — `evaluateCondition` then unquotes it back to the
+ *  original text. A missing value becomes an empty string; numbers and booleans
+ *  render as themselves. */
+export function renderConditionOperand(value: CellValue | null | undefined): string {
+  if (value === null || value === undefined) return '""';
+  if (typeof value === "string") return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  return value.toString();
 }

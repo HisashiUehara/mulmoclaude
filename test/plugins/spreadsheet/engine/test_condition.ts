@@ -4,7 +4,14 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateCondition, isTruthyCondition, readOperand, splitComparison, stripOuterParens } from "../../../../src/plugins/spreadsheet/engine/condition.ts";
+import {
+  evaluateCondition,
+  isTruthyCondition,
+  readOperand,
+  renderConditionOperand,
+  splitComparison,
+  stripOuterParens,
+} from "../../../../src/plugins/spreadsheet/engine/condition.ts";
 
 describe("splitComparison", () => {
   it("splits on each operator", () => {
@@ -232,5 +239,39 @@ describe("evaluateCondition — code is data", () => {
     for (const input of ["((((", '"unclosed', "1+", "}{", "throw 1"]) {
       assert.equal(typeof evaluateCondition(input), "boolean", `${input} should still yield a boolean`);
     }
+  });
+});
+
+describe("renderConditionOperand", () => {
+  it("renders numbers and booleans as themselves", () => {
+    assert.equal(renderConditionOperand(42), "42");
+    assert.equal(renderConditionOperand(0), "0");
+    assert.equal(renderConditionOperand(true), "true");
+  });
+
+  // A text cell must arrive as a quoted literal, so its own contents cannot be
+  // read as operators: `x>y` unquoted would make `A1="x>y"` parse as a
+  // comparison of fragments.
+  it("quotes strings", () => {
+    assert.equal(renderConditionOperand("x>y"), '"x>y"');
+    assert.equal(renderConditionOperand("Yes"), '"Yes"');
+    assert.equal(renderConditionOperand(""), '""');
+  });
+
+  it("escapes quotes and backslashes so the literal cannot be closed early", () => {
+    assert.equal(renderConditionOperand('a"b'), '"a\\"b"');
+    assert.equal(renderConditionOperand("a\\b"), '"a\\\\b"');
+  });
+
+  it("renders a missing value as an empty quoted string", () => {
+    assert.equal(renderConditionOperand(null), '""');
+    assert.equal(renderConditionOperand(undefined), '""');
+  });
+
+  // Round-trip: whatever it renders, evaluateCondition reads back as the same
+  // value, so a quoted text operand compares equal to itself.
+  it("round-trips through evaluateCondition", () => {
+    assert.equal(evaluateCondition(`${renderConditionOperand("x>y")}="x>y"`), true);
+    assert.equal(evaluateCondition(`${renderConditionOperand("x>y")}="other"`), false);
   });
 });
