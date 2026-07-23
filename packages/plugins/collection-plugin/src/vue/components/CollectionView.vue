@@ -956,7 +956,6 @@ import { useCollectionRendering } from "../useCollectionRendering";
 import {
   readCollectionViewMode,
   writeCollectionViewMode,
-  readCollectionSort,
   writeCollectionSort,
   readCollectionFlagFilters,
   writeCollectionFlagFilters,
@@ -968,14 +967,12 @@ import {
 } from "../collectionViewMode";
 import { collectionUi } from "../uiContext";
 import { useClickOutside } from "../composables/useClickOutside";
-import { relatedCollections, type RelatedCollection } from "../relatedCollections";
+import { useRelatedMenu } from "../composables/useRelatedMenu";
+import { useTableSort } from "../composables/useTableSort";
 import { activateRefLink, activatePathLink } from "../refLink";
 import {
   dateOf,
   isSortableField,
-  nextSortDirection,
-  sortItems,
-  sortValueOf,
   itemMatchesQuery,
   completionCoveredByFieldChip,
   snapshotEmptyEnums,
@@ -995,7 +992,6 @@ import {
   firstMissingRequiredField,
   rowFromItem,
   type Ymd,
-  type SortState,
   type SortValueDeps,
   type CollectionAction,
   type CollectionMutateAction,
@@ -1335,54 +1331,6 @@ function flagChipTitle(chip: FlagChip): string {
 }
 
 // ── List-table sort (single active column, header toggle) ─────────
-// Calendar / kanban keep their own ordering; only the table consumes
-// `sortedItems`. The active sort is a single SHARED per-collection
-// preference in localStorage — both the standalone page and embedded chat
-// cards read AND write it, so a sort set anywhere is consistent the next
-// time the collection is viewed. Resets only when a DIFFERENT collection
-// loads (the slug watch), so the sort survives a refresh / edit / remount.
-function storedSortFor(slug: string | undefined): SortState | null {
-  return (slug && readCollectionSort(slug)) || null;
-}
-const sortState = ref<SortState | null>(storedSortFor(activeSlug.value));
-// The column whose sort button is currently hovered (at most one). Hover
-// previews the NEXT click's state, so descending visibly fades back to the
-// light-grey "off" look — signalling the next click clears the sort.
-const hoveredSortKey = ref<string | null>(null);
-
-function sortDirectionFor(key: string): "asc" | "desc" | null {
-  return sortState.value?.field === key ? sortState.value.direction : null;
-}
-
-/** The direction whose visuals to render: on hover, preview the next
- *  click's state; otherwise show the column's actual state. */
-function effectiveSortDir(key: string): "asc" | "desc" | null {
-  const current = sortDirectionFor(key);
-  return hoveredSortKey.value === key ? nextSortDirection(current) : current;
-}
-
-/** Cycle a column none → asc → desc → none; activating one clears the rest. */
-function cycleSort(key: string): void {
-  const next = nextSortDirection(sortDirectionFor(key));
-  sortState.value = next ? { field: key, direction: next } : null;
-}
-
-function sortIconName(key: string): string {
-  return effectiveSortDir(key) === "desc" ? "arrow_downward" : "arrow_upward";
-}
-
-// Dark grey while a direction is active; light grey for the "off" state —
-// so hovering a descending column previews the cleared look.
-function sortButtonClass(key: string): string {
-  return effectiveSortDir(key) ? "text-slate-600" : "text-slate-300";
-}
-
-/** ARIA `aria-sort` token for a column's header cell. */
-function sortAriaValue(key: string): "ascending" | "descending" | "none" {
-  const dir = sortDirectionFor(key);
-  return dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none";
-}
-
 // Row readers the pure `sortValueOf` can't get from the raw cell: toggle /
 // flag projections, the derived-formula evaluator, the derived-record
 // enrichment, and ref display resolution — all backed by the rendering
@@ -1395,11 +1343,24 @@ const sortValueDeps: SortValueDeps = {
   resolveRefDisplay: refDisplay,
 };
 
-const sortedItems = computed<CollectionItem[]>(() => {
-  const state = sortState.value;
-  const field = state ? collection.value?.schema.fields[state.field] : undefined;
-  if (!state || !field) return tableFilteredItems.value;
-  return sortItems(tableFilteredItems.value, state.direction, (item) => sortValueOf(field, state.field, item, sortValueDeps));
+// Sort state + header display, extracted to a composable. Calendar / kanban keep
+// their own ordering; only the table consumes `sortedItems`. The shared
+// per-collection localStorage sort is read here and reset on collection switch
+// (below); the write lives in the persist watch.
+const {
+  sortState,
+  hoveredSortKey,
+  sortedItems,
+  cycleSort,
+  sortIconName,
+  sortButtonClass,
+  sortAriaValue,
+  resetForSlug: resetSortForSlug,
+} = useTableSort({
+  collection,
+  tableFilteredItems,
+  activeSlug,
+  sortValueDeps,
 });
 
 // ────────────────────────────────────────────────────────────────
@@ -1674,58 +1635,20 @@ function closeChat(): void {
 // component's lifetime and (re)built lazily on the menu's first open, so a
 // view open that never touches the pulldown never pays for the ontology
 // scan.
-const { open: relatedMenuOpen, menuRef: relatedMenuRef } = useClickOutside();
-const relatedLoading = ref<boolean>(false);
-/** Derived neighbors for `relatedFetchedSlug` (null until first fetched). */
-const relatedList = ref<RelatedCollection[] | null>(null);
-/** Slug the cached `relatedList` was built for — a mismatch on open forces
- *  a re-fetch (e.g. after navigating to a different collection). */
-const relatedFetchedSlug = ref<string | null>(null);
-
-const showRelatedMenu = computed<boolean>(() => Boolean(collection.value) && !embedded.value && cui.fetchOntology !== undefined);
-const relatedItems = computed<RelatedCollection[]>(() => relatedList.value ?? []);
-
-function relatedDirectionIcon(direction: RelatedCollection["direction"]): string {
-  if (direction === "out") return "arrow_outward";
-  if (direction === "in") return "arrow_back";
-  return "sync_alt";
-}
-
-function relatedDirectionLabel(direction: RelatedCollection["direction"]): string {
-  if (direction === "out") return t("collectionsView.relatedOut");
-  if (direction === "in") return t("collectionsView.relatedIn");
-  return t("collectionsView.relatedBoth");
-}
-
-/** Fetch the ontology and derive this slug's neighbors. Fail-soft: a
- *  non-ok result (the `apiGet` wrapper already caught the network/HTTP
- *  error) leaves an empty list, which the panel shows as its empty row.
- *
- *  Sets `relatedFetchedSlug` synchronously (before the await) so a rapid
- *  re-open can't kick a duplicate fetch, and DROPS a stale response whose
- *  slug no longer matches the active collection — otherwise a slower fetch
- *  for a since-abandoned slug, resolving after a fast switch, would apply
- *  the wrong collection's neighbors (Codex / CodeRabbit on PR #2251). */
-async function loadRelated(slug: string): Promise<void> {
-  relatedFetchedSlug.value = slug;
-  relatedLoading.value = true;
-  const result = await cui.fetchOntology?.();
-  if (collection.value?.slug !== slug) return;
-  relatedLoading.value = false;
-  relatedList.value = result?.ok ? relatedCollections(result.data.entries, slug) : [];
-}
-
-function toggleRelatedMenu(): void {
-  relatedMenuOpen.value = !relatedMenuOpen.value;
-  const slug = collection.value?.slug;
-  if (relatedMenuOpen.value && slug && relatedFetchedSlug.value !== slug) void loadRelated(slug);
-}
-
-/** Hop to a related collection's detail page (same nav as the index cards). */
-function gotoRelated(slug: string): void {
-  relatedMenuOpen.value = false;
-  cui.gotoDetail("collection", slug);
-}
+// Reactive shell in the composable (open state, lazy per-slug ontology fetch,
+// direction glyph/label); the reset on collection switch is wired below.
+const {
+  relatedMenuOpen,
+  relatedMenuRef,
+  relatedLoading,
+  showRelatedMenu,
+  relatedItems,
+  toggleRelatedMenu,
+  gotoRelated,
+  relatedDirectionIcon,
+  relatedDirectionLabel,
+  resetForSlugChange: resetRelatedMenu,
+} = useRelatedMenu({ collection, embedded, cui, t });
 
 /** Build the chat seed text for the current view.
  *
@@ -2674,17 +2597,12 @@ watch(
       addMenuOpen.value = false;
       filterMenuOpen.value = false;
       // Drop the previous collection's cached neighbors so the next open
-      // re-derives them for the new slug. Clearing `relatedLoading` too so a
-      // just-abandoned in-flight fetch (dropped by loadRelated's stale guard)
-      // can't strand the spinner.
-      relatedMenuOpen.value = false;
-      relatedList.value = null;
-      relatedFetchedSlug.value = null;
-      relatedLoading.value = false;
+      // re-derives them for the new slug (also clears any in-flight spinner).
+      resetRelatedMenu();
       // A sort belongs to a collection's own schema, so don't carry it across —
       // restore the new collection's stored (shared) sort instead. Same for
       // the flag filter chips.
-      sortState.value = storedSortFor(slug);
+      resetSortForSlug(slug);
       flagFilters.value = storedFlagFiltersFor(slug);
     }
     if (slug) {
