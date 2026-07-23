@@ -29,7 +29,7 @@
     "@gui-chat-plugin/present3d": "^1.0.0",
     "@marp-team/marp-core": "^4.4.0",
     "@mulmobridge/chat-service": "^0.1.7",
-    "@mulmobridge/client": "^0.1.5",
+    "@mulmobridge/client": "^0.2.0",
     "@mulmobridge/protocol": "^0.1.4",
     "@mulmobridge/web-push": "^0.2.0",
     "@mulmocast/types": "^2.9.0",
