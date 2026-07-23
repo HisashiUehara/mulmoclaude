@@ -1,7 +1,8 @@
 // DATEDIF's per-unit elapsed-time math. Each unit has its own boundary handling
 // — complete years/months back off when the day-of-month has not been reached,
-// MD borrows the previous month's length, YD wraps into the end's year — and a
-// wrong branch returns a plausible number rather than an error.
+// MD is the day remainder after the complete months (always non-negative), YD
+// wraps into the end's year — and a wrong branch returns a plausible number
+// rather than an error.
 //
 // Inputs are Excel serials, so tests build them from a known date via a helper
 // rather than hardcoding the serial arithmetic (that is covered in
@@ -56,15 +57,28 @@ describe("computeDatedif — MD (day-of-month diff, months ignored)", () => {
     assert.equal(diff([2023, 1, 10], [2023, 3, 25], "MD"), 15);
   });
 
-  // When the end day is earlier, the code borrows the length of the month
-  // BEFORE the end (Feb here) rather than the month before the start (Jan).
-  // For Jan 30 → Mar 1 that gives `28 - 30 + 1 = -1` — a NEGATIVE day count,
-  // which is wrong (Excel returns a positive number). Pinned as the current,
-  // buggy behaviour so the extraction is faithful; the fix belongs with the
-  // DATEDIF-boundary bug, not this refactor.
-  it("returns the current (buggy) borrow result when the end day is earlier", () => {
-    assert.equal(diff([2023, 1, 30], [2023, 3, 1], "MD"), -1, "borrows Feb's 28 days: 28 - 30 + 1");
-    assert.equal(diff([2024, 1, 30], [2024, 3, 1], "MD"), 0, "borrows Feb's 29 days");
+  // Multi-month spans still measure the day remainder correctly: Jan 15 → Mar 10
+  // has one complete month (to Feb 15), leaving 23 days to Mar 10.
+  it("measures the day remainder across several months", () => {
+    assert.equal(diff([2023, 1, 15], [2023, 3, 10], "MD"), 23);
+  });
+
+  // The day remainder is anchored on start-plus-complete-months, so it is never
+  // negative even when the start day outruns the month before `end`. Jan 30 →
+  // Mar 1 has one complete month (clamped to Feb 28/29), leaving one day — where
+  // the old borrow-the-previous-month math returned -1 (#2414).
+  it("stays non-negative when the start day outruns the preceding month", () => {
+    assert.equal(diff([2023, 1, 30], [2023, 3, 1], "MD"), 1, "Jan 30 + 1 month → Feb 28, then 1 day");
+    assert.equal(diff([2024, 1, 30], [2024, 3, 1], "MD"), 1, "leap year: Jan 30 + 1 month → Feb 29, then 1 day");
+  });
+
+  // The remainder counts whole days: a datetime serial's time-of-day must not
+  // change the result (an 18:00 fraction on `end` once rounded MD up to 2).
+  it("ignores the time-of-day of a datetime serial", () => {
+    const start = serial(2023, 1, 30);
+    const end = serial(2023, 3, 1);
+    assert.equal(computeDatedif(start, end + 0.75, "MD"), 1, "end at 18:00 still yields 1");
+    assert.equal(computeDatedif(start + 0.75, end + 0.25, "MD"), 1, "start and end times both ignored");
   });
 });
 
