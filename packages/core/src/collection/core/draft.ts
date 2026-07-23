@@ -43,10 +43,17 @@ export function rowFromItem(item: Record<string, unknown>, subFields: Record<str
   return buildTableRowDraft(subFields, (subKey) => item[subKey]);
 }
 
+/** Own-property boolean read: a field named `toString` / `constructor` /
+ *  `__proto__` must read `false` here, not inherit a truthy Object.prototype
+ *  member and force an untouched boolean into every saved record. */
+function ownFlag(flags: Record<string, boolean>, key: string): boolean {
+  return Object.hasOwn(flags, key) && flags[key] === true;
+}
+
 /** Decide whether a boolean field's draft value should be emitted (vs.
  *  omitted so a downstream default applies). */
 function shouldEmitBoolean(state: EditState, key: string, field: FieldSpec): boolean {
-  return Boolean(state.boolOriginallyPresent[key] || state.boolTouched[key] || field.required);
+  return ownFlag(state.boolOriginallyPresent, key) || ownFlag(state.boolTouched, key) || Boolean(field.required);
 }
 
 /** Convert a scalar draft slot to its persisted form. `undefined` = omit. */
@@ -64,8 +71,8 @@ function rowDraftToRecord(rowDraft: TableRowDraft, subFields: Record<string, Fie
   const row: Record<string, unknown> = {};
   for (const [subKey, subField] of Object.entries(subFields)) {
     if (subField.type === "boolean") {
-      const value = rowDraft.bool[subKey] === true;
-      if (rowDraft.boolOriginallyPresent[subKey] || rowDraft.boolTouched[subKey] || value || subField.required) row[subKey] = value;
+      const value = ownFlag(rowDraft.bool, subKey);
+      if (ownFlag(rowDraft.boolOriginallyPresent, subKey) || ownFlag(rowDraft.boolTouched, subKey) || value || subField.required) row[subKey] = value;
       continue;
     }
     const value = scalarDraftToValue(rowDraft.text[subKey], subField.type);
@@ -80,7 +87,7 @@ export function draftToRecord(state: EditState, schema: CollectionSchema): Colle
   for (const [key, field] of Object.entries(schema.fields)) {
     if (COMPUTED_TYPES.has(field.type)) continue; // never persisted (toggle projects an enum field)
     if (field.type === "boolean") {
-      if (shouldEmitBoolean(state, key, field)) record[key] = state.bool[key] === true;
+      if (shouldEmitBoolean(state, key, field)) record[key] = ownFlag(state.bool, key);
       continue;
     }
     if (field.type === "table" && field.of) {
