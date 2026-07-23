@@ -31,6 +31,46 @@ export function renderOperand(value: CellValue | null | undefined): string {
   return value.toString();
 }
 
+/** Replace every quoted string literal with an empty pair of quotes, honouring
+ *  `\` escapes so an escaped quote does not end the literal early. Used to
+ *  validate the STRUCTURE of a concat/arithmetic expression without letting the
+ *  arbitrary CONTENT of a string decide whether the whole thing looks safe. */
+export function maskStringLiterals(expr: string): string {
+  let out = "";
+  let quote: string | null = null;
+  for (let index = 0; index < expr.length; index++) {
+    const char = expr[index];
+    if (quote !== null) {
+      if (char === "\\") {
+        index++; // skip the escaped character — it is part of the literal
+        continue;
+      }
+      if (char === quote) {
+        quote = null;
+        out += char;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      out += char;
+      continue;
+    }
+    out += char;
+  }
+  return out;
+}
+
+/** Whether a `&`-to-`+` concatenation expression is safe to evaluate. Checks the
+ *  structure with string CONTENT masked out — a string literal may hold any
+ *  character (a `!`, a `\`), and validating those against a character allowlist
+ *  rejected valid formulas like `=A1&"!"` and every escaped operand. Once the
+ *  literals are masked, only the joining structure remains to validate. */
+export function isSafeConcatExpression(expr: string): boolean {
+  const structure = maskStringLiterals(expr);
+  return /^[\d+\-*/(). "']*$/.test(structure);
+}
+
 /**
  * Parse function arguments, handling nested functions and quoted strings
  *
@@ -348,9 +388,10 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
           }
         }
 
-        // Validate the expression contains only safe characters
-        // Allow: numbers, letters, strings (with quotes), operators, parentheses, whitespace, @, ., comma
-        if (/^[a-zA-Z0-9+\-*/(). "'@,]+$/.test(result)) {
+        // Validate the STRUCTURE, not the string content: a literal may hold any
+        // character, so masking the literals is what lets `=A1&"!"` and escaped
+        // operands through while still rejecting a genuinely unsafe expression.
+        if (isSafeConcatExpression(result)) {
           // eslint-disable -- sonarjs/code-eval
           const evalResult = new Function(`return (${result})`)();
           return evalResult;
