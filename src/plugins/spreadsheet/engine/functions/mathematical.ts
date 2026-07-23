@@ -3,41 +3,49 @@
  */
 
 import { functionRegistry, toNumber, type FunctionHandler } from "../registry";
+import {
+  roundTo,
+  roundUpTo,
+  roundDownTo,
+  floorToSignificance,
+  ceilingToSignificance,
+  modulo,
+  power,
+  safeLog,
+  safeLog10,
+  safeSqrt,
+  logWithBase,
+} from "../math-ops";
 import { toScalarNumber } from "../numericCoercion";
 
 const roundHandler: FunctionHandler = (args, context) => {
   const number = toNumber(context.evaluateFormula(args[0]));
   const digits = toNumber(context.evaluateFormula(args[1]));
-  const multiplier = Math.pow(10, digits);
-  return Math.round(number * multiplier) / multiplier;
+  return roundTo(number, digits);
 };
 
 const roundupHandler: FunctionHandler = (args, context) => {
   const number = toNumber(context.evaluateFormula(args[0]));
   const digits = toNumber(context.evaluateFormula(args[1]));
-  const multiplier = Math.pow(10, digits);
-  return Math.ceil(number * multiplier) / multiplier;
+  return roundUpTo(number, digits);
 };
 
 const rounddownHandler: FunctionHandler = (args, context) => {
   const number = toNumber(context.evaluateFormula(args[0]));
   const digits = toNumber(context.evaluateFormula(args[1]));
-  const multiplier = Math.pow(10, digits);
-  return Math.floor(number * multiplier) / multiplier;
+  return roundDownTo(number, digits);
 };
 
 const floorHandler: FunctionHandler = (args, context) => {
   const number = toNumber(context.evaluateFormula(args[0]));
   const significance = toNumber(context.evaluateFormula(args[1]));
-  if (significance === 0) return 0;
-  return Math.floor(number / significance) * significance;
+  return floorToSignificance(number, significance);
 };
 
 const ceilingHandler: FunctionHandler = (args, context) => {
   const number = toNumber(context.evaluateFormula(args[0]));
   const significance = toNumber(context.evaluateFormula(args[1]));
-  if (significance === 0) return 0;
-  return Math.ceil(number / significance) * significance;
+  return ceilingToSignificance(number, significance);
 };
 
 const absHandler: FunctionHandler = (args, context) => {
@@ -48,19 +56,18 @@ const absHandler: FunctionHandler = (args, context) => {
 const powerHandler: FunctionHandler = (args, context) => {
   const base = toNumber(context.evaluateFormula(args[0]));
   const exponent = toNumber(context.evaluateFormula(args[1]));
-  return Math.pow(base, exponent);
+  return power(base, exponent);
 };
 
 const sqrtHandler: FunctionHandler = (args, context) => {
   const number = toNumber(context.evaluateFormula(args[0]));
-  return Math.sqrt(number);
+  return safeSqrt(number);
 };
 
 const modHandler: FunctionHandler = (args, context) => {
   const number = toNumber(context.evaluateFormula(args[0]));
   const divisor = toNumber(context.evaluateFormula(args[1]));
-  if (divisor === 0) return 0;
-  return number % divisor;
+  return modulo(number, divisor);
 };
 
 const intHandler: FunctionHandler = (args, context) => {
@@ -89,18 +96,18 @@ const expHandler: FunctionHandler = (args, context) => {
 
 const lnHandler: FunctionHandler = (args, context) => {
   const number = toNumber(context.evaluateFormula(args[0]));
-  return Math.log(number);
+  return safeLog(number);
 };
 
 const logHandler: FunctionHandler = (args, context) => {
   const number = toNumber(context.evaluateFormula(args[0]));
   const base = args.length === 2 ? toNumber(context.evaluateFormula(args[1])) : 10;
-  return Math.log(number) / Math.log(base);
+  return logWithBase(number, base);
 };
 
 const log10Handler: FunctionHandler = (args, context) => {
   const number = toNumber(context.evaluateFormula(args[0]));
-  return Math.log10(number);
+  return safeLog10(number);
 };
 
 // Register all mathematical functions

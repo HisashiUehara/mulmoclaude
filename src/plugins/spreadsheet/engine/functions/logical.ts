@@ -5,6 +5,7 @@
 import { evaluateConditionValues, readOperand, renderConditionOperand } from "../condition";
 import { findCellRefs } from "../evaluator";
 import { functionRegistry, type FunctionHandler } from "../registry";
+import { isErrorResult } from "../spreadsheet-errors";
 import { coerceToBoolean } from "../coerce-boolean";
 import type { CellValue } from "../types";
 
@@ -68,11 +69,21 @@ const notHandler: FunctionHandler = (args, context) => {
   return !coerceToBoolean(context.evaluateFormula(args[0]));
 };
 
+/** Whether `source` is a single quoted string literal. Its value is text even
+ *  when that text looks like an error code, so IFERROR must not swallow it. */
+const isQuotedLiteral = (source: string): boolean => {
+  const trimmed = source.trim();
+  return trimmed.length >= 2 && ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'")));
+};
+
 const iferrorHandler: FunctionHandler = (args, context) => {
   try {
     const result = context.evaluateFormula(args[0]);
-    // Check if result is an error (NaN, Infinity, etc.)
-    if (result === null || result === undefined || (typeof result === "number" && (isNaN(result) || !isFinite(result)))) {
+    // Catches NaN/∞ AND the Excel error strings functions now return (a math
+    // domain miss like SQRT(-1) → "#NUM!"), so IFERROR(SQRT(-1), 0) is 0. A
+    // quoted literal that merely looks like an error (IFERROR("#NUM!", 42)) is
+    // real text, not an error value, so it passes through (Codex review).
+    if (!isQuotedLiteral(args[0]) && isErrorResult(result)) {
       return context.evaluateFormula(args[1]);
     }
     return result;
