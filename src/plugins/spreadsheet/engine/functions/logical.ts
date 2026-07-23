@@ -3,6 +3,7 @@
  */
 
 import { functionRegistry, type FunctionHandler } from "../registry";
+import { isErrorResult } from "../spreadsheet-errors";
 
 const ifHandler: FunctionHandler = (args, context) => {
   if (args.length !== 3) throw new Error("IF requires 3 arguments");
@@ -95,8 +96,9 @@ const iferrorHandler: FunctionHandler = (args, context) => {
 
   try {
     const result = context.evaluateFormula(args[0]);
-    // Check if result is an error (NaN, Infinity, etc.)
-    if (result === null || result === undefined || (typeof result === "number" && (isNaN(result) || !isFinite(result)))) {
+    // Catches NaN/∞ AND the Excel error strings functions now return (e.g. a
+    // math domain miss like SQRT(-1) → "#NUM!"), so IFERROR(SQRT(-1), 0) is 0.
+    if (isErrorResult(result)) {
       return context.evaluateFormula(args[1]);
     }
     return result;

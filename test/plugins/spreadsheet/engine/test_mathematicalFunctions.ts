@@ -132,4 +132,12 @@ describe("the handlers surface the errors end-to-end", () => {
     assert.equal(evalFormula("=LOG(8, -2)"), "#NUM!");
     assert.equal(evalFormula("=LOG(8, 2)"), 3);
   });
+
+  // Now that domain misses are error strings (not NaN/∞), IFERROR must still
+  // catch them or nested formulas would surface the raw error (#2389 review).
+  it("lets IFERROR catch the new error strings", () => {
+    assert.equal(evalFormula("=IFERROR(SQRT(-1), 42)"), 42);
+    assert.equal(evalFormula("=IFERROR(MOD(5, 0), -1)"), -1);
+    assert.equal(evalFormula("=IFERROR(SQRT(4), 42)"), 2, "a non-error passes through");
+  });
 });
