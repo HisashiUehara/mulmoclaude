@@ -7,7 +7,7 @@ import { lstat, mkdir, open, readdir, readFile, unlink } from "node:fs/promises"
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { getWorkspaceRoot, log, publishCollectionChange } from "./host";
-import { writeFileAtomic } from "./atomic";
+import { writeFileAtomic } from "../../files/atomic.js";
 import { isContainedInRoot, itemFilePath, safeRecordId } from "./paths";
 import type { CollectionItem, CollectionSchema } from "../core/schema";
 

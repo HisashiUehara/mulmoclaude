@@ -14,7 +14,7 @@ import path from "node:path";
 
 import { defaultWorkspaceRoot } from "./context.js";
 import { ACCOUNTING_DIRS as WORKSPACE_DIRS, resolveFiscalYearEnd } from "../shared";
-import { writeJsonAtomic, isEnoent } from "./atomic.js";
+import { writeJsonAtomic, isEnoent } from "@mulmoclaude/core/files";
 import type { AccountingConfig, Account, BookSummary, JournalEntry, MonthSnapshot } from "./types.js";
 
 const root = (workspaceRoot?: string): string => workspaceRoot ?? defaultWorkspaceRoot();

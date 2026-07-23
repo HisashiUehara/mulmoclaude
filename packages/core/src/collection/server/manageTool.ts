@@ -61,7 +61,7 @@ import { validateCollectionRecords, validateRecordObject } from "./validate";
 import { buildWorkspaceOntology } from "./ontology";
 import { resolveDataDir } from "./paths";
 import { getWorkspaceRoot } from "./host";
-import { writeFileAtomic } from "./atomic";
+import { writeFileAtomic } from "../../files/atomic.js";
 import { dataSkillDir, mirrorSkillWrite } from "../../skill-bridge/index.js";
 import { renderSchemaDocs } from "./schemaDocs";
 // NOTE: only the browser-safe `slug` module — workspace-setup's assets.ts uses
