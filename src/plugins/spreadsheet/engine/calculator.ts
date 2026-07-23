@@ -13,6 +13,7 @@ import type { SheetData, CellValue, CalculatedSheet, CalculationError, FormulaIn
 import { isObj } from "../../../utils/types";
 import { isEmptyCell } from "./cellEmpty";
 import { errorMessage } from "../../../utils/errors";
+import { classifyThrownError, invalidRefError } from "./formulaError";
 
 /**
  * Normalize malformed data structures
@@ -140,6 +141,38 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], option
 
   // Track cells being calculated to detect circular references
   const calculating = new Set<string>();
+  // Cells whose result is already stored in `calculated`, of ANY type. A number
+  // check alone missed string/error results, so a cell referenced before the
+  // top loop reached it was re-evaluated (and, once formulas can throw, would
+  // re-emit its error). Membership here means "read the cached value, do not
+  // re-run".
+  const evaluated = new Set<string>();
+
+  // Evaluate one formula cell, guarding circular references, caching the result,
+  // and turning a thrown failure into a typed errors[] entry plus the Excel
+  // error value in the cell — never a swallowed bare string/number (#2359).
+  const resolveFormulaCell = (formulaText: string, row: number, col: number): CellValue => {
+    const cellKey = `${row},${col}`;
+    if (calculating.has(cellKey)) {
+      errors.push({ cell: { row, col }, formula: formulaText, error: "Circular reference detected", type: "circular" });
+      return 0;
+    }
+    if (evaluated.has(cellKey)) return calculated[row][col];
+    calculating.add(cellKey);
+    try {
+      const result = evaluateFormula(formulaText.substring(1)); // drop leading "="
+      calculated[row][col] = result;
+      return result;
+    } catch (error) {
+      const { type, display } = classifyThrownError(error);
+      errors.push({ cell: { row, col }, formula: formulaText, error: errorMessage(error), type });
+      calculated[row][col] = display;
+      return display;
+    } finally {
+      calculating.delete(cellKey);
+      evaluated.add(cellKey);
+    }
+  };
 
   // Helper to extract raw value from cell with recursive formula evaluation
   const getRawValue = (cell: any, row?: number, col?: number): CellValue => {
@@ -181,50 +214,10 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], option
       const value = cell.v;
       // If value is a string starting with "=", it's a formula
       if (typeof value === "string" && value.startsWith("=")) {
-        // Check if we have row/col info to evaluate recursively
+        // Only evaluatable when we know the cell's position (for recursion +
+        // circular tracking); otherwise treat as 0.
         if (row !== undefined && col !== undefined) {
-          const cellKey = `${row},${col}`;
-
-          // Check for circular reference
-          if (calculating.has(cellKey)) {
-            console.warn(`Circular reference detected at row ${row}, col ${col}`);
-            errors.push({
-              cell: { row, col },
-              formula: value,
-              error: "Circular reference detected",
-              type: "circular",
-            });
-            return 0;
-          }
-
-          // Check if already calculated (result is cached as a number)
-          const calculatedCell = calculated[row][col];
-          if (typeof calculatedCell === "number") {
-            return calculatedCell;
-          }
-
-          // Recursively evaluate the formula
-          calculating.add(cellKey);
-          try {
-            const formula = value.substring(1); // Remove "=" prefix
-            const result = evaluateFormula(formula);
-            calculating.delete(cellKey);
-
-            // Cache the calculated result (preserve strings and numbers)
-            calculated[row][col] = result;
-
-            return result;
-          } catch (error) {
-            calculating.delete(cellKey);
-            console.error(`Error evaluating formula at row ${row}, col ${col}:`, error);
-            errors.push({
-              cell: { row, col },
-              formula: value,
-              error: errorMessage(error),
-              type: "unknown",
-            });
-            return 0;
-          }
+          return resolveFormulaCell(value, row, col);
         }
         return 0; // No position info, can't evaluate
       }
@@ -273,7 +266,7 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], option
           sheetsCache.set(targetSheetName, targetResult.data);
           sheetData = targetResult.data as any[][];
         } else {
-          return 0; // Sheet not found
+          throw invalidRefError(ref); // Sheet not found → #REF!
         }
       }
     }
@@ -392,9 +385,6 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], option
 
         // Check if value is a formula (string starting with "=")
         if (typeof value === "string" && value.startsWith("=")) {
-          // Remove the "=" prefix and evaluate the formula
-          const formula = value.substring(1);
-
           // Track formula info
           formulas.push({
             cell: { row: rowIdx, col: colIdx },
@@ -403,7 +393,10 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], option
             result: 0, // Will be updated below
           });
 
-          const result = evaluateFormula(formula);
+          // Route through the protected path so a thrown failure is classified
+          // into errors[] instead of escaping this loop, and a cell already
+          // resolved via another formula's recursion is read from cache (#2359).
+          const result = resolveFormulaCell(value, rowIdx, colIdx);
 
           // Update formula result
           formulas[formulas.length - 1].result = result;
