@@ -111,42 +111,6 @@ export function displayFieldFor(fields: Record<string, FieldSpec>, primaryKey: s
   return primaryKey;
 }
 
-export function uniqueRefTargets(schema: CollectionSchema): string[] {
-  const targets = new Set<string>();
-  const walk = (fields: Record<string, FieldSpec>): void => {
-    for (const field of Object.values(fields)) {
-      if (field.type === "ref" && typeof field.to === "string" && field.to.length > 0) targets.add(field.to);
-      // Sub-fields of a table can also be refs; walk one level deep
-      // (nested tables are schema-rejected, so one recursion suffices).
-      if (field.type === "table" && field.of) walk(field.of);
-    }
-  };
-  walk(schema.fields);
-  return [...targets];
-}
-
-export function uniqueEmbedTargets(schema: CollectionSchema): string[] {
-  const targets = new Set<string>();
-  // Embeds are top-level only (the schema rejects `embed` inside a
-  // table's `of`), so no recursion.
-  for (const field of Object.values(schema.fields)) {
-    if (field.type === "embed" && typeof field.to === "string" && field.to.length > 0) targets.add(field.to);
-  }
-  return [...targets];
-}
-
-/** Slugs of every SOURCE collection a `backlinks` or `rollup` field
- *  reverses over (the two share one load). Top-level only, like `embed`
- *  (the schema rejects both inside a table's `of`). Mirrors the server's
- *  `uniqueBacklinkSources`. */
-export function uniqueBacklinkSources(schema: CollectionSchema): string[] {
-  const sources = new Set<string>();
-  for (const field of Object.values(schema.fields)) {
-    if ((field.type === "backlinks" || field.type === "rollup") && field.from.length > 0) sources.add(field.from);
-  }
-  return [...sources];
-}
-
 export function buildRefDisplayMap(detail: CollectionDetailResponse): RefDisplayMap {
   const { fields, primaryKey } = detail.collection.schema;
   const displayField = displayFieldFor(fields, primaryKey);
