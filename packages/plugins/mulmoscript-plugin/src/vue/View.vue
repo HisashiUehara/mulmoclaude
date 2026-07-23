@@ -15,119 +15,21 @@
           <span v-if="filePath" class="truncate">{{ filePath }}</span>
         </div>
       </div>
-      <div class="ml-4 shrink-0 flex items-center gap-2">
-        <!-- Play presentation: opens the lightbox at beat 0 and starts
-             audio. Same gating as Download Movie — only when a movie has
-             been generated, which is our proxy for "every beat has both
-             an image and audio on disk". Green outline + green icon
-             share the visual idiom with the (filled) Download button so
-             both completed-artifact actions read as the same family.
-             `isPlayReady` ensures we don't open the lightbox before the
-             first beat's image (and audio, if it has text) finish their
-             async load — moviePath can be set while loadExistingBeatImage
-             is still in flight. -->
-        <button
-          v-if="moviePath && !movieGenerating"
-          class="h-8 w-8 flex items-center justify-center rounded border border-green-600 text-green-600 hover:bg-green-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          :disabled="!isPlayReady"
-          :title="m.playPresentation"
-          :aria-label="m.playPresentation"
-          @click="playPresentation"
-        >
-          <span class="material-icons text-base">play_arrow</span>
-        </button>
-        <!-- Download Movie: authenticated blob fetch through the host
-             adapter, then a synthetic <a download> click. A plain
-             <a href download> can't attach the host's auth headers, which
-             would have forced an auth exemption on the media route — the
-             host-injected `fetchMediaBlob` keeps the auth boundary intact
-             (and hosts that don't provide it simply don't show this
-             button). -->
-        <button
-          v-if="moviePath && !movieGenerating && canFetchMedia"
-          class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-          :disabled="movieDownloading"
-          data-testid="mulmo-script-download-movie-button"
-          @click="downloadMovie"
-        >
-          <span class="material-icons text-base">download</span>
-          <span>{{ m.movie }}</span>
-        </button>
-        <!-- Regenerate Movie (icon-only): collapses to a square once a
-             movie exists — the adjacent Download / Play already make
-             the subject clear, so the "Movie" label only adds noise. -->
-        <button
-          v-if="moviePath && !movieGenerating"
-          class="h-8 w-8 flex items-center justify-center rounded border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
-          :title="m.regenerateMovie"
-          :aria-label="m.regenerateMovie"
-          data-testid="mulmo-script-regenerate-movie-button"
-          @click="generateMovie"
-        >
-          <span class="material-icons text-base">refresh</span>
-        </button>
-        <!-- Generate Movie (pill): no movie yet, or one is currently
-             generating. Keeps the label so first-time users know what
-             they're triggering. -->
-        <button
-          v-else
-          class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          :disabled="movieGenerating"
-          data-testid="mulmo-script-generate-movie-button"
-          @click="generateMovie"
-        >
-          <svg v-if="movieGenerating" class="animate-spin w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-          </svg>
-          <span v-if="movieGenerating">{{ m.generating }}</span>
-          <template v-else>
-            <span class="material-icons text-sm">refresh</span>
-            <span>{{ m.movie }}</span>
-          </template>
-        </button>
-        <!-- PDF (#1614): same Generate / Download / Regenerate pattern
-             as the Movie cluster above, kept structurally separate so
-             the two outputs can be requested independently and report
-             status independently. -->
-        <button
-          v-if="pdfPath && !pdfGenerating && canFetchMedia"
-          class="h-8 px-2.5 flex items-center gap-1 rounded bg-red-600 hover:bg-red-700 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-          :disabled="pdfDownloading"
-          data-testid="mulmo-script-download-pdf-button"
-          @click="downloadPdf"
-        >
-          <span class="material-icons text-base">download</span>
-          <span>{{ m.pdf }}</span>
-        </button>
-        <button
-          v-if="pdfPath && !pdfGenerating"
-          class="h-8 w-8 flex items-center justify-center rounded border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
-          :title="m.regeneratePdf"
-          :aria-label="m.regeneratePdf"
-          data-testid="mulmo-script-regenerate-pdf-button"
-          @click="generatePdf"
-        >
-          <span class="material-icons text-base">refresh</span>
-        </button>
-        <button
-          v-else
-          class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          :disabled="pdfGenerating"
-          data-testid="mulmo-script-generate-pdf-button"
-          @click="generatePdf"
-        >
-          <svg v-if="pdfGenerating" class="animate-spin w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-          </svg>
-          <span v-if="pdfGenerating">{{ m.generatingPdf }}</span>
-          <template v-else>
-            <span class="material-icons text-sm">picture_as_pdf</span>
-            <span>{{ m.pdf }}</span>
-          </template>
-        </button>
-      </div>
+      <MulmoScriptToolbar
+        :movie-path="moviePath"
+        :movie-generating="movieGenerating"
+        :movie-downloading="movieDownloading"
+        :is-play-ready="isPlayReady"
+        :can-fetch-media="canFetchMedia"
+        :pdf-path="pdfPath"
+        :pdf-generating="pdfGenerating"
+        :pdf-downloading="pdfDownloading"
+        @play="playPresentation"
+        @generate-movie="generateMovie"
+        @download-movie="downloadMovie"
+        @generate-pdf="generatePdf"
+        @download-pdf="downloadPdf"
+      />
     </div>
 
     <!--
@@ -158,88 +60,23 @@
     </div>
 
     <!-- Characters section -->
-    <div v-if="characterKeys.length > 0" class="border-b border-gray-100 shrink-0 px-4 py-3">
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{{ m.characters }}</span>
-        <button
-          class="px-2 py-0.5 text-xs rounded border border-gray-300 text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-          :disabled="movieGenerating || anyBeatRendering || characterKeys.every((key) => charRenderState[key] === 'rendering')"
-          @click="generateAllCharacters"
-        >
-          {{ m.generateAll }}
-        </button>
-      </div>
-      <div class="flex gap-3 flex-wrap">
-        <div v-for="key in characterKeys" :key="key" class="flex flex-col items-center gap-1 w-36">
-          <!-- Character thumbnail -->
-          <div
-            class="relative w-36 h-36 rounded-lg border overflow-hidden bg-gray-50 flex items-center justify-center transition-colors"
-            :class="charDragOver[key] ? 'border-blue-400 bg-blue-50' : 'border-gray-200'"
-            @dragover="onCharDragOver($event, key)"
-            @dragleave="onCharDragLeave(key)"
-            @drop="onCharDrop($event, key)"
-          >
-            <img
-              v-if="charImages[key]"
-              :src="charImages[key]"
-              class="w-full h-full object-cover cursor-zoom-in"
-              :alt="key"
-              @click="openCharacterLightbox(key)"
-            />
-            <template v-else-if="charRenderState[key] === 'rendering'">
-              <svg class="animate-spin w-4 h-4 text-green-400" viewBox="0 0 24 24" fill="none">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
-            </template>
-            <template v-else-if="charRenderState[key] === 'error'">
-              <span class="text-xs text-red-400 text-center px-1">{{ charErrors[key] }}</span>
-            </template>
-            <template v-else>
-              <span class="text-xs text-gray-300 text-center px-1 leading-tight">{{ characterPrompt(key) }}</span>
-            </template>
-            <!-- Permanent drop hint -->
-            <div v-if="!charDragOver[key]" class="absolute bottom-0 inset-x-0 text-center text-xs text-gray-400 bg-white/70 py-0.5 pointer-events-none">
-              {{ m.orDropImage }}
-            </div>
-            <!-- Drop overlay -->
-            <div v-if="charDragOver[key]" class="absolute inset-0 flex items-center justify-center bg-blue-50/80 pointer-events-none">
-              <span class="text-xs text-blue-500 font-medium">{{ m.drop }}</span>
-            </div>
-            <!-- Regenerate button -->
-            <button
-              v-if="charImages[key] && charRenderState[key] !== 'rendering'"
-              class="absolute top-0.5 right-0.5 px-1 py-0.5 text-xs rounded border bg-white"
-              :class="
-                movieGenerating || anyBeatRendering ? 'border-yellow-400 text-yellow-500 cursor-not-allowed' : 'border-gray-400 text-gray-600 hover:bg-gray-50'
-              "
-              :disabled="movieGenerating || anyBeatRendering"
-              @click.stop="renderCharacter(key, true)"
-            >
-              <span v-if="movieGenerating || anyBeatRendering" class="inline-block animate-spin">↺</span>
-              <span v-else>↺</span>
-            </button>
-            <!-- Generate button -->
-            <button
-              v-else-if="!charImages[key] && charRenderState[key] !== 'rendering'"
-              class="absolute top-0.5 right-0.5 px-1 py-0.5 text-xs rounded border bg-white"
-              :class="
-                movieGenerating || anyBeatRendering ? 'border-yellow-400 text-yellow-500 cursor-not-allowed' : 'border-blue-400 text-blue-600 hover:bg-blue-50'
-              "
-              :disabled="movieGenerating || anyBeatRendering"
-              @click.stop="renderCharacter(key, false)"
-            >
-              <svg v-if="movieGenerating || anyBeatRendering" class="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
-              <span v-else>{{ m.gen }}</span>
-            </button>
-          </div>
-          <span class="text-xs text-gray-600 text-center truncate w-full">{{ key }}</span>
-        </div>
-      </div>
-    </div>
+    <CharacterStrip
+      v-if="characterKeys.length > 0"
+      :character-keys="characterKeys"
+      :images="script.imageParams?.images"
+      :thumbnails="charImages"
+      :render-state="charRenderState"
+      :errors="charErrors"
+      :drag-over="charDragOver"
+      :movie-generating="movieGenerating"
+      :any-beat-rendering="anyBeatRendering"
+      @generate-all="generateAllCharacters"
+      @char-drag-over="onCharDragOver"
+      @char-drag-leave="onCharDragLeave"
+      @char-drop="onCharDrop"
+      @open-lightbox="openCharacterLightbox"
+      @render-character="renderCharacter"
+    />
 
     <!-- Deck editor (#1575): every beat is a slide → mount the
          interactive deck editor from @mulmocast/deck-web. The Vue
@@ -476,74 +313,21 @@
     </div>
 
     <!-- Lightbox -->
-    <div v-if="lightbox" class="fixed inset-0 z-50 bg-black/80 overflow-y-auto" @click="closeLightbox">
-      <button class="fixed top-2 right-4 z-10 text-white/60 hover:text-white text-3xl leading-none" :title="m.close" @click.stop="closeLightbox">✕</button>
-      <div class="flex flex-col items-center gap-4 pt-4 pb-8" @click.stop>
-        <div class="flex items-center gap-4">
-          <button
-            v-if="!lightbox.isCharacter"
-            class="text-white/60 hover:text-white disabled:opacity-20 text-5xl leading-none"
-            :disabled="!hasPrev"
-            @click="lightboxMove(-1)"
-          >
-            ‹
-          </button>
-          <div class="flex flex-col items-center">
-            <img :src="lightbox.src" class="max-w-[80vw] max-h-[85vh] object-contain rounded shadow-2xl" />
-            <div v-if="!lightbox.isCharacter && beats.length > 1" class="relative w-full h-1">
-              <div class="flex gap-1 h-full">
-                <div
-                  v-for="i in beats.length"
-                  :key="i - 1"
-                  class="group flex-1 cursor-pointer relative transition-colors"
-                  :class="
-                    i - 1 === lightbox.index
-                      ? 'bg-white/80 hover:bg-white'
-                      : i - 1 < lightbox.index
-                        ? 'bg-white/40 hover:bg-white/60'
-                        : 'bg-white/20 hover:bg-white/40'
-                  "
-                  @click="jumpToBeat(i - 1)"
-                >
-                  <span class="absolute -inset-y-3 inset-x-0" />
-                  <div
-                    v-if="beatTooltip(i - 1)"
-                    class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 px-2 py-1 rounded bg-black/90 text-white text-xs leading-tight w-48 max-h-[53px] overflow-hidden opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity"
-                  >
-                    {{ beatTooltip(i - 1) }}
-                  </div>
-                </div>
-              </div>
-              <div
-                v-if="playingAudio && playingAudio.index === lightbox.index"
-                class="absolute top-1/2 w-3.5 h-3.5 rounded-full bg-white shadow ring-2 ring-black/30 -translate-y-1/2 -translate-x-1/2 pointer-events-none"
-                :style="{ left: `${((lightbox.index + audioProgress) / beats.length) * 100}%` }"
-              />
-            </div>
-          </div>
-          <button
-            v-if="!lightbox.isCharacter"
-            class="text-white/60 hover:text-white disabled:opacity-20 text-5xl leading-none"
-            :disabled="!hasNext"
-            @click="lightboxMove(1)"
-          >
-            ›
-          </button>
-        </div>
-        <div v-if="lightbox.text || beatAudios[lightbox.index]" class="relative w-screen flex justify-center px-16">
-          <p v-if="lightbox.text" class="max-w-[80vw] text-center text-white leading-relaxed text-[clamp(0.8rem,1.76vw,1.6rem)]">
-            {{ lightbox.text }}
-          </p>
-          <button
-            v-if="beatAudios[lightbox.index]"
-            class="absolute top-0 right-4 text-sm px-3 py-1 rounded border border-white/60 text-white/60 hover:bg-white/20"
-            @click="playAudio(lightbox.index)"
-          >
-            {{ playingAudio?.index === lightbox.index ? m.stop : m.play }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <BeatLightbox
+      v-if="lightbox"
+      :lightbox="lightbox"
+      :beat-count="beats.length"
+      :beat-texts="beatTexts"
+      :has-prev="hasPrev"
+      :has-next="hasNext"
+      :playing-audio-index="playingAudio?.index ?? null"
+      :audio-progress="audioProgress"
+      :has-current-audio="Boolean(beatAudios[lightbox.index])"
+      @close="closeLightbox"
+      @move="lightboxMove"
+      @jump="jumpToBeat"
+      @play-audio="playAudio"
+    />
   </div>
 </template>
 
@@ -558,7 +342,6 @@ import {
   beatMayHaveMovie,
   shouldAutoRenderBeat,
   effectiveBeat as effectiveBeatOf,
-  beatTooltip as beatTooltipOf,
   isValidBeat as isValidBeatOf,
   staleSince as staleSinceOf,
   scriptSourceText as toScriptSourceText,
@@ -574,7 +357,10 @@ import { useMediaExport } from "./composables/useMediaExport";
 import { useBeatMovie } from "./composables/useBeatMovie";
 import { useCharacterImages } from "./composables/useCharacterImages";
 import { useDeckEditor } from "./composables/useDeckEditor";
-import type { MulmoScript } from "./viewTypes";
+import type { LightboxState, MulmoScript } from "./viewTypes";
+import BeatLightbox from "./components/BeatLightbox.vue";
+import CharacterStrip from "./components/CharacterStrip.vue";
+import MulmoScriptToolbar from "./components/MulmoScriptToolbar.vue";
 import { useT } from "../lang/index";
 
 // Lazy-loaded so the deck editor's Vue / tailwind / SlidePreview chunk
@@ -639,12 +425,7 @@ const audioProgress = ref(0);
 const SILENT_BEAT_DEFAULT_SEC = 3;
 const MS_PER_SECOND = 1000;
 const beatListEl = ref<HTMLElement | null>(null);
-const lightbox = ref<{
-  src: string;
-  text?: string;
-  index: number;
-  isCharacter?: boolean;
-} | null>(null);
+const lightbox = ref<LightboxState | null>(null);
 const beatDragOver = reactive<Record<number, boolean>>({});
 
 const anyBeatRendering = computed(() => Object.values(renderState).some((state) => state === "rendering"));
@@ -690,7 +471,6 @@ const {
   charErrors,
   charDragOver,
   characterKeys,
-  characterPrompt,
   onCharDragOver,
   onCharDragLeave,
   onCharDrop,
@@ -839,6 +619,10 @@ const hasNext = computed(() => {
   return false;
 });
 
+// Narration text per beat, for the lightbox beat-strip hover tooltips. Reads
+// through `effectiveBeat` so an unsaved in-place edit shows its new text.
+const beatTexts = computed(() => beats.value.map((_, index) => effectiveBeat(index).text));
+
 function jumpToBeat(index: number) {
   if (!lightbox.value) return;
   if (index === lightbox.value.index) return;
@@ -849,10 +633,6 @@ function jumpToBeat(index: number) {
   const wasPlaying = playingAudio.value !== null || silentPlaybackTimer.value !== null;
   openLightbox(index);
   if (wasPlaying) playBeat(index);
-}
-
-function beatTooltip(index: number): string {
-  return beatTooltipOf(effectiveBeat(index).text);
 }
 
 function lightboxMove(delta: number) {
