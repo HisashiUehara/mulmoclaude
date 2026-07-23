@@ -201,14 +201,17 @@ function mirrorSkillDelete(workspaceRoot2, slug) {
   return { dest };
 }
 
-// packages/core/dist/errors-eid6Mes3.js
+// packages/core/dist/dist-ChwiBd99.js
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function hasStringProp(value, key) {
+  return isRecord(value) && typeof value[key] === "string";
+}
 function errorMessage(err, fallback) {
   if (err instanceof Error) return err.message;
-  if (err !== null && typeof err === "object") {
-    const obj = err;
-    if (typeof obj.details === "string" && obj.details) return obj.details;
-    if (typeof obj.message === "string" && obj.message) return obj.message;
-  }
+  if (hasStringProp(err, "details") && err.details) return err.details;
+  if (hasStringProp(err, "message") && err.message) return err.message;
   if (fallback !== void 0) return fallback;
   return String(err);
 }
