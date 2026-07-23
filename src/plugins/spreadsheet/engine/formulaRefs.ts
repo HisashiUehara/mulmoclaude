@@ -87,6 +87,39 @@ export function parseSingleCellRef(refStr: string): CellCoord | null {
   };
 }
 
+// Numeric bounds of a `A2:C10` range, with any `Sheet1!` / `'My Sheet'!`
+// prefix kept verbatim so callers can rebuild sheet-qualified refs. Columns
+// are 0-based (via `columnToIndex`); rows stay 1-based, matching A1 notation.
+export interface RangeBounds {
+  sheetPrefix: string;
+  startCol: number;
+  startRow: number;
+  endCol: number;
+  endRow: number;
+}
+
+// Split an optional sheet prefix from a range, then parse the `A2:C10` body.
+// The prefix is everything up to and including the last `!`, so a quoted sheet
+// name that itself contains no `!` (the common case) is preserved intact. The
+// lookup functions each carried their own copy of this parse; one copy ran a
+// sheet-unaware regex against the whole string and threw on `Sheet1!A2:C10`
+// before the sheet-aware copy could run (#2390). Returns null for anything that
+// is not a two-endpoint range so callers surface one "Invalid range" message.
+export function parseRangeBounds(range: string): RangeBounds | null {
+  const bang = range.lastIndexOf("!");
+  const sheetPrefix = bang >= 0 ? range.slice(0, bang + 1) : "";
+  const body = bang >= 0 ? range.slice(bang + 1) : range;
+  const match = body.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
+  if (!match) return null;
+  return {
+    sheetPrefix,
+    startCol: columnToIndex(match[1]),
+    startRow: parseInt(match[2], 10),
+    endCol: columnToIndex(match[3]),
+    endRow: parseInt(match[4], 10),
+  };
+}
+
 // Top-level: scan the formula, expand any ranges, then pick up
 // remaining single-cell refs, deduplicating as we go. Kept short
 // (~15 lines) so the cognitive-complexity signal lands on the
