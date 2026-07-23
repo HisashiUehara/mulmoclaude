@@ -17,16 +17,8 @@
 
 import "dotenv/config";
 import WebSocket from "ws";
-import { createBridgeClient, chunkText } from "@mulmobridge/client";
+import { createBridgeClient, chunkText, frameText } from "@mulmobridge/client";
 import { isRecord, parseCsvSet } from "@mulmoclaude/common";
-
-// `ws` hands the listener `Buffer | ArrayBuffer | Buffer[]`. The default
-// binaryType is nodebuffer so a Buffer is what actually arrives, but the type
-// admits ArrayBuffer — whose `toString()` is the literal "[object ArrayBuffer]",
-// i.e. a frame silently parsed as garbage. Normalise instead of trusting the
-// runtime default to hold.
-const frameText = (data: Buffer | ArrayBuffer | Buffer[]): string =>
-  Buffer.isBuffer(data) ? data.toString("utf8") : Array.isArray(data) ? Buffer.concat(data).toString("utf8") : Buffer.from(data).toString("utf8");
 
 const TRANSPORT_ID = "signal";
 const MAX_SIGNAL_TEXT = 4_000;

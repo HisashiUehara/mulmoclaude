@@ -5,7 +5,7 @@
 //   MESSENGER_PAGE_ACCESS_TOKEN — Page access token
 //   MESSENGER_VERIFY_TOKEN      — Arbitrary string for webhook verification
 
-import { isRecord } from "@mulmoclaude/common";
+import { extractMessengerMessages } from "@mulmoclaude/common/meta-webhook";
 import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
 import { envSecret, requireEnvSecret } from "../utils/envSecret.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
@@ -14,32 +14,6 @@ import { postJsonChunks } from "./respond.js";
 import { makeRelayMessage } from "./relay-message.js";
 
 const MAX_MESSENGER_TEXT = 2000;
-
-interface ExtractedMessage {
-  senderId: string;
-  text: string;
-}
-
-function parseOneEvent(event: unknown): ExtractedMessage | null {
-  if (!isRecord(event) || !isRecord(event.sender) || typeof event.sender.id !== "string") return null;
-  if (!isRecord(event.message) || typeof event.message.text !== "string") return null;
-  const text = event.message.text.trim();
-  if (!text) return null;
-  return { senderId: event.sender.id, text };
-}
-
-function extractMessages(body: unknown): ExtractedMessage[] {
-  if (!isRecord(body) || !Array.isArray(body.entry)) return [];
-  const out: ExtractedMessage[] = [];
-  for (const entry of body.entry) {
-    if (!isRecord(entry) || !Array.isArray(entry.messaging)) continue;
-    for (const event of entry.messaging) {
-      const msg = parseOneEvent(event);
-      if (msg) out.push(msg);
-    }
-  }
-  return out;
-}
 
 const messengerPlugin: PlatformPlugin = {
   name: PLATFORMS.messenger,
@@ -57,7 +31,7 @@ const messengerPlugin: PlatformPlugin = {
   async handleWebhook(request: Request, body: string, env: Env): Promise<RelayMessage[]> {
     await verifyMetaWebhookSignature(request, body, requireEnvSecret(env, "MESSENGER_APP_SECRET"), "Messenger");
 
-    return extractMessages(JSON.parse(body)).map((msg) =>
+    return extractMessengerMessages(JSON.parse(body)).map((msg) =>
       makeRelayMessage({ platform: PLATFORMS.messenger, senderId: msg.senderId, chatId: msg.senderId, text: msg.text }),
     );
   },
