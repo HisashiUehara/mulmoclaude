@@ -8,8 +8,6 @@ import { functionRegistry, type FunctionHandler } from "../registry";
 import type { CellValue } from "../types";
 
 const ifHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 3) throw new Error("IF requires 3 arguments");
-
   const condition = args[0];
   const trueValue = args[1];
   const falseValue = args[2];
@@ -59,8 +57,6 @@ const ifHandler: FunctionHandler = (args, context) => {
 };
 
 const andHandler: FunctionHandler = (args, context) => {
-  if (args.length === 0) throw new Error("AND requires at least 1 argument");
-
   for (const arg of args) {
     const value = context.evaluateFormula(arg.trim());
     // Check if value is falsy (0, false, empty string, etc.)
@@ -73,8 +69,6 @@ const andHandler: FunctionHandler = (args, context) => {
 };
 
 const orHandler: FunctionHandler = (args, context) => {
-  if (args.length === 0) throw new Error("OR requires at least 1 argument");
-
   for (const arg of args) {
     const value = context.evaluateFormula(arg.trim());
     // Check if value is truthy (non-zero, non-empty)
@@ -86,16 +80,12 @@ const orHandler: FunctionHandler = (args, context) => {
 };
 
 const notHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("NOT requires 1 argument");
-
   const value = context.evaluateFormula(args[0]);
   // Note: !value already covers false
   return !value || value === 0 || value === "0";
 };
 
 const iferrorHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 2) throw new Error("IFERROR requires 2 arguments");
-
   try {
     const result = context.evaluateFormula(args[0]);
     // Check if result is an error (NaN, Infinity, etc.)
@@ -110,8 +100,6 @@ const iferrorHandler: FunctionHandler = (args, context) => {
 };
 
 const ifnaHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 2) throw new Error("IFNA requires 2 arguments");
-
   const result = context.evaluateFormula(args[0]);
   // Check if result is N/A (could be represented as specific error value)
   if (result === null || result === undefined || result === "#N/A") {
@@ -170,15 +158,9 @@ const ifsHandler: FunctionHandler = (args, context) => {
   return "#N/A";
 };
 
-const trueHandler: FunctionHandler = (args) => {
-  if (args.length !== 0) throw new Error("TRUE requires 0 arguments");
-  return true;
-};
+const trueHandler: FunctionHandler = () => true;
 
-const falseHandler: FunctionHandler = (args) => {
-  if (args.length !== 0) throw new Error("FALSE requires 0 arguments");
-  return false;
-};
+const falseHandler: FunctionHandler = () => false;
 
 // Register all logical functions
 functionRegistry.register({
