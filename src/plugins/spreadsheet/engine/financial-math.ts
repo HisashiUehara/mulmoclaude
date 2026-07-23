@@ -40,11 +40,65 @@ export function computePpmt(rate: number, per: number, nper: number, pv: number,
   return computePmt(rate, nper, pv, fv, type) - computeIpmt(rate, per, nper, pv, fv, type);
 }
 
-/** Net present value: each cash flow discounted by its 1-based period, in the
- *  order given. The caller flattens ranges and scalars into one ordered list, so
- *  a scalar after an N-cell range sits at period N+1 — NPV counts values, not
- *  arguments. Using the argument index put a trailing scalar at the wrong (lower)
- *  period (#2390). */
-export function computeNpv(rate: number, cashFlows: number[]): number {
-  return cashFlows.reduce((npv, flow, index) => npv + flow / Math.pow(1 + rate, index + 1), 0);
+/** Present value of an annuity that grows to `fv` after `nper` payments of `pmt`. */
+export function computePv(rate: number, nper: number, pmt: number, fv: number, type: number): number {
+  if (rate === 0) return -(fv + pmt * nper);
+  const growth = Math.pow(1 + rate, nper);
+  return (-fv - (pmt * (growth - 1) * (1 + rate * type)) / rate) / growth;
+}
+
+/** Number of periods needed to amortise `pv` to `fv` at constant `pmt`. */
+export function computeNper(rate: number, pmt: number, pv: number, fv: number, type: number): number {
+  if (rate === 0) return -(fv + pv) / pmt;
+  const pmtWithType = pmt * (1 + rate * type);
+  return Math.log((pmtWithType - fv * rate) / (pmtWithType + pv * rate)) / Math.log(1 + rate);
+}
+
+// Newton-Raphson is iterative; a valid annuity / cash-flow series converges well
+// inside these bounds. On non-convergence RATE and IRR return the last iterate (a
+// divergent value or NaN) rather than Excel's #NUM!, preserving prior behaviour.
+const NEWTON_MAX_ITERATIONS = 100;
+const NEWTON_TOLERANCE = 1e-7;
+
+/** Interest rate per period solving the annuity equation, via Newton-Raphson. */
+export function computeRate(nper: number, pmt: number, pv: number, fv: number, type: number, guess: number): number {
+  let rate = guess;
+  for (let i = 0; i < NEWTON_MAX_ITERATIONS; i++) {
+    if (Math.abs(rate) < NEWTON_TOLERANCE) rate = NEWTON_TOLERANCE; // avoid division by zero
+    const growth = Math.pow(1 + rate, nper);
+    const f = pv * growth + pmt * ((growth - 1) / rate) * (1 + rate * type) + fv;
+    const df =
+      nper * pv * Math.pow(1 + rate, nper - 1) +
+      (pmt * (1 + rate * type) * (nper * Math.pow(1 + rate, nper - 1) * rate - (growth - 1))) / (rate * rate) +
+      pmt * type * ((growth - 1) / rate);
+    const newRate = rate - f / df;
+    if (Math.abs(newRate - rate) < NEWTON_TOLERANCE) return newRate;
+    rate = newRate;
+  }
+  return rate;
+}
+
+/** Net present value of `cashflows`, each discounted one period further into the future. */
+export function computeNpv(rate: number, cashflows: number[]): number {
+  return cashflows.reduce((npv, value, index) => npv + value / Math.pow(1 + rate, index + 1), 0);
+}
+
+/** Internal rate of return of `values` (element 0 at period 0), via Newton-Raphson. */
+export function computeIrr(values: number[], guess: number): number {
+  let rate = guess;
+  for (let i = 0; i < NEWTON_MAX_ITERATIONS; i++) {
+    let npv = 0;
+    let dnpv = 0;
+    for (let j = 0; j < values.length; j++) {
+      const factor = Math.pow(1 + rate, j);
+      npv += values[j] / factor;
+      dnpv -= (j * values[j]) / (factor * (1 + rate));
+    }
+    if (Math.abs(npv) < NEWTON_TOLERANCE) return rate;
+    if (Math.abs(dnpv) < NEWTON_TOLERANCE) throw new Error("IRR cannot converge");
+    const newRate = rate - npv / dnpv;
+    if (Math.abs(newRate - rate) < NEWTON_TOLERANCE) return newRate;
+    rate = newRate;
+  }
+  return rate;
 }
