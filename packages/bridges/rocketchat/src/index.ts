@@ -17,7 +17,7 @@
 //   ROCKETCHAT_POLL_INTERVAL_SEC  — poll interval seconds (default 5)
 
 import "dotenv/config";
-import { createBridgeClient, chunkText } from "@mulmobridge/client";
+import { createBridgeClient, chunkText, fetchJsonRecord, type JsonRecord } from "@mulmobridge/client";
 import { isRecord, parseCsvSet } from "@mulmoclaude/common";
 
 const TRANSPORT_ID = "rocketchat";
@@ -49,8 +49,6 @@ mulmo.onPush((pushEvent) => {
 
 // ── REST helpers ────────────────────────────────────────────────
 
-type JsonRecord = Record<string, unknown>;
-
 // `Array.isArray(x: unknown)` narrows to `any[]`, which reintroduces `any`;
 // this preserves the element type as `unknown` so downstream stays checked.
 function isUnknownArray(value: unknown): value is unknown[] {
@@ -66,31 +64,20 @@ function authHeaders(): Record<string, string> {
 
 async function rcGet(path: string, query?: Record<string, string>): Promise<JsonRecord> {
   const queryString = query && Object.keys(query).length > 0 ? `?${new URLSearchParams(query).toString()}` : "";
-  const res = await fetch(`${apiBase}${path}${queryString}`, {
-    headers: authHeaders(),
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`GET ${path}: ${res.status} ${text.slice(0, 200)}`);
-  }
-  const json: unknown = await res.json();
-  return isRecord(json) ? json : {};
+  return fetchJsonRecord(`${apiBase}${path}${queryString}`, { headers: authHeaders(), signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }, `GET ${path}`);
 }
 
 async function rcPost(path: string, body: JsonRecord): Promise<JsonRecord> {
-  const res = await fetch(`${apiBase}${path}`, {
-    method: "POST",
-    headers: { ...authHeaders(), "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`POST ${path}: ${res.status} ${text.slice(0, 200)}`);
-  }
-  const json: unknown = await res.json();
-  return isRecord(json) ? json : {};
+  return fetchJsonRecord(
+    `${apiBase}${path}`,
+    {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    },
+    `POST ${path}`,
+  );
 }
 
 // ── Send / receive ──────────────────────────────────────────────

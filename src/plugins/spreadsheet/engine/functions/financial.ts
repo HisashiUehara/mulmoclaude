@@ -2,8 +2,8 @@
  * Financial Functions
  */
 
-import { functionRegistry, toNumber, type FunctionHandler } from "../registry";
-import { computeFv, computePmt, computeIpmt, computePpmt } from "../financial-math";
+import { functionRegistry, toNumber, type FunctionHandler, type FunctionContext } from "../registry";
+import { computeFv, computePmt, computeIpmt, computePpmt, computeNpv } from "../financial-math";
 
 /**
  * FV - Future Value
@@ -193,32 +193,20 @@ const ppmtHandler: FunctionHandler = (args, context) => {
  * Calculates the net present value of an investment based on a discount rate and a series of future cash flows.
  * NPV(rate, value1, [value2], ...)
  */
+// Flatten NPV's value arguments into one ordered list of numeric cash flows:
+// ranges expand in place (numeric cells only), scalars contribute one value.
+// The order defines each flow's discount period, so ranges and the scalars
+// after them must stay in argument order.
+const collectCashFlows = (valueArgs: string[], context: FunctionContext): number[] =>
+  valueArgs.flatMap((arg) => (arg.includes(":") ? context.getRangeValues(arg) : [context.evaluateFormula(arg)]).map(toNumber));
+
 const npvHandler: FunctionHandler = (args, context) => {
   if (args.length < 2) {
     throw new Error("NPV requires at least 2 arguments");
   }
 
   const rate = toNumber(context.evaluateFormula(args[0]));
-  let npv = 0;
-
-  // Process each cash flow
-  for (let i = 1; i < args.length; i++) {
-    // Check if argument is a range
-    if (args[i].includes(":")) {
-      const values = context.getRangeValues(args[i]);
-      for (let j = 0; j < values.length; j++) {
-        const value = toNumber(values[j]);
-        // Period starts from i for first range element, then continues
-        const period = i + j;
-        npv += value / Math.pow(1 + rate, period);
-      }
-    } else {
-      const value = toNumber(context.evaluateFormula(args[i]));
-      npv += value / Math.pow(1 + rate, i);
-    }
-  }
-
-  return npv;
+  return computeNpv(rate, collectCashFlows(args.slice(1), context));
 };
 
 /**

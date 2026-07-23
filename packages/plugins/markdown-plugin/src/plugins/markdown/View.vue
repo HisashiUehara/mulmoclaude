@@ -149,7 +149,7 @@
 import { computed, ref, watch, nextTick } from "vue";
 import { useRuntime } from "gui-chat-protocol/vue";
 import { marked } from "marked";
-import { formatScalarField, useMarkdownDoc } from "../../composables/useMarkdownDoc";
+import { formatScalarField, useMarkdownDoc, useClipboardCopy, useFileWatch } from "@mulmoclaude/core/plugin-vue";
 import type { ToolResult } from "gui-chat-protocol";
 import { isFilePath, type MarkdownToolData } from "./definition";
 import { rewriteMarkdownImageRefs } from "@mulmoclaude/markdown-utils/image/rewriteMarkdownImageRefs";
@@ -158,9 +158,7 @@ import { mermaidExtension } from "@mulmoclaude/markdown-utils/markdown/mermaidEx
 import { useMermaidRenderer } from "../../utils/markdown/useMermaid";
 import { usePdfExport } from "./usePdfExport";
 import { handleExternalLinkClick } from "@mulmoclaude/markdown-utils/dom/externalLink";
-import { useClipboardCopy } from "../../composables/useClipboardCopy";
 import { buildPdfFilename } from "@mulmoclaude/markdown-utils/files/filename";
-import { useFileWatch } from "@mulmoclaude/core/plugin-vue";
 import { isMarpDocument } from "@mulmoclaude/markdown-utils/markdown/marpDetect";
 import { useT } from "../../lang";
 import MarpView from "./MarpView.vue";

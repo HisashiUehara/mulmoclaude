@@ -69,7 +69,9 @@ export function backlinkRows(spec: Pick<BacklinksFieldSpec, "via" | "filter">, r
  *  carry are simply absent, mirroring `projectFields` in getItems. */
 export function projectBacklinkRow(row: CollectionItem, display: readonly string[], primaryKey: string): CollectionItem {
   const keys = display.includes(primaryKey) ? display : [primaryKey, ...display];
-  return Object.fromEntries(keys.filter((key) => key in row).map((key) => [key, row[key]]));
+  // Own-property only (matches `viaMatches` above): a display column named
+  // `toString` must be absent, not project an inherited prototype function.
+  return Object.fromEntries(keys.filter((key) => Object.hasOwn(row, key)).map((key) => [key, row[key]]));
 }
 
 /** The `rollup` member of the field-spec union. */
