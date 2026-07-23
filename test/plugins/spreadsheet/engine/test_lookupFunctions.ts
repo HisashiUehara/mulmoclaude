@@ -58,6 +58,62 @@ describe("VLOOKUP — cross-sheet table array (#2390: no longer throws)", () => 
   });
 });
 
+// Approximate match (#2360): the 4th argument TRUE (and omitted) must do an
+// approximate match — the largest first-column/row value <= the lookup key in a
+// sorted range — not fall back to exact. The literal TRUE reaches the handler as
+// the string "TRUE", which the old accept-only-`true|1|"1"` check missed, so
+// `VLOOKUP(4, …, TRUE)` silently returned #N/A.
+describe("VLOOKUP — approximate match with TRUE (#2360)", () => {
+  const sorted: (string | number)[][] = [
+    [1, "a"],
+    [3, "b"],
+    [5, "c"],
+  ];
+
+  it("returns the largest value <= the lookup key", () => {
+    assert.equal(evalInSheet(sorted, "=VLOOKUP(4, A1:B3, 2, TRUE)"), "b"); // 3 is the largest <= 4
+    assert.equal(evalInSheet(sorted, "=VLOOKUP(2, A1:B3, 2, TRUE)"), "a"); // 1 is the largest <= 2
+    assert.equal(evalInSheet(sorted, "=VLOOKUP(9, A1:B3, 2, TRUE)"), "c"); // past the end -> last row
+  });
+
+  it("matches an exact key on the approximate path too", () => {
+    assert.equal(evalInSheet(sorted, "=VLOOKUP(3, A1:B3, 2, TRUE)"), "b");
+  });
+
+  it("treats a lowercase true the same as TRUE", () => {
+    assert.equal(evalInSheet(sorted, "=VLOOKUP(4, A1:B3, 2, true)"), "b");
+  });
+
+  it("approximates when the 4th argument is omitted (default TRUE)", () => {
+    assert.equal(evalInSheet(sorted, "=VLOOKUP(4, A1:B3, 2)"), "b");
+  });
+
+  it("returns #N/A when the key is below the smallest value", () => {
+    assert.equal(evalInSheet(sorted, "=VLOOKUP(0, A1:B3, 2, TRUE)"), "#N/A");
+  });
+
+  it("keeps the exact FALSE path unchanged", () => {
+    assert.equal(evalInSheet(sorted, "=VLOOKUP(3, A1:B3, 2, FALSE)"), "b");
+    assert.equal(evalInSheet(sorted, "=VLOOKUP(4, A1:B3, 2, FALSE)"), "#N/A");
+  });
+});
+
+describe("HLOOKUP — approximate match with TRUE (#2360)", () => {
+  const sorted: (string | number)[][] = [
+    [10, 20, 30],
+    ["x", "y", "z"],
+  ];
+
+  it("returns the row-2 value under the largest column <= the lookup key", () => {
+    assert.equal(evalInSheet(sorted, "=HLOOKUP(25, A1:C2, 2, TRUE)"), "y"); // 20 is the largest <= 25
+    assert.equal(evalInSheet(sorted, "=HLOOKUP(30, A1:C2, 2, TRUE)"), "z");
+  });
+
+  it("returns #N/A when the key is below the smallest value", () => {
+    assert.equal(evalInSheet(sorted, "=HLOOKUP(5, A1:C2, 2, TRUE)"), "#N/A");
+  });
+});
+
 describe("INDEX — bounds (#2390)", () => {
   const grid: (string | number)[][] = [
     [10, 11],

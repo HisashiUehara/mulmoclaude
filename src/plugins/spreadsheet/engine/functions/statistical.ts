@@ -3,7 +3,7 @@
  */
 
 import { functionRegistry, toNumber, parseCriteria, type FunctionContext, type FunctionHandler } from "../registry";
-import { computeMode, DIV_ZERO_ERROR } from "./statistical-math";
+import { computeMode, sampleStdev, sampleVariance, DIV_ZERO_ERROR } from "./statistical-math";
 
 const isLetter = (char: string): boolean => /[A-Z]/i.test(char);
 
@@ -99,23 +99,12 @@ const modeHandler: FunctionHandler = (args, context) => {
 
 const stdevHandler: FunctionHandler = (args, context) => {
   const values = context.getRangeValues(args[0]).map(toNumber);
-
-  if (values.length === 0) return 0;
-
-  const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
-  const squaredDiffs = values.map((val) => Math.pow(val - mean, 2));
-  const variance = squaredDiffs.reduce((sum, val) => sum + val, 0) / values.length;
-  return Math.sqrt(variance);
+  return sampleStdev(values);
 };
 
 const varHandler: FunctionHandler = (args, context) => {
   const values = context.getRangeValues(args[0]).map(toNumber);
-
-  if (values.length === 0) return 0;
-
-  const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
-  const squaredDiffs = values.map((val) => Math.pow(val - mean, 2));
-  return squaredDiffs.reduce((sum, val) => sum + val, 0) / values.length;
+  return sampleVariance(values);
 };
 
 const countaHandler: FunctionHandler = (args, context) => {
