@@ -8,48 +8,13 @@
 
 import { backlinkRows, projectBacklinkRow, rollupValue } from "../core/backlinks";
 import { deriveAll, type DeriveRefRecords } from "../core/deriveAll";
+import { uniqueBacklinkSources, uniqueEmbedTargets, uniqueRefTargets } from "../core/linkTargets";
 import { loadCollection, type DiscoveryOptions } from "./discovery";
 import type { LoadedCollection } from "./discoveredCollection";
 import { storeFor } from "./store";
 import { fieldText } from "../core/fieldText";
 import { embedTargetId } from "../core/schema";
 import type { CollectionFieldSpec, CollectionItem, CollectionSchema } from "../core/schema";
-
-/** Slugs of every collection referenced by a `ref` field — top-level
- *  and one level into `table` sub-fields (nested tables are
- *  schema-rejected). Mirrors the client's `uniqueRefTargets`. */
-function uniqueRefTargets(schema: CollectionSchema): string[] {
-  const targets = new Set<string>();
-  const walk = (fields: Record<string, CollectionFieldSpec>): void => {
-    for (const field of Object.values(fields)) {
-      if (field.type === "ref" && typeof field.to === "string" && field.to.length > 0) targets.add(field.to);
-      if (field.type === "table" && field.of) walk(field.of);
-    }
-  };
-  walk(schema.fields);
-  return [...targets];
-}
-
-/** Slugs of every collection referenced by an `embed` field (top-level
- *  only, like the client). */
-function uniqueEmbedTargets(schema: CollectionSchema): string[] {
-  const targets = new Set<string>();
-  for (const field of Object.values(schema.fields)) {
-    if (field.type === "embed" && typeof field.to === "string" && field.to.length > 0) targets.add(field.to);
-  }
-  return [...targets];
-}
-
-/** Slugs of every SOURCE collection a `backlinks` or `rollup` field
- *  reverses over — loaded exactly like ref/embed targets (whole
- *  collection, once; the two field kinds share one load). */
-function uniqueBacklinkSources(schema: CollectionSchema): string[] {
-  const sources = new Set<string>();
-  for (const field of Object.values(schema.fields)) {
-    if ((field.type === "backlinks" || field.type === "rollup") && field.from.length > 0) sources.add(field.from);
-  }
-  return [...sources];
-}
 
 interface LinkedTarget {
   schema: CollectionSchema;
