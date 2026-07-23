@@ -2,7 +2,7 @@
  * Logical Functions
  */
 
-import { evaluateCondition, renderConditionOperand } from "../condition";
+import { evaluateConditionValues, renderConditionOperand } from "../condition";
 import { findCellRefs } from "../evaluator";
 import { functionRegistry, type FunctionHandler } from "../registry";
 
@@ -146,9 +146,10 @@ const ifsHandler: FunctionHandler = (args, context) => {
     // Parsed, not executed. This used to call `eval` on `condExpr`, which is
     // the substituted text — so a cell containing `globalThis.x = 1` ran as
     // code whenever an IFS referenced it, and so did anything written into the
-    // formula itself. A condition is one comparison or a bare value, which
-    // `evaluateCondition` reads directly.
-    if (evaluateCondition(condExpr)) {
+    // formula itself. Each operand is resolved with the engine's safe evaluator
+    // (so `A1+1>10` computes the arithmetic) and only the top-level comparison
+    // is applied — the condition is never run as code.
+    if (evaluateConditionValues(condExpr, (operand) => context.evaluateFormula(operand))) {
       // If result is a quoted string, return without quotes
 
       if (/^["'](.*)["']$/.test(value)) {
