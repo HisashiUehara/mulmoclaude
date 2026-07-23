@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { draftToRecord } from "../../src/collection/core/draft.ts";
-import type { CollectionSchema } from "../../src/collection/core/schema.ts";
+import type { CollectionFieldSpec, CollectionSchema } from "../../src/collection/core/schema.ts";
 import type { EditState, TableRowDraft } from "../../src/collection/core/uiTypes.ts";
 
 function emptyState(overrides: Partial<EditState> = {}): EditState {
@@ -22,7 +22,9 @@ function schemaWith(fields: CollectionSchema["fields"]): CollectionSchema {
 test("omits an untouched boolean field named after a prototype member", () => {
   const schema = schemaWith({
     id: { type: "string", label: "Id", primary: true },
-    toString: { type: "boolean", label: "Flag" },
+    // `satisfies` keeps `type` narrowed: a `toString` key on a Record<string, …>
+    // otherwise picks up Object.prototype.toString and widens the value to string.
+    toString: { type: "boolean", label: "Flag" } satisfies CollectionFieldSpec,
   });
   const record = draftToRecord(emptyState(), schema);
   assert.equal(Object.hasOwn(record, "toString"), false);
@@ -53,7 +55,7 @@ test("omits an untouched boolean table sub-field named after a prototype member"
   const row: TableRowDraft = { text: {}, bool: {}, boolOriginallyPresent: {}, boolTouched: {} };
   const schema = schemaWith({
     id: { type: "string", label: "Id", primary: true },
-    rows: { type: "table", label: "Rows", of: { toString: { type: "boolean", label: "Flag" } } },
+    rows: { type: "table", label: "Rows", of: { toString: { type: "boolean", label: "Flag" } satisfies CollectionFieldSpec } },
   });
   const record = draftToRecord(emptyState({ table: { rows: [row] } }), schema);
   assert.deepEqual(record.rows, [{}]);
