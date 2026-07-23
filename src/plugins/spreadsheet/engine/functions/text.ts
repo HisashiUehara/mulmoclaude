@@ -3,8 +3,7 @@
  */
 
 import { functionRegistry, toString, type FunctionHandler } from "../registry";
-
-const VALUE_ERROR = "#VALUE!";
+import { VALUE_ERROR, isSpreadsheetErrorValue, type SpreadsheetError } from "../spreadsheet-errors";
 
 // A letter or a combining mark. A decomposed accented letter (e + U+0301) is two
 // code points; counting the mark as part of the word stops PROPER from treating
@@ -25,20 +24,20 @@ export const toProperCase = (text: string): string => {
 // Excel truncates a fractional count toward zero and rejects a non-finite or
 // negative one with #VALUE! (LEFT/RIGHT with "x" or -1). Normalising once keeps
 // LEFT and RIGHT consistent instead of each feeding a raw Number() to substring.
-const normalizeCharCount = (count: number): number | string => {
+const normalizeCharCount = (count: number): number | SpreadsheetError => {
   // Test the sign before truncating: Math.trunc(-0.5) is -0, which is not < 0.
   if (!Number.isFinite(count) || count < 0) return VALUE_ERROR;
   return Math.trunc(count);
 };
 
-export const takeLeft = (text: string, count: number): string => {
+export const takeLeft = (text: string, count: number): string | SpreadsheetError => {
   const chars = normalizeCharCount(count);
-  return typeof chars === "string" ? chars : text.substring(0, chars);
+  return isSpreadsheetErrorValue(chars) ? chars : text.substring(0, chars);
 };
 
-export const takeRight = (text: string, count: number): string => {
+export const takeRight = (text: string, count: number): string | SpreadsheetError => {
   const chars = normalizeCharCount(count);
-  return typeof chars === "string" ? chars : text.substring(text.length - chars);
+  return isSpreadsheetErrorValue(chars) ? chars : text.substring(text.length - chars);
 };
 
 // Replace the nth (1-based) occurrence; split/join keeps matches non-overlapping,
@@ -51,7 +50,7 @@ const replaceNthOccurrence = (text: string, oldText: string, newText: string, nt
 
 // Excel SUBSTITUTE: empty old_text returns the text unchanged (never inserts
 // between characters); a supplied instance ≤ 0 or non-finite is a #VALUE! error.
-export const substituteText = (text: string, oldText: string, newText: string, instance?: number): string => {
+export const substituteText = (text: string, oldText: string, newText: string, instance?: number): string | SpreadsheetError => {
   if (oldText === "") return text;
   if (instance === undefined) return text.split(oldText).join(newText);
   const nth = Math.trunc(instance);
@@ -142,7 +141,7 @@ const findHandler: FunctionHandler = (args, context) => {
   const startPos = args.length === 3 ? Number(context.evaluateFormula(args[2])) - 1 : 0;
 
   const index = withinText.indexOf(findText, startPos);
-  return index === -1 ? "#VALUE!" : index + 1; // Return 1-indexed position
+  return index === -1 ? VALUE_ERROR : index + 1; // Return 1-indexed position
 };
 
 const searchHandler: FunctionHandler = (args, context) => {
@@ -155,7 +154,7 @@ const searchHandler: FunctionHandler = (args, context) => {
   const lowerWithin = withinText.toLowerCase();
 
   const index = lowerWithin.indexOf(lowerFind, startPos);
-  return index === -1 ? "#VALUE!" : index + 1; // Return 1-indexed position
+  return index === -1 ? VALUE_ERROR : index + 1; // Return 1-indexed position
 };
 
 const textHandler: FunctionHandler = (args, context) => {
@@ -195,11 +194,11 @@ const valueHandler: FunctionHandler = (args, context) => {
   // Handle percentages
   if (cleaned.includes("%")) {
     const num = parseFloat(cleaned.replace("%", ""));
-    return isNaN(num) ? "#VALUE!" : num / 100;
+    return isNaN(num) ? VALUE_ERROR : num / 100;
   }
 
   const num = parseFloat(cleaned);
-  return isNaN(num) ? "#VALUE!" : num;
+  return isNaN(num) ? VALUE_ERROR : num;
 };
 
 const exactHandler: FunctionHandler = (args, context) => {

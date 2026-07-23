@@ -2,7 +2,7 @@
 // plausible NUMBER (FLOOR(-2.5,2) = -4, ROUND(-2.5,0) = -2, MOD(-3,2) = -1) or a
 // silent NaN/∞ instead of an Excel error (#2389). The rounding direction, the
 // modulo sign and the domain guards are checked directly on the pure helpers,
-// with a few end-to-end checks that the handlers surface the error strings.
+// with a few end-to-end checks that the handlers surface the error values.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -20,6 +20,7 @@ import {
   logWithBase,
 } from "../../../../src/plugins/spreadsheet/engine/math-ops.ts";
 import { SpreadsheetEngine, type SheetData } from "../../../../src/plugins/spreadsheet/engine/index.ts";
+import { DIV_ZERO_ERROR, NUM_ERROR } from "../../../../src/plugins/spreadsheet/engine/spreadsheet-errors.ts";
 
 const closeTo = (actual: number, expected: number, eps = 1e-9): boolean => Math.abs(actual - expected) <= eps;
 
@@ -42,9 +43,9 @@ describe("roundTo / roundUpTo / roundDownTo — direction", () => {
 });
 
 describe("floorToSignificance / ceilingToSignificance — sign domain", () => {
-  it("is #NUM! when number and significance disagree in sign", () => {
-    assert.equal(floorToSignificance(-2.5, 2), "#NUM!");
-    assert.equal(ceilingToSignificance(2.5, -2), "#NUM!");
+  it("is a #NUM! error value when number and significance disagree in sign", () => {
+    assert.equal(floorToSignificance(-2.5, 2), NUM_ERROR);
+    assert.equal(ceilingToSignificance(2.5, -2), NUM_ERROR);
   });
 
   it("rounds to the multiple when the signs match", () => {
@@ -69,14 +70,14 @@ describe("modulo — divisor sign and division by zero", () => {
   });
 
   it("is #DIV/0! when the divisor is zero", () => {
-    assert.equal(modulo(5, 0), "#DIV/0!");
+    assert.equal(modulo(5, 0), DIV_ZERO_ERROR);
   });
 });
 
 describe("power — negative base domain", () => {
   it("is #NUM! for a negative base with a non-integer exponent", () => {
-    assert.equal(power(-8, 1 / 3), "#NUM!");
-    assert.equal(power(-2, 0.5), "#NUM!");
+    assert.equal(power(-8, 1 / 3), NUM_ERROR);
+    assert.equal(power(-2, 0.5), NUM_ERROR);
   });
 
   it("computes when the exponent is an integer or the base is non-negative", () => {
@@ -88,10 +89,10 @@ describe("power — negative base domain", () => {
 
 describe("safeSqrt / safeLog / safeLog10 — domain", () => {
   it("is #NUM! outside the domain", () => {
-    assert.equal(safeSqrt(-1), "#NUM!");
-    assert.equal(safeLog(0), "#NUM!");
-    assert.equal(safeLog(-1), "#NUM!");
-    assert.equal(safeLog10(0), "#NUM!");
+    assert.equal(safeSqrt(-1), NUM_ERROR);
+    assert.equal(safeLog(0), NUM_ERROR);
+    assert.equal(safeLog(-1), NUM_ERROR);
+    assert.equal(safeLog10(0), NUM_ERROR);
   });
 
   it("computes inside the domain", () => {
@@ -108,21 +109,21 @@ describe("logWithBase — number and base domain", () => {
   });
 
   it("is #NUM! for a non-positive number", () => {
-    assert.equal(logWithBase(0, 10), "#NUM!");
-    assert.equal(logWithBase(-1, 10), "#NUM!");
+    assert.equal(logWithBase(0, 10), NUM_ERROR);
+    assert.equal(logWithBase(-1, 10), NUM_ERROR);
   });
 
   it("is #NUM! for a base that is non-positive or exactly 1", () => {
-    assert.equal(logWithBase(8, 1), "#NUM!");
-    assert.equal(logWithBase(8, -2), "#NUM!");
-    assert.equal(logWithBase(8, 0), "#NUM!");
+    assert.equal(logWithBase(8, 1), NUM_ERROR);
+    assert.equal(logWithBase(8, -2), NUM_ERROR);
+    assert.equal(logWithBase(8, 0), NUM_ERROR);
   });
 });
 
 describe("the handlers surface the errors end-to-end", () => {
   const evalFormula = (formula: string): unknown => new SpreadsheetEngine().calculate({ name: "S", data: [[{ v: formula }]] } satisfies SheetData).data[0][0];
 
-  it("returns the Excel error strings through the engine", () => {
+  it("displays the Excel error codes through the engine", () => {
     assert.equal(evalFormula("=FLOOR(-2.5, 2)"), "#NUM!");
     assert.equal(evalFormula("=SQRT(-1)"), "#NUM!");
     assert.equal(evalFormula("=MOD(5, 0)"), "#DIV/0!");
@@ -133,16 +134,16 @@ describe("the handlers surface the errors end-to-end", () => {
     assert.equal(evalFormula("=LOG(8, 2)"), 3);
   });
 
-  // Now that domain misses are error strings (not NaN/∞), IFERROR must still
-  // catch them or nested formulas would surface the raw error (#2389 review).
-  it("lets IFERROR catch the new error strings", () => {
+  // Domain misses are error VALUES (not NaN/∞), so IFERROR must still catch
+  // them or nested formulas would surface the raw error (#2389 review).
+  it("lets IFERROR catch the domain errors", () => {
     assert.equal(evalFormula("=IFERROR(SQRT(-1), 42)"), 42);
     assert.equal(evalFormula("=IFERROR(MOD(5, 0), -1)"), -1);
     assert.equal(evalFormula("=IFERROR(SQRT(4), 42)"), 2, "a non-error passes through");
   });
 
-  // A quoted literal that only looks like an error is real text, not an error
-  // value, so IFERROR returns it rather than the fallback (Codex review).
+  // Text that only looks like an error is real text, not an error value, so
+  // IFERROR returns it rather than the fallback.
   it("does not treat quoted error-looking text as an error", () => {
     assert.equal(evalFormula('=IFERROR("#NUM!", 42)'), "#NUM!");
     assert.equal(evalFormula('=IFERROR("hello", 42)'), "hello");
