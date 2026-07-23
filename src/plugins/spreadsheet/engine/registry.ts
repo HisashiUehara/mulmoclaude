@@ -84,6 +84,35 @@ export function toString(value: CellValue): string {
   return String(value);
 }
 
+const REGEXP_METACHARACTERS = /[.*+?^${}()|[\]\\]/;
+
+const escapeRegExpChar = (char: string): string => (REGEXP_METACHARACTERS.test(char) ? `\\${char}` : char);
+
+/**
+ * Match text the way a spreadsheet criteria does: case-insensitively, with `*`
+ * standing for any run of characters, `?` for exactly one, and `~` escaping the
+ * next character. A plain `String(v) === criteria` missed both — `COUNTIF(range,
+ * "yes")` skipped a cell holding `Yes`, and `"A*"` was compared literally.
+ */
+function textMatcher(pattern: string): (text: string) => boolean {
+  const source: string[] = [];
+  for (let index = 0; index < pattern.length; index++) {
+    const char = pattern[index];
+    if (char === "~" && index + 1 < pattern.length) {
+      source.push(escapeRegExpChar(pattern[index + 1]));
+      index++;
+    } else if (char === "*") {
+      source.push(".*");
+    } else if (char === "?") {
+      source.push(".");
+    } else {
+      source.push(escapeRegExpChar(char));
+    }
+  }
+  const regex = new RegExp(`^${source.join("")}$`, "iu");
+  return (text) => regex.test(text);
+}
+
 /**
  * Helper to parse criteria for conditional functions like COUNTIF, SUMIF
  * Returns a comparison function that tests if a value matches the criteria
@@ -99,6 +128,9 @@ export function parseCriteria(criteria: string): (value: CellValue) => boolean {
     const [, op, value] = opMatch;
     const numValue = parseFloat(value);
 
+    // `=` / `<>` compare like the bare criteria does — case-insensitive text
+    // with wildcards, or the number. `<>` is exactly its negation.
+    const equals = matchesTextOrNumber(value);
     switch (op) {
       case ">":
         return (v) => toNumber(v) > numValue;
@@ -110,20 +142,23 @@ export function parseCriteria(criteria: string): (value: CellValue) => boolean {
         return (v) => toNumber(v) <= numValue;
       case "=":
       case "==":
-        return (v) => String(v) === value || toNumber(v) === numValue;
+        return equals;
       case "!=":
       case "<>":
-        return (v) => String(v) !== value && toNumber(v) !== numValue;
+        return (v) => !equals(v);
       default:
         return () => false;
     }
   }
 
-  // Exact match (string or number)
-  return (v) => {
-    const strMatch = String(v) === trimmedCriteria;
-    const numCriteria = parseFloat(trimmedCriteria);
-    const numMatch = !isNaN(numCriteria) && toNumber(v) === numCriteria;
-    return strMatch || numMatch;
-  };
+  return matchesTextOrNumber(trimmedCriteria);
+}
+
+/** A value matches when its text matches the criteria (case-insensitively, with
+ *  wildcards) or, for a numeric criteria, when its number is equal. */
+function matchesTextOrNumber(criteria: string): (value: CellValue) => boolean {
+  const matchesText = textMatcher(criteria);
+  const numCriteria = parseFloat(criteria);
+  const hasNumber = !isNaN(numCriteria);
+  return (value) => matchesText(String(value)) || (hasNumber && toNumber(value) === numCriteria);
 }
