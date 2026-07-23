@@ -14,6 +14,7 @@ import { isObj } from "../../../utils/types";
 import { isEmptyCell } from "./cellEmpty";
 import { errorMessage } from "../../../utils/errors";
 import { classifyThrownError, invalidRefError } from "./formulaError";
+import { isSpreadsheetErrorValue, spreadsheetError } from "./spreadsheet-errors";
 
 /**
  * Normalize malformed data structures
@@ -166,8 +167,11 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], option
     } catch (error) {
       const { type, display } = classifyThrownError(error);
       errors.push({ cell: { row, col }, formula: formulaText, error: errorMessage(error), type });
-      calculated[row][col] = display;
-      return display;
+      // The error VALUE, not its text: a cell that reads this one must see a
+      // real error, and the display pass renders it back to `#DIV/0!`.
+      const errorValue = spreadsheetError(display);
+      calculated[row][col] = errorValue;
+      return errorValue;
     } finally {
       calculating.delete(cellKey);
       evaluated.add(cellKey);
@@ -178,6 +182,9 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], option
   const getRawValue = (cell: any, row?: number, col?: number): CellValue => {
     // Handle null/undefined cells - treat as 0
     if (cell === null || cell === undefined) return 0;
+
+    // An already-calculated cell can hold a formula error; it stays an error.
+    if (isSpreadsheetErrorValue(cell)) return cell;
 
     if (typeof cell === "number") return cell;
 

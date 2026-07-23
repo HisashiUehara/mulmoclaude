@@ -31,11 +31,12 @@ duplicated," so they live here once.
 
 Plus CSV/env helpers `parseCsvList(raw, { lowercase? })` and
 `parseCsvSet(raw, { lowercase? })` (empty set = "allow all" sentinel), and the
-error helper below.
+helpers below.
 
 | Helper | Returns | Notes |
 |---|---|---|
 | `errorMessage(v, fallback?)` | `string` | unknown caught value → human-readable string; **isomorphic**, so Vue/browser surfaces use it too |
+| `toUtcIsoDate(timestamp)` | `string` | `Date` → `YYYY-MM-DD` in UTC — for dates that must not shift with the host's local timezone |
 
 `errorMessage` surfaces a non-empty string `details` (gRPC convention) or
 `message` field of a non-Error object (`details` wins) instead of

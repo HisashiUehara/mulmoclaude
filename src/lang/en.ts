@@ -831,6 +831,7 @@ const enMessages = {
     metadataEditor: "Editor",
     pageEditHeader: "Wiki edit",
     snapshotExpired: "Snapshot expired — showing current page",
+    snapshotLoadError: "Couldn't load the snapshot — the page may still exist. Try refreshing.",
     pageDeleted: "Page deleted",
     history: {
       tabContent: "Content",

@@ -6,7 +6,8 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseNumericString, toScalarNumber, VALUE_ERROR } from "../../../../src/plugins/spreadsheet/engine/numericCoercion.ts";
+import { parseNumericString, toScalarNumber } from "../../../../src/plugins/spreadsheet/engine/numericCoercion.ts";
+import { VALUE_ERROR } from "../../../../src/plugins/spreadsheet/engine/spreadsheet-errors.ts";
 import { toNumber } from "../../../../src/plugins/spreadsheet/engine/registry.ts";
 
 describe("parseNumericString — reads the formats the engine has always read", () => {
