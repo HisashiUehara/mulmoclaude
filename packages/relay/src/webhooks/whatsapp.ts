@@ -6,7 +6,7 @@
 //   WHATSAPP_PHONE_NUMBER_ID   — Phone number ID from Meta dashboard
 //   WHATSAPP_VERIFY_TOKEN      — Arbitrary string for webhook verification
 
-import { isRecord } from "@mulmoclaude/common";
+import { extractWhatsAppMessages } from "@mulmoclaude/common/meta-webhook";
 import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
 import { envSecret, requireEnvSecret } from "../utils/envSecret.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
@@ -16,30 +16,6 @@ import { makeRelayMessage } from "./relay-message.js";
 
 const WHATSAPP_API_VERSION = "v21.0";
 const MAX_WA_TEXT = 4096;
-
-interface WaTextMessage {
-  from: string;
-  text: { body: string };
-}
-
-function parseOneWaMessage(msg: unknown): WaTextMessage | null {
-  if (!isRecord(msg) || msg.type !== "text" || typeof msg.from !== "string") return null;
-  if (!isRecord(msg.text) || typeof msg.text.body !== "string" || !msg.text.body.trim()) return null;
-  return { from: msg.from, text: { body: msg.text.body } };
-}
-
-function extractWaMessages(body: unknown): WaTextMessage[] {
-  if (!isRecord(body) || !Array.isArray(body.entry)) return [];
-  const raw: unknown[] = [];
-  for (const entry of body.entry) {
-    if (!isRecord(entry) || !Array.isArray(entry.changes)) continue;
-    for (const change of entry.changes) {
-      if (!isRecord(change) || !isRecord(change.value) || !Array.isArray(change.value.messages)) continue;
-      raw.push(...change.value.messages);
-    }
-  }
-  return raw.map(parseOneWaMessage).filter((msg): msg is WaTextMessage => msg !== null);
-}
 
 const whatsappPlugin: PlatformPlugin = {
   name: PLATFORMS.whatsapp,
@@ -57,7 +33,7 @@ const whatsappPlugin: PlatformPlugin = {
   async handleWebhook(request: Request, body: string, env: Env): Promise<RelayMessage[]> {
     await verifyMetaWebhookSignature(request, body, requireEnvSecret(env, "WHATSAPP_APP_SECRET"), "WhatsApp");
 
-    return extractWaMessages(JSON.parse(body)).map((msg) =>
+    return extractWhatsAppMessages(JSON.parse(body)).map((msg) =>
       makeRelayMessage({ platform: PLATFORMS.whatsapp, senderId: msg.from, chatId: msg.from, text: msg.text.body }),
     );
   },
