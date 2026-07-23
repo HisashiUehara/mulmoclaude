@@ -1,94 +1,21 @@
 <template>
   <div class="h-full bg-white flex flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
-      <div class="flex items-center gap-2 min-w-0">
-        <button
-          v-if="action !== 'index' && isStandaloneWikiRoute"
-          class="h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-          :title="t('pluginWiki.backToIndex')"
-          @click="router.back()"
-        >
-          <span class="material-icons text-base">arrow_back</span>
-        </button>
-        <h2 class="text-lg font-semibold text-gray-800 truncate">{{ displayTitle }}</h2>
-      </div>
-      <div class="flex items-center gap-2">
-        <template v-if="(action === 'page' || action === 'page-edit') && content">
-          <button
-            class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-            :disabled="pdfDownloading"
-            @click="downloadPdf"
-          >
-            <span class="material-icons text-base">{{ pdfDownloading ? "hourglass_empty" : "download" }}</span>
-            {{ t("pluginWiki.pdf") }}
-          </button>
-          <button
-            class="h-8 px-2.5 flex items-center gap-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-            :disabled="zipDownloading"
-            data-testid="wiki-zip-button"
-            @click="downloadZipFile"
-          >
-            <span class="material-icons text-base">{{ zipDownloading ? "hourglass_empty" : "folder_zip" }}</span>
-            {{ t("common.downloadZip") }}
-          </button>
-          <span v-if="pdfError" class="text-xs text-red-500" :title="pdfError">{{ t("pluginWiki.pdfFailed") }}</span>
-          <span v-if="zipFailed" class="text-xs text-red-500">{{ t("common.downloadFailed") }}</span>
-        </template>
-        <button
-          v-if="action === 'index'"
-          class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm transition-colors"
-          data-testid="wiki-lint-chat-button"
-          @click="startLintChat"
-        >
-          <span class="material-icons text-base">rule</span>
-          {{ t("pluginWiki.lintChat") }}
-        </button>
-        <div class="flex border border-gray-300 rounded overflow-hidden">
-          <button
-            :class="[
-              'h-8 px-2.5 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors',
-              action === 'index' ? 'bg-blue-50 text-blue-600 font-medium' : 'bg-white text-gray-600 hover:bg-gray-50',
-            ]"
-            @click="navigate('index')"
-          >
-            <span class="material-icons text-sm">list</span>
-            <span>{{ t("pluginWiki.tabIndex") }}</span>
-          </button>
-          <button
-            :class="[
-              'h-8 px-2.5 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors',
-              action === 'log' ? 'bg-blue-50 text-blue-600 font-medium' : 'bg-white text-gray-600 hover:bg-gray-50',
-            ]"
-            @click="navigate('log')"
-          >
-            <span class="material-icons text-sm">history</span>
-            <span>{{ t("pluginWiki.tabLog") }}</span>
-          </button>
-          <button
-            :class="[
-              'h-8 px-2.5 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors',
-              action === 'lint_report' ? 'bg-blue-50 text-blue-600 font-medium' : 'bg-white text-gray-600 hover:bg-gray-50',
-            ]"
-            @click="navigate('lint_report')"
-          >
-            <span class="material-icons text-sm">rule</span>
-            <span>{{ t("pluginWiki.tabLint") }}</span>
-          </button>
-          <button
-            :class="[
-              'h-8 px-2.5 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors',
-              action === 'graph' ? 'bg-blue-50 text-blue-600 font-medium' : 'bg-white text-gray-600 hover:bg-gray-50',
-            ]"
-            data-testid="wiki-tab-graph"
-            @click="navigate('graph')"
-          >
-            <span class="material-icons text-sm">hub</span>
-            <span>{{ t("pluginWiki.tabGraph") }}</span>
-          </button>
-        </div>
-      </div>
-    </div>
+    <WikiHeader
+      :action="action"
+      :is-standalone-wiki-route="isStandaloneWikiRoute"
+      :display-title="displayTitle"
+      :has-content="!!content"
+      :pdf-downloading="pdfDownloading"
+      :pdf-error="pdfError"
+      :zip-downloading="zipDownloading"
+      :zip-failed="zipFailed"
+      @back="router.back()"
+      @download-pdf="downloadPdf"
+      @download-zip="downloadZipFile"
+      @lint-chat="startLintChat"
+      @navigate="navigate"
+    />
 
     <!-- Navigation error -->
     <div v-if="navError" class="mx-6 mt-4 rounded border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
@@ -184,35 +111,7 @@
            the existing header-less content visually unchanged.
            Stays visible across both Content and History tabs (#944
            Q11=C). -->
-      <div
-        v-if="(action === 'page' || action === 'page-edit') && hasPageMeta"
-        data-testid="wiki-page-metadata-bar"
-        class="shrink-0 border-b border-gray-100 px-6 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500"
-      >
-        <span v-if="pageMeta.created" data-testid="wiki-page-metadata-created">
-          <span class="text-gray-400">{{ t("pluginWiki.metadataCreated") }}:</span>
-          {{ pageMeta.created }}
-        </span>
-        <span v-if="pageMeta.updated" data-testid="wiki-page-metadata-updated">
-          <span class="text-gray-400">{{ t("pluginWiki.metadataUpdated") }}:</span>
-          {{ formatUpdated(pageMeta.updated) }}
-        </span>
-        <span v-if="pageMeta.editor" data-testid="wiki-page-metadata-editor">
-          <span class="text-gray-400">{{ t("pluginWiki.metadataEditor") }}:</span>
-          {{ pageMeta.editor }}
-        </span>
-        <span v-if="pageMeta.tags.length > 0" class="flex flex-wrap gap-1" data-testid="wiki-page-metadata-tags">
-          <button
-            v-for="tag in pageMeta.tags"
-            :key="tag"
-            class="entry-tag-chip"
-            :data-testid="`wiki-page-metadata-tag-${tag}`"
-            @click="setTagFilterAndNavigate(tag)"
-          >
-            {{ `#${tag}` }}
-          </button>
-        </span>
-      </div>
+      <WikiMetadataBar v-if="(action === 'page' || action === 'page-edit') && hasPageMeta" :meta="pageMeta" @tag-click="setTagFilterAndNavigate" />
 
       <!-- Per-page tab strip: Content | History (#763 PR 3 / #944).
            Mounted on every page view (including missing / empty
@@ -402,7 +301,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
-import { useRoute, useRouter, isNavigationFailure } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { WikiData, WikiPageEntry, WikiEndpoints } from "./index";
@@ -414,29 +313,23 @@ import { buildPdfFilename } from "@mulmoclaude/markdown-utils/files/filename";
 import PageChatComposer from "../../components/PageChatComposer.vue";
 import { pluginBuiltinRoleIds, pluginEndpoints, pluginPageRoute } from "../api";
 import { useMarkdownDoc } from "@mulmoclaude/core/plugin-vue";
-import { computeTagChips, computeTagCounts, computeToggledContent, formatUpdated, metaString, metaStringArray } from "./helpers";
+import { formatUpdated, metaString, metaStringArray } from "./helpers";
 import { apiPost } from "../../utils/api";
-import {
-  WIKI_ACTION,
-  WIKI_ROUTE_SECTION,
-  buildWikiRouteParams,
-  isSafeWikiSlug,
-  readWikiRouteTarget,
-  wikiActionFor,
-  incomingLinks,
-  type WikiTarget,
-  type WikiGraph,
-} from "@mulmoclaude/core/wiki";
+import { WIKI_ACTION, readWikiRouteTarget, wikiActionFor } from "@mulmoclaude/core/wiki";
 import FilterChip from "../../components/FilterChip.vue";
 import HistoryTab from "./history/HistoryTab.vue";
 import WikiPageBody from "./components/WikiPageBody.vue";
 import WikiGraphView from "./components/WikiGraphView.vue";
-import { loadPageEdit } from "./pageEditLoader";
+import WikiHeader from "./components/WikiHeader.vue";
+import WikiMetadataBar from "./components/WikiMetadataBar.vue";
+import { useWikiNavigation } from "./composables/useWikiNavigation";
+import { useTagFilter } from "./composables/useTagFilter";
+import { useWikiGraph } from "./composables/useWikiGraph";
+import { useWikiPageSave } from "./composables/useWikiPageSave";
+import { useWikiPageEdit } from "./composables/useWikiPageEdit";
 
 const wikiEndpoints = pluginEndpoints<WikiEndpoints>("wiki");
 const PAGE_WIKI = pluginPageRoute("wiki");
-
-type WikiTabView = typeof WIKI_ACTION.log | typeof WIKI_ACTION.lintReport | typeof WIKI_ACTION.graph;
 
 // Workspace-relative wiki dirs. Centralised so future layout shifts
 // (e.g. the prior `wiki/` → `data/wiki/` move) only need to change
@@ -467,32 +360,12 @@ const content = ref(props.selectedResult?.data?.content ?? "");
 const mdDoc = useMarkdownDoc(content);
 const pageEntries = ref<WikiPageEntry[]>(props.selectedResult?.data?.pageEntries ?? []);
 const pageExists = ref(props.selectedResult?.data?.pageExists ?? true);
-// `page-edit` action state (Stage 3a, #963). Populated when an LLM
-// Write/Edit toolResult is mounted: `pageEditTs` is the snapshot's
-// own timestamp (used in the header subtitle), `pageEditBanner` is
-// shown only when the snapshot was gc'd and we fell back to the
-// live page, and `pageEditDeleted` flips on when neither survives.
-const pageEditTs = ref<string | null>(null);
-const pageEditBanner = ref<string | null>(null);
-const pageEditDeleted = ref(false);
-// View-local tag filter. Null = no filter. Not persisted to URL —
-// kept intentionally ephemeral so it doesn't leak into bookmarks
-// or the per-session stack history.
-const selectedTag = ref<string | null>(null);
 // Declared up here — not next to callApi — because the URL watcher
 // below fires with `immediate: true`, which invokes callApi
 // synchronously during setup. If this ref were declared after the
 // watcher, callApi's `navError.value = null` would hit the TDZ on
 // direct loads of /wiki and the fetch would never run.
 const navError = ref<string | null>(null);
-
-// Page→page link graph (#wiki-backlinks-graph). Loaded lazily once
-// per browsing session and reused for both the Graph tab and the
-// per-page "Linked references" panel (the graph is global, so one
-// fetch serves every page's backlinks). Refreshed on the Graph tab
-// fetch and after a page save / restore so edited links propagate.
-const graphData = ref<WikiGraph | null>(null);
-const graphError = ref<string | null>(null);
 
 // Per-page tab state for the Content / History switcher (#763 PR
 // 3 / #944). Defaults to "content" on every page navigation
@@ -510,18 +383,21 @@ const restoreToastVisible = ref(false);
 const RESTORE_TOAST_MS = 4000;
 let restoreToastTimer: ReturnType<typeof setTimeout> | null = null;
 
-// Computed slug used by the watcher and the template. Mirrors the
-// imperative `currentSlug()` body — declared up here so the
-// pageTab-reset watcher can pick up route + selectedResult changes
-// uniformly without re-walking each call site that mutates the
-// underlying state.
-const currentSlugReactive = computed<string | null>(() => {
-  const raw =
-    route.name === PAGE_WIKI && route.params.section === WIKI_ROUTE_SECTION.pages && typeof route.params.slug === "string"
-      ? route.params.slug
-      : (props.selectedResult?.data?.pageName ?? null);
-  return isSafeWikiSlug(raw) ? raw : null;
+const { currentSlugReactive, currentSlug, isStandaloneWikiRoute, navigate, navigatePage } = useWikiNavigation({
+  pageWikiRoute: PAGE_WIKI,
+  pageNameFromResult: () => props.selectedResult?.data?.pageName ?? null,
 });
+
+const { selectedTag, tagCounts, allTags, visibleEntries, toggleTagFilter, setTagFilter } = useTagFilter(pageEntries, action);
+
+const { graphData, graphError, loadGraph, syncGraphFromResult, linkedReferences } = useWikiGraph({
+  action,
+  pageExists,
+  currentSlug: currentSlugReactive,
+  endpointBase: wikiEndpoints.base,
+});
+
+const { pageEditTs, pageEditBanner, pageEditDeleted, loadPageEditData, resetPageEdit } = useWikiPageEdit({ content });
 
 watch(currentSlugReactive, (next, prev) => {
   if (next === prev) return;
@@ -534,6 +410,87 @@ watch(currentSlugReactive, (next, prev) => {
     restoreToastTimer = null;
   }
 });
+
+// ── Metadata bar (#895 PR B) ──────────────────────────────────
+//
+// Derive `Created` / `Updated` / `Editor` / `Tags` from the page's
+// frontmatter. `WikiMetadataBar` hides itself when none are present
+// (header-less pages render unchanged so old wiki content keeps its
+// current appearance).
+const pageMeta = computed(() => ({
+  created: metaString(mdDoc.value.meta.created),
+  updated: metaString(mdDoc.value.meta.updated),
+  editor: metaString(mdDoc.value.meta.editor),
+  tags: metaStringArray(mdDoc.value.meta.tags),
+}));
+
+const hasPageMeta = computed(() => {
+  const meta = pageMeta.value;
+  return meta.created !== null || meta.updated !== null || meta.editor !== null || meta.tags.length > 0;
+});
+
+// Header subtitle for the page-edit action. "Wiki edit · {slug} ·
+// {timestamp}" so the user immediately sees this is a moment-in-
+// time view, not the live page. `formatUpdated` re-uses the same
+// `YYYY-MM-DD HH:MM` shape as the metadata bar.
+const displayTitle = computed(() => {
+  if (action.value !== "page-edit") return title.value;
+  const stamp = pageEditTs.value;
+  const prefix = `${t("pluginWiki.pageEditHeader")} · ${title.value}`;
+  return stamp ? `${prefix} · ${formatUpdated(stamp)}` : prefix;
+});
+
+const { pdfDownloading, pdfError, downloadPdf: rawDownloadPdf } = usePdfDownload();
+const { zipDownloading, zipFailed, downloadZip: rawDownloadZip } = useMarkdownZip();
+
+async function downloadPdf() {
+  const uuid = props.selectedResult?.uuid;
+  const filename = buildPdfFilename({
+    name: title.value,
+    fallback: "wiki",
+    timestampMs: uuid ? appApi.getResultTimestamp(uuid) : undefined,
+  });
+  // Wiki pages live under data/wiki/pages/ — pass the source dir so
+  // the server resolves relative `<img>` refs (`../../../artifacts/...`)
+  // against the same base the browser uses. Wiki pages always carry
+  // a frontmatter envelope (#895), so opt in to stripping it from the
+  // PDF output.
+  await rawDownloadPdf(content.value, filename, { baseDir: "data/wiki/pages", stripFrontmatter: true });
+}
+
+async function downloadZipFile() {
+  const uuid = props.selectedResult?.uuid;
+  const filename = buildPdfFilename({ name: title.value, fallback: "wiki", timestampMs: uuid ? appApi.getResultTimestamp(uuid) : undefined });
+  await rawDownloadZip(content.value, filename, { baseDir: "data/wiki/pages", stripFrontmatter: true });
+}
+
+function applyWikiResult(data: Partial<WikiData> | undefined): void {
+  action.value = data?.action ?? "index";
+  title.value = data?.title ?? "Wiki";
+  content.value = data?.content ?? "";
+  pageEntries.value = data?.pageEntries ?? [];
+  pageExists.value = data?.pageExists ?? true;
+  syncGraphFromResult(data);
+}
+
+async function callApi(body: Record<string, unknown>) {
+  navError.value = null;
+  const response = await apiPost<{ data?: Partial<WikiData> }>(wikiEndpoints.base, body);
+  if (!response.ok) {
+    navError.value = response.status === 0 ? response.error : `Wiki API error ${response.status}: ${response.error}`;
+    return;
+  }
+  const result = response.data;
+  applyWikiResult(result.data);
+  if (props.selectedResult) {
+    emit("updateResult", {
+      ...props.selectedResult,
+      ...result,
+      toolName: "manageWiki",
+      uuid: props.selectedResult.uuid,
+    });
+  }
+}
 
 const { refresh, abort: abortFreshFetch } = useFreshPluginData<WikiData>({
   // Slug-aware: when the view is currently showing a specific page,
@@ -555,6 +512,15 @@ const { refresh, abort: abortFreshFetch } = useFreshPluginData<WikiData>({
     pageEntries.value = data.pageEntries ?? [];
     pageExists.value = data.pageExists ?? true;
   },
+});
+
+const { onTaskCheckboxClick } = useWikiPageSave({
+  action,
+  content,
+  navError,
+  currentSlug,
+  endpointBase: wikiEndpoints.base,
+  refresh,
 });
 
 function handleRestored(): void {
@@ -613,32 +579,10 @@ watch(
       void loadPageEditData(data.slug, data.stamp);
       return;
     }
-    pageEditTs.value = null;
-    pageEditBanner.value = null;
-    pageEditDeleted.value = false;
+    resetPageEdit();
     void refresh();
   },
 );
-
-async function loadPageEditData(slug: string, stamp: string): Promise<void> {
-  pageEditTs.value = null;
-  pageEditBanner.value = null;
-  pageEditDeleted.value = false;
-  content.value = "";
-
-  const result = await loadPageEdit(slug, stamp);
-  if (result.kind === "snapshot") {
-    pageEditTs.value = result.ts;
-    content.value = result.content;
-    return;
-  }
-  if (result.kind === "current") {
-    pageEditBanner.value = t("pluginWiki.snapshotExpired");
-    content.value = result.content;
-    return;
-  }
-  pageEditDeleted.value = true;
-}
 
 // URL is the single source of truth for wiki navigation. Button
 // handlers push to the router; this watcher drives callApi(). Only
@@ -664,34 +608,26 @@ watch(
   { immediate: true },
 );
 
-// Tag filter chips. The counting + adaptive cutoff rules live in
-// `computeTagCounts` / `computeTagChips` (helpers.ts, tested); the
-// target chip count is the one view-level knob. `tagCounts` stays a
-// separate computed so the fallback chip below — the active filter
-// when the cutoff hides it — can read a real count instead of
-// understating a dropped non-singleton tag as 1.
-const TARGET_FILTER_CHIPS = 20;
-const tagCounts = computed<Map<string, number>>(() => computeTagCounts(pageEntries.value));
-const allTags = computed<[string, number][]>(() => computeTagChips(pageEntries.value, TARGET_FILTER_CHIPS));
+/** Base directory for wiki content, adjusted by the current view. */
+const WIKI_BASE_DIR = computed(() => (action.value === "page" || action.value === "page-edit" ? WIKI_PAGES_DIR : WIKI_DATA_DIR));
 
-const visibleEntries = computed(() =>
-  selectedTag.value === null ? pageEntries.value : pageEntries.value.filter((entry) => (entry.tags ?? []).includes(selectedTag.value as string)),
-);
+// The wiki view stays mounted across wiki navigations (the router
+// just updates params and callApi swaps content.value), so the
+// scrollable container would otherwise keep the previous page's
+// scrollTop. Reset to the top whenever the rendered body changes.
+const scrollRef = ref<HTMLElement | null>(null);
+watch(content, async () => {
+  await nextTick();
+  if (scrollRef.value) scrollRef.value.scrollTop = 0;
+});
 
-function toggleTagFilter(tag: string) {
-  selectedTag.value = selectedTag.value === tag ? null : tag;
-}
-
-// Per-entry tag chips set the filter unconditionally — clicking a
-// `#javascript` chip on a page row should always filter the index to
-// that tag, even when the user is already viewing the same filter.
-// Using `toggleTagFilter` here was unintuitive: clicking a `#tag`
-// chip on a row that's already in the active filter would clear the
-// filter, surprising the user. The filter chips at the top of the
-// list still toggle (so users have an obvious "click again to clear"
-// affordance there).
-function setTagFilter(tag: string) {
-  selectedTag.value = tag;
+// Spawn a new chat under the General role (which owns the wiki
+// tooling) regardless of the role the user is currently viewing the
+// wiki under. "lint my wiki" is a direct instruction to the agent,
+// not a tool call — the agent decides how to run the lint and
+// report back.
+function startLintChat() {
+  appApi.startNewChat("lint my wiki", pluginBuiltinRoleIds().general);
 }
 
 // Tag chips on the page metadata bar (#895 PR B) live in the
@@ -704,176 +640,6 @@ function setTagFilterAndNavigate(tag: string) {
   setTagFilter(tag);
   navigate("index");
 }
-
-// Spawn a new chat under the General role (which owns the wiki
-// tooling) regardless of the role the user is currently viewing the
-// wiki under. "lint my wiki" is a direct instruction to the agent,
-// not a tool call — the agent decides how to run the lint and
-// report back.
-function startLintChat() {
-  appApi.startNewChat("lint my wiki", pluginBuiltinRoleIds().general);
-}
-
-// Clear the filter whenever we leave the index view — otherwise
-// switching to Log / Lint and back leaves a stale filter active,
-// which feels like a bug.
-watch(action, (next) => {
-  if (next !== "index") selectedTag.value = null;
-});
-
-// The wiki view stays mounted across wiki navigations (the router
-// just updates params and callApi swaps content.value), so the
-// scrollable container would otherwise keep the previous page's
-// scrollTop. Reset to the top whenever the rendered body changes.
-const scrollRef = ref<HTMLElement | null>(null);
-watch(content, async () => {
-  await nextTick();
-  if (scrollRef.value) scrollRef.value.scrollTop = 0;
-});
-
-/** Base directory for wiki content, adjusted by the current view. */
-const WIKI_BASE_DIR = computed(() => (action.value === "page" || action.value === "page-edit" ? WIKI_PAGES_DIR : WIKI_DATA_DIR));
-
-// ── Metadata bar (#895 PR B) ──────────────────────────────────
-//
-// Show a single thin row above the rendered body with
-// `Created` / `Updated` / `Editor` / `Tags` derived from the
-// frontmatter. Hidden when none of those are present (header-less
-// pages render unchanged so old wiki content keeps its current
-// appearance).
-
-const pageMeta = computed(() => ({
-  created: metaString(mdDoc.value.meta.created),
-  updated: metaString(mdDoc.value.meta.updated),
-  editor: metaString(mdDoc.value.meta.editor),
-  tags: metaStringArray(mdDoc.value.meta.tags),
-}));
-
-const hasPageMeta = computed(() => {
-  const meta = pageMeta.value;
-  return meta.created !== null || meta.updated !== null || meta.editor !== null || meta.tags.length > 0;
-});
-
-// Header subtitle for the page-edit action. "Wiki edit · {slug} ·
-// {timestamp}" so the user immediately sees this is a moment-in-
-// time view, not the live page. `formatUpdated` re-uses the same
-// `YYYY-MM-DD HH:MM` shape as the metadata bar.
-const displayTitle = computed(() => {
-  if (action.value !== "page-edit") return title.value;
-  const stamp = pageEditTs.value;
-  const prefix = `${t("pluginWiki.pageEditHeader")} · ${title.value}`;
-  return stamp ? `${prefix} · ${formatUpdated(stamp)}` : prefix;
-});
-
-const { pdfDownloading, pdfError, downloadPdf: rawDownloadPdf } = usePdfDownload();
-const { zipDownloading, zipFailed, downloadZip: rawDownloadZip } = useMarkdownZip();
-
-async function downloadPdf() {
-  const uuid = props.selectedResult?.uuid;
-  const filename = buildPdfFilename({
-    name: title.value,
-    fallback: "wiki",
-    timestampMs: uuid ? appApi.getResultTimestamp(uuid) : undefined,
-  });
-  // Wiki pages live under data/wiki/pages/ — pass the source dir so
-  // the server resolves relative `<img>` refs (`../../../artifacts/...`)
-  // against the same base the browser uses. Wiki pages always carry
-  // a frontmatter envelope (#895), so opt in to stripping it from the
-  // PDF output.
-  await rawDownloadPdf(content.value, filename, { baseDir: "data/wiki/pages", stripFrontmatter: true });
-}
-
-async function downloadZipFile() {
-  const uuid = props.selectedResult?.uuid;
-  const filename = buildPdfFilename({ name: title.value, fallback: "wiki", timestampMs: uuid ? appApi.getResultTimestamp(uuid) : undefined });
-  await rawDownloadZip(content.value, filename, { baseDir: "data/wiki/pages", stripFrontmatter: true });
-}
-
-// Graph tab response carries the link graph directly. On a page view,
-// lazily fetch the graph once so the "Linked references" panel has
-// data — the graph is global, so one fetch serves every page. Reuses
-// the shared `WikiData` type (Partial — the server omits fields per
-// action) so the client payload shape can't drift from the server's.
-function syncGraphFromResult(data: Partial<WikiData> | undefined): void {
-  if (data?.graph) {
-    // Clear any stale error from an earlier failed loadGraph so a
-    // fresh graph payload isn't hidden behind the error banner.
-    graphError.value = null;
-    graphData.value = data.graph;
-    return;
-  }
-  if (action.value === WIKI_ACTION.page && pageExists.value && graphData.value === null) void loadGraph();
-}
-
-function applyWikiResult(data: Partial<WikiData> | undefined): void {
-  action.value = data?.action ?? "index";
-  title.value = data?.title ?? "Wiki";
-  content.value = data?.content ?? "";
-  pageEntries.value = data?.pageEntries ?? [];
-  pageExists.value = data?.pageExists ?? true;
-  syncGraphFromResult(data);
-}
-
-async function callApi(body: Record<string, unknown>) {
-  navError.value = null;
-  const response = await apiPost<{ data?: Partial<WikiData> }>(wikiEndpoints.base, body);
-  if (!response.ok) {
-    navError.value = response.status === 0 ? response.error : `Wiki API error ${response.status}: ${response.error}`;
-    return;
-  }
-  const result = response.data;
-  applyWikiResult(result.data);
-  if (props.selectedResult) {
-    emit("updateResult", {
-      ...props.selectedResult,
-      ...result,
-      toolName: "manageWiki",
-      uuid: props.selectedResult.uuid,
-    });
-  }
-}
-
-async function loadGraph(): Promise<void> {
-  graphError.value = null;
-  const response = await apiPost<{ data?: { graph?: WikiGraph } }>(wikiEndpoints.base, { action: WIKI_ACTION.graph });
-  if (!response.ok) {
-    graphError.value = response.status === 0 ? response.error : `Wiki graph error ${response.status}: ${response.error}`;
-    return;
-  }
-  graphData.value = response.data.data?.graph ?? { nodes: [], edges: [] };
-}
-
-// Pages that link TO the page currently being viewed. Derived from
-// the global graph + the current slug — empty until the graph loads
-// (lazily, via callApi on the first page view).
-const linkedReferences = computed(() => {
-  const slug = currentSlugReactive.value;
-  if (graphData.value === null || slug === null) return [];
-  return incomingLinks(graphData.value, slug);
-});
-
-function pushWiki(target: WikiTarget) {
-  router.push({ name: PAGE_WIKI, params: buildWikiRouteParams(target) }).catch((err: unknown) => {
-    if (!isNavigationFailure(err)) {
-      console.error("[wiki] navigation failed:", err);
-    }
-  });
-}
-
-function navigate(newAction: typeof WIKI_ACTION.index | WikiTabView) {
-  pushWiki(newAction === WIKI_ACTION.index ? { kind: "index" } : { kind: newAction });
-}
-
-function navigatePage(pageName: string) {
-  pushWiki({ kind: "page", slug: pageName });
-}
-
-// --- Per-page chat composer ---
-// (`appApi` itself is hoisted to the top of <script setup> alongside
-// route/router/t so the lint-by-line analysis is happy with earlier
-// uses in `startLintChat` etc.)
-
-const isStandaloneWikiRoute = computed(() => route.name === PAGE_WIKI);
 
 // Always route wiki create/update CTAs through pluginBuiltinRoleIds().general
 // (the wiki-capable role) so the new chat has the tools needed to
@@ -892,120 +658,6 @@ function requestUpdatePage() {
     `Update the existing wiki page about ${JSON.stringify(title.value)}. The page file exists but has no content. Research the topic and write a comprehensive article in ${WIKI_PAGES_DIR}/.`,
     pluginBuiltinRoleIds().general,
   );
-}
-
-function currentSlug(): string | null {
-  // Prefer the URL on /wiki (source of truth for that route); fall
-  // back to the tool-result payload when WikiView is mounted as a
-  // manageWiki result inside /chat. `isSafeWikiSlug` guards against
-  // traversal tokens — the router guard already strips these from
-  // standalone /wiki URLs, but the tool-result payload arrives from
-  // the server/agent and can't assume that upstream filter.
-  const raw =
-    route.name === PAGE_WIKI && route.params.section === WIKI_ROUTE_SECTION.pages && typeof route.params.slug === "string"
-      ? route.params.slug
-      : (props.selectedResult?.data?.pageName ?? null);
-  return isSafeWikiSlug(raw) ? raw : null;
-}
-
-// Serialised POST chain for rapid task-checkbox clicks (#775). Each
-// click queues onto the previous so a slower network can't reorder
-// writes. (The wire call is `POST /api/wiki { action: "save" }`, not
-// PUT — the comment used to say PUT and contradicted the call site.)
-//
-// `saveQueueGeneration` invalidates older queued saves after a
-// failure-triggered refresh: their captured snapshots were computed
-// against the now-discarded optimistic state, so writing them would
-// overwrite the canonical server content with stale data. We bump
-// the generation on failure; queued saves whose generation no longer
-// matches skip silently.
-let taskPersistChain: Promise<unknown> = Promise.resolve();
-let saveQueueGeneration = 0;
-
-async function persistWikiPage(pageName: string, newContent: string, generation: number): Promise<void> {
-  // Stale queued save (a previous save failed + refresh discarded
-  // the optimistic state this snapshot was based on).
-  if (generation !== saveQueueGeneration) return;
-  // Bail if the page navigation has changed mid-flight — saving the
-  // captured snapshot to a different page would clobber unrelated
-  // state. The watchers on route / selectedResult already load the
-  // new page; touching state here is wrong. `currentSlug()` returns
-  // the right source for both the standalone /wiki view (route
-  // params) and the tool-result-embedded view (selectedResult).
-  if (currentSlug() !== pageName) return;
-
-  const response = await apiPost<{ data?: { content?: string } }>(wikiEndpoints.base, {
-    action: WIKI_ACTION.save,
-    pageName,
-    content: newContent,
-  });
-
-  if (generation !== saveQueueGeneration) return;
-  if (currentSlug() !== pageName) return;
-
-  if (!response.ok) {
-    navError.value = response.status === 0 ? response.error : `Wiki save failed (${response.status}): ${response.error}`;
-    // Refresh resets local state to the canonical server content.
-    // The generation bump must come AFTER refresh completes — clicks
-    // arriving WHILE refresh is in flight capture the pre-bump
-    // generation; bumping post-refresh invalidates them too. Bumping
-    // pre-refresh would let those during-refresh clicks slip through
-    // (they'd capture the new gen and persist a toggle computed
-    // against the not-yet-reset DOM).
-    await refresh();
-    saveQueueGeneration += 1;
-    return;
-  }
-  // Successful save — clear any stale error from a prior click.
-  navError.value = null;
-}
-
-function onTaskCheckboxClick(event: MouseEvent, target: HTMLInputElement): void {
-  // Only meaningful for the page view; everything else is read-only.
-  if (action.value !== "page") {
-    target.checked = !target.checked;
-    return;
-  }
-  // `currentSlug()` covers both mount paths — standalone /wiki/<slug>
-  // (route param) and tool-result-embedded WikiView (selectedResult).
-  // The standalone path is the primary one; reading only from
-  // selectedResult would silently no-op every click on /wiki/<slug>.
-  const pageName = currentSlug();
-  if (!pageName) {
-    target.checked = !target.checked;
-    return;
-  }
-
-  const root = event.currentTarget as HTMLElement;
-  const result = computeToggledContent(target, root, content.value);
-  if (result.status !== "toggled") {
-    // `mismatch` = source/DOM task-count drift; surface it. `skip`
-    // reverts silently (target not among the tasks, or an out-of-range
-    // toggle).
-    if (result.status === "mismatch") navError.value = t("pluginWiki.taskCountMismatch");
-    target.checked = !target.checked;
-    return;
-  }
-  const newContent = result.content;
-
-  // Optimistic local update — re-render is driven by `content`'s
-  // existing watcher.
-  content.value = newContent;
-  navError.value = null;
-
-  // Capture the current generation so the queued save knows whether
-  // the chain has been broken (by a prior failure) by the time it
-  // runs. See `persistWikiPage` for the semantics.
-  const generation = saveQueueGeneration;
-  // `.catch` keeps the chain self-healing: if `persistWikiPage`
-  // throws (e.g. its post-failure `refresh()` rejects with a network
-  // error), an un-caught rejection would leave `taskPersistChain` in
-  // a permanently-rejected state, and every subsequent click's
-  // `.then()` would short-circuit silently — no more toggles ever
-  // persist. Swallow the rejection here so the next click starts
-  // from a fresh resolved chain. The error is already surfaced via
-  // `navError` inside `persistWikiPage`'s `!response.ok` branch.
-  taskPersistChain = taskPersistChain.then(() => persistWikiPage(pageName, newContent, generation)).catch(() => undefined);
 }
 </script>
 

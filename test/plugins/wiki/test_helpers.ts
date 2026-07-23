@@ -9,6 +9,7 @@ import {
   computeTagCounts,
   computeTagChips,
   computeToggledContent,
+  shouldLazyLoadGraph,
 } from "../../../src/plugins/wiki/helpers.js";
 
 // Pin the timezone so `formatUpdated`'s local-time output is
@@ -248,6 +249,28 @@ describe("computeTagChips", () => {
 
   it("returns an empty array when every tag is a singleton", () => {
     assert.deepEqual(computeTagChips([{ tags: ["a", "b"] }, { tags: ["c"] }], 20), []);
+  });
+});
+
+describe("shouldLazyLoadGraph", () => {
+  it("loads on an existing page view when the graph is not yet loaded", () => {
+    assert.equal(shouldLazyLoadGraph("page", true, false), true);
+  });
+
+  it("does not load when the graph is already loaded", () => {
+    assert.equal(shouldLazyLoadGraph("page", true, true), false);
+  });
+
+  it("does not load when the page does not exist", () => {
+    assert.equal(shouldLazyLoadGraph("page", false, false), false);
+  });
+
+  it("does not load on non-page actions", () => {
+    assert.equal(shouldLazyLoadGraph("index", true, false), false);
+    assert.equal(shouldLazyLoadGraph("log", true, false), false);
+    assert.equal(shouldLazyLoadGraph("lint_report", true, false), false);
+    assert.equal(shouldLazyLoadGraph("graph", true, false), false);
+    assert.equal(shouldLazyLoadGraph("page-edit", true, false), false);
   });
 });
 

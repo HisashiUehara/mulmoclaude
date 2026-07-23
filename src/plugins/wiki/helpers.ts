@@ -4,7 +4,7 @@
 // wrapping (image-ref rewrite + marked + interactive task lists).
 
 import { marked } from "marked";
-import { renderWikiLinks } from "@mulmoclaude/core/wiki";
+import { renderWikiLinks, WIKI_ACTION } from "@mulmoclaude/core/wiki";
 import { rewriteMarkdownImageRefs } from "@mulmoclaude/markdown-utils/image/rewriteMarkdownImageRefs";
 import { findTaskLines, makeTasksInteractive, toggleTaskAt } from "@mulmoclaude/markdown-utils/markdown/taskList";
 import { splitFrontmatter } from "@mulmoclaude/markdown-utils/markdown/frontmatter";
@@ -87,6 +87,15 @@ export function computeTagChips(entries: readonly { tags?: readonly string[] }[]
   if (meaningful.length <= target) return meaningful;
   const [, cutoff] = meaningful[target - 1];
   return meaningful.filter(([, count]) => count >= cutoff);
+}
+
+/** Whether a page view should lazily fetch the global link graph to populate
+ *  its "Linked references" panel. The graph is global, so one fetch serves
+ *  every page — only fetch on a page that exists and only when the graph hasn't
+ *  already loaded. A wrong condition here fails silently (backlinks never
+ *  appear), so it is unit-tested. */
+export function shouldLazyLoadGraph(action: string, pageExists: boolean, hasGraph: boolean): boolean {
+  return action === WIKI_ACTION.page && pageExists && !hasGraph;
 }
 
 /** Outcome of a task-checkbox click, computed purely from the clicked
