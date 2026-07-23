@@ -3,6 +3,7 @@
  */
 
 import { functionRegistry, toNumber, parseCriteria, type FunctionContext, type FunctionHandler } from "../registry";
+import { computeMode, DIV_ZERO_ERROR } from "./statistical-math";
 
 const isLetter = (char: string): boolean => /[A-Z]/i.test(char);
 
@@ -104,26 +105,7 @@ const medianHandler: FunctionHandler = (args, context) => {
 const modeHandler: FunctionHandler = (args, context) => {
   if (args.length !== 1) throw new Error("MODE requires 1 argument");
   const values = context.getRangeValues(args[0]).map(toNumber);
-
-  if (values.length === 0) return 0;
-
-  // Count frequency of each value
-  const frequency = new Map<number, number>();
-  for (const val of values) {
-    frequency.set(val, (frequency.get(val) || 0) + 1);
-  }
-
-  // Find the value with highest frequency
-  let maxFreq = 0;
-  let mode = values[0];
-  for (const [val, freq] of frequency.entries()) {
-    if (freq > maxFreq) {
-      maxFreq = freq;
-      mode = val;
-    }
-  }
-
-  return mode;
+  return computeMode(values);
 };
 
 const stdevHandler: FunctionHandler = (args, context) => {
@@ -211,7 +193,11 @@ const averageifHandler: FunctionHandler = (args, context) => {
     }
   }
 
-  return count > 0 ? sum / count : 0;
+  // Excel returns #DIV/0! when no cell matches (the average of nothing is
+  // undefined), rather than a silent 0.
+  // Excel returns #DIV/0! when no cell matches (the average of nothing is
+  // undefined), rather than a silent 0.
+  return count > 0 ? sum / count : DIV_ZERO_ERROR;
 };
 
 // Register all statistical functions
