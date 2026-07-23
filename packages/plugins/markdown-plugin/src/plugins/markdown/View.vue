@@ -160,7 +160,7 @@ import { usePdfExport } from "./usePdfExport";
 import { handleExternalLinkClick } from "@mulmoclaude/markdown-utils/dom/externalLink";
 import { useClipboardCopy } from "../../composables/useClipboardCopy";
 import { buildPdfFilename } from "@mulmoclaude/markdown-utils/files/filename";
-import { useFileWatch } from "./useFileWatch";
+import { useFileWatch } from "@mulmoclaude/core/plugin-vue";
 import { isMarpDocument } from "@mulmoclaude/markdown-utils/markdown/marpDetect";
 import { useT } from "../../lang";
 import MarpView from "./MarpView.vue";
