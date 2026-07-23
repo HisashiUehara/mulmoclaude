@@ -27,12 +27,17 @@ here would muddy the review.
 | 9 | `chat-service/src/{commands,types}.ts` | 80tok | Named `ListSessionsFn` / `GetSessionHistoryFn` type aliases in `types.ts`, reused by `ChatServiceDeps` and `createCommandHandler`'s opts. |
 
 New tests:
-- `test/plugins/mulmoscript/test_validate.ts` — the two body validators were previously **untested**; covers the shared precheck + beatIndex + schema-reject branches.
-- `test/utils/collections/test_draft_rows.ts` — `emptyRow` / `rowFromItem` were not directly covered; locks the boolean-present semantics the refactor threads through `buildTableRowDraft`.
+- `test/utils/collections/test_draft_rows.ts` — `emptyRow` / `rowFromItem` had **no**
+  coverage anywhere; locks the boolean-present semantics the refactor threads through
+  `buildTableRowDraft`, and the `emptyRow == rowFromItem({})` equivalence.
 
 The other refactors are internal helpers already exercised end-to-end by existing
 tests (`test/workspace/collections/test_io.ts`, `test/server/notifier/test_engine.ts`,
-`test/plugins/test_recipe_book_integration.ts`, the spotify handler tests).
+`test/plugins/test_recipe_book_integration.ts`, the spotify handler tests, and — for the
+shared filePath precheck — the already-comprehensive
+`packages/plugins/mulmoscript-plugin/test/test_validate.ts`). No redundant root-level
+validator test was added since that workspace suite already runs in CI and covers every
+precheck branch.
 
 No new **cross-cutting** shared helper is introduced (every extraction is a private,
 in-file helper), so per `docs/shared-utils.md`'s own scope rule ("one plugin's parser
