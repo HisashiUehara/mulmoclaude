@@ -42,11 +42,13 @@
     "mermaid": "^11.16.0"
   },
   "peerDependencies": {
+    "@mulmoclaude/core": "^1.2.0",
     "gui-chat-protocol": "^1.1.0",
     "vue": "^3.5.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@mulmoclaude/core": "^1.2.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.1.1",
     "@typescript-eslint/eslint-plugin": "^8.65.0",
