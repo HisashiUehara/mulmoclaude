@@ -19,76 +19,63 @@ import {
 import { toScalarNumber } from "../numericCoercion";
 
 const roundHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 2) throw new Error("ROUND requires 2 arguments");
   const number = toNumber(context.evaluateFormula(args[0]));
   const digits = toNumber(context.evaluateFormula(args[1]));
   return roundTo(number, digits);
 };
 
 const roundupHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 2) throw new Error("ROUNDUP requires 2 arguments");
   const number = toNumber(context.evaluateFormula(args[0]));
   const digits = toNumber(context.evaluateFormula(args[1]));
   return roundUpTo(number, digits);
 };
 
 const rounddownHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 2) throw new Error("ROUNDDOWN requires 2 arguments");
   const number = toNumber(context.evaluateFormula(args[0]));
   const digits = toNumber(context.evaluateFormula(args[1]));
   return roundDownTo(number, digits);
 };
 
 const floorHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 2) throw new Error("FLOOR requires 2 arguments");
   const number = toNumber(context.evaluateFormula(args[0]));
   const significance = toNumber(context.evaluateFormula(args[1]));
   return floorToSignificance(number, significance);
 };
 
 const ceilingHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 2) throw new Error("CEILING requires 2 arguments");
   const number = toNumber(context.evaluateFormula(args[0]));
   const significance = toNumber(context.evaluateFormula(args[1]));
   return ceilingToSignificance(number, significance);
 };
 
 const absHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("ABS requires 1 argument");
   const number = toScalarNumber(context.evaluateFormula(args[0]));
   return typeof number === "string" ? number : Math.abs(number);
 };
 
 const powerHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 2) throw new Error("POWER requires 2 arguments");
   const base = toNumber(context.evaluateFormula(args[0]));
   const exponent = toNumber(context.evaluateFormula(args[1]));
   return power(base, exponent);
 };
 
 const sqrtHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("SQRT requires 1 argument");
   const number = toNumber(context.evaluateFormula(args[0]));
   return safeSqrt(number);
 };
 
 const modHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 2) throw new Error("MOD requires 2 arguments");
   const number = toNumber(context.evaluateFormula(args[0]));
   const divisor = toNumber(context.evaluateFormula(args[1]));
   return modulo(number, divisor);
 };
 
 const intHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("INT requires 1 argument");
   const number = toNumber(context.evaluateFormula(args[0]));
   return Math.floor(number);
 };
 
 const truncHandler: FunctionHandler = (args, context) => {
-  if (args.length < 1 || args.length > 2) {
-    throw new Error("TRUNC requires 1 or 2 arguments");
-  }
   const number = toNumber(context.evaluateFormula(args[0]));
   const digits = args.length === 2 ? toNumber(context.evaluateFormula(args[1])) : 0;
   const multiplier = Math.pow(10, digits);
@@ -96,39 +83,29 @@ const truncHandler: FunctionHandler = (args, context) => {
 };
 
 const signHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("SIGN requires 1 argument");
   const number = toScalarNumber(context.evaluateFormula(args[0]));
   return typeof number === "string" ? number : Math.sign(number);
 };
 
-const piHandler: FunctionHandler = (args) => {
-  if (args.length !== 0) throw new Error("PI requires 0 arguments");
-  return Math.PI;
-};
+const piHandler: FunctionHandler = () => Math.PI;
 
 const expHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("EXP requires 1 argument");
   const number = toNumber(context.evaluateFormula(args[0]));
   return Math.exp(number);
 };
 
 const lnHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("LN requires 1 argument");
   const number = toNumber(context.evaluateFormula(args[0]));
   return safeLog(number);
 };
 
 const logHandler: FunctionHandler = (args, context) => {
-  if (args.length < 1 || args.length > 2) {
-    throw new Error("LOG requires 1 or 2 arguments");
-  }
   const number = toNumber(context.evaluateFormula(args[0]));
   const base = args.length === 2 ? toNumber(context.evaluateFormula(args[1])) : 10;
   return logWithBase(number, base);
 };
 
 const log10Handler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("LOG10 requires 1 argument");
   const number = toNumber(context.evaluateFormula(args[0]));
   return safeLog10(number);
 };

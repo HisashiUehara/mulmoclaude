@@ -60,8 +60,6 @@ export const substituteText = (text: string, oldText: string, newText: string, i
 };
 
 const concatenateHandler: FunctionHandler = (args, context) => {
-  if (args.length === 0) throw new Error("CONCATENATE requires at least 1 argument");
-
   return args
     .map((arg) => {
       const value = context.evaluateFormula(arg.trim());
@@ -73,10 +71,6 @@ const concatenateHandler: FunctionHandler = (args, context) => {
 const concatHandler: FunctionHandler = concatenateHandler; // Alias
 
 const leftHandler: FunctionHandler = (args, context) => {
-  if (args.length < 1 || args.length > 2) {
-    throw new Error("LEFT requires 1 or 2 arguments");
-  }
-
   const text = toString(context.evaluateFormula(args[0]));
   const numChars = args.length === 2 ? Number(context.evaluateFormula(args[1])) : 1;
 
@@ -84,10 +78,6 @@ const leftHandler: FunctionHandler = (args, context) => {
 };
 
 const rightHandler: FunctionHandler = (args, context) => {
-  if (args.length < 1 || args.length > 2) {
-    throw new Error("RIGHT requires 1 or 2 arguments");
-  }
-
   const text = toString(context.evaluateFormula(args[0]));
   const numChars = args.length === 2 ? Number(context.evaluateFormula(args[1])) : 1;
 
@@ -95,8 +85,6 @@ const rightHandler: FunctionHandler = (args, context) => {
 };
 
 const midHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 3) throw new Error("MID requires 3 arguments");
-
   const text = toString(context.evaluateFormula(args[0]));
   const start = Number(context.evaluateFormula(args[1])) - 1; // 1-indexed to 0-indexed
   const numChars = Number(context.evaluateFormula(args[2]));
@@ -105,46 +93,32 @@ const midHandler: FunctionHandler = (args, context) => {
 };
 
 const lenHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("LEN requires 1 argument");
-
   const text = toString(context.evaluateFormula(args[0]));
   return text.length;
 };
 
 const upperHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("UPPER requires 1 argument");
-
   const text = toString(context.evaluateFormula(args[0]));
   return text.toUpperCase();
 };
 
 const lowerHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("LOWER requires 1 argument");
-
   const text = toString(context.evaluateFormula(args[0]));
   return text.toLowerCase();
 };
 
 const properHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("PROPER requires 1 argument");
-
   const text = toString(context.evaluateFormula(args[0]));
   return toProperCase(text);
 };
 
 const trimHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("TRIM requires 1 argument");
-
   const text = toString(context.evaluateFormula(args[0]));
   // Trim leading/trailing spaces and replace multiple spaces with single space
   return text.trim().replace(/\s+/g, " ");
 };
 
 const substituteHandler: FunctionHandler = (args, context) => {
-  if (args.length < 3 || args.length > 4) {
-    throw new Error("SUBSTITUTE requires 3 or 4 arguments");
-  }
-
   const text = toString(context.evaluateFormula(args[0]));
   const oldText = toString(context.evaluateFormula(args[1]));
   const newText = toString(context.evaluateFormula(args[2]));
@@ -154,8 +128,6 @@ const substituteHandler: FunctionHandler = (args, context) => {
 };
 
 const replaceHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 4) throw new Error("REPLACE requires 4 arguments");
-
   const oldText = toString(context.evaluateFormula(args[0]));
   const startPos = Number(context.evaluateFormula(args[1])) - 1; // 1-indexed to 0-indexed
   const numChars = Number(context.evaluateFormula(args[2]));
@@ -165,10 +137,6 @@ const replaceHandler: FunctionHandler = (args, context) => {
 };
 
 const findHandler: FunctionHandler = (args, context) => {
-  if (args.length < 2 || args.length > 3) {
-    throw new Error("FIND requires 2 or 3 arguments");
-  }
-
   const findText = toString(context.evaluateFormula(args[0]));
   const withinText = toString(context.evaluateFormula(args[1]));
   const startPos = args.length === 3 ? Number(context.evaluateFormula(args[2])) - 1 : 0;
@@ -178,10 +146,6 @@ const findHandler: FunctionHandler = (args, context) => {
 };
 
 const searchHandler: FunctionHandler = (args, context) => {
-  if (args.length < 2 || args.length > 3) {
-    throw new Error("SEARCH requires 2 or 3 arguments");
-  }
-
   const findText = toString(context.evaluateFormula(args[0]));
   const withinText = toString(context.evaluateFormula(args[1]));
   const startPos = args.length === 3 ? Number(context.evaluateFormula(args[2])) - 1 : 0;
@@ -195,8 +159,6 @@ const searchHandler: FunctionHandler = (args, context) => {
 };
 
 const textHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 2) throw new Error("TEXT requires 2 arguments");
-
   const value = context.evaluateFormula(args[0]);
   const format = toString(context.evaluateFormula(args[1])).replace(
     // eslint-disable -- sonarjs/anchor-precedence
@@ -225,8 +187,6 @@ const textHandler: FunctionHandler = (args, context) => {
 };
 
 const valueHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("VALUE requires 1 argument");
-
   const text = toString(context.evaluateFormula(args[0]));
 
   // Remove currency symbols and commas
@@ -243,8 +203,6 @@ const valueHandler: FunctionHandler = (args, context) => {
 };
 
 const exactHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 2) throw new Error("EXACT requires 2 arguments");
-
   const text1 = toString(context.evaluateFormula(args[0]));
   const text2 = toString(context.evaluateFormula(args[1]));
 

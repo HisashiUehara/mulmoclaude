@@ -94,10 +94,6 @@ const findMatchIndex = (
 };
 
 const vlookupHandler: FunctionHandler = (args, context) => {
-  if (args.length < 3 || args.length > 4) {
-    throw new Error("VLOOKUP requires 3 or 4 arguments");
-  }
-
   const lookupValue = context.evaluateFormula(args[0]);
   const bounds = parseRangeBounds(args[1]);
   if (!bounds) throw new Error("Invalid table array range");
@@ -116,10 +112,6 @@ const vlookupHandler: FunctionHandler = (args, context) => {
 };
 
 const hlookupHandler: FunctionHandler = (args, context) => {
-  if (args.length < 3 || args.length > 4) {
-    throw new Error("HLOOKUP requires 3 or 4 arguments");
-  }
-
   const lookupValue = context.evaluateFormula(args[0]);
   const bounds = parseRangeBounds(args[1]);
   if (!bounds) throw new Error("Invalid range format");
@@ -137,10 +129,6 @@ const hlookupHandler: FunctionHandler = (args, context) => {
 };
 
 const matchHandler: FunctionHandler = (args, context) => {
-  if (args.length < 2 || args.length > 3) {
-    throw new Error("MATCH requires 2 or 3 arguments");
-  }
-
   const lookupValue = context.evaluateFormula(args[0]);
   const lookupArrayRange = args[1];
   const matchType = args.length === 3 ? toNumber(context.evaluateFormula(args[2])) : 1;
@@ -153,10 +141,6 @@ const matchHandler: FunctionHandler = (args, context) => {
 };
 
 const indexHandler: FunctionHandler = (args, context) => {
-  if (args.length < 2 || args.length > 4) {
-    throw new Error("INDEX requires 2 to 4 arguments");
-  }
-
   const bounds = parseRangeBounds(args[0]);
   if (!bounds) throw new Error("Invalid range format");
   const rowNum = toNumber(context.evaluateFormula(args[1]));
@@ -168,10 +152,6 @@ const indexHandler: FunctionHandler = (args, context) => {
 };
 
 const xlookupHandler: FunctionHandler = (args, context) => {
-  if (args.length < 3 || args.length > 6) {
-    throw new Error("XLOOKUP requires 3 to 6 arguments");
-  }
-
   const lookupValue = context.evaluateFormula(args[0]);
   const lookupArrayRange = args[1];
   const returnArrayRange = args[2];
