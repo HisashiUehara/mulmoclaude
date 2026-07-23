@@ -3,6 +3,7 @@
  */
 
 import { functionRegistry, toNumber, type FunctionHandler } from "../registry";
+import { computeFv, computePmt, computeIpmt, computePpmt } from "../financial-math";
 
 /**
  * FV - Future Value
@@ -25,14 +26,7 @@ const fvHandler: FunctionHandler = (args, context) => {
   const pv = args.length >= 4 ? toNumber(context.evaluateFormula(args[3])) : 0;
   const type = args.length >= 5 ? toNumber(context.evaluateFormula(args[4])) : 0;
 
-  if (rate === 0) {
-    return -(pv + pmt * nper);
-  }
-
-  const pvFactor = Math.pow(1 + rate, nper);
-  const fv = -pv * pvFactor - (pmt * (pvFactor - 1) * (1 + rate * type)) / rate;
-
-  return fv;
+  return computeFv(rate, nper, pmt, pv, type);
 };
 
 /**
@@ -77,14 +71,7 @@ const pmtHandler: FunctionHandler = (args, context) => {
   const fv = args.length >= 4 ? toNumber(context.evaluateFormula(args[3])) : 0;
   const type = args.length >= 5 ? toNumber(context.evaluateFormula(args[4])) : 0;
 
-  if (rate === 0) {
-    return -(fv + pv) / nper;
-  }
-
-  const pvFactor = Math.pow(1 + rate, nper);
-  const pmt = (-rate * (fv + pv * pvFactor)) / ((pvFactor - 1) * (1 + rate * type));
-
-  return pmt;
+  return computePmt(rate, nper, pv, fv, type);
 };
 
 /**
@@ -173,21 +160,12 @@ const ipmtHandler: FunctionHandler = (args, context) => {
 
   const rate = toNumber(context.evaluateFormula(args[0]));
   const per = toNumber(context.evaluateFormula(args[1]));
+  const nper = toNumber(context.evaluateFormula(args[2]));
+  const pv = toNumber(context.evaluateFormula(args[3]));
+  const fv = args.length >= 5 ? toNumber(context.evaluateFormula(args[4])) : 0;
   const type = args.length >= 6 ? toNumber(context.evaluateFormula(args[5])) : 0;
 
-  // Calculate payment first
-  const pmt = pmtHandler([args[0], args[2], args[3], ...(args.length >= 5 ? [args[4]] : []), ...(args.length >= 6 ? [args[5]] : [])], context);
-
-  if (per === 1 && type === 1) {
-    return 0; // No interest in first period when payment is at beginning
-  }
-
-  // Calculate remaining balance at previous period
-  const fvPrevious = fvHandler([args[0], String(type === 1 ? per - 2 : per - 1), String(pmt), args[3], ...(args.length >= 6 ? [args[5]] : [])], context);
-
-  const ipmt = -fvPrevious * rate;
-
-  return type === 1 ? ipmt / (1 + rate) : ipmt;
+  return computeIpmt(rate, per, nper, pv, fv, type);
 };
 
 /**
@@ -200,14 +178,14 @@ const ppmtHandler: FunctionHandler = (args, context) => {
     throw new Error("PPMT requires 4 to 6 arguments");
   }
 
-  // Calculate total payment
-  const pmt = pmtHandler([args[0], args[2], args[3], ...(args.length >= 5 ? [args[4]] : []), ...(args.length >= 6 ? [args[5]] : [])], context);
+  const rate = toNumber(context.evaluateFormula(args[0]));
+  const per = toNumber(context.evaluateFormula(args[1]));
+  const nper = toNumber(context.evaluateFormula(args[2]));
+  const pv = toNumber(context.evaluateFormula(args[3]));
+  const fv = args.length >= 5 ? toNumber(context.evaluateFormula(args[4])) : 0;
+  const type = args.length >= 6 ? toNumber(context.evaluateFormula(args[5])) : 0;
 
-  // Calculate interest payment
-  const ipmt = ipmtHandler(args, context);
-
-  // Principal payment = Total payment - Interest payment
-  return toNumber(pmt) - toNumber(ipmt);
+  return computePpmt(rate, per, nper, pv, fv, type);
 };
 
 /**
