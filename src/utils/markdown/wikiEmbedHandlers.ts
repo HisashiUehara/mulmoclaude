@@ -10,7 +10,8 @@
 // Future prefixes (youtube / x / map / github / …) plug into the
 // same registry — see plans/done/feat-rich-embed-syntax-1221.md PR-C+.
 
-import { escapeHtml, registerWikiEmbed } from "./wikiEmbeds";
+import { escapeHtml } from "@mulmoclaude/core/wiki";
+import { registerWikiEmbed } from "./wikiEmbeds";
 
 // Map app locale → Amazon storefront TLD. Each TLD must be a real
 // Amazon storefront; locales without a corresponding storefront

@@ -9,7 +9,8 @@ import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { marked } from "marked";
 
-import { _resetWikiEmbeds, escapeHtml, listWikiEmbedPrefixes, registerWikiEmbed, wikiEmbedExtension } from "../../../src/utils/markdown/wikiEmbeds";
+import { escapeHtml } from "@mulmoclaude/core/wiki";
+import { _resetWikiEmbeds, listWikiEmbedPrefixes, registerWikiEmbed, wikiEmbedExtension } from "../../../src/utils/markdown/wikiEmbeds";
 import {
   amazonTldForLocale,
   registerAmazonEmbed,
