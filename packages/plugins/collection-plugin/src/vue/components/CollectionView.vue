@@ -423,27 +423,7 @@
       </div>
     </div>
 
-    <!-- Repair banner: the server flagged record files that won't load /
-         violate the schema and are silently skipped. The button reports
-         them back to the LLM (same path presentCollection uses) so it
-         fixes the files. View-independent, so it sits above the body. -->
-    <div
-      v-if="collection && dataIssues.length > 0"
-      class="mx-6 mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-4 text-sm text-amber-900 shadow-sm flex items-center gap-3"
-      data-testid="collections-data-issues"
-    >
-      <span class="material-icons text-amber-600">warning</span>
-      <span class="flex-1">{{ t("collectionsView.dataIssuesDetected", { count: dataIssues.length }) }}</span>
-      <button
-        type="button"
-        class="h-8 px-2.5 flex items-center gap-1 rounded border border-amber-300 bg-white hover:bg-amber-100 text-amber-700 font-bold text-xs transition-colors"
-        data-testid="collections-repair"
-        @click="repairCollection"
-      >
-        <span class="material-icons text-sm">build</span>
-        <span>{{ t("collectionsView.repair") }}</span>
-      </button>
-    </div>
+    <CollectionRepairBanner v-if="collection && dataIssues.length > 0" :count="dataIssues.length" @repair="repairCollection" />
 
     <div class="flex-1 overflow-auto">
       <div v-if="loading" class="flex flex-col items-center justify-center py-20 text-sm text-slate-500 gap-3">
@@ -871,80 +851,17 @@
       @close="configOpen = false"
     />
 
-    <!-- Chat modal — collect a message and start a new general-role chat
-         seeded with the collection's skill command (`/<slug> <message>`). -->
-    <div
-      v-if="chatOpen && collection"
-      class="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-all duration-300"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="collections-chat-title"
-      data-testid="collections-chat-modal"
-      @click.self="closeChat"
-      @keydown.esc="closeChat"
-    >
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl flex flex-col border border-slate-200 overflow-hidden">
-        <header class="px-6 py-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
-          <div class="h-9 w-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100/50">
-            <span class="material-icons text-lg">forum</span>
-          </div>
-          <div class="flex-1">
-            <h2 id="collections-chat-title" class="text-sm font-bold text-slate-800 uppercase tracking-wide">{{ t("collectionsView.chatTitle") }}</h2>
-            <span class="text-xs text-slate-400 font-semibold">{{ collection.title }}</span>
-          </div>
-          <button
-            type="button"
-            class="h-8 w-8 flex items-center justify-center rounded text-slate-400 hover:bg-slate-200/50 hover:text-slate-600 transition-colors"
-            :aria-label="t('common.close')"
-            data-testid="collections-chat-close"
-            @click="closeChat"
-          >
-            <span class="material-icons text-lg">close</span>
-          </button>
-        </header>
-
-        <div class="px-6 py-5">
-          <textarea
-            ref="chatInputEl"
-            v-model="chatMessage"
-            rows="4"
-            :placeholder="t('collectionsView.chatPlaceholder')"
-            class="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-2.5 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all resize-none"
-            data-testid="collections-chat-input"
-            @keydown.meta.enter="submitChat"
-            @keydown.ctrl.enter="submitChat"
-          ></textarea>
-        </div>
-
-        <footer class="px-6 py-3.5 border-t border-slate-100 flex items-center justify-end gap-2 bg-slate-50/50">
-          <button
-            type="button"
-            class="h-8 px-2.5 rounded text-xs font-bold text-slate-500 hover:bg-slate-200/50 transition-colors"
-            data-testid="collections-chat-cancel"
-            @click="closeChat"
-          >
-            {{ t("common.cancel") }}
-          </button>
-          <button
-            type="button"
-            class="h-8 px-2.5 rounded bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-sm shadow-indigo-600/10"
-            :disabled="!chatMessage.trim()"
-            data-testid="collections-chat-send"
-            @click="submitChat"
-          >
-            {{ t("collectionsView.chatStart") }}
-          </button>
-        </footer>
-      </div>
-    </div>
+    <CollectionChatModal v-if="chatOpen && collection" :collection-title="collection.title" @close="closeChat" @submit="submitChat" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 import { useCollectionI18n } from "../lang";
 import CollectionMutateParamsModal from "./CollectionMutateParamsModal.vue";
 import CollectionRecordModal from "./CollectionRecordModal.vue";
+import CollectionChatModal from "./CollectionChatModal.vue";
+import CollectionRepairBanner from "./CollectionRepairBanner.vue";
 import CollectionCalendarView from "./CollectionCalendarView.vue";
 import CollectionDayView from "./CollectionDayView.vue";
 import CollectionKanbanView from "./CollectionKanbanView.vue";
@@ -1167,8 +1084,6 @@ function applyServerRunningActions(keys: string[] | undefined, genAtFetch: numbe
   runningActions.value = new Set(keys ?? []);
 }
 const chatOpen = ref(false);
-const chatMessage = ref("");
-const chatInputEl = ref<HTMLTextAreaElement | null>(null);
 
 // Shared rendering + linked-data layer: owns the ref/embed caches and
 // every value-formatting helper, reused by the extracted record panel
@@ -1617,11 +1532,10 @@ const viewingRunningActionIds = computed<string[]>(() => {
   return (current.schema.actions ?? []).filter((action) => isActionRunning(action.id, itemId)).map((action) => action.id);
 });
 
-/** Open the chat modal, blanking any prior draft and focusing the input. */
+/** Open the chat modal. The modal owns its draft + focus: it remounts on
+ *  every open (parent `v-if`), so it starts blank and self-focuses. */
 function openChat(): void {
-  chatMessage.value = "";
   chatOpen.value = true;
-  void nextTick(() => chatInputEl.value?.focus());
 }
 
 function closeChat(): void {
@@ -1675,10 +1589,11 @@ function buildChatSeed(slug: string, message: string, itemId?: string): string {
   return t("collectionsView.feedChatSeed", { slug, dataPath, message: scoped });
 }
 
-/** Start a new general-role chat seeded from the current view. */
-function submitChat(): void {
+/** Start a new general-role chat seeded from the current view. `raw` is
+ *  the modal's untrimmed textarea text. */
+function submitChat(raw: string): void {
   if (!collection.value) return;
-  const message = chatMessage.value.trim();
+  const message = raw.trim();
   if (!message) return;
   closeChat();
   const text = buildChatSeed(collection.value.slug, message);
