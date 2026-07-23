@@ -70,3 +70,22 @@ export function parseCsvList(raw: string | undefined, opts?: { lowercase?: boole
 export function parseCsvSet(raw: string | undefined, opts?: { lowercase?: boolean }): Set<string> {
   return new Set(parseCsvList(raw, opts));
 }
+
+/** Normalise an unknown thrown value into a human-readable string. Isomorphic
+ *  (host, bridges, plugins, Vue) — this is the single home for the helper that
+ *  #2217 could only consolidate for server code, since `@mulmoclaude/core/utils`
+ *  is server-only.
+ *
+ *  A non-Error object with a non-empty string `details` (gRPC convention) or
+ *  `message` field surfaces that field — `details` wins — instead of the
+ *  `[object Object]` a bare `String(err)` would print; an empty-string field
+ *  falls through. `fallback` covers the error-boundary idiom where a thrown
+ *  non-Error should read as a descriptive message rather than `String(err)`
+ *  noise; omit it in logging contexts where `String(err)` is fine. */
+export function errorMessage(err: unknown, fallback?: string): string {
+  if (err instanceof Error) return err.message;
+  if (hasStringProp(err, "details") && err.details) return err.details;
+  if (hasStringProp(err, "message") && err.message) return err.message;
+  if (fallback !== undefined) return fallback;
+  return String(err);
+}
