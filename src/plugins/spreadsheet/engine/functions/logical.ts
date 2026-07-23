@@ -91,14 +91,23 @@ const notHandler: FunctionHandler = (args, context) => {
   return !value || value === 0 || value === "0";
 };
 
+/** Whether `source` is a single quoted string literal. Its value is text even
+ *  when that text looks like an error code, so IFERROR must not swallow it. */
+const isQuotedLiteral = (source: string): boolean => {
+  const trimmed = source.trim();
+  return trimmed.length >= 2 && ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'")));
+};
+
 const iferrorHandler: FunctionHandler = (args, context) => {
   if (args.length !== 2) throw new Error("IFERROR requires 2 arguments");
 
   try {
     const result = context.evaluateFormula(args[0]);
-    // Catches NaN/∞ AND the Excel error strings functions now return (e.g. a
-    // math domain miss like SQRT(-1) → "#NUM!"), so IFERROR(SQRT(-1), 0) is 0.
-    if (isErrorResult(result)) {
+    // Catches NaN/∞ AND the Excel error strings functions now return (a math
+    // domain miss like SQRT(-1) → "#NUM!"), so IFERROR(SQRT(-1), 0) is 0. A
+    // quoted literal that merely looks like an error (IFERROR("#NUM!", 42)) is
+    // real text, not an error value, so it passes through (Codex review).
+    if (!isQuotedLiteral(args[0]) && isErrorResult(result)) {
       return context.evaluateFormula(args[1]);
     }
     return result;

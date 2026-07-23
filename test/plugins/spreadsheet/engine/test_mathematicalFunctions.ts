@@ -140,4 +140,11 @@ describe("the handlers surface the errors end-to-end", () => {
     assert.equal(evalFormula("=IFERROR(MOD(5, 0), -1)"), -1);
     assert.equal(evalFormula("=IFERROR(SQRT(4), 42)"), 2, "a non-error passes through");
   });
+
+  // A quoted literal that only looks like an error is real text, not an error
+  // value, so IFERROR returns it rather than the fallback (Codex review).
+  it("does not treat quoted error-looking text as an error", () => {
+    assert.equal(evalFormula('=IFERROR("#NUM!", 42)'), "#NUM!");
+    assert.equal(evalFormula('=IFERROR("hello", 42)'), "hello");
+  });
 });
