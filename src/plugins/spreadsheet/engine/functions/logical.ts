@@ -134,12 +134,18 @@ const ifsHandler: FunctionHandler = (args, context) => {
     const cellRefs = condition.match(/(?:'[^']+'|[^'!\s]+)![A-Z]+\d+|\$?[A-Z]+\$?\d+/g);
     if (cellRefs) {
       for (const ref of cellRefs) {
+        // Escape the ref ONCE for the regex. Pre-escaping `$`/`'` first (then
+        // escaping again for the pattern) double-escaped absolute (`$A$1`) and
+        // sheet-qualified (`'Sheet 1'!A1`) refs, so they never matched and were
+        // left unresolved in the condition (Codex review).
+        const pattern = new RegExp(ref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g");
         // `renderConditionOperand`, not `String(...)`: a text cell must land in
-        // the condition as a quoted literal. `String("x>y")` is bare `x>y`, so
-        // the `>` reads as a comparison operator and `A1="x>y"` became
-        // `x>y="x>y"` — parsed as `x` compared against `y="x>y"`, never a match.
-        const escapedRef = ref.replace(/\$/g, "\\$").replace(/'/g, "\\'");
-        condExpr = condExpr.replace(new RegExp(escapedRef.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), renderConditionOperand(context.getCellValue(ref)));
+        // the condition as a quoted literal, so `A1="x>y"` compares two strings
+        // rather than parsing the cell's `>` as an operator. A function
+        // replacement keeps a `$` in the rendered value from being read as a
+        // backreference.
+        const rendered = renderConditionOperand(context.getCellValue(ref));
+        condExpr = condExpr.replace(pattern, () => rendered);
       }
     }
 

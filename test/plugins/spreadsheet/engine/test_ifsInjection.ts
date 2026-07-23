@@ -109,6 +109,20 @@ describe("IFS — operator characters inside a cell value stay data", () => {
   });
 });
 
+describe("IFS — absolute and mixed references resolve", () => {
+  // The ref used to be escaped twice before the RegExp, so `$A$1` never matched
+  // and was left as literal text in the condition (Codex review).
+  it("substitutes an absolute reference", () => {
+    assert.equal(calculate("5", '=IFS($A$1>0, "hit")'), "hit");
+    assert.equal(calculate("5", '=IFS($A$1>10, "hit")'), "#N/A");
+  });
+
+  it("substitutes a mixed reference", () => {
+    assert.equal(calculate("5", '=IFS(A$1>0, "hit")'), "hit");
+    assert.equal(calculate("5", '=IFS($A1>0, "hit")'), "hit");
+  });
+});
+
 describe("IFS — the formula itself is data too", () => {
   it("does not execute an expression written into the condition", () => {
     marker.__ifsProbe4 = false;
