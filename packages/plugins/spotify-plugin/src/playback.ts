@@ -63,18 +63,21 @@ export async function playerPrevious(deps: PlaybackDeps, deviceId?: string): Pro
   return mapVoidResult(result);
 }
 
-export async function playerSeek(deps: PlaybackDeps, positionMs: number, deviceId?: string): Promise<Result<null>> {
-  const params = new URLSearchParams({ position_ms: String(positionMs) });
-  const path = appendQueryParam(`/v1/me/player/seek?${params.toString()}`, "device_id", deviceId);
+/** PUT a Player endpoint whose only query is one required param plus an
+ *  optional `device_id` (seek, volume). */
+async function playerPutWithParam(deps: PlaybackDeps, basePath: string, param: Record<string, string>, deviceId?: string): Promise<Result<null>> {
+  const params = new URLSearchParams(param);
+  const path = appendQueryParam(`${basePath}?${params.toString()}`, "device_id", deviceId);
   const result = await spotifyApi(deps.runtime, deps.clientId, deps.tokens, "PUT", path, {}, deps.now);
   return mapVoidResult(result);
 }
 
+export async function playerSeek(deps: PlaybackDeps, positionMs: number, deviceId?: string): Promise<Result<null>> {
+  return playerPutWithParam(deps, "/v1/me/player/seek", { position_ms: String(positionMs) }, deviceId);
+}
+
 export async function playerSetVolume(deps: PlaybackDeps, volumePercent: number, deviceId?: string): Promise<Result<null>> {
-  const params = new URLSearchParams({ volume_percent: String(volumePercent) });
-  const path = appendQueryParam(`/v1/me/player/volume?${params.toString()}`, "device_id", deviceId);
-  const result = await spotifyApi(deps.runtime, deps.clientId, deps.tokens, "PUT", path, {}, deps.now);
-  return mapVoidResult(result);
+  return playerPutWithParam(deps, "/v1/me/player/volume", { volume_percent: String(volumePercent) }, deviceId);
 }
 
 export async function playerTransfer(deps: PlaybackDeps, deviceId: string, play: boolean | undefined): Promise<Result<null>> {

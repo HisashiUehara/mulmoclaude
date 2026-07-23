@@ -10,6 +10,19 @@
 import { serialToDate } from "./date-utils";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MONTHS_PER_YEAR = 12;
+
+/** `date` advanced by `months`, clamping the day to the target month's length so
+ *  adding a month to Jan 30 lands on the last day of a shorter month instead of
+ *  overflowing into the next one. */
+function addMonthsClamped(date: Date, months: number): Date {
+  const monthIndex = date.getUTCMonth() + months;
+  const year = date.getUTCFullYear() + Math.floor(monthIndex / MONTHS_PER_YEAR);
+  const month = ((monthIndex % MONTHS_PER_YEAR) + MONTHS_PER_YEAR) % MONTHS_PER_YEAR;
+  const lastDayOfMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const day = Math.min(date.getUTCDate(), lastDayOfMonth);
+  return new Date(Date.UTC(year, month, day));
+}
 
 /** Complete `unit`s between two dates, or `"#NUM!"` when start is after end or
  *  the unit is not one of Y / M / D / MD / YM / YD. `unit` is matched
@@ -34,7 +47,7 @@ export function computeDatedif(startSerial: number, endSerial: number, unit: str
 
     case "M": {
       // Complete months, backing off one when the day-of-month has not been reached.
-      const months = yearDiff * 12 + monthDiff;
+      const months = yearDiff * MONTHS_PER_YEAR + monthDiff;
       return dayDiff < 0 ? months - 1 : months;
     }
 
@@ -42,19 +55,24 @@ export function computeDatedif(startSerial: number, endSerial: number, unit: str
       return Math.floor(endSerial - startSerial);
 
     case "MD": {
-      // Day-of-month difference, ignoring months and years. When the end day is
-      // earlier in its month, borrow the length of the month before the end.
-      const startD = startDate.getUTCDate();
-      const endD = endDate.getUTCDate();
-      if (endD >= startD) return endD - startD;
-      const prevMonthLastDay = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), 0)).getUTCDate();
-      return prevMonthLastDay - startD + endD;
+      // Days left after the complete months "M" counts. Anchoring on start plus
+      // those months keeps the result non-negative and self-consistent (start +
+      // M months + MD days == end). Subtracting the calendar month before `end`
+      // instead goes negative when the start day outruns that month's length —
+      // Jan 30 → Mar 1 borrowed Feb's 28 days and returned -1.
+      const completeMonths = yearDiff * MONTHS_PER_YEAR + monthDiff - (dayDiff < 0 ? 1 : 0);
+      const anchor = addMonthsClamped(startDate, completeMonths);
+      // Compare whole days only. `end` may carry a time-of-day (a datetime
+      // serial); anchor is already UTC midnight, so strip end's time too or the
+      // remainder would swing with the clock (Codex review).
+      const endMidnight = Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate());
+      return Math.round((endMidnight - anchor.getTime()) / MS_PER_DAY);
     }
 
     case "YM": {
       // Month difference, ignoring years — wraps into 0..11.
       const ym = dayDiff < 0 ? monthDiff - 1 : monthDiff;
-      return ym < 0 ? ym + 12 : ym;
+      return ym < 0 ? ym + MONTHS_PER_YEAR : ym;
     }
 
     case "YD": {
