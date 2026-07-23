@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { ref, nextTick } from "vue";
-import { createPluginI18n } from "../../src/plugin-vue/index.ts";
+import { createPluginI18n } from "../../src/plugin-vue/pluginI18n.ts";
 
 // vue-i18n runs headless under node (no DOM, no app mount), so the factory can be
 // exercised directly. Each test builds its own instance — the factory closes over

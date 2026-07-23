@@ -172,6 +172,12 @@
       "require": "./dist/plugin-vue/index.cjs",
       "default": "./dist/plugin-vue/index.js"
     },
+    "./plugin-vue/i18n": {
+      "types": "./dist/plugin-vue/pluginI18n.d.ts",
+      "import": "./dist/plugin-vue/i18n.js",
+      "require": "./dist/plugin-vue/i18n.cjs",
+      "default": "./dist/plugin-vue/i18n.js"
+    },
     "./workspace-setup": {
       "types": "./dist/workspace-setup/index.d.ts",
       "import": "./dist/workspace-setup/index.js",

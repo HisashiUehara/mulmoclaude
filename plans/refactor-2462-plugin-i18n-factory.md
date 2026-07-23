@@ -16,10 +16,13 @@ driven by host bindings, not the `PLUGIN_RUNTIME_KEY` runtime (1fbc87f48).
 ## Approach
 
 1. New `packages/core/src/plugin-vue/pluginI18n.ts` exporting
-   `createPluginI18n<M>(messages, localeSource: () => string)`, re-exported from
-   the browser-safe `@mulmoclaude/core/plugin-vue` subpath (a plugin can't import
-   another plugin, so shared plugin-Vue code lives in core — same pattern as
-   `useFileWatch` #2404 / `useClipboardCopy` #2408).
+   `createPluginI18n<M>(messages, localeSource: () => string)` on its OWN
+   browser-safe `@mulmoclaude/core/plugin-vue/i18n` subpath (a plugin can't
+   import another plugin, so shared plugin-Vue code lives in core — same pattern
+   as `useFileWatch` #2404 / `useClipboardCopy` #2408). It is deliberately NOT
+   re-exported from the `./plugin-vue` barrel: `vue-i18n` is an optional peer,
+   and barrel consumers that never use i18n (html/markdown plugin Views) must
+   not be forced to resolve it at module-load time (Codex review finding).
    - Owns the `createI18n` construction, the detached `effectScope(true)`, and
      the lazy `ensureLocaleSync` wiring; returns the composable
      (`() => { t, locale }`).

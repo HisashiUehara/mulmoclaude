@@ -11,7 +11,7 @@
 // the first `useCollectionI18n()`, by which point App.vue's setup has configured
 // the binding, so `collectionUi()` resolves.
 
-import { createPluginI18n } from "@mulmoclaude/core/plugin-vue";
+import { createPluginI18n } from "@mulmoclaude/core/plugin-vue/i18n";
 import { collectionUi } from "../uiContext";
 import enMessages, { type CollectionMessages } from "./en";
 import jaMessages from "./ja";

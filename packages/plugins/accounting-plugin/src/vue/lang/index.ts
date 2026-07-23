@@ -11,7 +11,7 @@
 // which point the host has called `configureAccountingHost(...)`, so
 // `hostLocaleTag()` resolves.
 
-import { createPluginI18n } from "@mulmoclaude/core/plugin-vue";
+import { createPluginI18n } from "@mulmoclaude/core/plugin-vue/i18n";
 import { hostLocaleTag } from "../hostContext";
 import enMessages, { type AccountingMessages } from "./en";
 import jaMessages from "./ja";
