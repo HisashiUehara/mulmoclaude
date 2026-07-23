@@ -89,6 +89,7 @@ export default defineConfig({
         "zod",
         /^gui-chat-protocol/,
         "vue",
+        "vue-i18n",
         "fast-xml-parser",
         "js-yaml",
         "google-auth-library",

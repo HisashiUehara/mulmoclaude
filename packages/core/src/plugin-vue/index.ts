@@ -5,3 +5,4 @@ export { useFileWatch } from "./useFileWatch.ts";
 export { useMarkdownDoc } from "./useMarkdownDoc.ts";
 export { formatScalarField, buildMarkdownDocView, type MarkdownDocField, type MarkdownDocView } from "./markdownDoc.ts";
 export { useClipboardCopy, type UseClipboardCopyHandle } from "./useClipboardCopy.ts";
+export { createPluginI18n, type PluginI18n } from "./pluginI18n.ts";
