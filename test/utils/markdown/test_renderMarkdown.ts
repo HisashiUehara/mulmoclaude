@@ -11,8 +11,7 @@ import { JSDOM } from "jsdom";
 // `dompurify` (imported transitively via sanitize.ts) reads `window` at
 // module load, so wire JSDOM into globals BEFORE importing the helper.
 const dom = new JSDOM("<!doctype html><html><body></body></html>");
-(globalThis as { window?: unknown; document?: unknown }).window = dom.window;
-(globalThis as { window?: unknown; document?: unknown }).document = dom.window.document;
+Object.assign(globalThis, { window: dom.window, document: dom.window.document });
 
 const { renderMarkdownToSafeHtml } = await import("../../../src/utils/markdown/renderMarkdown");
 
