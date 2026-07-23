@@ -171,3 +171,22 @@ export function scriptSourceText(value: unknown): string {
 export function downloadFilename(path: string, fallback: string): string {
   return path.split("/").pop() ?? fallback;
 }
+
+/** Narrow a script-supplied silent-beat duration to a safe positive number.
+ *  Zero / negative / NaN / Infinity / non-number collapse the auto-advance
+ *  timer to an immediate fire, which races the Play loop through every silent
+ *  beat in a single tick (#1365) — fall back to the default so a run of silent
+ *  beats stays watchable. The script's own valid `duration` always wins. */
+export function resolveSilentAdvanceSeconds(raw: unknown, defaultSec: number): number {
+  return typeof raw === "number" && Number.isFinite(raw) && raw > 0 ? raw : defaultSec;
+}
+
+/** Delete every own enumerable key of each record, in place. Used to reset the
+ *  View's per-beat / per-character reactive maps between scripts — passing the
+ *  reactive proxies mutates them so the template re-renders empty. Replaces a
+ *  wall of hand-rolled `Object.keys(map).forEach(delete)` loops. */
+export function clearReactiveRecords(...records: object[]): void {
+  records.forEach((record) => {
+    Object.keys(record).forEach((key) => Reflect.deleteProperty(record, key));
+  });
+}
