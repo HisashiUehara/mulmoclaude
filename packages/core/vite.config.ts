@@ -71,6 +71,7 @@ export default defineConfig({
       external: [
         /^node:/,
         /^@receptron\//,
+        /^@mulmoclaude\/markdown-utils/,
         /^firebase/,
         /^@duckdb\//,
         "iconv-lite",
