@@ -1,10 +1,11 @@
 // Excel-formula → JS-expression translation. These are the pure string
 // transforms the evaluator runs on an already-substituted expression before
-// handing it to `new Function`. They failed silently in the worst way: a
-// mistranslated operator produces a plausible wrong NUMBER (`=2^3^2` = 512, not
-// 64) or a valid formula returned as raw text (`=5<>6` = "5<>6"). This suite
-// PINS the current behaviour — including the known-wrong cases (#2359) that a
-// later fix will deliberately flip — so that flip is a visible, reviewed change.
+// handing it to `new Function`. A mistranslated operator can still produce a
+// plausible wrong NUMBER (`=2^3^2` = 512, not 64 — the associativity gap tracked
+// by the sibling issues). What #2359 fixed: a formula that reaches `new Function`
+// as invalid JS (`=5<>6`) no longer comes back as its raw text — it surfaces as
+// an #ERROR!. This suite pins both the remaining known-wrong number cases and the
+// post-#2359 error surfacing.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -180,9 +181,10 @@ describe("translation through the engine (characterization)", () => {
   });
 
   // `<>` is Excel's not-equal; it is not translated, so it reaches `new Function`
-  // as invalid JS, throws, and the raw formula text comes back. Pinned (#2359).
-  it("returns the raw text for the untranslated <> operator", () => {
-    assert.equal(calc("=5<>6"), "5<>6");
+  // as invalid JS and throws. Post-#2359 that throw surfaces as #ERROR! rather
+  // than the raw formula text (translating `<>` itself is a sibling issue).
+  it("surfaces the untranslated <> operator as #ERROR!, not raw text", () => {
+    assert.equal(calc("=5<>6"), "#ERROR!");
   });
 
   it("concatenates strings and mixed operands", () => {
