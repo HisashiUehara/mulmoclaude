@@ -21,6 +21,11 @@ export default defineConfig({
         // Browser-safe generic helpers (errorMessage / toError / truncate).
         // Host re-exports these instead of keeping its own copy (#2217).
         "utils/index": "src/utils/index.ts",
+        // Browser-safe artifact path builders (slug + YYYY/MM partition + the
+        // shared traversal guard) shared by the chart / html / mulmoscript
+        // presentation plugins (#2405). No node built-ins so it bundles into
+        // the plugins' browser (`./vue`) entries.
+        "artifacts/paths": "src/artifacts/paths.ts",
         // Server-only atomic file I/O (tmp-write + rename, Windows retry) — the
         // single source of truth shared by host, core, and plugins (#2399).
         "files/index": "src/files/index.ts",

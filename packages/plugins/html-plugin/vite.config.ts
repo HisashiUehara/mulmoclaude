@@ -22,7 +22,7 @@ export default defineConfig({
       fileName: (format, entryName) => `${entryName}.${format === "es" ? "js" : "cjs"}`,
     },
     rollupOptions: {
-      external: ["vue", "gui-chat-protocol", "gui-chat-protocol/vue"],
+      external: [/^@mulmoclaude\/core/, "vue", "gui-chat-protocol", "gui-chat-protocol/vue"],
       output: {
         exports: "named",
         globals: { vue: "Vue" },

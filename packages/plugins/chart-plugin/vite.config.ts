@@ -20,7 +20,7 @@ export default defineConfig({
       // Externalized so the plugin and host share ONE instance: `vue` +
       // `gui-chat-protocol/vue` for the injected PLUGIN_RUNTIME_KEY Symbol,
       // and `echarts` so the host's single charting engine is reused.
-      external: ["vue", "gui-chat-protocol", "gui-chat-protocol/vue", "echarts"],
+      external: [/^@mulmoclaude\/core/, "vue", "gui-chat-protocol", "gui-chat-protocol/vue", "echarts"],
       output: {
         exports: "named",
         globals: {
