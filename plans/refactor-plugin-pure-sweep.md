@@ -55,9 +55,10 @@ These are verified or plausible but out of scope for a mechanical fix-plus-test 
 - **scheduler TasksTab**: unsequenced refetch races; full-list remount on every
   mutation (scroll/expand reset); unconfirmed one-click delete; hardcoded English
   frequency-hint labels (8-locale change).
-- **manageSkills**: same-repo update/uninstall overlap; four loaders sharing one
-  `catalogError` channel; post-delete selection clobber; `actionLock` extraction
-  (release-if-owner).
+- **manageSkills**: ~~same-repo update/uninstall overlap~~ **(shipped)**;
+  four loaders sharing one `catalogError` channel (still open — needs a UX call
+  on where the repo-list error surfaces); post-delete selection clobber;
+  ~~`actionLock` extraction (release-if-owner)~~ **(shipped, fix/manageskills-loader-races)**.
 - **manageRoles**: IME-Enter commits half-typed names (use `useImeAwareEnter`);
   no re-entrancy guard on Enter; unconfirmed delete (needs new i18n key ×8);
   `alwaysActive` MCP tools shown as toggleable; refresh-failure swallowed;
