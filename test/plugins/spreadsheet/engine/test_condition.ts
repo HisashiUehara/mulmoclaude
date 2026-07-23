@@ -54,11 +54,14 @@ describe("splitComparison", () => {
   });
 
   // A cell holding `a>b` substitutes as the literal `"a>b"`. Splitting on that
-  // `>` would compare two fragments of one string (Codex review).
+  // `>` would compare two fragments of one string (Codex review). The same must
+  // hold for `<` and `=` inside the operand, not only `>`.
   it("ignores operators inside quoted text", () => {
     assert.deepEqual(splitComparison('"a>b"="a>b"'), { left: '"a>b"', operator: "=", right: '"a>b"' });
+    assert.deepEqual(splitComparison('"a<b"="a<b"'), { left: '"a<b"', operator: "=", right: '"a<b"' });
     assert.deepEqual(splitComparison("'x=y'='x=y'"), { left: "'x=y'", operator: "=", right: "'x=y'" });
     assert.deepEqual(splitComparison('A1="a>b"'), { left: "A1", operator: "=", right: '"a>b"' });
+    assert.deepEqual(splitComparison('A1="a<b"'), { left: "A1", operator: "=", right: '"a<b"' });
   });
 
   it("finds an operator that follows a quoted section", () => {
@@ -164,6 +167,9 @@ describe("evaluateCondition — comparisons", () => {
   it("compares text containing operator characters", () => {
     assert.equal(evaluateCondition('"a>b"="a>b"'), true);
     assert.equal(evaluateCondition('"a>b"="a>c"'), false);
+    assert.equal(evaluateCondition('"a<b"="a<b"'), true, "the inner < is data, not a comparison");
+    assert.equal(evaluateCondition('"a<b"="a<c"'), false);
+    assert.equal(evaluateCondition('"a=b"="a=b"'), true, "the inner = is data, not a comparison");
   });
 
   it("compares an empty left side, as a blank cell produces", () => {
@@ -273,5 +279,14 @@ describe("renderConditionOperand", () => {
   it("round-trips through evaluateCondition", () => {
     assert.equal(evaluateCondition(`${renderConditionOperand("x>y")}="x>y"`), true);
     assert.equal(evaluateCondition(`${renderConditionOperand("x>y")}="other"`), false);
+  });
+
+  // A literal backslash must survive the escape-on-render / unescape-on-read
+  // round-trip exactly once: the earlier substitution path escaped it twice
+  // (CodeQL js/double-escaping), which corrupted the operand.
+  it("round-trips a value holding a backslash without double-escaping", () => {
+    assert.equal(readOperand(renderConditionOperand("a\\b")), "a\\b");
+    assert.equal(evaluateCondition(`${renderConditionOperand("a\\b")}=${renderConditionOperand("a\\b")}`), true);
+    assert.equal(evaluateCondition(`${renderConditionOperand("a\\b")}=${renderConditionOperand("a/b")}`), false);
   });
 });

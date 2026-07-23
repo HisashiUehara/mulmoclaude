@@ -123,6 +123,32 @@ describe("IFS — absolute and mixed references resolve", () => {
   });
 });
 
+describe("IFS — a cell value ending in a backslash substitutes intact", () => {
+  // CodeQL js/double-escaping. `renderConditionOperand` escapes the backslash so
+  // a trailing `\` cannot escape the closing quote and corrupt the literal;
+  // substituting by position (not a regex) keeps it exactly once. A cell value
+  // `a\` is the sharp case — an unescaped one turns `"a\"` into an open literal.
+  const trailingBackslashSheet = (other: string): SheetData => ({
+    name: "S",
+    data: [
+      [{ v: "a\\" }, { v: '=IFS(A1=A2, "eq", TRUE, "ne")' }],
+      [{ v: other }, { v: 0 }],
+    ],
+  });
+
+  it("matches two cells that both end in a backslash", () => {
+    assert.equal(new SpreadsheetEngine().calculate(trailingBackslashSheet("a\\")).data[0][1], "eq");
+  });
+
+  it("does not match a backslash cell against different text", () => {
+    assert.equal(new SpreadsheetEngine().calculate(trailingBackslashSheet("ab")).data[0][1], "ne");
+  });
+
+  it("treats a bare backslash-bearing cell as truthy text", () => {
+    assert.equal(calculate("a\\b", '=IFS(A1, "truthy", TRUE, "no")'), "truthy");
+  });
+});
+
 describe("IFS — a reference inside a string literal stays literal text", () => {
   // `A1="B2"` compares A1 to the TEXT "B2". The `"B2"` must not be read as a
   // reference and replaced with cell B2's value (Codex review).
