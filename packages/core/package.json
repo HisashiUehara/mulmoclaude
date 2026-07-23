@@ -10,6 +10,12 @@
       "require": "./dist/utils/index.cjs",
       "default": "./dist/utils/index.js"
     },
+    "./files": {
+      "types": "./dist/files/index.d.ts",
+      "import": "./dist/files/index.js",
+      "require": "./dist/files/index.cjs",
+      "default": "./dist/files/index.js"
+    },
     "./fetch": {
       "types": "./dist/utils/fetch.d.ts",
       "import": "./dist/utils/fetch.js",

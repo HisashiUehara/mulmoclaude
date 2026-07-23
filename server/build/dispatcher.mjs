@@ -137,8 +137,8 @@ function isSafeActionTemplatePath(value) {
 }
 
 // packages/core/dist/skill-bridge/index.js
-import path3 from "node:path";
 import { mkdirSync, readFileSync as readFileSync2, renameSync, rmSync, writeFileSync } from "node:fs";
+import path3 from "node:path";
 var DATA_SKILLS_DIR = path3.join("data", "skills");
 var CLAUDE_SKILLS_DIR = path3.join(".claude", "skills");
 var SKILL_FILENAME = "SKILL.md";
