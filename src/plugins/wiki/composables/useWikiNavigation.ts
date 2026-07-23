@@ -1,6 +1,7 @@
 import { computed, type ComputedRef } from "vue";
 import { useRoute, useRouter, isNavigationFailure } from "vue-router";
-import { WIKI_ACTION, WIKI_ROUTE_SECTION, buildWikiRouteParams, isSafeWikiSlug, type WikiTarget } from "@mulmoclaude/core/wiki";
+import { WIKI_ACTION, WIKI_ROUTE_SECTION, buildWikiRouteParams, type WikiTarget } from "@mulmoclaude/core/wiki";
+import { resolveWikiSlug } from "../currentSlug";
 
 export type WikiTabView = typeof WIKI_ACTION.log | typeof WIKI_ACTION.lintReport | typeof WIKI_ACTION.graph;
 
@@ -24,18 +25,14 @@ export function useWikiNavigation(deps: WikiNavigationDeps): WikiNavigation {
   const route = useRoute();
   const router = useRouter();
 
-  // Prefer the URL on /wiki (source of truth for that route); fall back to the
-  // tool-result payload when WikiView is mounted as a manageWiki result inside
-  // /chat. `isSafeWikiSlug` guards traversal tokens — the router guard strips
-  // them from standalone /wiki URLs, but the tool-result payload arrives from
-  // the server/agent and can't assume that upstream filter.
-  const currentSlugReactive = computed<string | null>(() => {
-    const raw =
-      route.name === deps.pageWikiRoute && route.params.section === WIKI_ROUTE_SECTION.pages && typeof route.params.slug === "string"
-        ? route.params.slug
-        : deps.pageNameFromResult();
-    return isSafeWikiSlug(raw) ? raw : null;
-  });
+  const currentSlugReactive = computed<string | null>(() =>
+    resolveWikiSlug({
+      onWikiRoute: route.name === deps.pageWikiRoute,
+      onPagesSection: route.params.section === WIKI_ROUTE_SECTION.pages,
+      routeSlug: route.params.slug,
+      resultPageName: deps.pageNameFromResult(),
+    }),
+  );
 
   // Imperative accessor for the same value, for call sites that read the slug
   // at a specific moment (fetch endpoint, mid-flight save guard).

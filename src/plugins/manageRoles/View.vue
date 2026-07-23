@@ -286,6 +286,7 @@ import type { CustomRole, ManageRolesData } from "./index";
 import { apiGet, apiPost } from "../../utils/api";
 import { pluginEndpoints, pluginAllPluginNames } from "../api";
 import type { RolesEndpoints } from "./definition";
+import { formToRole, roleToForm, validateRoleForm, type RoleForm, type RoleFormError } from "./roleForm";
 
 const { t } = useI18n();
 
@@ -358,16 +359,7 @@ const selectedId = ref<string | null>(null);
 const saving = ref(false);
 const saveError = ref("");
 
-interface EditForm {
-  id: string;
-  name: string;
-  icon: string;
-  prompt: string;
-  selectedPlugins: string[];
-  queriesText: string;
-}
-
-const editForm = ref<EditForm>({
+const editForm = ref<RoleForm>({
   id: "",
   name: "",
   icon: "",
@@ -378,7 +370,7 @@ const editForm = ref<EditForm>({
 
 const creating = ref(false);
 const createError = ref("");
-const newForm = ref<EditForm>({
+const newForm = ref<RoleForm>({
   id: "",
   name: "",
   icon: "person",
@@ -413,14 +405,7 @@ function selectRole(role: CustomRole) {
   }
   selectedId.value = role.id;
   saveError.value = "";
-  editForm.value = {
-    id: role.id,
-    name: role.name,
-    icon: role.icon,
-    prompt: role.prompt,
-    selectedPlugins: [...role.availablePlugins],
-    queriesText: (role.queries ?? []).join("\n"),
-  };
+  editForm.value = roleToForm(role);
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -465,37 +450,23 @@ async function refreshList() {
   }
 }
 
-function validateRoleForm(form: EditForm, excludeId: string | null): string | null {
-  const trimmedId = form.id.trim();
-  const trimmedName = form.name.trim();
-  if (!trimmedId) return t("pluginManageRoles.errIdRequired");
-  if (!/^[a-zA-Z0-9_-]+$/.test(trimmedId)) {
-    return t("pluginManageRoles.errIdInvalid");
-  }
-  if (!trimmedName) return t("pluginManageRoles.errNameRequired");
-  if (customRoles.value.some((existing) => existing.id === trimmedId && existing.id !== excludeId)) {
-    return t("pluginManageRoles.errIdDuplicate", { id: trimmedId });
-  }
-  return null;
+const ROLE_FORM_ERROR_KEY: Record<RoleFormError["code"], string> = {
+  idRequired: "pluginManageRoles.errIdRequired",
+  idInvalid: "pluginManageRoles.errIdInvalid",
+  nameRequired: "pluginManageRoles.errNameRequired",
+  idDuplicate: "pluginManageRoles.errIdDuplicate",
+};
+
+function formErrorMessage(error: RoleFormError | null): string | null {
+  if (!error) return null;
+  return t(ROLE_FORM_ERROR_KEY[error.code], { id: error.id });
 }
 
-const newFormError = computed<string | null>(() => validateRoleForm(newForm.value, null));
+const existingRoleIds = computed(() => customRoles.value.map((role) => role.id));
 
-const editFormError = computed<string | null>(() => validateRoleForm(editForm.value, selectedId.value));
+const newFormError = computed<string | null>(() => formErrorMessage(validateRoleForm(newForm.value, null, existingRoleIds.value)));
 
-function buildNewRole(): CustomRole {
-  return {
-    id: newForm.value.id.trim(),
-    name: newForm.value.name.trim(),
-    icon: newForm.value.icon.trim() || "person",
-    prompt: newForm.value.prompt,
-    availablePlugins: newForm.value.selectedPlugins,
-    queries: newForm.value.queriesText
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean),
-  };
-}
+const editFormError = computed<string | null>(() => formErrorMessage(validateRoleForm(editForm.value, selectedId.value, existingRoleIds.value)));
 
 async function saveNew() {
   if (newFormError.value) {
@@ -504,7 +475,7 @@ async function saveNew() {
   }
   saving.value = true;
   createError.value = "";
-  const result = await callManage({ action: "create", role: buildNewRole() });
+  const result = await callManage({ action: "create", role: formToRole(newForm.value) });
   if (result.success) {
     creating.value = false;
     await refreshList();
@@ -521,20 +492,9 @@ async function saveEdit(originalId: string) {
   }
   saving.value = true;
   saveError.value = "";
-  const role: CustomRole = {
-    id: editForm.value.id.trim(),
-    name: editForm.value.name.trim(),
-    icon: editForm.value.icon.trim(),
-    prompt: editForm.value.prompt,
-    availablePlugins: editForm.value.selectedPlugins,
-    queries: editForm.value.queriesText
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean),
-  };
   const result = await callManage({
     action: "update",
-    role,
+    role: formToRole(editForm.value),
     oldRoleId: originalId,
   });
   if (result.success) {
