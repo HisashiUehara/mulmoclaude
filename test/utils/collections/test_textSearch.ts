@@ -21,6 +21,17 @@ describe("itemMatchesQuery", () => {
     assert.equal(itemMatchesQuery(row, ""), true);
   });
 
+  it("matches an empty query even for a row with only object/null fields (clearing search shows every row)", () => {
+    // Without the empty-query short-circuit this returned false: no scalar cell
+    // reaches `includes("")` (every field is object/null), so the row would
+    // vanish when the search is cleared. No scalar `id` here on purpose.
+    assert.equal(itemMatchesQuery({ contacts: [{ name: "Dana" }], note: null }, ""), true);
+  });
+
+  it("matches an empty query for a fully empty record", () => {
+    assert.equal(itemMatchesQuery({}, ""), true);
+  });
+
   it("matches a substring of any scalar field", () => {
     assert.equal(itemMatchesQuery(row, "acme"), true);
     assert.equal(itemMatchesQuery(row, "portland"), true);

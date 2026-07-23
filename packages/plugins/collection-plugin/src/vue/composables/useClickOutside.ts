@@ -7,17 +7,12 @@
 // `src/`), and it differs anyway — the host takes separate button/popup refs
 // and tests with `element.contains()`, while a plugin mounted in MulmoTerminal's
 // PluginFrame lives in a shadow root, where a document-level listener sees
-// `event.target` retargeted to the shadow host. `composedPath()` (below) lists
-// the wrapper for open shadow trees and the light DOM alike, so both hosts
-// share one test.
+// `event.target` retargeted to the shadow host. The `eventInsideElement`
+// predicate uses `composedPath()`, which lists the wrapper for open shadow
+// trees and the light DOM alike, so both hosts share one test.
 
 import { onUnmounted, ref, watch, type Ref } from "vue";
-
-/** True when `event` landed inside `element`, shadow-DOM-safe via
- *  `composedPath()` (see module note). */
-function eventInsideElement(event: Event, element: HTMLElement | null): boolean {
-  return element !== null && event.composedPath().includes(element);
-}
+import { eventInsideElement } from "./eventInsideElement";
 
 /** Reactive open state plus the wrapper ref to bind in the template. A
  *  document `mousedown` listener is registered only while open and torn down

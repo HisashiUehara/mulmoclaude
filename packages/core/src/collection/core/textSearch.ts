@@ -15,6 +15,11 @@ import type { CollectionItem } from "./schema";
  *  nothing. Keeping the normalisation at the call site avoids re-lowering
  *  the same query once per row. */
 export function itemMatchesQuery(item: CollectionItem, query: string): boolean {
+  // An empty query matches every record — otherwise a row whose only fields are
+  // object/array-valued (no scalar cell reaches `includes("")`) would vanish
+  // when the search box is cleared. The list caller already short-circuits the
+  // empty case, so this only guards a future caller that doesn't.
+  if (query === "") return true;
   return Object.values(item).some((value) => {
     const text = fieldTextOrNull(value);
     return text !== null && text.toLowerCase().includes(query);
