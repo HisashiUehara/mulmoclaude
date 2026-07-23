@@ -9,7 +9,7 @@ import {
   validateBeatJSON,
   type SafeParseSchema,
 } from "../src/vue/helpers";
-import { errorMessage } from "../src/vue/support";
+import { errorMessage } from "@mulmoclaude/common";
 
 // Ported from the host's test/plugins/presentMulmoScript/test_helpers.ts
 // when the View moved into this package (phase 2). The SSE-stream helper

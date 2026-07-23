@@ -9,7 +9,8 @@ import { writeNewFileExclusive } from "../../utils/files/upload-io.js";
 import { MAX_RENAME_ATTEMPTS, renamedCandidate, sanitizeUploadFilename } from "../../utils/files/upload-name.js";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, notFound, sendError, serverError } from "../../utils/httpError.js";
-import { jsonSyntaxError, MAX_PREVIEW_BYTES, validatePutContentRequest } from "../../utils/files/content-write-validate.js";
+import { jsonSyntaxError, MAX_PREVIEW_BYTES } from "../../utils/files/content-write-validate.js";
+import { respondWithWrittenFile, validateWriteRequestOr400, type WriteContentResponse } from "./filesWriteResponse.js";
 import { getOptionalStringQuery } from "../../utils/request.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { GitignoreFilter } from "../../utils/gitignore.js";
@@ -35,9 +36,34 @@ import { spawn } from "node:child_process";
 // but we CAN distinguish "spawn succeeded" from "command not found /
 // permission denied" (e.g. `xdg-open` missing on a headless Linux
 // host). Client-side error handling depends on this signal.
-function spawnDetachedOsCommand(command: string, args: readonly string[], label: string): Promise<boolean> {
+/** The argv for opening a path in the host file manager, per platform. Pure,
+ *  so the per-OS choice can be tested without spawning anything — running the
+ *  real command in a test opens Finder on macOS and Explorer on Windows. */
+export function openArgv(absPath: string, platform: typeof process.platform): { command: string; args: string[] } {
+  if (platform === "darwin") return { command: "open", args: [absPath] };
+  if (platform === "win32") return { command: "explorer.exe", args: [absPath] };
+  return { command: "xdg-open", args: [absPath] };
+}
+
+/** The argv for revealing a path (folder opened, file selected). macOS `open -R`
+ *  and Windows `explorer /select,` select the file; Linux `xdg-open <dir>` only
+ *  opens the folder — there is no portable "select this item" across Linux file
+ *  managers, and landing next to the file is enough for drag-and-drop (#1985).
+ *  Same argv-array (no shell) discipline as `openArgv`, so a filename with shell
+ *  metacharacters can never be reinterpreted as command syntax. */
+export function revealArgv(absPath: string, platform: typeof process.platform): { command: string; args: string[] } {
+  if (platform === "darwin") return { command: "open", args: ["-R", absPath] };
+  if (platform === "win32") return { command: "explorer.exe", args: [`/select,${absPath}`] };
+  return { command: "xdg-open", args: [path.dirname(absPath)] };
+}
+
+/** Injectable so a test can assert the argv without launching the real file
+ *  manager. Defaults to Node's `spawn`. */
+export type Spawner = typeof spawn;
+
+function spawnDetachedOsCommand(command: string, args: readonly string[], label: string, spawner: Spawner): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
-    const child = spawn(command, args, { detached: true, stdio: "ignore" });
+    const child = spawner(command, args as string[], { detached: true, stdio: "ignore" });
     let settled = false;
     child.once("error", (err) => {
       if (settled) return;
@@ -54,30 +80,14 @@ function spawnDetachedOsCommand(command: string, args: readonly string[], label:
   });
 }
 
-export function openInHostOs(absPath: string): Promise<boolean> {
-  const { platform } = process;
-  const [command, args] =
-    platform === "darwin" ? (["open", [absPath]] as const) : platform === "win32" ? (["explorer.exe", [absPath]] as const) : (["xdg-open", [absPath]] as const);
-  return spawnDetachedOsCommand(command, args, "open");
+export function openInHostOs(absPath: string, spawner: Spawner = spawn): Promise<boolean> {
+  const { command, args } = openArgv(absPath, process.platform);
+  return spawnDetachedOsCommand(command, args, "open", spawner);
 }
 
-// Reveal the file in the host file manager. macOS `open -R` and
-// Windows `explorer /select,` open the containing folder with the
-// file selected; Linux `xdg-open <dir>` opens the folder only —
-// there's no portable "select this item" across the many Linux file
-// managers, and landing next to the file is enough for drag-and-drop
-// (#1985 follow-up). Same argv-array (no shell) discipline as
-// `openInHostOs` so a filename with shell metacharacters can never be
-// reinterpreted as command syntax.
-export function revealInHostOs(absPath: string): Promise<boolean> {
-  const { platform } = process;
-  const [command, args] =
-    platform === "darwin"
-      ? (["open", ["-R", absPath]] as const)
-      : platform === "win32"
-        ? (["explorer.exe", [`/select,${absPath}`]] as const)
-        : (["xdg-open", [path.dirname(absPath)]] as const);
-  return spawnDetachedOsCommand(command, args, "reveal");
+export function revealInHostOs(absPath: string, spawner: Spawner = spawn): Promise<boolean> {
+  const { command, args } = revealArgv(absPath, process.platform);
+  return spawnDetachedOsCommand(command, args, "reveal", spawner);
 }
 
 const router = Router();
@@ -225,12 +235,6 @@ interface FileContentText {
 interface WriteContentRequest {
   path?: unknown;
   content?: unknown;
-}
-
-interface WriteContentResponse {
-  path: string;
-  size: number;
-  modifiedMs: number;
 }
 
 interface FileContentMeta {
@@ -1026,14 +1030,9 @@ async function performCreateWrite(
 // passes a slug for a file it believes doesn't exist; we re-check
 // here to close the TOCTOU window between two tabs.
 router.post(API_ROUTES.files.create, async (req: Request<object, unknown, WriteContentRequest>, res: Response<WriteContentResponse | ErrorResponse>) => {
-  const validation = validatePutContentRequest(req.body);
-  if (!validation.ok) {
-    log.warn("files", validation.logMsg, validation.logExtra);
-    badRequest(res, validation.message);
-    return;
-  }
-  const { relPath, content, bytes: contentBytes } = validation;
-  log.info("files", "POST create: start", { pathPreview: previewSnippet(relPath), bytes: contentBytes });
+  const inputs = validateWriteRequestOr400(req.body, res, "POST create");
+  if (!inputs) return;
+  const { relPath, content, bytes: contentBytes } = inputs;
 
   const resolved = await resolveNewFilePath(relPath);
   if (!resolved.ok) {
@@ -1054,17 +1053,7 @@ router.post(API_ROUTES.files.create, async (req: Request<object, unknown, WriteC
   }
   const created = await performCreateWrite(resolved, content, relPath, res);
   if (!created) return;
-  const fresh = await statSafeAsync(resolved.absPath);
-  log.info("files", "POST create: ok", {
-    pathPreview: previewSnippet(relPath),
-    bytes: fresh?.size ?? contentBytes,
-  });
-  void publishFileChange(relPath);
-  res.json({
-    path: relPath,
-    size: fresh?.size ?? contentBytes,
-    modifiedMs: fresh?.mtimeMs ?? Date.now(),
-  });
+  await respondWithWrittenFile(res, { absPath: resolved.absPath, relPath, fallbackBytes: contentBytes, logLabel: "POST create" });
 });
 
 /** Cap on one dropped file, in decoded bytes.
@@ -1170,6 +1159,9 @@ router.post(API_ROUTES.files.upload, async (req: Request<object, unknown, Upload
     sendError(res, written.status, written.message);
     return;
   }
+  // Kept off `respondWithWrittenFile`: the success line reports the
+  // decoded payload size the client sent, not the post-write stat that
+  // the create / overwrite routes log.
   const fresh = await statSafeAsync(written.absPath);
   log.info("files", "POST upload: ok", { pathPreview: previewSnippet(written.relPath), bytes: bytes.byteLength });
   void publishFileChange(written.relPath);
@@ -1177,14 +1169,9 @@ router.post(API_ROUTES.files.upload, async (req: Request<object, unknown, Upload
 });
 
 router.put(API_ROUTES.files.content, async (req: Request<object, unknown, WriteContentRequest>, res: Response<WriteContentResponse | ErrorResponse>) => {
-  const validation = validatePutContentRequest(req.body);
-  if (!validation.ok) {
-    log.warn("files", validation.logMsg, validation.logExtra);
-    badRequest(res, validation.message);
-    return;
-  }
-  const { relPath, content, bytes: contentBytes } = validation;
-  log.info("files", "PUT content: start", { pathPreview: previewSnippet(relPath), bytes: contentBytes });
+  const inputs = validateWriteRequestOr400(req.body, res, "PUT content");
+  if (!inputs) return;
+  const { relPath, content, bytes: contentBytes } = inputs;
 
   const resolved = await resolveExistingTextFile(relPath);
   if (!resolved.ok) {
@@ -1205,21 +1192,7 @@ router.put(API_ROUTES.files.content, async (req: Request<object, unknown, WriteC
     serverError(res, "Failed to write file");
     return;
   }
-  const fresh = await statSafeAsync(resolved.absPath);
-  log.info("files", "PUT content: ok", {
-    pathPreview: previewSnippet(relPath),
-    bytes: fresh?.size ?? contentBytes,
-  });
-  // Notify subscribers + run side-effect hooks (e.g. memory topic
-  // index regeneration in #1032). Fire-and-forget; the publisher
-  // logs failures internally and the user-facing write already
-  // succeeded.
-  void publishFileChange(relPath);
-  res.json({
-    path: relPath,
-    size: fresh?.size ?? contentBytes,
-    modifiedMs: fresh?.mtimeMs ?? Date.now(),
-  });
+  await respondWithWrittenFile(res, { absPath: resolved.absPath, relPath, fallbackBytes: contentBytes, logLabel: "PUT content" });
 });
 
 router.get(API_ROUTES.files.raw, (req: Request<object, unknown, unknown, PathQuery>, res: Response<ErrorResponse>) => {

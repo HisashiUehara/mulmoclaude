@@ -413,9 +413,8 @@ import { useAppApi } from "../../composables/useAppApi";
 import { buildPdfFilename } from "@mulmoclaude/markdown-utils/files/filename";
 import PageChatComposer from "../../components/PageChatComposer.vue";
 import { pluginBuiltinRoleIds, pluginEndpoints, pluginPageRoute } from "../api";
-import { parseFrontmatter } from "@mulmoclaude/markdown-utils/markdown/frontmatter";
 import { useMarkdownDoc } from "../../composables/useMarkdownDoc";
-import { findTaskLines, toggleTaskAt } from "@mulmoclaude/markdown-utils/markdown/taskList";
+import { computeTagChips, computeTagCounts, computeToggledContent, formatUpdated, metaString, metaStringArray } from "./helpers";
 import { apiPost } from "../../utils/api";
 import {
   WIKI_ACTION,
@@ -665,38 +664,15 @@ watch(
   { immediate: true },
 );
 
-// Tag frequencies for the filter bar — sorted by count desc, then
-// name asc so the most common tags appear first and equally-common
-// tags stay in deterministic order. Singletons are dropped: a tag
-// used on a single page adds no filtering value, just visual noise.
-// Per-entry `#tag` chips still render every tag, so singletons stay
-// clickable from the row itself. Beyond singletons, the minimum count
-// is raised adaptively so the chip row stays around TARGET_FILTER_CHIPS
-// even on wikis with hundreds of pages — the cutoff is the count of
-// the tag at the target position, which keeps tied-popularity tags
-// grouped together rather than slicing them arbitrarily.
+// Tag filter chips. The counting + adaptive cutoff rules live in
+// `computeTagCounts` / `computeTagChips` (helpers.ts, tested); the
+// target chip count is the one view-level knob. `tagCounts` stays a
+// separate computed so the fallback chip below — the active filter
+// when the cutoff hides it — can read a real count instead of
+// understating a dropped non-singleton tag as 1.
 const TARGET_FILTER_CHIPS = 20;
-// Full per-tag count map. Kept as its own computed (rather than
-// folded into `allTags`) so the fallback chip below — rendered when
-// the active filter is a tag the cutoff hides — can look up the
-// real count instead of falling back to a hardcoded 1, which would
-// understate the count of any non-singleton tag the adaptive cutoff
-// drops from the chip row.
-const tagCounts = computed<Map<string, number>>(() => {
-  const counts = new Map<string, number>();
-  for (const entry of pageEntries.value) {
-    for (const tag of entry.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
-  }
-  return counts;
-});
-const allTags = computed<[string, number][]>(() => {
-  const meaningful = [...tagCounts.value.entries()]
-    .filter(([, count]) => count > 1)
-    .sort(([tagA, countA], [tagB, countB]) => countB - countA || tagA.localeCompare(tagB));
-  if (meaningful.length <= TARGET_FILTER_CHIPS) return meaningful;
-  const [, cutoff] = meaningful[TARGET_FILTER_CHIPS - 1];
-  return meaningful.filter(([, count]) => count >= cutoff);
-});
+const tagCounts = computed<Map<string, number>>(() => computeTagCounts(pageEntries.value));
+const allTags = computed<[string, number][]>(() => computeTagChips(pageEntries.value, TARGET_FILTER_CHIPS));
 
 const visibleEntries = computed(() =>
   selectedTag.value === null ? pageEntries.value : pageEntries.value.filter((entry) => (entry.tags ?? []).includes(selectedTag.value as string)),
@@ -766,21 +742,6 @@ const WIKI_BASE_DIR = computed(() => (action.value === "page" || action.value ==
 // pages render unchanged so old wiki content keeps its current
 // appearance).
 
-/** String accessor that survives the `unknown` type from FAILSAFE
- *  YAML — `meta` values are all strings under FAILSAFE schema, but
- *  type-narrowing requires a runtime check. */
-function metaString(value: unknown): string | null {
-  if (typeof value !== "string" || value.length === 0) return null;
-  return value;
-}
-
-/** Array-of-strings accessor for `tags`. Allows the chips template
- *  to skip a render branch when the field is missing or malformed. */
-function metaStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === "string");
-}
-
 const pageMeta = computed(() => ({
   created: metaString(mdDoc.value.meta.created),
   updated: metaString(mdDoc.value.meta.updated),
@@ -792,30 +753,6 @@ const hasPageMeta = computed(() => {
   const meta = pageMeta.value;
   return meta.created !== null || meta.updated !== null || meta.editor !== null || meta.tags.length > 0;
 });
-
-/** Render `updated` ISO timestamp as `YYYY-MM-DD HH:MM` in the
- *  user's local timezone. The on-disk value is UTC ISO
- *  (`2026-04-27T14:32:56.789Z`) — showing the raw `14:32` would
- *  read like local wall time on a non-UTC machine and mislead
- *  the user (codex review iter-1 #905). Falls back to the raw
- *  value if it doesn't parse as a Date (defensive — user-supplied
- *  frontmatter may have any string here). */
-function formatUpdated(raw: string): string {
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return raw;
-  // `sv-SE` locale gives ISO-like `YYYY-MM-DD HH:MM` (with a
-  // space, no `T`) which matches the original format intent.
-  // `hour12: false` defends against locales that would otherwise
-  // emit AM/PM.
-  return new Intl.DateTimeFormat("sv-SE", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(parsed);
-}
 
 // Header subtitle for the page-edit action. "Wiki edit · {slug} ·
 // {timestamp}" so the user immediately sees this is a moment-in-
@@ -1023,37 +960,6 @@ async function persistWikiPage(pageName: string, newContent: string, generation:
   navError.value = null;
 }
 
-// Split the current content into the frontmatter prefix (delimiters
-// + YAML) and the body marked actually renders. Reassembling
-// `prefix + body` round-trips byte-for-byte regardless of
-// frontmatter shape — the body length is always exact.
-function splitFrontmatter(): { prefix: string; body: string } {
-  const parsed = parseFrontmatter(content.value);
-  const { body } = parsed;
-  const prefix = content.value.slice(0, content.value.length - body.length);
-  return { prefix, body };
-}
-
-// Compute the body-relative new content from a click. Returns null
-// when the toggle should be refused (drift, navigation away,
-// out-of-range index). The caller is responsible for reverting the
-// visual state and surfacing any error.
-function computeToggledContent(target: HTMLInputElement, root: HTMLElement): string | null {
-  const taskInputs = root.querySelectorAll<HTMLInputElement>("input.md-task");
-  const taskIndex = Array.from(taskInputs).indexOf(target);
-  if (taskIndex < 0) return null;
-
-  const { prefix, body } = splitFrontmatter();
-  const sourceTasks = findTaskLines(body);
-  if (sourceTasks.length !== taskInputs.length) {
-    navError.value = t("pluginWiki.taskCountMismatch");
-    return null;
-  }
-  const updatedBody = toggleTaskAt(body, taskIndex);
-  if (updatedBody === null) return null;
-  return prefix + updatedBody;
-}
-
 function onTaskCheckboxClick(event: MouseEvent, target: HTMLInputElement): void {
   // Only meaningful for the page view; everything else is read-only.
   if (action.value !== "page") {
@@ -1071,11 +977,16 @@ function onTaskCheckboxClick(event: MouseEvent, target: HTMLInputElement): void 
   }
 
   const root = event.currentTarget as HTMLElement;
-  const newContent = computeToggledContent(target, root);
-  if (newContent === null) {
+  const result = computeToggledContent(target, root, content.value);
+  if (result.status !== "toggled") {
+    // `mismatch` = source/DOM task-count drift; surface it. `skip`
+    // reverts silently (target not among the tasks, or an out-of-range
+    // toggle).
+    if (result.status === "mismatch") navError.value = t("pluginWiki.taskCountMismatch");
     target.checked = !target.checked;
     return;
   }
+  const newContent = result.content;
 
   // Optimistic local update — re-render is driven by `content`'s
   // existing watcher.

@@ -1,25 +1,11 @@
 // Small host-independent utilities the View needs, ported from
-// MulmoClaude's `src/utils/errors.ts` / `src/composables/useClipboardCopy.ts`
-// so the package has no host imports.
+// MulmoClaude's `src/composables/useClipboardCopy.ts` so the package has no
+// host imports. (`errorMessage` moved to `@mulmoclaude/common`.)
 
 import { ref, type Ref } from "vue";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** Canonical unknown-caught-value → human-readable string. Non-Error
- *  objects with a `details` (gRPC convention) or `message` string field
- *  have that field surfaced. */
-export function errorMessage(err: unknown, fallback?: string): string {
-  if (err instanceof Error) return err.message;
-  if (err !== null && typeof err === "object") {
-    const obj = err as { details?: unknown; message?: unknown };
-    if (typeof obj.details === "string" && obj.details) return obj.details;
-    if (typeof obj.message === "string" && obj.message) return obj.message;
-  }
-  if (fallback !== undefined) return fallback;
-  return String(err);
 }
 
 export interface UseClipboardCopyHandle {

@@ -29,5 +29,19 @@ duplicated," so they live here once.
 | `hasStringProp(v, k)` | `Record<k, string>` | key present with a string value |
 | `hasNumberProp(v, k)` | `Record<k, number>` | key present with a number value |
 
+Plus CSV/env helpers `parseCsvList(raw, { lowercase? })` and
+`parseCsvSet(raw, { lowercase? })` (empty set = "allow all" sentinel), and the
+error helper below.
+
+| Helper | Returns | Notes |
+|---|---|---|
+| `errorMessage(v, fallback?)` | `string` | unknown caught value → human-readable string; **isomorphic**, so Vue/browser surfaces use it too |
+
+`errorMessage` surfaces a non-empty string `details` (gRPC convention) or
+`message` field of a non-Error object (`details` wins) instead of
+`[object Object]`; `fallback` covers a thrown non-Error at an error boundary.
+This is the single home the #2217 consolidation could not reach, because
+`@mulmoclaude/core/utils` is server-only — core now re-exports this one.
+
 `isRecord` vs `isObj`: use `isRecord` whenever you go on to index string keys —
 `isObj` lets arrays through, which is rarely what you want for a JSON payload.

@@ -483,24 +483,29 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { marked } from "marked";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { ManageSkillsData, SkillSummary } from "./index";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../utils/api";
 import { handleExternalLinkClick } from "@mulmoclaude/markdown-utils/dom/externalLink";
-import { sanitizeMarkdownHtml } from "../../utils/markdown/sanitize";
+import { renderMarkdownToSafeHtml } from "../../utils/markdown/renderMarkdown";
 import { useMermaidRenderer } from "../../utils/markdown/useMermaid";
 import { pluginEndpoints } from "../api";
 import { buildRouteUrl } from "../meta-types";
 import type { SkillsEndpoints } from "./definition";
 import {
-  categorizeSkill,
   loadCollapsedSections,
   persistCollapsedSections,
   loadRepoCollapsed,
   persistRepoCollapsed,
   pickInitialSelection,
+  entryKey,
+  catalogActionParams,
+  groupEntriesByRepo,
+  repoLabel,
+  skillBadgeMeta,
+  PRESET_SOURCE_META,
   type SkillSectionKey,
+  type CatalogSource,
 } from "./categories";
 import { isPresetActivation } from "./presetDetection";
 
@@ -561,11 +566,7 @@ const editBody = ref("");
 
 const selected = computed(() => skills.value.find((skill) => skill.name === selectedName.value) ?? null);
 
-const renderedBody = computed(() => {
-  const body = detail.value?.body;
-  if (!body) return "";
-  return sanitizeMarkdownHtml(marked(body) as string);
-});
+const renderedBody = computed(() => renderMarkdownToSafeHtml(detail.value?.body));
 
 const skillMarkdownRef = ref<HTMLElement | null>(null);
 useMermaidRenderer(skillMarkdownRef, renderedBody);
@@ -587,7 +588,6 @@ const endpoints = pluginEndpoints<SkillsEndpoints>("skills");
 // star so the row updates from "★ Star" → "★ Starred".
 // `catalogActioningKey` (declared below) disables the button
 // mid-request to prevent double-clicks across Star / Run once.
-type CatalogSource = "preset" | "external";
 interface CatalogEntry {
   slug: string;
   name: string;
@@ -666,11 +666,7 @@ const selectedCatalog = ref<CatalogEntry | null>(null);
 const catalogDetail = ref<CatalogDetail | null>(null);
 const catalogDetailLoading = ref(false);
 
-const catalogRenderedBody = computed(() => {
-  const body = catalogDetail.value?.body;
-  if (!body) return "";
-  return sanitizeMarkdownHtml(marked(body) as string);
-});
+const catalogRenderedBody = computed(() => renderMarkdownToSafeHtml(catalogDetail.value?.body));
 
 const catalogMarkdownRef = ref<HTMLElement | null>(null);
 useMermaidRenderer(catalogMarkdownRef, catalogRenderedBody);
@@ -679,21 +675,7 @@ useMermaidRenderer(catalogMarkdownRef, catalogRenderedBody);
 // order returned by `/external/repos`. Repos with zero discoverable
 // entries still render (header + empty state) so an install that
 // found nothing is visible rather than silently absent.
-const externalGroups = computed<{ repo: ExternalRepo; entries: CatalogEntry[] }[]>(() =>
-  catalogRepos.value.map((repo) => ({
-    repo,
-    entries: catalogExternal.value
-      .filter((entry) => entry.repoId === repo.repoId)
-      .sort((leftEntry, rightEntry) => leftEntry.slug.localeCompare(rightEntry.slug)),
-  })),
-);
-
-function repoLabel(repo: ExternalRepo): string {
-  // `https://github.com/owner/repo` → `owner/repo`; fall back to the
-  // repoId if the URL is somehow unparseable.
-  const match = /github\.com\/([^/]+\/[^/]+?)(?:\.git)?\/?$/.exec(repo.url);
-  return match ? match[1] : repo.repoId;
-}
+const externalGroups = computed(() => groupEntriesByRepo(catalogExternal.value, catalogRepos.value));
 
 function isRepoOpen(repoId: string): boolean {
   return !repoCollapsed.value.has(repoId);
@@ -708,29 +690,6 @@ function toggleRepo(repoId: string): void {
   }
   repoCollapsed.value = next;
   persistRepoCollapsed(next);
-}
-
-// Body/query shape for star + preview: external entries are keyed by
-// (repoId, skillFolder); presets by slug. Centralised so the two call
-// sites can't drift.
-function catalogActionParams(entry: CatalogEntry): Record<string, string> {
-  if (entry.source === "external" && entry.repoId && entry.skillFolder) {
-    return { source: "external", repoId: entry.repoId, skillFolder: entry.skillFolder };
-  }
-  return { source: entry.source, slug: entry.slug };
-}
-
-// Stable UI identity. External `slug` is the backend-derived
-// `<owner>-<skillFolder>` activeId — lossy + owner-prefixed, so two
-// external entries can collide (dup Vue keys / testids, wrong row
-// highlighted, shared in-flight lock, stale preview guard passing for
-// the wrong item). `(repoId, skillFolder)` is the unique stable key;
-// presets keep their already-unique slug.
-function entryKey(entry: CatalogEntry): string {
-  if (entry.source === "external" && entry.repoId && entry.skillFolder) {
-    return `${entry.repoId}/${entry.skillFolder}`;
-  }
-  return entry.slug;
 }
 
 const selectedCatalogKey = computed(() => (selectedCatalog.value ? entryKey(selectedCatalog.value) : null));
@@ -753,21 +712,18 @@ interface SourceMeta {
   colour: string;
 }
 
+// Thin view wrapper: the pure skillBadgeMeta returns an i18n title KEY;
+// resolve it here through the live t() so the template keeps its
+// { icon, title, colour } contract.
 function skillBadge(skill: SkillSummary): SourceMeta {
-  const provenance = categorizeSkill(skill);
-  if (provenance === "system") {
-    return { icon: "lock", title: t("pluginManageSkills.sourceSystemTitle"), colour: "text-gray-500" };
-  }
-  if (provenance === "user") {
-    return { icon: "home", title: t("pluginManageSkills.sourceUserTitle"), colour: "text-blue-500" };
-  }
-  return { icon: "folder", title: t("pluginManageSkills.sourceProjectTitle"), colour: "text-green-600" };
+  const meta = skillBadgeMeta(skill);
+  return { icon: meta.icon, colour: meta.colour, title: t(meta.titleKey) };
 }
 
 const presetSourceMeta = computed<SourceMeta>(() => ({
-  icon: "inventory_2",
-  title: t("pluginManageSkills.sourcePresetTitle"),
-  colour: "text-gray-400",
+  icon: PRESET_SOURCE_META.icon,
+  colour: PRESET_SOURCE_META.colour,
+  title: t(PRESET_SOURCE_META.titleKey),
 }));
 
 // Reset the selection when the tool result is replaced (e.g. the
