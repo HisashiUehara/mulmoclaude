@@ -5,6 +5,7 @@
 import { evaluateConditionValues, readOperand, renderConditionOperand } from "../condition";
 import { findCellRefs } from "../evaluator";
 import { functionRegistry, type FunctionHandler } from "../registry";
+import { coerceToBoolean } from "../coerce-boolean";
 import type { CellValue } from "../types";
 
 const ifHandler: FunctionHandler = (args, context) => {
@@ -16,18 +17,7 @@ const ifHandler: FunctionHandler = (args, context) => {
 
   // Evaluate condition - use evaluateFormula to handle nested functions like MONTH()
   const conditionValue = context.evaluateFormula(condition);
-
-  // Convert to boolean
-  let conditionResult = false;
-  if (typeof conditionValue === "boolean") {
-    conditionResult = conditionValue;
-  } else if (typeof conditionValue === "number") {
-    conditionResult = conditionValue !== 0;
-  } else if (typeof conditionValue === "string") {
-    conditionResult = conditionValue.toLowerCase() === "true" || conditionValue !== "";
-  } else {
-    conditionResult = !!conditionValue;
-  }
+  const conditionResult = coerceToBoolean(conditionValue);
 
   // Return the appropriate value based on condition
   const resultValue = conditionResult ? trueValue : falseValue;
@@ -62,10 +52,7 @@ const andHandler: FunctionHandler = (args, context) => {
   if (args.length === 0) throw new Error("AND requires at least 1 argument");
 
   for (const arg of args) {
-    const value = context.evaluateFormula(arg.trim());
-    // Check if value is falsy (0, false, empty string, etc.)
-    // Note: !value already covers false, so we check for 0 and "0" explicitly
-    if (!value || value === 0 || value === "0") {
+    if (!coerceToBoolean(context.evaluateFormula(arg.trim()))) {
       return false;
     }
   }
@@ -76,9 +63,7 @@ const orHandler: FunctionHandler = (args, context) => {
   if (args.length === 0) throw new Error("OR requires at least 1 argument");
 
   for (const arg of args) {
-    const value = context.evaluateFormula(arg.trim());
-    // Check if value is truthy (non-zero, non-empty)
-    if (value && value !== 0 && value !== "0") {
+    if (coerceToBoolean(context.evaluateFormula(arg.trim()))) {
       return true;
     }
   }
@@ -88,9 +73,7 @@ const orHandler: FunctionHandler = (args, context) => {
 const notHandler: FunctionHandler = (args, context) => {
   if (args.length !== 1) throw new Error("NOT requires 1 argument");
 
-  const value = context.evaluateFormula(args[0]);
-  // Note: !value already covers false
-  return !value || value === 0 || value === "0";
+  return !coerceToBoolean(context.evaluateFormula(args[0]));
 };
 
 const iferrorHandler: FunctionHandler = (args, context) => {
