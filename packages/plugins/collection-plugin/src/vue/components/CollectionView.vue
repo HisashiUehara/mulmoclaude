@@ -967,6 +967,7 @@ import {
   type FlagFilterState,
 } from "../collectionViewMode";
 import { collectionUi } from "../uiContext";
+import { useClickOutside } from "../composables/useClickOutside";
 import { relatedCollections, type RelatedCollection } from "../relatedCollections";
 import { activateRefLink, activatePathLink } from "../refLink";
 import {
@@ -974,11 +975,12 @@ import {
   isSortableField,
   nextSortDirection,
   sortItems,
-  numericSortValue,
-  stringSortValue,
-  dateSortValue,
-  enumSortValue,
-  boolSortValue,
+  sortValueOf,
+  itemMatchesQuery,
+  completionCoveredByFieldChip,
+  snapshotEmptyEnums,
+  cellKey,
+  generateUniqueId,
   shortHexId,
   defangForPrompt,
   actionVisible,
@@ -994,7 +996,7 @@ import {
   rowFromItem,
   type Ymd,
   type SortState,
-  type SortValue,
+  type SortValueDeps,
   type CollectionAction,
   type CollectionMutateAction,
   type CollectionCustomView as CustomViewSpec,
@@ -1182,16 +1184,6 @@ const { refDisplay, formatMoney, resolveCurrency, derivedDisplay, evaluateDerive
 
 const searchQuery = ref("");
 
-/** Case-insensitive substring match across an item's scalar fields.
- *  Object-valued fields (table rows, nested records) are skipped —
- *  they don't render as searchable text in the list table. */
-function itemMatchesQuery(item: CollectionItem, query: string): boolean {
-  return Object.values(item).some((val) => {
-    if (val === undefined || val === null || typeof val === "object") return false;
-    return String(val).toLowerCase().includes(query);
-  });
-}
-
 const filteredItems = computed<CollectionItem[]>(() => {
   const query = searchQuery.value.trim().toLowerCase();
   if (!query) return items.value;
@@ -1232,26 +1224,6 @@ interface FlagChip {
  *  `boolean` and a `toggle`'s projected on/off state. Enums stay out:
  *  they need a value picker, and kanban already slices by enum. */
 const CHIP_FIELD_TYPES = new Set(["flag", "boolean", "toggle"]);
-
-/** True when an existing FIELD chip already expresses the legacy
- *  completion predicate exactly, so a synthesized "done" chip would be a
- *  duplicate: a boolean `completionField` (done ⇔ `"true"` ⇔ the
- *  boolean's own chip), or a `toggle` projecting the `completionField`
- *  whose `onValue` is the single done value (the todos-schema shape:
- *  toggle "Done" on `status` + `completionDoneValues: ["done"]`). A
- *  superset pair (extra done values) still synthesizes — no field chip
- *  covers it. */
-function completionCoveredByFieldChip(schema: {
-  fields: Record<string, FieldSpec>;
-  completionField?: string;
-  completionDoneValues?: readonly string[];
-}): boolean {
-  const { completionField, completionDoneValues } = schema;
-  if (completionDoneValues?.length !== 1) return false;
-  const [doneValue] = completionDoneValues;
-  if (schema.fields[completionField ?? ""]?.type === "boolean") return doneValue === "true";
-  return Object.values(schema.fields).some((field) => field.type === "toggle" && field.field === completionField && field.onValue === doneValue);
-}
 
 const flagChips = computed<FlagChip[]>(() => {
   const schema = collection.value?.schema;
@@ -1353,28 +1325,7 @@ function flagChipClass(key: string): string {
 const activeFlagFilterCount = computed<number>(() => flagChips.value.filter((chip) => flagFilterMode(chip.key) !== undefined).length);
 
 // ── Filter dropdown open/close (same pattern as the "+" add-view menu) ──
-const filterMenuOpen = ref<boolean>(false);
-const filterMenuRef = ref<HTMLElement | null>(null);
-
-/** Shadow-DOM-safe "did this event land inside the element?". A document-level
- *  listener sees `event.target` retargeted to the shadow HOST when the
- *  component is mounted in a shadow root (MulmoTerminal's PluginFrame), so
- *  `element.contains()` is always false there and the menu closes on the
- *  mousedown before the inner button's click can fire. `composedPath()` still
- *  lists the element for open shadow trees — and in the light DOM too, so both
- *  hosts share this one test. */
-function eventInsideElement(event: Event, element: HTMLElement | null): boolean {
-  return element !== null && event.composedPath().includes(element);
-}
-
-function closeFilterMenuOnOutsideClick(event: MouseEvent): void {
-  if (!eventInsideElement(event, filterMenuRef.value)) filterMenuOpen.value = false;
-}
-
-watch(filterMenuOpen, (open) => {
-  if (open) document.addEventListener("mousedown", closeFilterMenuOnOutsideClick);
-  else document.removeEventListener("mousedown", closeFilterMenuOnOutsideClick);
-});
+const { open: filterMenuOpen, menuRef: filterMenuRef } = useClickOutside();
 
 function flagChipTitle(chip: FlagChip): string {
   const mode = flagFilterMode(chip.key);
@@ -1432,52 +1383,23 @@ function sortAriaValue(key: string): "ascending" | "descending" | "none" {
   return dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none";
 }
 
-/** Comparable value for scalar fields that key off the raw cell value. */
-function scalarSortValue(field: FieldSpec, raw: unknown): SortValue {
-  switch (field.type) {
-    case "number":
-    case "money":
-      return numericSortValue(raw);
-    case "date":
-    case "datetime":
-      return dateSortValue(raw);
-    case "enum":
-      return enumSortValue(field.values, raw);
-    case "boolean":
-      return boolSortValue(raw === true);
-    case "ref":
-      return field.to && typeof raw === "string" && raw ? stringSortValue(refDisplay(field.to, raw)) : stringSortValue(raw);
-    default:
-      return stringSortValue(raw);
-  }
-}
-
-/** Comparable value for one row under the active field. Toggle, flag, and
- *  derived need the whole record; every other type keys off the raw cell. */
-function sortValueOf(field: FieldSpec, key: string, item: CollectionItem): SortValue {
-  if (field.type === "toggle") return boolSortValue(toggleChecked(item, field));
-  if (field.type === "flag") return boolSortValue(flagValueOf(key, item));
-  if (field.type === "derived") return derivedSortValue(field, key, item);
-  return scalarSortValue(field, item[key]);
-}
-
-/** Derived rows sort by their display type: money/number → numeric,
- *  date → epoch, anything else → the enriched value as a string. */
-function derivedSortValue(field: FieldSpec, key: string, item: CollectionItem): SortValue {
-  const display = field.type === "derived" ? field.display : undefined;
-  if (display === undefined || display === "number" || display === "money") {
-    return numericSortValue(evaluateDerivedAgainstItem(field, key, item));
-  }
-  const enriched = render.deriveRecord(item);
-  if (display === "date") return dateSortValue(enriched[key]);
-  return stringSortValue(enriched[key]);
-}
+// Row readers the pure `sortValueOf` can't get from the raw cell: toggle /
+// flag projections, the derived-formula evaluator, the derived-record
+// enrichment, and ref display resolution — all backed by the rendering
+// composable. Stable function refs, so one object serves every row.
+const sortValueDeps: SortValueDeps = {
+  toggleChecked,
+  flagValueOf,
+  evaluateDerived: evaluateDerivedAgainstItem,
+  deriveRecord: render.deriveRecord,
+  resolveRefDisplay: refDisplay,
+};
 
 const sortedItems = computed<CollectionItem[]>(() => {
   const state = sortState.value;
   const field = state ? collection.value?.schema.fields[state.field] : undefined;
   if (!state || !field) return tableFilteredItems.value;
-  return sortItems(tableFilteredItems.value, state.direction, (item) => sortValueOf(field, state.field, item));
+  return sortItems(tableFilteredItems.value, state.direction, (item) => sortValueOf(field, state.field, item, sortValueDeps));
 });
 
 // ────────────────────────────────────────────────────────────────
@@ -1492,28 +1414,6 @@ const sortedItems = computed<CollectionItem[]>(() => {
 function rowId(item: CollectionItem): string {
   const primaryKey = collection.value?.schema.primaryKey;
   return primaryKey ? String(item[primaryKey] ?? "") : "";
-}
-
-/** Stable key for one cell in the `enumOriginallyEmpty` snapshot. */
-function cellKey(rowIdValue: string, fieldKey: string): string {
-  return `${rowIdValue}:${fieldKey}`;
-}
-
-/** Build the set of enum cells that were empty in the freshly-fetched
- *  records — the only cells whose inline dropdown offers an empty option. */
-function snapshotEmptyEnums(schema: CollectionDetail["schema"], records: CollectionItem[]): Set<string> {
-  const empty = new Set<string>();
-  const enumKeys = Object.entries(schema.fields)
-    .filter(([, field]) => field.type === "enum")
-    .map(([fieldKey]) => fieldKey);
-  if (enumKeys.length === 0) return empty;
-  for (const record of records) {
-    const recordId = String(record[schema.primaryKey] ?? "");
-    for (const fieldKey of enumKeys) {
-      if (record[fieldKey] == null || record[fieldKey] === "") empty.add(cellKey(recordId, fieldKey));
-    }
-  }
-  return empty;
 }
 
 /** Whether an inline enum dropdown should render its empty placeholder
@@ -1774,8 +1674,7 @@ function closeChat(): void {
 // component's lifetime and (re)built lazily on the menu's first open, so a
 // view open that never touches the pulldown never pays for the ontology
 // scan.
-const relatedMenuOpen = ref<boolean>(false);
-const relatedMenuRef = ref<HTMLElement | null>(null);
+const { open: relatedMenuOpen, menuRef: relatedMenuRef } = useClickOutside();
 const relatedLoading = ref<boolean>(false);
 /** Derived neighbors for `relatedFetchedSlug` (null until first fetched). */
 const relatedList = ref<RelatedCollection[] | null>(null);
@@ -1821,15 +1720,6 @@ function toggleRelatedMenu(): void {
   const slug = collection.value?.slug;
   if (relatedMenuOpen.value && slug && relatedFetchedSlug.value !== slug) void loadRelated(slug);
 }
-
-function closeRelatedMenuOnOutsideClick(event: MouseEvent): void {
-  if (!eventInsideElement(event, relatedMenuRef.value)) relatedMenuOpen.value = false;
-}
-
-watch(relatedMenuOpen, (open) => {
-  if (open) document.addEventListener("mousedown", closeRelatedMenuOnOutsideClick);
-  else document.removeEventListener("mousedown", closeRelatedMenuOnOutsideClick);
-});
 
 /** Hop to a related collection's detail page (same nav as the index cards). */
 function gotoRelated(slug: string): void {
@@ -2169,8 +2059,7 @@ function builtInViewOrTable(mode: CollectionViewMode): BuiltInViewMode {
 const canAddCustomView = computed<boolean>(() => Boolean(collection.value) && !embedded.value);
 
 // ── "+" add-view chooser (desktop vs phone target) ───────────────────
-const addMenuOpen = ref<boolean>(false);
-const addMenuRef = ref<HTMLElement | null>(null);
+const { open: addMenuOpen, menuRef: addMenuRef } = useClickOutside();
 
 /** Whether authoring a phone (remote app) view is worth offering — mirrors
  *  the selector filter above: without the host's `fetchRemoteView` binding a
@@ -2186,15 +2075,6 @@ function onAddViewClick(): void {
   }
   addMenuOpen.value = !addMenuOpen.value;
 }
-
-function closeAddMenuOnOutsideClick(event: MouseEvent): void {
-  if (!eventInsideElement(event, addMenuRef.value)) addMenuOpen.value = false;
-}
-
-watch(addMenuOpen, (open) => {
-  if (open) document.addEventListener("mousedown", closeAddMenuOnOutsideClick);
-  else document.removeEventListener("mousedown", closeAddMenuOnOutsideClick);
-});
 
 /** Seed a chat asking Claude to author a new custom view for this collection.
  *  Reuses the same chat-seed path as collection actions — the host injects a
@@ -2291,11 +2171,7 @@ function setCustomView(viewId: string): void {
  *  candidate (the server's overwrite guard is the final backstop). */
 function generateUniqueItemId(primaryKey: string): string {
   const existing = new Set(items.value.map((item) => String(item[primaryKey] ?? "")));
-  let candidate = shortHexId();
-  for (let attempt = 0; attempt < 8 && existing.has(candidate); attempt++) {
-    candidate = shortHexId();
-  }
-  return candidate;
+  return generateUniqueId(existing, shortHexId);
 }
 
 function openCreate(): void {
@@ -2889,9 +2765,6 @@ onUnmounted(() => {
   changeUnsub = null;
   clearLiveRefreshTimer();
   if (refreshNoteTimer !== undefined) clearTimeout(refreshNoteTimer);
-  document.removeEventListener("mousedown", closeAddMenuOnOutsideClick);
-  document.removeEventListener("mousedown", closeFilterMenuOnOutsideClick);
-  document.removeEventListener("mousedown", closeRelatedMenuOnOutsideClick);
 });
 
 // Embedded mode: report view/anchor changes so the chat card persists them
