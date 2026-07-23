@@ -22,10 +22,12 @@ import {
   persistRepoCollapsed,
   entryKey,
   catalogActionParams,
+  buildRepoInstallBody,
   groupEntriesByRepo,
   repoLabel,
   skillBadgeMeta,
   PRESET_SOURCE_META,
+  toggleInSet,
   type CatalogEntryIdentity,
 } from "../../../src/plugins/manageSkills/categories.js";
 
@@ -371,6 +373,26 @@ describe("manageSkills catalogActionParams", () => {
   });
 });
 
+// buildRepoInstallBody feeds both the fresh-install and the "update"
+// (re-install) call sites; they must send an identical shape.
+describe("manageSkills buildRepoInstallBody", () => {
+  it("carries url + trimmed subpath when a subpath is given", () => {
+    assert.deepEqual(buildRepoInstallBody("https://github.com/acme/a", "  skills  "), {
+      url: "https://github.com/acme/a",
+      subpath: "skills",
+    });
+  });
+
+  it("omits subpath when undefined", () => {
+    assert.deepEqual(buildRepoInstallBody("https://github.com/acme/a"), { url: "https://github.com/acme/a" });
+  });
+
+  it("omits subpath when it is empty or whitespace-only", () => {
+    assert.deepEqual(buildRepoInstallBody("https://github.com/acme/a", "   "), { url: "https://github.com/acme/a" });
+    assert.deepEqual(buildRepoInstallBody("https://github.com/acme/a", ""), { url: "https://github.com/acme/a" });
+  });
+});
+
 describe("manageSkills groupEntriesByRepo", () => {
   const repoA = { repoId: "repo-a", url: "https://github.com/acme/a" };
   const repoB = { repoId: "repo-b", url: "https://github.com/acme/b" };
@@ -485,5 +507,37 @@ describe("manageSkills PRESET_SOURCE_META", () => {
       colour: "text-gray-400",
       titleKey: "pluginManageSkills.sourcePresetTitle",
     });
+  });
+});
+
+// toggleInSet backs both sidebar collapse handlers (section-level and
+// per-repo). It must add-or-remove the key AND leave the input set
+// untouched — the callers replace the ref wholesale so Vue re-renders,
+// so an accidental in-place mutation would corrupt the previous value.
+describe("manageSkills toggleInSet", () => {
+  it("removes a key that is present", () => {
+    assert.deepEqual([...toggleInSet(new Set(["a", "b"]), "a")], ["b"]);
+  });
+
+  it("adds a key that is absent", () => {
+    assert.deepEqual([...toggleInSet(new Set(["a"]), "b")], ["a", "b"]);
+  });
+
+  it("toggles from empty to a single-member set and back", () => {
+    const added = toggleInSet(new Set<string>(), "x");
+    assert.deepEqual([...added], ["x"]);
+    assert.deepEqual([...toggleInSet(added, "x")], []);
+  });
+
+  it("never mutates the input set", () => {
+    const input = new Set(["a"]);
+    toggleInSet(input, "a");
+    toggleInSet(input, "b");
+    assert.deepEqual([...input], ["a"], "input must stay unchanged");
+  });
+
+  it("returns a new set instance (reference changes for reactivity)", () => {
+    const input = new Set(["a"]);
+    assert.notEqual(toggleInSet(input, "a"), input);
   });
 });
