@@ -61,6 +61,10 @@ export default defineConfig({
         // ONE instance (the injected PLUGIN_RUNTIME_KEY Symbol must match); `vue`
         // is an optional peer of core.
         "plugin-vue/index": "src/plugin-vue/index.ts",
+        // Own entry, not part of the plugin-vue barrel: `vue-i18n` is an optional
+        // peer, so only the plugins that drive their own i18n instance (accounting,
+        // collection) should have to resolve it — barrel consumers must not.
+        "plugin-vue/i18n": "src/plugin-vue/pluginI18n.ts",
         // Browser-safe remote custom-view contract (phase 3) — consumed by the
         // host server, the desktop phone-frame preview, and mulmoserver.
         "remote-view/index": "src/remote-view/index.ts",
@@ -89,6 +93,7 @@ export default defineConfig({
         "zod",
         /^gui-chat-protocol/,
         "vue",
+        "vue-i18n",
         "fast-xml-parser",
         "js-yaml",
         "google-auth-library",
