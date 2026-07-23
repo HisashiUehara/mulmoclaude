@@ -5,11 +5,8 @@
 import { functionRegistry, toNumber, parseCriteria, type FunctionHandler, type FunctionContext } from "../registry";
 import { indexToColumn } from "../parser";
 import { parseRangeBounds, resolveIndexTarget } from "../formulaRefs";
+import { isApproximateMatch } from "./lookup-math";
 import type { CellValue } from "../types";
-
-// The 4th VLOOKUP/HLOOKUP argument (rangeLookup) is approximate-match when TRUE,
-// 1, "1", or omitted; FALSE/0 forces an exact match.
-const isApproximate = (rangeLookup: CellValue): boolean => rangeLookup === true || rangeLookup === 1 || rangeLookup === "1";
 
 const inclusiveRange = (start: number, end: number): number[] => Array.from({ length: Math.max(0, end - start + 1) }, (_, i) => start + i);
 
@@ -106,7 +103,7 @@ const vlookupHandler: FunctionHandler = (args, context) => {
   if (!bounds) throw new Error("Invalid table array range");
   const colIndexNum = toNumber(context.evaluateFormula(args[2]));
   const rangeLookup = args.length === 4 ? context.evaluateFormula(args[3]) : true;
-  const matchType = isApproximate(rangeLookup) ? 1 : 0;
+  const matchType = isApproximateMatch(rangeLookup) ? 1 : 0;
 
   const startColStr = indexToColumn(bounds.startCol);
   const lookupArray = columnValues(context, bounds.sheetPrefix, startColStr, bounds.startRow, bounds.endRow);
@@ -128,7 +125,7 @@ const hlookupHandler: FunctionHandler = (args, context) => {
   if (!bounds) throw new Error("Invalid range format");
   const rowIndexNum = toNumber(context.evaluateFormula(args[2]));
   const rangeLookup = args.length === 4 ? context.evaluateFormula(args[3]) : true;
-  const matchType = isApproximate(rangeLookup) ? 1 : 0;
+  const matchType = isApproximateMatch(rangeLookup) ? 1 : 0;
 
   const lookupArray = rowValues(context, bounds.sheetPrefix, bounds.startRow, bounds.startCol, bounds.endCol);
   const matchIdx = findMatchIndex(lookupValue, lookupArray, matchType);

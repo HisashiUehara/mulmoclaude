@@ -34,3 +34,28 @@ export function computeMode(values: number[]): number | string {
   const REPEAT_THRESHOLD = 2;
   return topFrequency >= REPEAT_THRESHOLD ? mode : NA_ERROR;
 }
+
+/** Sample size below which a sample variance/stdev is undefined. */
+const MIN_SAMPLE_SIZE = 2;
+
+const arithmeticMean = (values: number[]): number => values.reduce((sum, value) => sum + value, 0) / values.length;
+
+/**
+ * Sample variance (Excel VAR): the mean squared deviation divided by `n - 1`,
+ * not `n`. Dividing by `n` is the POPULATION variance (Excel's VARP); using it
+ * for VAR understates the spread. Fewer than two values leave no `n - 1` to
+ * divide by, so Excel reports `#DIV/0!` rather than a silent 0.
+ */
+export function sampleVariance(values: number[]): number | string {
+  if (values.length < MIN_SAMPLE_SIZE) return DIV_ZERO_ERROR;
+  const mean = arithmeticMean(values);
+  const sumSquaredDiffs = values.reduce((sum, value) => sum + (value - mean) ** 2, 0);
+  return sumSquaredDiffs / (values.length - 1);
+}
+
+/** Sample standard deviation (Excel STDEV): the square root of the sample
+ *  variance, and `#DIV/0!` on the same fewer-than-two-values boundary. */
+export function sampleStdev(values: number[]): number | string {
+  const variance = sampleVariance(values);
+  return typeof variance === "number" ? Math.sqrt(variance) : variance;
+}
