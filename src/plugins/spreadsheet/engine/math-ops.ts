@@ -74,6 +74,15 @@ export function safeLog(value: number): number | string {
   return Math.log(value);
 }
 
+/** Excel LOG(value, base): the base must also be positive and not 1, or the
+ *  result is #NUM! rather than the ∞ / NaN a bare division would give. */
+export function logWithBase(value: number, base: number): number | string {
+  const lnValue = safeLog(value);
+  if (typeof lnValue === "string") return lnValue;
+  if (base <= 0 || base === 1) return NUM_ERROR;
+  return lnValue / Math.log(base);
+}
+
 /** Base-10 log guarded to its domain (`LOG10(x)` for `x <= 0` is #NUM!). */
 export function safeLog10(value: number): number | string {
   if (value <= 0) return NUM_ERROR;

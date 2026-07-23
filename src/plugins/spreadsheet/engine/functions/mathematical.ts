@@ -3,7 +3,19 @@
  */
 
 import { functionRegistry, toNumber, type FunctionHandler } from "../registry";
-import { roundTo, roundUpTo, roundDownTo, floorToSignificance, ceilingToSignificance, modulo, power, safeLog, safeLog10, safeSqrt } from "../math-ops";
+import {
+  roundTo,
+  roundUpTo,
+  roundDownTo,
+  floorToSignificance,
+  ceilingToSignificance,
+  modulo,
+  power,
+  safeLog,
+  safeLog10,
+  safeSqrt,
+  logWithBase,
+} from "../math-ops";
 
 const roundHandler: FunctionHandler = (args, context) => {
   if (args.length !== 2) throw new Error("ROUND requires 2 arguments");
@@ -111,8 +123,7 @@ const logHandler: FunctionHandler = (args, context) => {
   }
   const number = toNumber(context.evaluateFormula(args[0]));
   const base = args.length === 2 ? toNumber(context.evaluateFormula(args[1])) : 10;
-  const lnNumber = safeLog(number);
-  return typeof lnNumber === "string" ? lnNumber : lnNumber / Math.log(base);
+  return logWithBase(number, base);
 };
 
 const log10Handler: FunctionHandler = (args, context) => {

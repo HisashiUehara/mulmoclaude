@@ -17,6 +17,7 @@ import {
   safeLog,
   safeLog10,
   safeSqrt,
+  logWithBase,
 } from "../../../../src/plugins/spreadsheet/engine/math-ops.ts";
 import { SpreadsheetEngine, type SheetData } from "../../../../src/plugins/spreadsheet/engine/index.ts";
 
@@ -100,6 +101,24 @@ describe("safeSqrt / safeLog / safeLog10 — domain", () => {
   });
 });
 
+describe("logWithBase — number and base domain", () => {
+  it("computes a valid base-N log", () => {
+    assert.ok(closeTo(logWithBase(8, 2) as number, 3));
+    assert.ok(closeTo(logWithBase(100, 10) as number, 2));
+  });
+
+  it("is #NUM! for a non-positive number", () => {
+    assert.equal(logWithBase(0, 10), "#NUM!");
+    assert.equal(logWithBase(-1, 10), "#NUM!");
+  });
+
+  it("is #NUM! for a base that is non-positive or exactly 1", () => {
+    assert.equal(logWithBase(8, 1), "#NUM!");
+    assert.equal(logWithBase(8, -2), "#NUM!");
+    assert.equal(logWithBase(8, 0), "#NUM!");
+  });
+});
+
 describe("the handlers surface the errors end-to-end", () => {
   const evalFormula = (formula: string): unknown => new SpreadsheetEngine().calculate({ name: "S", data: [[{ v: formula }]] } satisfies SheetData).data[0][0];
 
@@ -109,5 +128,8 @@ describe("the handlers surface the errors end-to-end", () => {
     assert.equal(evalFormula("=MOD(5, 0)"), "#DIV/0!");
     assert.equal(evalFormula("=ROUND(-2.5, 0)"), -3);
     assert.equal(evalFormula("=MOD(-3, 2)"), 1);
+    assert.equal(evalFormula("=LOG(8, 1)"), "#NUM!");
+    assert.equal(evalFormula("=LOG(8, -2)"), "#NUM!");
+    assert.equal(evalFormula("=LOG(8, 2)"), 3);
   });
 });
