@@ -6,7 +6,7 @@
 // MCP tool registry; the host gates them on `requiredEnv` and supplies the
 // `X_BEARER_TOKEN` env var. All formatting/fetch logic lives here.
 
-import { errorMessage } from "./internal";
+import { errorMessage } from "@mulmoclaude/common";
 import { EXPANSIONS, extractTweetId, fetchX, formatTweet, TWEET_FIELDS, USER_FIELDS, type XApiResponse, type XTweet, type XUser } from "./client";
 
 /** A tweet URL or bare id from model-emitted args: a string as given, a finite

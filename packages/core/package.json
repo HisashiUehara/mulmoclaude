@@ -172,6 +172,12 @@
       "require": "./dist/plugin-vue/index.cjs",
       "default": "./dist/plugin-vue/index.js"
     },
+    "./plugin-vue/i18n": {
+      "types": "./dist/plugin-vue/pluginI18n.d.ts",
+      "import": "./dist/plugin-vue/i18n.js",
+      "require": "./dist/plugin-vue/i18n.cjs",
+      "default": "./dist/plugin-vue/i18n.js"
+    },
     "./workspace-setup": {
       "types": "./dist/workspace-setup/index.d.ts",
       "import": "./dist/workspace-setup/index.js",
@@ -209,13 +215,17 @@
     "@receptron/task-scheduler": "*",
     "firebase": "^12.0.0",
     "gui-chat-protocol": "^1.1.0",
-    "vue": "^3.5.0"
+    "vue": "^3.5.0",
+    "vue-i18n": "^11.4.4"
   },
   "peerDependenciesMeta": {
     "firebase": {
       "optional": true
     },
     "vue": {
+      "optional": true
+    },
+    "vue-i18n": {
       "optional": true
     }
   },
@@ -227,7 +237,8 @@
     "typescript": "^6.0.3",
     "vite": "^8.1.5",
     "vite-plugin-dts": "^5.0.3",
-    "vue": "^3.5.40"
+    "vue": "^3.5.40",
+    "vue-i18n": "^11.4.7"
   },
   "license": "MIT"
 }

@@ -300,7 +300,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
@@ -506,6 +506,11 @@ const { refresh, abort: abortFreshFetch } = useFreshPluginData<WikiData>({
   },
   extract: (json) => (json as { data?: WikiData }).data ?? null,
   apply: (data) => {
+    // The endpoint only fetches the correct payload for index / page
+    // views; for log / lint_report / page-edit it returns the bare index,
+    // which would clobber the embedded result. Skip those (mirrors the
+    // guard Preview.vue carries — CodeRabbit V1 #6).
+    if (action.value !== WIKI_ACTION.index && action.value !== WIKI_ACTION.page) return;
     action.value = data.action ?? "index";
     title.value = data.title ?? "Wiki";
     content.value = data.content ?? "";
@@ -521,6 +526,10 @@ const { onTaskCheckboxClick } = useWikiPageSave({
   currentSlug,
   endpointBase: wikiEndpoints.base,
   refresh,
+});
+
+onBeforeUnmount(() => {
+  if (restoreToastTimer !== null) clearTimeout(restoreToastTimer);
 });
 
 function handleRestored(): void {
@@ -616,7 +625,10 @@ const WIKI_BASE_DIR = computed(() => (action.value === "page" || action.value ==
 // scrollable container would otherwise keep the previous page's
 // scrollTop. Reset to the top whenever the rendered body changes.
 const scrollRef = ref<HTMLElement | null>(null);
-watch(content, async () => {
+// Key the scroll reset on page identity, not raw `content`, so an in-place
+// edit (e.g. a task-checkbox toggle) doesn't yank a scrolled-down reader
+// back to the top.
+watch([currentSlugReactive, action], async () => {
   await nextTick();
   if (scrollRef.value) scrollRef.value.scrollTop = 0;
 });
