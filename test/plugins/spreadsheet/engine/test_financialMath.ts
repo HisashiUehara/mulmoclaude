@@ -5,7 +5,17 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeFv, computePmt, computeIpmt, computePpmt } from "../../../../src/plugins/spreadsheet/engine/financial-math.ts";
+import {
+  computeFv,
+  computePmt,
+  computeIpmt,
+  computePpmt,
+  computePv,
+  computeNper,
+  computeRate,
+  computeNpv,
+  computeIrr,
+} from "../../../../src/plugins/spreadsheet/engine/financial-math.ts";
 
 const closeTo = (actual: number, expected: number, eps = 0.01): boolean => Math.abs(actual - expected) <= eps;
 
@@ -66,5 +76,85 @@ describe("computeFv", () => {
 
   it("sums a zero-rate stream directly", () => {
     assert.ok(closeTo(computeFv(0, 10, -100, 0, 0), 1000, 1e-9), "zero-rate FV");
+  });
+});
+
+// PV / NPER / RATE / NPV / IRR were inline in the handlers before this refactor;
+// the values below were captured from the pre-refactor formulas (verbatim) and
+// cross-checked against Excel, so they double as regression pins.
+
+describe("computePv", () => {
+  it("matches Excel's present value of an annuity", () => {
+    // Excel PV(0.05, 10, -1000) = 7721.73 (paying out 1000/period is a positive PV).
+    assert.ok(closeTo(computePv(0.05, 10, -1000, 0, 0), 7721.73), "PV ≈ 7721.73");
+  });
+
+  it("discounts a zero-rate stream to its undiscounted total", () => {
+    assert.ok(closeTo(computePv(0, 10, -100, 0, 0), 1000, 1e-9), "zero-rate PV");
+  });
+
+  it("is the inverse of PMT — it recovers the principal from that payment", () => {
+    const payment = computePmt(RATE, NPER, PRINCIPAL, 0, 0);
+    assert.ok(closeTo(computePv(RATE, NPER, payment, 0, 0), PRINCIPAL, 1e-6), "PV(PMT(pv)) == pv");
+  });
+});
+
+describe("computeNper", () => {
+  it("counts the periods needed to pay off a loan (Excel value)", () => {
+    // Excel NPER(0.05, -1000, 8000) = 10.47.
+    assert.ok(closeTo(computeNper(0.05, -1000, 8000, 0, 0), 10.47), "NPER ≈ 10.47");
+  });
+
+  it("splits a zero-rate balance into equal periods", () => {
+    assert.ok(closeTo(computeNper(0, -100, 1000, 0, 0), 10, 1e-9), "zero-rate NPER");
+  });
+});
+
+describe("computeRate", () => {
+  it("recovers the rate implied by a known payment via Newton-Raphson", () => {
+    const payment = computePmt(0.05, 12, 1000, 0, 0);
+    assert.ok(closeTo(computeRate(12, payment, 1000, 0, 0, 0.1), 0.05, 1e-6), "RATE recovers 0.05");
+  });
+
+  // Deliberate known limitation: with no real root the iteration diverges to a
+  // finite nonsense value; Excel reports #NUM!. Pinned so a future change to the
+  // convergence handling is a conscious decision, not a silent regression.
+  it("returns a divergent finite value instead of Excel's #NUM! when no root exists", () => {
+    const diverged = computeRate(10, 100, 100, 100, 0, 0.1);
+    assert.ok(closeTo(diverged, -2.5804947624929158, 1e-9), "divergent finite rate is preserved");
+  });
+});
+
+describe("computeNpv", () => {
+  it("discounts each cash flow one period further out (Excel NPV)", () => {
+    // Excel NPV(0.1, -10000, 3000, 4200, 6800) = 1188.44 — the first flow is
+    // discounted one period, unlike IRR which places element 0 at period 0.
+    assert.ok(closeTo(computeNpv(0.1, [-10000, 3000, 4200, 6800]), 1188.44), "NPV ≈ 1188.44");
+  });
+
+  it("discounts a single flow by exactly one period", () => {
+    assert.ok(closeTo(computeNpv(0.1, [100]), 90.9090909, 1e-6), "100 / 1.1");
+  });
+
+  it("returns zero for an empty cash-flow series", () => {
+    assert.equal(computeNpv(0.1, []), 0);
+  });
+});
+
+describe("computeIrr", () => {
+  it("finds the rate that zeroes the NPV (Excel IRR)", () => {
+    assert.ok(closeTo(computeIrr([-100, 60, 60], 0.1), 0.130662, 1e-5), "IRR ≈ 0.130662");
+  });
+
+  it("drives the period-0 discounted cash flows to zero at the returned rate", () => {
+    const irr = computeIrr([-1000, 500, 400, 300, 100], 0.1);
+    const npvFromPeriodZero = [-1000, 500, 400, 300, 100].reduce((sum, value, index) => sum + value / (1 + irr) ** index, 0);
+    assert.ok(closeTo(npvFromPeriodZero, 0, 1e-6), "NPV at IRR ≈ 0");
+  });
+
+  // Same-sign cash flows have no internal rate of return; the derivative collapses
+  // and the current code throws rather than returning Excel's #NUM!. Pinned.
+  it("throws when the cash flows never change sign", () => {
+    assert.throws(() => computeIrr([100, 200, 300], 0.1), /IRR cannot converge/);
   });
 });
