@@ -19,6 +19,7 @@ export * from "./core/enumColors";
 export * from "./core/draft";
 export * from "./core/actionVisible";
 export * from "./core/backlinks";
+export * from "./core/linkTargets";
 export * from "./core/where";
 export * from "./core/completion";
 export * from "./core/dynamicIcon";
