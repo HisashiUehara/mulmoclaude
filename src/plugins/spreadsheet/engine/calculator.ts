@@ -11,6 +11,7 @@ import { expandRangeOrCell } from "./formulaRefs";
 import { parseDate, getDefaultDateFormat } from "./date-parser";
 import type { SheetData, CellValue, CalculatedSheet, CalculationError, FormulaInfo, SpreadsheetCell, CalculateOptions } from "./types";
 import { isObj } from "../../../utils/types";
+import { isEmptyCell } from "./cellEmpty";
 import { errorMessage } from "../../../utils/errors";
 
 /**
@@ -338,7 +339,13 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], option
         const rawValue = getRawValue(cell, isCurrentSheet ? row : undefined, isCurrentSheet ? col : undefined);
 
         if (options.numericOnly) {
-          if (!isNaN(rawValue as number)) {
+          // A blank cell is not a value. Dropping it from the NUMERIC list keeps
+          // SUM unchanged (a blank read as 0) while stopping it from inflating
+          // AVERAGE's denominator and COUNT's tally (#2358). The raw list keeps
+          // every cell so SUMIF/AVERAGEIF's criteria and value ranges stay
+          // row-aligned; dropping there would shift indexes and aggregate the
+          // wrong rows (Codex review).
+          if (!isEmptyCell(cell) && !isNaN(rawValue as number)) {
             values.push(rawValue);
           }
         } else {

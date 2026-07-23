@@ -171,7 +171,11 @@ const sumifHandler: FunctionHandler = (args, context) => {
 
   const criteriaRange = context.getRangeValuesRaw?.(args[0]) ?? context.getRangeValues(args[0]);
   const criteria = args[1].trim();
-  const sumRange = args.length === 3 ? context.getRangeValues(args[2]) : context.getRangeValues(args[0]);
+  // Raw, not numeric-only: dropping blanks here would shift the value range out
+  // of alignment with the (raw) criteria range, so a blank in sum_range would
+  // pull a later row's number into an earlier match (#2358 Codex review).
+  const sumRangeRef = args.length === 3 ? args[2] : args[0];
+  const sumRange = context.getRangeValuesRaw?.(sumRangeRef) ?? context.getRangeValues(sumRangeRef);
 
   const compareFn = parseCriteria(criteria);
 
@@ -192,7 +196,9 @@ const averageifHandler: FunctionHandler = (args, context) => {
 
   const criteriaRange = context.getRangeValuesRaw?.(args[0]) ?? context.getRangeValues(args[0]);
   const criteria = args[1].trim();
-  const avgRange = args.length === 3 ? context.getRangeValues(args[2]) : context.getRangeValues(args[0]);
+  // Raw, to stay row-aligned with the criteria range (see SUMIF, #2358).
+  const avgRangeRef = args.length === 3 ? args[2] : args[0];
+  const avgRange = context.getRangeValuesRaw?.(avgRangeRef) ?? context.getRangeValues(avgRangeRef);
 
   const compareFn = parseCriteria(criteria);
 
