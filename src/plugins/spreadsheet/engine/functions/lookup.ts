@@ -7,6 +7,7 @@ import { indexToColumn } from "../parser";
 import { parseRangeBounds, resolveIndexTarget } from "../formulaRefs";
 import { isApproximateMatch } from "./lookup-math";
 import type { CellValue } from "../types";
+import { NA_ERROR, REF_ERROR } from "../spreadsheet-errors";
 
 const inclusiveRange = (start: number, end: number): number[] => Array.from({ length: Math.max(0, end - start + 1) }, (_, i) => start + i);
 
@@ -104,7 +105,7 @@ const vlookupHandler: FunctionHandler = (args, context) => {
   const startColStr = indexToColumn(bounds.startCol);
   const lookupArray = columnValues(context, bounds.sheetPrefix, startColStr, bounds.startRow, bounds.endRow);
   const matchIdx = findMatchIndex(lookupValue, lookupArray, matchType);
-  if (matchIdx === -1) return "#N/A";
+  if (matchIdx === -1) return NA_ERROR;
 
   const resultColStr = indexToColumn(bounds.startCol + colIndexNum - 1);
   const resultRow = bounds.startRow + matchIdx;
@@ -121,7 +122,7 @@ const hlookupHandler: FunctionHandler = (args, context) => {
 
   const lookupArray = rowValues(context, bounds.sheetPrefix, bounds.startRow, bounds.startCol, bounds.endCol);
   const matchIdx = findMatchIndex(lookupValue, lookupArray, matchType);
-  if (matchIdx === -1) return "#N/A";
+  if (matchIdx === -1) return NA_ERROR;
 
   const resultColStr = indexToColumn(bounds.startCol + matchIdx);
   const resultRow = bounds.startRow + rowIndexNum - 1;
@@ -137,7 +138,7 @@ const matchHandler: FunctionHandler = (args, context) => {
 
   const index = findMatchIndex(lookupValue, lookupArray, matchType);
 
-  return index === -1 ? "#N/A" : index + 1; // 1-based index
+  return index === -1 ? NA_ERROR : index + 1; // 1-based index
 };
 
 const indexHandler: FunctionHandler = (args, context) => {
@@ -147,7 +148,7 @@ const indexHandler: FunctionHandler = (args, context) => {
   const colNum = args.length >= 3 ? toNumber(context.evaluateFormula(args[2])) : 1; // Default to 1 if omitted (for 1D arrays)
 
   const target = resolveIndexTarget(bounds, rowNum, colNum);
-  if (!target) return "#REF!";
+  if (!target) return REF_ERROR;
   return context.getCellValue(`${bounds.sheetPrefix}${indexToColumn(target.colIndex)}${target.row}`);
 };
 
@@ -155,7 +156,7 @@ const xlookupHandler: FunctionHandler = (args, context) => {
   const lookupValue = context.evaluateFormula(args[0]);
   const lookupArrayRange = args[1];
   const returnArrayRange = args[2];
-  const ifNotFound = args.length >= 4 ? context.evaluateFormula(args[3]) : "#N/A";
+  const ifNotFound = args.length >= 4 ? context.evaluateFormula(args[3]) : NA_ERROR;
   const matchMode = args.length >= 5 ? toNumber(context.evaluateFormula(args[4])) : 0;
   const searchMode = args.length >= 6 ? toNumber(context.evaluateFormula(args[5])) : 1;
 
@@ -213,7 +214,7 @@ const xlookupHandler: FunctionHandler = (args, context) => {
     return returnArray[matchIdx];
   }
 
-  return "#N/A";
+  return NA_ERROR;
 };
 
 // Register functions

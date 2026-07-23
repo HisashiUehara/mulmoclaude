@@ -9,37 +9,33 @@
  */
 
 import type { CalculationError } from "./types";
+import type { SpreadsheetErrorCode } from "./spreadsheet-errors";
 
 /** The evaluator-facing error kinds: every `CalculationError["type"]` except
  *  `circular`, which the calculator raises directly (not via a thrown error). */
 export type FormulaErrorType = Exclude<CalculationError["type"], "circular">;
 
-/** The cell value shown for each kind, matching Excel's error literals. */
-export const FORMULA_ERROR_VALUES: Record<FormulaErrorType, string> = {
+/** The error code shown for each kind, matching Excel's error literals. */
+export const FORMULA_ERROR_VALUES: Record<FormulaErrorType, SpreadsheetErrorCode> = {
   div_zero: "#DIV/0!",
   invalid_ref: "#REF!",
   syntax: "#NAME?",
   unknown: "#ERROR!",
 };
 
-/** Every string the engine treats as an error value, including the ones existing
- *  functions already return (`#N/A` from lookups, `#NUM!` from DATEDIF, …). Used
- *  to decide whether a referenced cell's value should propagate as an error. */
-const RECOGNIZED_ERROR_VALUES = new Set<string>([...Object.values(FORMULA_ERROR_VALUES), "#N/A", "#NUM!", "#VALUE!", "#NULL!"]);
-
-/** Reverse map for propagation: an error VALUE back to the kind it represents.
- *  Values without a dedicated kind (`#N/A`, `#NUM!`, …) propagate as `unknown`. */
+/** Reverse map for propagation: an error code back to the kind it represents.
+ *  Codes without a dedicated kind (`#N/A`, `#NUM!`, …) propagate as `unknown`. */
 const ERROR_VALUE_TO_TYPE: Record<string, FormulaErrorType> = {
   [FORMULA_ERROR_VALUES.div_zero]: "div_zero",
   [FORMULA_ERROR_VALUES.invalid_ref]: "invalid_ref",
   [FORMULA_ERROR_VALUES.syntax]: "syntax",
 };
 
-/** A recoverable formula failure carrying the kind and the cell value to show. */
+/** A recoverable formula failure carrying the kind and the code to show. */
 export class FormulaError extends Error {
   constructor(
     readonly errorType: FormulaErrorType,
-    readonly display: string,
+    readonly display: SpreadsheetErrorCode,
     message?: string,
   ) {
     super(message ?? display);
@@ -57,16 +53,15 @@ export const nameError = (funcName: string): FormulaError => new FormulaError("s
 
 export const unknownError = (message?: string): FormulaError => new FormulaError("unknown", FORMULA_ERROR_VALUES.unknown, message);
 
-/** Whether a value is one of the recognized Excel error literals. */
-export const isErrorValue = (value: unknown): value is string => typeof value === "string" && RECOGNIZED_ERROR_VALUES.has(value);
-
-/** The FormulaError that re-raises an error value read from a referenced cell,
- *  so `=A1+1` inherits A1's error instead of corrupting into `"#DIV/0!"+1`. */
-export const propagatedError = (value: string): FormulaError => new FormulaError(ERROR_VALUE_TO_TYPE[value] ?? "unknown", value, `Propagated error: ${value}`);
+/** The FormulaError that re-raises an error read from a referenced cell or a
+ *  nested call, so `=A1+1` inherits A1's error instead of corrupting into
+ *  `"#DIV/0!"+1`. */
+export const propagatedError = (value: SpreadsheetErrorCode): FormulaError =>
+  new FormulaError(ERROR_VALUE_TO_TYPE[value] ?? "unknown", value, `Propagated error: ${value}`);
 
 /** Map any thrown value onto the typed entry the calculator records. A
  *  `FormulaError` keeps its own kind and display; anything else is `unknown`. */
-export const classifyThrownError = (error: unknown): { type: FormulaErrorType; display: string } => {
+export const classifyThrownError = (error: unknown): { type: FormulaErrorType; display: SpreadsheetErrorCode } => {
   if (isFormulaError(error)) return { type: error.errorType, display: error.display };
   return { type: "unknown", display: FORMULA_ERROR_VALUES.unknown };
 };

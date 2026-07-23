@@ -89,3 +89,16 @@ export function errorMessage(err: unknown, fallback?: string): string {
   if (fallback !== undefined) return fallback;
   return String(err);
 }
+
+/** `Date` → `YYYY-MM-DD` in UTC — for dates that must not shift with the
+ *  host's local timezone (tool-trace search dirs, API date keys). Isomorphic
+ *  single source (#2480): the host re-exports it from `server/utils/date.ts`,
+ *  x-plugin imports it directly. The `@receptron/task-scheduler` copy stays
+ *  local on purpose — that leaf package is published independently and kept
+ *  dependency-free. Wall-clock questions use the host's `toLocalIsoDate`. */
+export function toUtcIsoDate(timestamp: Date): string {
+  const year = timestamp.getUTCFullYear();
+  const month = String(timestamp.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(timestamp.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
