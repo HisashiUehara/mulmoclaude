@@ -4,7 +4,7 @@
  * Core calculation engine with circular reference detection and cross-sheet support
  */
 
-import { formatNumber } from "./formatter";
+import { formatCellForDisplay } from "./cellFormatting";
 import { columnToIndex } from "./parser";
 import { evaluateFormula as evaluateFormulaFn } from "./evaluator";
 import { expandRangeOrCell } from "./formulaRefs";
@@ -96,6 +96,12 @@ function preprocessDates(data: SpreadsheetCell[][], preferDDMMYYYY: boolean): Sp
   );
 }
 
+// `skipFormatting` is internal, not a public knob: a cross-sheet reference
+// computes its target sheet only to READ values, so the display-formatting pass
+// is skipped there — a date must stay a serial, not become "03/04/2025" that a
+// downstream parseFloat reads as 3 (issue #2332).
+type SheetCalculateOptions = CalculateOptions & { skipFormatting?: boolean };
+
 /**
  * Calculate formulas in a single sheet
  *
@@ -103,8 +109,9 @@ function preprocessDates(data: SpreadsheetCell[][], preferDDMMYYYY: boolean): Sp
  * @param allSheets - All sheets for cross-sheet references
  * @returns Calculated sheet with formulas evaluated
  */
-export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], options: CalculateOptions = {}): CalculatedSheet {
+export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], options: SheetCalculateOptions = {}): CalculatedSheet {
   const preferDDMMYYYY = options.preferDDMMYYYY ?? false;
+  const skipFormatting = options.skipFormatting ?? false;
   // Normalize malformed data structures first
   const normalizedData = normalizeData(sheet.data);
 
@@ -259,8 +266,9 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], option
           const targetCalculated = targetSheet.data.map((row) => [...row]);
           sheetsCache.set(targetSheetName, targetCalculated);
 
-          // Recursively calculate the target sheet
-          const targetResult = calculateSheet(targetSheet, processedAllSheets, { preferDDMMYYYY });
+          // Resolve cross-sheet values RAW (skip display formatting) so a date
+          // cell reads as its serial, not the presentation string "03/04/2025".
+          const targetResult = calculateSheet(targetSheet, processedAllSheets, { preferDDMMYYYY, skipFormatting: true });
           sheetsCache.set(targetSheetName, targetResult.data);
           sheetData = targetResult.data as any[][];
         } else {
@@ -308,8 +316,9 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], option
           const targetCalculated = targetSheet.data.map((row) => [...row]);
           sheetsCache.set(targetSheetName, targetCalculated);
 
-          // Recursively calculate the target sheet
-          const targetResult = calculateSheet(targetSheet, processedAllSheets, { preferDDMMYYYY });
+          // Resolve cross-sheet values RAW (skip display formatting) so a date
+          // cell reads as its serial, not the presentation string "03/04/2025".
+          const targetResult = calculateSheet(targetSheet, processedAllSheets, { preferDDMMYYYY, skipFormatting: true });
           sheetsCache.set(targetSheetName, targetResult.data);
           sheetData = targetResult.data as any[][];
         } else {
@@ -404,35 +413,13 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], option
     }
   }
 
-  // Final formatting pass: apply formatting to all cells with format codes
-  for (let rowIdx = 0; rowIdx < data.length; rowIdx++) {
-    for (let colIdx = 0; colIdx < data[rowIdx].length; colIdx++) {
-      const originalCell = data[rowIdx][colIdx];
-      const calculatedValue = calculated[rowIdx][colIdx];
-
-      if (isObj(originalCell) && "v" in originalCell) {
-        const isFormula = typeof originalCell.v === "string" && originalCell.v.startsWith("=");
-
-        // Apply formatting if cell has a format code and calculated value is a number
-        if ("f" in originalCell && originalCell.f && typeof calculatedValue === "number") {
-          calculated[rowIdx][colIdx] = formatNumber(calculatedValue, originalCell.f);
-        }
-        // Auto-format date serial numbers from formulas without explicit format
-        else if (
-          isFormula &&
-          typeof calculatedValue === "number" &&
-          calculatedValue >= 36000 &&
-          calculatedValue <= 63499 &&
-          Number.isInteger(calculatedValue) &&
-          (!("f" in originalCell) || !originalCell.f)
-        ) {
-          // Check if this looks like a date serial number
-          // 36000 = Jul 1998, 63499 = Dec 2073
-          // Must be integer (dates without time component)
-          // Avoids formatting calculated averages/sums as dates
-          // Apply default date format
-          calculated[rowIdx][colIdx] = formatNumber(calculatedValue, preferDDMMYYYY ? "DD/MM/YYYY" : "MM/DD/YYYY");
-        }
+  // Final display-formatting pass: turn raw serials into presentation strings.
+  // Skipped when this sheet is computed only to resolve a cross-sheet reference,
+  // so the referencing cell reads the underlying value, not a display string.
+  if (!skipFormatting) {
+    for (let rowIdx = 0; rowIdx < data.length; rowIdx++) {
+      for (let colIdx = 0; colIdx < data[rowIdx].length; colIdx++) {
+        calculated[rowIdx][colIdx] = formatCellForDisplay(data[rowIdx][colIdx], calculated[rowIdx][colIdx], preferDDMMYYYY);
       }
     }
   }
