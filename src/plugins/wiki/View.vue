@@ -413,7 +413,7 @@ import { useAppApi } from "../../composables/useAppApi";
 import { buildPdfFilename } from "@mulmoclaude/markdown-utils/files/filename";
 import PageChatComposer from "../../components/PageChatComposer.vue";
 import { pluginBuiltinRoleIds, pluginEndpoints, pluginPageRoute } from "../api";
-import { useMarkdownDoc } from "../../composables/useMarkdownDoc";
+import { useMarkdownDoc } from "@mulmoclaude/core/plugin-vue";
 import { computeTagChips, computeTagCounts, computeToggledContent, formatUpdated, metaString, metaStringArray } from "./helpers";
 import { apiPost } from "../../utils/api";
 import {
