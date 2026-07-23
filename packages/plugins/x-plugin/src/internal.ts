@@ -1,8 +1,9 @@
 // Self-contained ports of the few host utilities the X tools relied on,
 // inlined so the package carries no dependency on MulmoClaude's server tree
-// (server/utils/{fetch,http,date,time}). Kept faithful to the originals; see
-// the matching files in the host repo for rationale. `errorMessage` is the
-// exception: it comes from the shared leaf `@mulmoclaude/common` (#2461).
+// (server/utils/{fetch,http,time}). Kept faithful to the originals; see
+// the matching files in the host repo for rationale. `errorMessage` (#2461)
+// and `toUtcIsoDate` (#2480) are the exceptions: they come from the shared
+// leaf `@mulmoclaude/common`.
 
 export const ONE_SECOND_MS = 1_000;
 
@@ -15,14 +16,6 @@ export async function safeResponseText(res: Response, maxLength = 200): Promise<
   } catch {
     return "";
   }
-}
-
-/** `Date` → `YYYY-MM-DD` in UTC. Mirrors server/utils/date.ts `toUtcIsoDate`. */
-export function toUtcIsoDate(timestamp: Date): string {
-  const year = timestamp.getUTCFullYear();
-  const month = String(timestamp.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(timestamp.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 /** `signal` is deliberately excluded. This compact port owns the signal it
