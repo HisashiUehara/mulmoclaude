@@ -26,25 +26,12 @@ const ifHandler: FunctionHandler = (args, context) => {
     return resultValue.slice(1, -1);
   }
 
-  // If result is a nested formula, evaluate it recursively
-  if (/^(SUM|AVERAGE|MAX|MIN|COUNT|IF|AND|OR|NOT)\(/i.test(resultValue)) {
-    return context.evaluateFormula(resultValue);
-  }
-
-  // Otherwise evaluate as expression
-  let expr = resultValue;
-
-  const refs = resultValue.match(/(?:'[^']+'|[^'!\s]+)![A-Z]+\d+|\$?[A-Z]+\$?\d+/g);
-  if (refs) {
-    for (const ref of refs) {
-      const value = context.getCellValue(ref);
-      const escapedRef = ref.replace(/\$/g, "\\$").replace(/'/g, "\\'");
-      expr = expr.replace(new RegExp(escapedRef.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), String(value));
-    }
-  }
-
-  const numResult = parseFloat(expr);
-  return isNaN(numResult) ? expr : numResult;
+  // Everything else — a nested call, an arithmetic expression, a reference — is
+  // evaluated by the engine. Hand-rolling it here silently returned a plausible
+  // wrong value twice over: a hard-coded list of nine function names sent
+  // `ROUND(A1,1)` back as its own text, and the fallback read `A1+1` through
+  // `parseFloat("3+1")`, yielding 3.
+  return context.evaluateFormula(resultValue);
 };
 
 const andHandler: FunctionHandler = (args, context) => {
