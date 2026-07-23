@@ -133,14 +133,18 @@ function applyOperator(operator: ComparisonOperator, left: CellValue, right: Cel
   return ordering <= 0;
 }
 
-/** True when a bare (non-comparison) condition counts as satisfied. Mirrors
- *  the spreadsheet convention rather than JavaScript's: 0 and an empty string
- *  are false, every other value is true. */
-export function isTruthyCondition(raw: string): boolean {
-  const value = readOperand(stripOuterParens(raw));
+/** Whether a resolved condition value counts as satisfied. Mirrors the
+ *  spreadsheet convention rather than JavaScript's: 0 and an empty string are
+ *  false, every other value is true. */
+function valueIsTruthy(value: CellValue): boolean {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value !== 0;
   return value !== "";
+}
+
+/** True when a bare (non-comparison) condition counts as satisfied. */
+export function isTruthyCondition(raw: string): boolean {
+  return valueIsTruthy(readOperand(stripOuterParens(raw)));
 }
 
 /** Evaluate a condition — one comparison, or a value tested for truthiness.
@@ -149,6 +153,17 @@ export function evaluateCondition(condition: string): boolean {
   const comparison = splitComparison(condition);
   if (!comparison) return isTruthyCondition(condition);
   return applyOperator(comparison.operator, readOperand(comparison.left), readOperand(comparison.right));
+}
+
+/** Like `evaluateCondition`, but each operand is resolved by `evaluate` — so a
+ *  caller holding the engine can compute arithmetic and sub-expressions
+ *  (`5+1>10`) instead of reading each side as a bare string. It still never runs
+ *  the condition as code: it only splits on the top-level comparison and
+ *  compares the two resolved values. */
+export function evaluateConditionValues(condition: string, evaluate: (operand: string) => CellValue): boolean {
+  const comparison = splitComparison(condition);
+  if (!comparison) return valueIsTruthy(evaluate(stripOuterParens(condition)));
+  return applyOperator(comparison.operator, evaluate(comparison.left), evaluate(comparison.right));
 }
 
 /** Render a cell's value as an operand for a condition string. A string is

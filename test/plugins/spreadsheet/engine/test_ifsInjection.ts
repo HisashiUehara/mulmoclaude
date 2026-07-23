@@ -164,6 +164,36 @@ describe("IFS — a reference inside a string literal stays literal text", () =>
   });
 });
 
+describe("IFS — bare TRUE/FALSE literals are booleans", () => {
+  // `evaluateFormula("FALSE")` returns the non-empty string "FALSE" (truthy);
+  // a bare logical literal in a condition must stay a boolean (Codex review).
+  it("skips a FALSE condition and matches a later TRUE", () => {
+    assert.equal(calculate("5", '=IFS(FALSE, "hit", TRUE, "miss")'), "miss");
+  });
+
+  it("matches a bare TRUE condition", () => {
+    assert.equal(calculate("5", '=IFS(TRUE, "hit")'), "hit");
+  });
+
+  it("uses TRUE as a catch-all after a false comparison", () => {
+    assert.equal(calculate("5", '=IFS(A1>10, "hit", TRUE, "miss")'), "miss");
+  });
+});
+
+describe("IFS — arithmetic operands are computed, not compared as text", () => {
+  // Removing eval left `A1+1>10` read as the string "5+1" vs 10, which flipped
+  // the branch. Each operand is now resolved by the engine's safe evaluator so
+  // the arithmetic is computed (Codex review).
+  it("computes an arithmetic left operand", () => {
+    assert.equal(calculate("5", '=IFS(A1+1>10, "hit", TRUE, "miss")'), "miss", "6 > 10 is false");
+    assert.equal(calculate("5", '=IFS(A1+1>5, "hit", TRUE, "miss")'), "hit", "6 > 5 is true");
+  });
+
+  it("computes arithmetic on both sides", () => {
+    assert.equal(calculate("4", '=IFS(A1*2 > 3+3, "hit", TRUE, "miss")'), "hit", "8 > 6 is true");
+  });
+});
+
 describe("IFS — the formula itself is data too", () => {
   it("does not execute an expression written into the condition", () => {
     marker.__ifsProbe4 = false;
