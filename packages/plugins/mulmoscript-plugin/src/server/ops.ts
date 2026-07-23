@@ -43,7 +43,9 @@ import {
 import type { MulmoBeat, MulmoImagePromptMedia, MulmoStudioContext } from "@mulmocast/types";
 import type { MulmoScriptGenerationEvent } from "../core/contract";
 import { normalizeStoryPath } from "../core/paths";
-import { errorText, fileToDataUri, resolveWithinRoot, stripDataUri } from "./support";
+import { errorMessage } from "@mulmoclaude/common";
+import { resolveWithinRoot } from "@mulmoclaude/core/files";
+import { fileToDataUri, stripDataUri } from "./support";
 import { enableGraphAIErrorCapture, setMulmoErrorCaptureLogger, withMulmoErrorCapture } from "./mulmoErrorCapture";
 import type {
   GenerateOpArgs,
@@ -389,9 +391,9 @@ export function createMulmoScriptServerOps(backend: MulmoScriptServerBackend) {
       log.warn("op failed", {
         ...(options.operation ? { operation: options.operation } : {}),
         filePath,
-        error: errorText(err),
+        error: errorMessage(err),
       });
-      return opServerError(errorText(err));
+      return opServerError(errorMessage(err));
     }
   }
 
@@ -679,7 +681,7 @@ export function createMulmoScriptServerOps(backend: MulmoScriptServerBackend) {
       }
       return { ok: true, moviePath: toStoryRef(result.outputPath) };
     } catch (err) {
-      genError = errorText(err);
+      genError = errorMessage(err);
       return opServerError(genError);
     } finally {
       inFlightMovies.delete(absoluteFilePath);
@@ -740,7 +742,7 @@ export function createMulmoScriptServerOps(backend: MulmoScriptServerBackend) {
         outputPath: result.outputPath,
       });
     } catch (err) {
-      genError = errorText(err);
+      genError = errorMessage(err);
       await writeErrorSidecar(errorSidecarPath, genError);
       log.error("background movie generation crashed", { filePath: wireFilePath, error: genError });
     } finally {
@@ -756,7 +758,7 @@ export function createMulmoScriptServerOps(backend: MulmoScriptServerBackend) {
     } catch (writeErr) {
       log.error("failed to write error sidecar", {
         errorSidecarPath,
-        error: errorText(writeErr),
+        error: errorMessage(writeErr),
       });
     }
   }
@@ -821,7 +823,7 @@ export function createMulmoScriptServerOps(backend: MulmoScriptServerBackend) {
       }
       return { ok: true, pdfPath: toStoryRef(result.outputPath) };
     } catch (err) {
-      genError = errorText(err);
+      genError = errorMessage(err);
       return opServerError(genError);
     } finally {
       inFlightPdfs.delete(absoluteFilePath);

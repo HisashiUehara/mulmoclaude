@@ -1,21 +1,10 @@
 // Self-contained ports of the few host utilities the X tools relied on,
 // inlined so the package carries no dependency on MulmoClaude's server tree
-// (server/utils/{errors,fetch,http,date,time}). Kept faithful to the
-// originals; see the matching files in the host repo for rationale.
+// (server/utils/{fetch,http,date,time}). Kept faithful to the originals; see
+// the matching files in the host repo for rationale. `errorMessage` is the
+// exception: it comes from the shared leaf `@mulmoclaude/common` (#2461).
 
 export const ONE_SECOND_MS = 1_000;
-
-/** Human-readable message from an unknown thrown value.
- *  Mirrors server/utils/errors.ts `errorMessage`. */
-export function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (err !== null && typeof err === "object") {
-    const obj = err as { details?: unknown; message?: unknown };
-    if (typeof obj.details === "string" && obj.details) return obj.details;
-    if (typeof obj.message === "string" && obj.message) return obj.message;
-  }
-  return String(err);
-}
 
 /** Best-effort response body text, capped, never throwing.
  *  Mirrors server/utils/http.ts `safeResponseText`. */
