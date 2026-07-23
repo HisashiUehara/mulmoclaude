@@ -4,6 +4,61 @@
 
 import { functionRegistry, toString, type FunctionHandler } from "../registry";
 
+const VALUE_ERROR = "#VALUE!";
+
+// A letter or a combining mark. A decomposed accented letter (e + U+0301) is two
+// code points; counting the mark as part of the word stops PROPER from treating
+// the base letter that follows it as a new word (éclair → Éclair, not ÉClair).
+const isWordCharacter = (char: string): boolean => /[\p{L}\p{M}]/u.test(char);
+
+// Excel PROPER capitalises a letter at the start of the text or after any
+// non-letter (space, punctuation, digit) and lowercases the rest — so word
+// boundaries include "'" and "-", which a space-only split misses.
+export const toProperCase = (text: string): string => {
+  const chars = Array.from(text);
+  const cased = chars.map((char, index) => (index === 0 || !isWordCharacter(chars[index - 1]) ? char.toUpperCase() : char.toLowerCase()));
+  return cased.join("");
+};
+
+// Excel LEFT/RIGHT reject a negative count with #VALUE!; 0 and over-length
+// counts keep substring's clamping.
+// Excel truncates a fractional count toward zero and rejects a non-finite or
+// negative one with #VALUE! (LEFT/RIGHT with "x" or -1). Normalising once keeps
+// LEFT and RIGHT consistent instead of each feeding a raw Number() to substring.
+const normalizeCharCount = (count: number): number | string => {
+  // Test the sign before truncating: Math.trunc(-0.5) is -0, which is not < 0.
+  if (!Number.isFinite(count) || count < 0) return VALUE_ERROR;
+  return Math.trunc(count);
+};
+
+export const takeLeft = (text: string, count: number): string => {
+  const chars = normalizeCharCount(count);
+  return typeof chars === "string" ? chars : text.substring(0, chars);
+};
+
+export const takeRight = (text: string, count: number): string => {
+  const chars = normalizeCharCount(count);
+  return typeof chars === "string" ? chars : text.substring(text.length - chars);
+};
+
+// Replace the nth (1-based) occurrence; split/join keeps matches non-overlapping,
+// matching the replace-all path.
+const replaceNthOccurrence = (text: string, oldText: string, newText: string, nth: number): string => {
+  const parts = text.split(oldText);
+  if (nth > parts.length - 1) return text;
+  return parts.slice(0, nth).join(oldText) + newText + parts.slice(nth).join(oldText);
+};
+
+// Excel SUBSTITUTE: empty old_text returns the text unchanged (never inserts
+// between characters); a supplied instance ≤ 0 or non-finite is a #VALUE! error.
+export const substituteText = (text: string, oldText: string, newText: string, instance?: number): string => {
+  if (oldText === "") return text;
+  if (instance === undefined) return text.split(oldText).join(newText);
+  const nth = Math.trunc(instance);
+  if (!Number.isFinite(nth) || nth <= 0) return VALUE_ERROR;
+  return replaceNthOccurrence(text, oldText, newText, nth);
+};
+
 const concatenateHandler: FunctionHandler = (args, context) => {
   if (args.length === 0) throw new Error("CONCATENATE requires at least 1 argument");
 
@@ -25,7 +80,7 @@ const leftHandler: FunctionHandler = (args, context) => {
   const text = toString(context.evaluateFormula(args[0]));
   const numChars = args.length === 2 ? Number(context.evaluateFormula(args[1])) : 1;
 
-  return text.substring(0, numChars);
+  return takeLeft(text, numChars);
 };
 
 const rightHandler: FunctionHandler = (args, context) => {
@@ -36,7 +91,7 @@ const rightHandler: FunctionHandler = (args, context) => {
   const text = toString(context.evaluateFormula(args[0]));
   const numChars = args.length === 2 ? Number(context.evaluateFormula(args[1])) : 1;
 
-  return text.substring(text.length - numChars);
+  return takeRight(text, numChars);
 };
 
 const midHandler: FunctionHandler = (args, context) => {
@@ -74,11 +129,7 @@ const properHandler: FunctionHandler = (args, context) => {
   if (args.length !== 1) throw new Error("PROPER requires 1 argument");
 
   const text = toString(context.evaluateFormula(args[0]));
-  return text
-    .toLowerCase()
-    .split(" ")
-    .map((word) => (word.length > 0 ? word[0].toUpperCase() + word.slice(1) : ""))
-    .join(" ");
+  return toProperCase(text);
 };
 
 const trimHandler: FunctionHandler = (args, context) => {
@@ -97,28 +148,9 @@ const substituteHandler: FunctionHandler = (args, context) => {
   const text = toString(context.evaluateFormula(args[0]));
   const oldText = toString(context.evaluateFormula(args[1]));
   const newText = toString(context.evaluateFormula(args[2]));
+  const instance = args.length === 4 ? Number(context.evaluateFormula(args[3])) : undefined;
 
-  if (args.length === 4) {
-    // Replace specific instance
-    const instance = Number(context.evaluateFormula(args[3]));
-    let count = 0;
-    let index = 0;
-
-    while (index < text.length) {
-      const pos = text.indexOf(oldText, index);
-      if (pos === -1) break;
-
-      count++;
-      if (count === instance) {
-        return text.substring(0, pos) + newText + text.substring(pos + oldText.length);
-      }
-      index = pos + 1;
-    }
-    return text; // Instance not found
-  } else {
-    // Replace all instances
-    return text.split(oldText).join(newText);
-  }
+  return substituteText(text, oldText, newText, instance);
 };
 
 const replaceHandler: FunctionHandler = (args, context) => {
