@@ -3,6 +3,7 @@
  */
 
 import { functionRegistry, toNumber, parseCriteria, type FunctionContext, type FunctionHandler } from "../registry";
+import { computeMode, DIV_ZERO_ERROR } from "./statistical-math";
 
 const isLetter = (char: string): boolean => /[A-Z]/i.test(char);
 
@@ -104,26 +105,7 @@ const medianHandler: FunctionHandler = (args, context) => {
 const modeHandler: FunctionHandler = (args, context) => {
   if (args.length !== 1) throw new Error("MODE requires 1 argument");
   const values = context.getRangeValues(args[0]).map(toNumber);
-
-  if (values.length === 0) return 0;
-
-  // Count frequency of each value
-  const frequency = new Map<number, number>();
-  for (const val of values) {
-    frequency.set(val, (frequency.get(val) || 0) + 1);
-  }
-
-  // Find the value with highest frequency
-  let maxFreq = 0;
-  let mode = values[0];
-  for (const [val, freq] of frequency.entries()) {
-    if (freq > maxFreq) {
-      maxFreq = freq;
-      mode = val;
-    }
-  }
-
-  return mode;
+  return computeMode(values);
 };
 
 const stdevHandler: FunctionHandler = (args, context) => {
@@ -171,7 +153,11 @@ const sumifHandler: FunctionHandler = (args, context) => {
 
   const criteriaRange = context.getRangeValuesRaw?.(args[0]) ?? context.getRangeValues(args[0]);
   const criteria = args[1].trim();
-  const sumRange = args.length === 3 ? context.getRangeValues(args[2]) : context.getRangeValues(args[0]);
+  // Raw, not numeric-only: dropping blanks here would shift the value range out
+  // of alignment with the (raw) criteria range, so a blank in sum_range would
+  // pull a later row's number into an earlier match (#2358 Codex review).
+  const sumRangeRef = args.length === 3 ? args[2] : args[0];
+  const sumRange = context.getRangeValuesRaw?.(sumRangeRef) ?? context.getRangeValues(sumRangeRef);
 
   const compareFn = parseCriteria(criteria);
 
@@ -192,7 +178,9 @@ const averageifHandler: FunctionHandler = (args, context) => {
 
   const criteriaRange = context.getRangeValuesRaw?.(args[0]) ?? context.getRangeValues(args[0]);
   const criteria = args[1].trim();
-  const avgRange = args.length === 3 ? context.getRangeValues(args[2]) : context.getRangeValues(args[0]);
+  // Raw, to stay row-aligned with the criteria range (see SUMIF, #2358).
+  const avgRangeRef = args.length === 3 ? args[2] : args[0];
+  const avgRange = context.getRangeValuesRaw?.(avgRangeRef) ?? context.getRangeValues(avgRangeRef);
 
   const compareFn = parseCriteria(criteria);
 
@@ -205,7 +193,11 @@ const averageifHandler: FunctionHandler = (args, context) => {
     }
   }
 
-  return count > 0 ? sum / count : 0;
+  // Excel returns #DIV/0! when no cell matches (the average of nothing is
+  // undefined), rather than a silent 0.
+  // Excel returns #DIV/0! when no cell matches (the average of nothing is
+  // undefined), rather than a silent 0.
+  return count > 0 ? sum / count : DIV_ZERO_ERROR;
 };
 
 // Register all statistical functions

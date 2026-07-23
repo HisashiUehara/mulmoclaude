@@ -16,6 +16,7 @@ import {
   safeSqrt,
   logWithBase,
 } from "../math-ops";
+import { toScalarNumber } from "../numericCoercion";
 
 const roundHandler: FunctionHandler = (args, context) => {
   if (args.length !== 2) throw new Error("ROUND requires 2 arguments");
@@ -54,8 +55,8 @@ const ceilingHandler: FunctionHandler = (args, context) => {
 
 const absHandler: FunctionHandler = (args, context) => {
   if (args.length !== 1) throw new Error("ABS requires 1 argument");
-  const number = toNumber(context.evaluateFormula(args[0]));
-  return Math.abs(number);
+  const number = toScalarNumber(context.evaluateFormula(args[0]));
+  return typeof number === "string" ? number : Math.abs(number);
 };
 
 const powerHandler: FunctionHandler = (args, context) => {
@@ -96,8 +97,8 @@ const truncHandler: FunctionHandler = (args, context) => {
 
 const signHandler: FunctionHandler = (args, context) => {
   if (args.length !== 1) throw new Error("SIGN requires 1 argument");
-  const number = toNumber(context.evaluateFormula(args[0]));
-  return Math.sign(number);
+  const number = toScalarNumber(context.evaluateFormula(args[0]));
+  return typeof number === "string" ? number : Math.sign(number);
 };
 
 const piHandler: FunctionHandler = (args) => {

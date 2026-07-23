@@ -21,6 +21,14 @@ export default defineConfig({
         // Browser-safe generic helpers (errorMessage / toError / truncate).
         // Host re-exports these instead of keeping its own copy (#2217).
         "utils/index": "src/utils/index.ts",
+        // Browser-safe artifact path builders (slug + YYYY/MM partition + the
+        // shared traversal guard) shared by the chart / html / mulmoscript
+        // presentation plugins (#2405). No node built-ins so it bundles into
+        // the plugins' browser (`./vue`) entries.
+        "artifacts/paths": "src/artifacts/paths.ts",
+        // Server-only atomic file I/O (tmp-write + rename, Windows retry) — the
+        // single source of truth shared by host, core, and plugins (#2399).
+        "files/index": "src/files/index.ts",
         // Server-only `fetchWithTimeout` (AbortController + timeout + caller-signal
         // composition). Own entry so `@mulmoclaude/core/fetch` stays independent of
         // the browser-safe `./utils` helpers. Host + registry + google share it (#2398).
@@ -47,6 +55,12 @@ export default defineConfig({
         "whisper/index": "src/whisper/index.ts",
         "whisper/client": "src/whisper/client.ts",
         "translation/client": "src/translation/client.ts",
+        // Browser-safe Vue composables shared by plugin Views and the host
+        // (useFileWatch / useMarkdownDoc / useClipboardCopy). `vue` +
+        // `gui-chat-protocol/vue` are externalized so the plugin and host resolve
+        // ONE instance (the injected PLUGIN_RUNTIME_KEY Symbol must match); `vue`
+        // is an optional peer of core.
+        "plugin-vue/index": "src/plugin-vue/index.ts",
         // Browser-safe remote custom-view contract (phase 3) — consumed by the
         // host server, the desktop phone-frame preview, and mulmoserver.
         "remote-view/index": "src/remote-view/index.ts",
@@ -68,11 +82,13 @@ export default defineConfig({
       external: [
         /^node:/,
         /^@receptron\//,
+        /^@mulmoclaude\/markdown-utils/,
         /^firebase/,
         /^@duckdb\//,
         "iconv-lite",
         "zod",
-        "gui-chat-protocol",
+        /^gui-chat-protocol/,
+        "vue",
         "fast-xml-parser",
         "js-yaml",
         "google-auth-library",

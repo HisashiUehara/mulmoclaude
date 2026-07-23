@@ -268,7 +268,7 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { TextResponseData } from "../plugins/textResponse/types";
 import { JSON_TOKEN_CLASS } from "../utils/format/jsonSyntax";
 import type { JsonToken, JsonlLine } from "../utils/format/jsonSyntax";
-import { formatScalarField, type MarkdownDocView } from "../composables/useMarkdownDoc";
+import { formatScalarField, type MarkdownDocView } from "@mulmoclaude/core/plugin-vue";
 import { rewriteMarkdownImageRefs } from "@mulmoclaude/markdown-utils/image/rewriteMarkdownImageRefs";
 import { API_ROUTES } from "../config/apiRoutes";
 import { useSharePack } from "../composables/useSharePack";

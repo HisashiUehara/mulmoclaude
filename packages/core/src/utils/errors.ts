@@ -3,26 +3,16 @@
 // function existed 14 times across 4 behaviours, and the two that mattered
 // disagreed on gRPC-shaped errors: `{ code, details, metadata }` surfaced as
 // "quota exceeded" through the host copy and as "[object Object]" through the
-// core ones. Browser-safe: pure string work, no node imports.
-
-// Non-Error objects with a `details` (gRPC convention) or `message` string
-// field have that field surfaced — without this they stringify to
-// `[object Object]`.
+// core ones.
 //
-// `fallback` covers the route-handler idiom where a throw of a plain non-Error
-// value should surface as a descriptive message ("rebuild failed") rather than
-// `String(err)` noise. Pass one at error-response boundaries; omit it for
-// logging contexts where `String(err)` is fine.
-export function errorMessage(err: unknown, fallback?: string): string {
-  if (err instanceof Error) return err.message;
-  if (err !== null && typeof err === "object") {
-    const obj = err as { details?: unknown; message?: unknown };
-    if (typeof obj.details === "string" && obj.details) return obj.details;
-    if (typeof obj.message === "string" && obj.message) return obj.message;
-  }
-  if (fallback !== undefined) return fallback;
-  return String(err);
-}
+// `errorMessage` itself now lives in `@mulmoclaude/common` (browser-safe leaf,
+// zero deps) so the Vue plugin surfaces can share the one implementation
+// instead of hand-copying it — `@mulmoclaude/core/utils` is server-only and
+// unreachable from browser code. This module keeps the same import surface so
+// no core/host consumer of `errorMessage` breaks.
+import { errorMessage } from "@mulmoclaude/common";
+
+export { errorMessage };
 
 // Coerce an unknown caught value into an Error, preserving the original if it
 // already was one. Use in error boundaries / Promise rejections / event-handler

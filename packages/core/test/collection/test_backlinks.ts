@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { backlinkRows, rollupValue, viaMatches } from "../../src/collection/core/backlinks.ts";
+import { backlinkRows, projectBacklinkRow, rollupValue, viaMatches } from "../../src/collection/core/backlinks.ts";
 import type { CollectionItem } from "../../src/collection/core/schema.ts";
 
 // A chapter whose `characters` table holds a `character` ref column, plus a
@@ -111,4 +111,18 @@ test("rollupValue count/sum resolve through a dotted via", () => {
     4,
     "sum of source-record `weight` over ch-1 (3) + ch-2 (1)",
   );
+});
+
+test("projectBacklinkRow keeps declared columns present on the row", () => {
+  const row: CollectionItem = { id: "ch-1", title: "Intro", weight: 3 };
+  assert.deepEqual(projectBacklinkRow(row, ["title"], "id"), { id: "ch-1", title: "Intro" });
+});
+
+test("projectBacklinkRow drops a display column named after an Object.prototype member", () => {
+  // The row has no own `toString` — a prototype-chain read would project the
+  // inherited function, which `JSON.stringify` then silently drops, making the
+  // column look empty to the LLM. The own-property guard omits it outright.
+  const row: CollectionItem = { id: "ch-1" };
+  assert.deepEqual(projectBacklinkRow(row, ["toString"], "id"), { id: "ch-1" });
+  assert.deepEqual(projectBacklinkRow(row, ["constructor", "hasOwnProperty"], "id"), { id: "ch-1" });
 });

@@ -462,7 +462,10 @@ const MESSAGES = { en, ja } as const;
 type LocaleKey = keyof typeof MESSAGES;
 
 function isSupportedLocale(value: string): value is LocaleKey {
-  return value in MESSAGES;
+  // Own-property only: a host locale of \`constructor\` / \`toString\` must
+  // fall through to \`en\`, not match an inherited Object.prototype member
+  // (which would then index MESSAGES to a function and blank every label).
+  return Object.hasOwn(MESSAGES, value);
 }
 
 export function useT() {

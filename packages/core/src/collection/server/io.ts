@@ -7,7 +7,7 @@ import { lstat, mkdir, open, readdir, readFile, unlink } from "node:fs/promises"
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { getWorkspaceRoot, log, publishCollectionChange } from "./host";
-import { writeFileAtomic } from "./atomic";
+import { writeFileAtomic } from "../../files/atomic.js";
 import { isContainedInRoot, itemFilePath, safeRecordId } from "./paths";
 import type { CollectionItem, CollectionSchema } from "../core/schema";
 
@@ -48,15 +48,20 @@ export async function isRegularFile(filePath: string): Promise<boolean> {
  *  or has a read/parse error. Caller logs the per-entry skip — this
  *  helper just classifies. Split out to keep `listItems` under the
  *  `sonarjs/cognitive-complexity` threshold. */
+/** Parse a record file's text into a plain-object `CollectionItem`, or
+ *  null when it isn't a JSON object (array / scalar / null). */
+function parseRecordJson(raw: string): CollectionItem | null {
+  const parsed: unknown = JSON.parse(raw);
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    return parsed as CollectionItem;
+  }
+  return null;
+}
+
 async function tryReadRecord(filePath: string): Promise<CollectionItem | null> {
   if (!(await isRegularFile(filePath))) return null;
   try {
-    const raw = await readFile(filePath, "utf-8");
-    const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as CollectionItem;
-    }
-    return null;
+    return parseRecordJson(await readFile(filePath, "utf-8"));
   } catch {
     return null;
   }
@@ -109,12 +114,7 @@ export async function readItem(dataDir: string, itemId: string, opts: IoOptions 
   const filePath = itemFilePath(dataDir, safeId);
   if (!(await isRegularFile(filePath))) return null;
   try {
-    const raw = await readFile(filePath, "utf-8");
-    const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as CollectionItem;
-    }
-    return null;
+    return parseRecordJson(await readFile(filePath, "utf-8"));
   } catch (err) {
     const error = err as { code?: string };
     if (error.code === "ENOENT") return null;

@@ -6,6 +6,7 @@
 
 import type { ToolDefinition } from "gui-chat-protocol";
 import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
+import { resolveActiveTools } from "./resolveActiveTools.js";
 import { TOOL_ENDPOINTS, PLUGIN_DEFS, MCP_PLUGIN_NAMES } from "./plugin-names.js";
 import { loadRuntimePlugins } from "../plugins/runtime-loader.js";
 import { loadDevPlugins, parseDevPluginsEnv } from "../plugins/dev-loader.js";
@@ -137,7 +138,7 @@ function expandActiveNames(base: readonly string[]): string[] {
 }
 
 let activeNames: string[] = expandActiveNames(PLUGIN_NAMES);
-let tools: ToolDef[] = activeNames.map((name) => ALL_TOOLS[name]).filter(Boolean);
+let tools: ToolDef[] = resolveActiveTools(activeNames, ALL_TOOLS);
 
 // Comma-joined tool names, used to detect whether runtime-plugin load
 // actually changed the advertised surface (so we only nudge the client
@@ -219,7 +220,7 @@ const runtimeReady: Promise<void> = (async () => {
     // entries, but only the names PLUGIN_NAMES authorises become live
     // tools.
     activeNames = expandActiveNames(PLUGIN_NAMES);
-    tools = activeNames.map((name) => ALL_TOOLS[name]).filter(Boolean);
+    tools = resolveActiveTools(activeNames, ALL_TOOLS);
   } catch (err) {
     process.stderr.write(`[mcp-server] runtime plugin load failed; static tools only: ${String(err)}\n`);
   }

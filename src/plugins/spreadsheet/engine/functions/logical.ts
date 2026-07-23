@@ -2,8 +2,11 @@
  * Logical Functions
  */
 
+import { evaluateConditionValues, readOperand, renderConditionOperand } from "../condition";
+import { findCellRefs } from "../evaluator";
 import { functionRegistry, type FunctionHandler } from "../registry";
 import { isErrorResult } from "../spreadsheet-errors";
+import type { CellValue } from "../types";
 
 const ifHandler: FunctionHandler = (args, context) => {
   if (args.length !== 3) throw new Error("IF requires 3 arguments");
@@ -138,35 +141,32 @@ const ifsHandler: FunctionHandler = (args, context) => {
     const condition = args[i];
     const value = args[i + 1];
 
-    // Evaluate condition
+    // Substitute references by POSITION (back to front), skipping any that sit
+    // inside a quoted string literal: `IFS(A1="B2", …)` must compare A1 to the
+    // TEXT "B2", not to cell B2's value (Codex review). findCellRefs already
+    // skips literals and matches absolute / sheet-qualified refs, so this also
+    // avoids the earlier regex double-escaping. renderConditionOperand quotes a
+    // text cell so its own operators are not re-parsed as comparisons.
     let condExpr = condition;
-
-    const cellRefs = condition.match(/(?:'[^']+'|[^'!\s]+)![A-Z]+\d+|\$?[A-Z]+\$?\d+/g);
-    if (cellRefs) {
-      for (const ref of cellRefs) {
-        const cellValue = context.getCellValue(ref);
-        const escapedRef = ref.replace(/\$/g, "\\$").replace(/'/g, "\\'");
-        condExpr = condExpr.replace(new RegExp(escapedRef.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), String(cellValue));
-      }
+    const cellRefs = findCellRefs(condition);
+    for (let index = cellRefs.length - 1; index >= 0; index--) {
+      const { ref, start } = cellRefs[index];
+      const rendered = renderConditionOperand(context.getCellValue(ref));
+      condExpr = condExpr.slice(0, start) + rendered + condExpr.slice(start + ref.length);
     }
 
-    // Evaluate the condition. Direct `eval()` is required here so the
-    // expression runs in strict-mode caller scope — switching to
-    // indirect eval (`globalThis.eval`) widens semantics to sloppy
-    // global script context (an expression like `x=1` would silently
-    // create a global, `this` flips from `undefined` to `globalThis`).
-    // The rolldown `[EVAL]` build warning is suppressed via the
-    // `onwarn` filter in `vite.config.ts` rather than by changing call
-    // semantics. (Codex review on PR #1855.)
-    let conditionResult = false;
-
-    if (/>=|<=|>|<|==|!=/.test(condExpr)) {
-      conditionResult = eval(condExpr);
-    } else {
-      conditionResult = !!eval(condExpr);
-    }
-
-    if (conditionResult) {
+    // Parsed, not executed. This used to call `eval` on `condExpr`, which is
+    // the substituted text — so a cell containing `globalThis.x = 1` ran as
+    // code whenever an IFS referenced it, and so did anything written into the
+    // formula itself. `readOperand` resolves the simple operands (TRUE/FALSE ->
+    // boolean, quoted text, numbers); an arithmetic expression it leaves as raw
+    // text is handed to the engine's safe evaluator so `A1+1>10` is computed.
+    // Only the top-level comparison is applied — the condition is never run.
+    const evaluateOperand = (operand: string): CellValue => {
+      const parsed = readOperand(operand);
+      return typeof parsed === "string" && parsed === operand.trim() ? context.evaluateFormula(operand) : parsed;
+    };
+    if (evaluateConditionValues(condExpr, evaluateOperand)) {
       // If result is a quoted string, return without quotes
 
       if (/^["'](.*)["']$/.test(value)) {
