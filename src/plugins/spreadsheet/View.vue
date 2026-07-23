@@ -127,7 +127,7 @@ import { applyCellHighlights, clearCellHighlights } from "./cellHighlights";
 import { getArrowKeyOffset, isWithinSheetBounds } from "./keyboardNav";
 import { handleExternalLinkClick } from "@mulmoclaude/markdown-utils/dom/externalLink";
 import { errorMessage as formatErrorMessage } from "../../utils/errors";
-import { escapeHtml } from "../../utils/markdown/wikiEmbeds";
+import { escapeHtml } from "@mulmoclaude/core/wiki";
 
 // Import all spreadsheet functions to populate the function registry
 import "./engine/functions";
