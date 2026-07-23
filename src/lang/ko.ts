@@ -797,6 +797,7 @@ const koMessages = {
     metadataEditor: "편집자",
     pageEditHeader: "Wiki 편집",
     snapshotExpired: "스냅샷 만료됨 — 현재 페이지 표시 중",
+    snapshotLoadError: "스냅샷을 불러오지 못했습니다 — 페이지가 여전히 존재할 수 있습니다. 새로고침해 보세요.",
     pageDeleted: "페이지가 삭제되었습니다",
     history: {
       tabContent: "본문",

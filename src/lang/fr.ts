@@ -805,6 +805,7 @@ const frMessages = {
     metadataEditor: "Éditeur",
     pageEditHeader: "Édition du wiki",
     snapshotExpired: "Instantané expiré — affichage de la page actuelle",
+    snapshotLoadError: "Impossible de charger l'instantané — la page existe peut-être encore. Actualisez la page.",
     pageDeleted: "Page supprimée",
     history: {
       tabContent: "Contenu",

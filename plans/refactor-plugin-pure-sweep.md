@@ -62,9 +62,10 @@ These are verified or plausible but out of scope for a mechanical fix-plus-test 
   no re-entrancy guard on Enter; unconfirmed delete (needs new i18n key ×8);
   `alwaysActive` MCP tools shown as toggleable; refresh-failure swallowed;
   `RolesView.vue` is a ~561-line near-verbatim fork (every fix lands twice).
-- **wiki**: stale-response tokens for `callApi`/`loadPageEditData`; non-404
-  snapshot failure rendered as "page deleted"; renderer vs `WIKI_LINK_PATTERN`
-  divergence (core); save-queue extraction (`taskSaveQueue`).
+- **wiki**: ~~stale-response tokens for `callApi`/`loadPageEditData`; non-404
+  snapshot failure rendered as "page deleted"~~ **(shipped, fix/wiki-stale-response)**;
+  renderer vs `WIKI_LINK_PATTERN` divergence (core); save-queue extraction
+  (`taskSaveQueue`).
 - **textResponse / StackView**: speaker labels hardcoded English (×8);
   StackView duplicate capture-phase link handler (opens 2 tabs); StackView
   edit panel emits to nothing (silent edit loss); copy button copies rewritten

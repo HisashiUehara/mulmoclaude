@@ -811,6 +811,7 @@ const esMessages = {
     metadataEditor: "Editor",
     pageEditHeader: "Edición de wiki",
     snapshotExpired: "Instantánea expirada — mostrando la página actual",
+    snapshotLoadError: "No se pudo cargar la instantánea — es posible que la página aún exista. Actualiza la página.",
     pageDeleted: "Página eliminada",
     history: {
       tabContent: "Contenido",

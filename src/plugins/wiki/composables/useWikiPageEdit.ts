@@ -11,8 +11,10 @@ export interface WikiPageEditState {
   pageEditTs: Ref<string | null>;
   // Shown only when the snapshot was gc'd and we fell back to the live page.
   pageEditBanner: Ref<string | null>;
-  // Flips on when neither the snapshot nor the live page survives.
+  // Flips on when neither the snapshot nor the live page survives (genuine deletion).
   pageEditDeleted: Ref<boolean>;
+  // Set on a transient load failure (network / 5xx) — the page may still exist.
+  pageEditError: Ref<string | null>;
   loadPageEditData: (slug: string, stamp: string) => Promise<void>;
   resetPageEdit: () => void;
 }
@@ -25,18 +27,26 @@ export function useWikiPageEdit(deps: WikiPageEditDeps): WikiPageEditState {
   const pageEditTs = ref<string | null>(null);
   const pageEditBanner = ref<string | null>(null);
   const pageEditDeleted = ref(false);
+  const pageEditError = ref<string | null>(null);
 
   function resetPageEdit(): void {
     pageEditTs.value = null;
     pageEditBanner.value = null;
     pageEditDeleted.value = false;
+    pageEditError.value = null;
   }
 
+  // Monotonic token so a slow load for one toolResult can't overwrite the
+  // state of a different one the user selected while it was in flight.
+  let loadToken = 0;
+
   async function loadPageEditData(slug: string, stamp: string): Promise<void> {
+    const token = ++loadToken;
     resetPageEdit();
     deps.content.value = "";
 
     const result = await loadPageEdit(slug, stamp);
+    if (token !== loadToken) return;
     if (result.kind === "snapshot") {
       pageEditTs.value = result.ts;
       deps.content.value = result.content;
@@ -47,8 +57,12 @@ export function useWikiPageEdit(deps: WikiPageEditDeps): WikiPageEditState {
       deps.content.value = result.content;
       return;
     }
+    if (result.kind === "error") {
+      pageEditError.value = t("pluginWiki.snapshotLoadError");
+      return;
+    }
     pageEditDeleted.value = true;
   }
 
-  return { pageEditTs, pageEditBanner, pageEditDeleted, loadPageEditData, resetPageEdit };
+  return { pageEditTs, pageEditBanner, pageEditDeleted, pageEditError, loadPageEditData, resetPageEdit };
 }
