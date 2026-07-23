@@ -39,3 +39,12 @@ export function computeIpmt(rate: number, per: number, nper: number, pv: number,
 export function computePpmt(rate: number, per: number, nper: number, pv: number, fv: number, type: number): number {
   return computePmt(rate, nper, pv, fv, type) - computeIpmt(rate, per, nper, pv, fv, type);
 }
+
+/** Net present value: each cash flow discounted by its 1-based period, in the
+ *  order given. The caller flattens ranges and scalars into one ordered list, so
+ *  a scalar after an N-cell range sits at period N+1 — NPV counts values, not
+ *  arguments. Using the argument index put a trailing scalar at the wrong (lower)
+ *  period (#2390). */
+export function computeNpv(rate: number, cashFlows: number[]): number {
+  return cashFlows.reduce((npv, flow, index) => npv + flow / Math.pow(1 + rate, index + 1), 0);
+}
