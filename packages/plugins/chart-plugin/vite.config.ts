@@ -11,9 +11,9 @@ export default createVuePluginConfig({
     vue: resolve(__dirname, "src/vue/index.ts"),
   },
   name: "GUIChatPluginChart",
-  // Externalized so the plugin and host share ONE instance: `vue` +
-  // `gui-chat-protocol/vue` for the injected PLUGIN_RUNTIME_KEY Symbol,
+  // Externalized so the plugin and host share ONE instance: `@mulmoclaude/core`
+  // + `vue` + `gui-chat-protocol/vue` for the injected PLUGIN_RUNTIME_KEY Symbol,
   // and `echarts` so the host's single charting engine is reused.
-  external: ["vue", "gui-chat-protocol", "gui-chat-protocol/vue", "echarts"],
+  external: [/^@mulmoclaude\/core/, "vue", "gui-chat-protocol", "gui-chat-protocol/vue", "echarts"],
   globals: { vue: "Vue", echarts: "echarts" },
 });

@@ -16,5 +16,5 @@ export default createVuePluginConfig({
     vue: resolve(__dirname, "src/vue/index.ts"),
   },
   name: "GUIChatPluginHtml",
-  external: ["vue", "gui-chat-protocol", "gui-chat-protocol/vue"],
+  external: [/^@mulmoclaude\/core/, "vue", "gui-chat-protocol", "gui-chat-protocol/vue"],
 });

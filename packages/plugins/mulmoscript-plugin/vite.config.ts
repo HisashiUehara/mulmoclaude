@@ -23,6 +23,7 @@ export default createVuePluginConfig({
   },
   name: "GUIChatPluginMulmoScript",
   external: [
+    /^@mulmoclaude\/core/,
     "vue",
     "gui-chat-protocol",
     "gui-chat-protocol/vue",
