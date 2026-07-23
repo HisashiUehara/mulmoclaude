@@ -93,7 +93,7 @@
     "@gui-chat-plugin/mindmap": "^1.0.0",
     "@gui-chat-plugin/present3d": "^1.0.0",
     "@marp-team/marp-core": "^4.4.0",
-    "@mulmobridge/client": "^0.1.5",
+    "@mulmobridge/client": "^0.2.0",
     "@mulmocast/deck": "^1.0.0",
     "@mulmocast/deck-web": "^1.1.1",
     "@mulmocast/types": "^2.9.0",
