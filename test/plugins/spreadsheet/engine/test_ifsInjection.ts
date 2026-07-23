@@ -92,6 +92,23 @@ describe("IFS — a text cell's operators are data, not syntax", () => {
   });
 });
 
+describe("IFS — operator characters inside a cell value stay data", () => {
+  // A cell holding `x>y` renders into the condition as a quoted literal, and the
+  // condition parser skips quoted regions when looking for the operator — so the
+  // inner `>` is never read as a comparison (Codex review flagged this path).
+  it("treats a bare reference to a string with an operator as truthy text", () => {
+    assert.equal(calculate("x>y", '=IFS(A1, "hit")'), "hit");
+  });
+
+  it("compares equal against a string literal that contains an operator", () => {
+    assert.equal(calculate("x>y", '=IFS(A1="x>y", "hit")'), "hit");
+  });
+
+  it("does not match when the operator-bearing strings differ", () => {
+    assert.equal(calculate("x>y", '=IFS(A1="a>b", "hit")'), "#N/A");
+  });
+});
+
 describe("IFS — the formula itself is data too", () => {
   it("does not execute an expression written into the condition", () => {
     marker.__ifsProbe4 = false;
