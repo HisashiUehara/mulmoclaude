@@ -52,9 +52,9 @@ These are verified or plausible but out of scope for a mechanical fix-plus-test 
   The `coalescingSaver` extraction (E2) falls out of the C6/C9 fix.
 - **photoLocations**: declared `locations-changed` pubsub channel wired nowhere
   (stale list until remount).
-- **scheduler TasksTab**: unsequenced refetch races; full-list remount on every
+- ~~**scheduler TasksTab**: unsequenced refetch races; full-list remount on every
   mutation (scroll/expand reset); unconfirmed one-click delete; hardcoded English
-  frequency-hint labels (8-locale change).
+  frequency-hint labels (8-locale change).~~ **Shipped (fix/scheduler-tasks-robustness).**
 - **manageSkills**: same-repo update/uninstall overlap; four loaders sharing one
   `catalogError` channel; post-delete selection clobber; `actionLock` extraction
   (release-if-owner).
