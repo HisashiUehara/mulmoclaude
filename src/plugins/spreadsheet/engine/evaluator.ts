@@ -67,7 +67,12 @@ export function maskStringLiterals(expr: string): string {
  *  rejected valid formulas like `=A1&"!"` and every escaped operand. Once the
  *  literals are masked, only the joining structure remains to validate. */
 export function isSafeConcatExpression(expr: string): boolean {
-  const structure = maskStringLiterals(expr);
+  // A boolean cell renders as a bare `true` / `false` here (renderOperand) —
+  // the only non-literal identifier the substitution can emit. Drop those words
+  // before validating so a boolean operand (`=A1&"!"` with A1 = true) still
+  // evaluates, while any other identifier keeps the structure from matching and
+  // never reaches `new Function`.
+  const structure = maskStringLiterals(expr).replace(/\b(?:true|false)\b/g, "");
   return /^[\d+\-*/(). "']*$/.test(structure);
 }
 

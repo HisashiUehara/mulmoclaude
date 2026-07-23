@@ -63,6 +63,16 @@ describe("isSafeConcatExpression", () => {
     assert.equal(isSafeConcatExpression('foo+"a"'), false);
     assert.equal(isSafeConcatExpression('"a"+process'), false);
   });
+
+  // A boolean cell renders as a bare `true` / `false`; those two words must
+  // pass or a boolean operand's concat is returned as raw text (Codex review).
+  // Any other identifier — even one containing them as a substring — is still
+  // rejected, so the exemption cannot smuggle code into `new Function`.
+  it("accepts the boolean operand words but nothing else", () => {
+    assert.equal(isSafeConcatExpression('true+"!"'), true);
+    assert.equal(isSafeConcatExpression('false+"!"'), true);
+    assert.equal(isSafeConcatExpression('truthy+"!"'), false);
+  });
 });
 
 describe("string concatenation through the engine (#2376)", () => {
@@ -86,5 +96,13 @@ describe("string concatenation through the engine (#2376)", () => {
 
   it("appends to a numeric string", () => {
     assert.equal(concat("5"), "5!");
+  });
+
+  // A boolean operand (here A1 is the comparison `=1=1`) renders as `true`,
+  // which the stricter safety gate used to reject — the concat came back as the
+  // raw formula text instead of the joined value (Codex review).
+  it("appends a literal to a boolean cell value", () => {
+    const sheet: SheetData = { name: "S", data: [[{ v: "=1=1" }, { v: '=A1&"!"' }]] };
+    assert.equal(new SpreadsheetEngine().calculate(sheet).data[0][1], "true!");
   });
 });
