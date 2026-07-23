@@ -6,6 +6,7 @@
  */
 
 import type { CellValue } from "./types";
+import { parseNumericString } from "./numericCoercion";
 export type { CellValue };
 export type CellGetter = (ref: string) => CellValue;
 export type RangeGetter = (range: string) => CellValue[];
@@ -67,35 +68,13 @@ class FunctionRegistry {
 export const functionRegistry = new FunctionRegistry();
 
 /**
- * Helper function to convert a value to a number
+ * Lenient numeric coercion for range aggregation: anything unreadable is 0.
+ * PINNED behaviour (booleans are 0, not Excel's 1/0) — the string parsing lives
+ * in numericCoercion.parseNumericString, shared with the strict scalar read.
  */
 export function toNumber(value: CellValue): number {
   if (typeof value === "number") return value;
-
-  // Handle percentage strings like "5%" or "0.4167%"
-  if (typeof value === "string" && value.includes("%")) {
-    const numericPart = value.replace("%", "").trim();
-    const num = parseFloat(numericPart);
-    return isNaN(num) ? 0 : num / 100;
-  }
-
-  // Handle currency strings like "$1,000" or "$1,000.00"
-  if (typeof value === "string" && value.includes("$")) {
-    const numericPart = value.replace(/[$,]/g, "").trim();
-    const num = parseFloat(numericPart);
-    return isNaN(num) ? 0 : num;
-  }
-
-  // Handle comma-separated numbers like "1,000"
-  if (typeof value === "string" && value.includes(",")) {
-    const numericPart = value.replace(/,/g, "").trim();
-    const num = parseFloat(numericPart);
-    return isNaN(num) ? 0 : num;
-  }
-
-  // Handle regular numeric strings
-  const num = parseFloat(String(value));
-  return isNaN(num) ? 0 : num;
+  return parseNumericString(String(value)) ?? 0;
 }
 
 /**
