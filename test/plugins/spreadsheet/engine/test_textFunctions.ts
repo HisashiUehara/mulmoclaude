@@ -13,8 +13,11 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { substituteText, takeLeft, takeRight, toProperCase } from "../../../../src/plugins/spreadsheet/engine/functions/text.ts";
 import { SpreadsheetEngine } from "../../../../src/plugins/spreadsheet/engine/index.ts";
+import { VALUE_ERROR } from "../../../../src/plugins/spreadsheet/engine/spreadsheet-errors.ts";
 
-const VALUE_ERROR = "#VALUE!";
+// The engine's display pass renders an error VALUE back to its code, so the
+// end-to-end assertions compare against the string a cell shows.
+const VALUE_ERROR_TEXT = VALUE_ERROR.code;
 
 const engine = new SpreadsheetEngine();
 const evalFormula = (formula: string): unknown => engine.calculate(engine.createSheet("S", [[`=${formula}`]])).data[0][0];
@@ -166,17 +169,17 @@ describe("toProperCase — word boundaries include punctuation", () => {
 describe("SpreadsheetEngine — text edge cases end to end", () => {
   it("evaluates SUBSTITUTE with empty old_text and bad instance", () => {
     assert.equal(evalFormula('SUBSTITUTE("abc","","-")'), "abc");
-    assert.equal(evalFormula('SUBSTITUTE("aa","a","b",0)'), VALUE_ERROR);
+    assert.equal(evalFormula('SUBSTITUTE("aa","a","b",0)'), VALUE_ERROR_TEXT);
   });
 
   it("evaluates RIGHT / LEFT with a negative count as an error", () => {
-    assert.equal(evalFormula('RIGHT("Hello",-1)'), VALUE_ERROR);
-    assert.equal(evalFormula('LEFT("Hello",-1)'), VALUE_ERROR);
+    assert.equal(evalFormula('RIGHT("Hello",-1)'), VALUE_ERROR_TEXT);
+    assert.equal(evalFormula('LEFT("Hello",-1)'), VALUE_ERROR_TEXT);
   });
 
   it("errors on a non-numeric count and truncates a fractional one", () => {
-    assert.equal(evalFormula('LEFT("Hello","x")'), VALUE_ERROR);
-    assert.equal(evalFormula('RIGHT("Hello","x")'), VALUE_ERROR);
+    assert.equal(evalFormula('LEFT("Hello","x")'), VALUE_ERROR_TEXT);
+    assert.equal(evalFormula('RIGHT("Hello","x")'), VALUE_ERROR_TEXT);
     assert.equal(evalFormula('RIGHT("Hello",2.5)'), "lo");
   });
 

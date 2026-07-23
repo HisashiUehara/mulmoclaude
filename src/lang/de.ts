@@ -822,6 +822,7 @@ const deMessages = {
     metadataEditor: "Bearbeiter",
     pageEditHeader: "Wiki-Bearbeitung",
     snapshotExpired: "Snapshot abgelaufen — aktuelle Seite wird angezeigt",
+    snapshotLoadError: "Snapshot konnte nicht geladen werden — die Seite existiert möglicherweise noch. Bitte aktualisieren.",
     pageDeleted: "Seite gelöscht",
     history: {
       tabContent: "Inhalt",

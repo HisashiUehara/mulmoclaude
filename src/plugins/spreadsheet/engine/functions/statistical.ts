@@ -3,7 +3,8 @@
  */
 
 import { functionRegistry, toNumber, parseCriteria, type FunctionContext, type FunctionHandler } from "../registry";
-import { computeMode, sampleStdev, sampleVariance, DIV_ZERO_ERROR } from "./statistical-math";
+import { computeMode, sampleStdev, sampleVariance } from "./statistical-math";
+import { DIV_ZERO_ERROR } from "../spreadsheet-errors";
 
 const isLetter = (char: string): boolean => /[A-Z]/i.test(char);
 

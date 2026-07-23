@@ -12,6 +12,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { computeDatedif } from "../../../../src/plugins/spreadsheet/engine/datedif.ts";
 import { dateToSerial } from "../../../../src/plugins/spreadsheet/engine/date-utils.ts";
+import { NUM_ERROR } from "../../../../src/plugins/spreadsheet/engine/spreadsheet-errors.ts";
 
 const serial = (year: number, month: number, day: number) => dateToSerial(new Date(Date.UTC(year, month - 1, day)));
 const diff = (start: [number, number, number], end: [number, number, number], unit: string) => computeDatedif(serial(...start), serial(...end), unit);
@@ -111,12 +112,12 @@ describe("computeDatedif — YD (day diff, years ignored)", () => {
 
 describe("computeDatedif — errors", () => {
   it("returns #NUM! when start is after end", () => {
-    assert.equal(diff([2023, 6, 15], [2023, 6, 10], "D"), "#NUM!");
+    assert.equal(diff([2023, 6, 15], [2023, 6, 10], "D"), NUM_ERROR);
   });
 
   it("returns #NUM! for an unknown unit", () => {
-    assert.equal(diff([2020, 1, 1], [2023, 1, 1], "Q"), "#NUM!");
-    assert.equal(diff([2020, 1, 1], [2023, 1, 1], ""), "#NUM!");
+    assert.equal(diff([2020, 1, 1], [2023, 1, 1], "Q"), NUM_ERROR);
+    assert.equal(diff([2020, 1, 1], [2023, 1, 1], ""), NUM_ERROR);
   });
 
   it("matches the unit case-insensitively", () => {

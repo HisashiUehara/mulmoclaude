@@ -808,6 +808,7 @@ const ptBRMessages = {
     metadataEditor: "Editor",
     pageEditHeader: "Edição do wiki",
     snapshotExpired: "Snapshot expirado — exibindo a página atual",
+    snapshotLoadError: "Não foi possível carregar o snapshot — a página pode ainda existir. Tente atualizar.",
     pageDeleted: "Página excluída",
     history: {
       tabContent: "Conteúdo",

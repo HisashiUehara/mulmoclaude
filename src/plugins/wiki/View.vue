@@ -196,7 +196,13 @@
         >
           {{ pageEditBanner }}
         </div>
-        <div v-if="pageEditDeleted" class="flex items-center justify-center text-gray-400 text-sm py-12" data-testid="wiki-page-edit-deleted">
+        <div v-if="pageEditError" class="flex items-center justify-center text-gray-400 text-sm py-12" data-testid="wiki-page-edit-error">
+          <div class="text-center space-y-2">
+            <span class="material-icons text-4xl text-gray-300">cloud_off</span>
+            <p>{{ pageEditError }}</p>
+          </div>
+        </div>
+        <div v-else-if="pageEditDeleted" class="flex items-center justify-center text-gray-400 text-sm py-12" data-testid="wiki-page-edit-deleted">
           <div class="text-center space-y-2">
             <span class="material-icons text-4xl text-gray-300">delete</span>
             <p>{{ t("pluginWiki.pageDeleted") }}</p>
@@ -348,7 +354,7 @@ const { graphData, graphError, loadGraph, syncGraphFromResult, linkedReferences 
   endpointBase: wikiEndpoints.base,
 });
 
-const { pageEditTs, pageEditBanner, pageEditDeleted, loadPageEditData, resetPageEdit } = useWikiPageEdit({ content });
+const { pageEditTs, pageEditBanner, pageEditDeleted, pageEditError, loadPageEditData, resetPageEdit } = useWikiPageEdit({ content });
 
 watch(currentSlugReactive, (next, prev) => {
   if (next === prev) return;
@@ -424,9 +430,17 @@ function applyWikiResult(data: Partial<WikiData> | undefined): void {
   syncGraphFromResult(data);
 }
 
+// Monotonic token so a slow POST for one navigation can't apply after the
+// user has already navigated somewhere else (rapid page ↔ tab switching):
+// the older response would otherwise render a body that disagrees with the
+// URL until the next navigation.
+let callApiSeq = 0;
+
 async function callApi(body: Record<string, unknown>) {
+  const seq = ++callApiSeq;
   navError.value = null;
   const response = await apiPost<{ data?: Partial<WikiData> }>(wikiEndpoints.base, body);
+  if (seq !== callApiSeq) return;
   if (!response.ok) {
     navError.value = response.status === 0 ? response.error : `Wiki API error ${response.status}: ${response.error}`;
     return;
