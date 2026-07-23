@@ -790,6 +790,12 @@ const enMessages = {
     detailsToggle: "Show details",
     promptLabel: "Prompt",
     roleLabel: "Role",
+    confirmDelete: 'Delete the task "{name}"? This cannot be undone.',
+    hintNewsRss: "News / RSS fetch",
+    hintJournal: "Journal daily pass",
+    hintWiki: "Wiki maintenance",
+    hintMemory: "Memory extraction",
+    hintCalendar: "Calendar / contact sync",
   },
   pluginCanvas: {
     undo: "Undo",

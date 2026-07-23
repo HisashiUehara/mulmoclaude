@@ -780,6 +780,12 @@ const deMessages = {
     detailsToggle: "Details anzeigen",
     promptLabel: "Prompt",
     roleLabel: "Rolle",
+    confirmDelete: "Aufgabe {name} löschen? Dies kann nicht rückgängig gemacht werden.",
+    hintNewsRss: "News- / RSS-Abruf",
+    hintJournal: "Täglicher Journallauf",
+    hintWiki: "Wiki-Wartung",
+    hintMemory: "Speicherextraktion",
+    hintCalendar: "Kalender- / Kontaktsynchronisierung",
   },
   pluginCanvas: {
     undo: "Rückgängig",

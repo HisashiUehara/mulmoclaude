@@ -750,6 +750,12 @@ const zhMessages = {
     detailsToggle: "显示详情",
     promptLabel: "提示词",
     roleLabel: "角色",
+    confirmDelete: "删除任务「{name}」？此操作无法撤销。",
+    hintNewsRss: "新闻 / RSS 抓取",
+    hintJournal: "每日日志处理",
+    hintWiki: "Wiki 维护",
+    hintMemory: "记忆提取",
+    hintCalendar: "日历 / 联系人同步",
   },
   pluginCanvas: {
     undo: "撤销",
