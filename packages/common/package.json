@@ -17,6 +17,12 @@
       "import": "./dist/meta-webhook.js",
       "require": "./dist/meta-webhook.js",
       "default": "./dist/meta-webhook.js"
+    },
+    "./ssrf": {
+      "types": "./dist/ssrf.d.ts",
+      "import": "./dist/ssrf.js",
+      "require": "./dist/ssrf.js",
+      "default": "./dist/ssrf.js"
     }
   },
   "files": [
