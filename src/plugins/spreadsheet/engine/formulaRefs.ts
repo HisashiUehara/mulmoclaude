@@ -120,6 +120,36 @@ export function parseRangeBounds(range: string): RangeBounds | null {
   };
 }
 
+// Excel's `0` row/column index selects the entire row/column. This scalar engine
+// returns a single cell, so `0` is representable only when that dimension is one
+// line long; otherwise it is out of range.
+const WHOLE_LINE_INDEX = 0;
+const FIRST_INDEX = 1;
+
+// Map a 1-based INDEX position onto a 0-based offset within a `size`-long line,
+// truncating toward zero as Excel does. Returns null when the position falls
+// outside the line — including a `0` (whole-line) request the scalar engine
+// cannot collapse to one cell. Callers turn null into #REF!.
+function lineOffset(position: number, size: number): number | null {
+  const index = Math.trunc(position);
+  if (!Number.isFinite(index)) return null;
+  if (index === WHOLE_LINE_INDEX) return size === 1 ? 0 : null;
+  if (index < FIRST_INDEX || index > size) return null;
+  return index - FIRST_INDEX;
+}
+
+// Resolve INDEX(range, rowNum, colNum)'s 1-based position to an absolute cell
+// within the range, or null (→ #REF!) when it falls outside. The former handler
+// computed the target with no bounds check, so an out-of-range index silently
+// read a cell outside the range (#2390: `INDEX(A1:A3,5)` read A5, `INDEX(A2:B5,
+// 0,1)` read A1). Returned column is 0-based; row is 1-based (A1 notation).
+export function resolveIndexTarget(bounds: RangeBounds, rowNum: number, colNum: number): { colIndex: number; row: number } | null {
+  const rowOffset = lineOffset(rowNum, bounds.endRow - bounds.startRow + 1);
+  const colOffset = lineOffset(colNum, bounds.endCol - bounds.startCol + 1);
+  if (rowOffset === null || colOffset === null) return null;
+  return { colIndex: bounds.startCol + colOffset, row: bounds.startRow + rowOffset };
+}
+
 // Top-level: scan the formula, expand any ranges, then pick up
 // remaining single-cell refs, deduplicating as we go. Kept short
 // (~15 lines) so the cognitive-complexity signal lands on the

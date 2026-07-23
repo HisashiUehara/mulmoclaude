@@ -10,7 +10,7 @@ import { SpreadsheetEngine, type SheetData } from "../../../../src/plugins/sprea
 
 /** Calculate `formula` in cell A-after-the-data of a single sheet built from `rows`. */
 const evalInSheet = (rows: (string | number)[][], formula: string): unknown => {
-  const data = rows.map((row) => row.map((v) => ({ v })));
+  const data = rows.map((row) => row.map((value) => ({ v: value })));
   data.push([{ v: formula }]);
   const result = new SpreadsheetEngine().calculate({ name: "S", data });
   return result.data[data.length - 1][0];
@@ -55,5 +55,26 @@ describe("VLOOKUP — cross-sheet table array (#2390: no longer throws)", () => 
     const main: SheetData = { name: "Main", data: [[{ v: '=VLOOKUP("Bob", Data!A1:B3, 2, FALSE)' }]] };
     const [mainResult] = new SpreadsheetEngine().calculateWorkbook([main, data]);
     assert.equal(mainResult.data[0][0], 20);
+  });
+});
+
+describe("INDEX — bounds (#2390)", () => {
+  const grid: (string | number)[][] = [
+    [10, 11],
+    [20, 21],
+    [30, 31],
+  ];
+
+  it("returns the addressed cell for an in-range position", () => {
+    assert.equal(evalInSheet(grid, "=INDEX(A1:B3, 2, 2)"), 21); // B2
+    assert.equal(evalInSheet(grid, "=INDEX(A1:A3, 3)"), 30); // A3
+  });
+
+  it("returns #REF! when the row is past the range (was reading A5)", () => {
+    assert.equal(evalInSheet(grid, "=INDEX(A1:A3, 5)"), "#REF!");
+  });
+
+  it("returns #REF! for row 0 on a multi-row range (was reading A1 above the range)", () => {
+    assert.equal(evalInSheet(grid, "=INDEX(A2:B3, 0, 1)"), "#REF!");
   });
 });

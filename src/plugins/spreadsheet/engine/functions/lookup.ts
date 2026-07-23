@@ -4,7 +4,7 @@
 
 import { functionRegistry, toNumber, parseCriteria, type FunctionHandler, type FunctionContext } from "../registry";
 import { indexToColumn } from "../parser";
-import { parseRangeBounds } from "../formulaRefs";
+import { parseRangeBounds, resolveIndexTarget } from "../formulaRefs";
 import type { CellValue } from "../types";
 
 // The 4th VLOOKUP/HLOOKUP argument (rangeLookup) is approximate-match when TRUE,
@@ -165,10 +165,9 @@ const indexHandler: FunctionHandler = (args, context) => {
   const rowNum = toNumber(context.evaluateFormula(args[1]));
   const colNum = args.length >= 3 ? toNumber(context.evaluateFormula(args[2])) : 1; // Default to 1 if omitted (for 1D arrays)
 
-  // rowNum and colNum are 1-based relative to the range.
-  const targetRow = bounds.startRow + rowNum - 1;
-  const targetColStr = indexToColumn(bounds.startCol + colNum - 1);
-  return context.getCellValue(`${bounds.sheetPrefix}${targetColStr}${targetRow}`);
+  const target = resolveIndexTarget(bounds, rowNum, colNum);
+  if (!target) return "#REF!";
+  return context.getCellValue(`${bounds.sheetPrefix}${indexToColumn(target.colIndex)}${target.row}`);
 };
 
 const xlookupHandler: FunctionHandler = (args, context) => {

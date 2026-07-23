@@ -5,7 +5,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseRangeBounds } from "../../../../src/plugins/spreadsheet/engine/formulaRefs.ts";
+import { parseRangeBounds, resolveIndexTarget, type RangeBounds } from "../../../../src/plugins/spreadsheet/engine/formulaRefs.ts";
 
 describe("parseRangeBounds — plain ranges", () => {
   it("parses A1:B10 (cols 0-based, rows 1-based)", () => {
@@ -57,5 +57,38 @@ describe("parseRangeBounds — non-ranges return null", () => {
   it("rejects lowercase and $-absolute ranges (matches prior lookup behaviour)", () => {
     assert.equal(parseRangeBounds("a1:b2"), null);
     assert.equal(parseRangeBounds("$A$1:$B$2"), null);
+  });
+});
+
+describe("resolveIndexTarget — INDEX bounds (#2390)", () => {
+  // A2:B5 → cols 0..1, rows 2..5 (4 rows × 2 cols).
+  const bounds: RangeBounds = { sheetPrefix: "", startCol: 0, startRow: 2, endCol: 1, endRow: 5 };
+
+  it("resolves an in-range 1-based position to an absolute cell", () => {
+    assert.deepEqual(resolveIndexTarget(bounds, 1, 1), { colIndex: 0, row: 2 }); // A2
+    assert.deepEqual(resolveIndexTarget(bounds, 4, 2), { colIndex: 1, row: 5 }); // B5
+  });
+
+  it("returns null (→ #REF!) when the row is past the range", () => {
+    const single: RangeBounds = { sheetPrefix: "", startCol: 0, startRow: 1, endCol: 0, endRow: 3 };
+    assert.equal(resolveIndexTarget(single, 5, 1), null); // INDEX(A1:A3,5)
+  });
+
+  it("returns null for a row/col below 1", () => {
+    assert.equal(resolveIndexTarget(bounds, -1, 1), null);
+    assert.equal(resolveIndexTarget(bounds, 1, 3), null); // col past the 2-wide range
+  });
+
+  it("treats Excel's 0 (whole line) as out of range for a multi-line dimension", () => {
+    assert.equal(resolveIndexTarget(bounds, 0, 1), null); // INDEX(A2:B5,0,1) — must NOT read A1
+  });
+
+  it("collapses 0 to the only line when that dimension is a single cell", () => {
+    const oneRow: RangeBounds = { sheetPrefix: "", startCol: 0, startRow: 3, endCol: 2, endRow: 3 };
+    assert.deepEqual(resolveIndexTarget(oneRow, 0, 2), { colIndex: 1, row: 3 }); // whole (single) row, col 2 → B3
+  });
+
+  it("truncates a fractional index toward zero, like Excel", () => {
+    assert.deepEqual(resolveIndexTarget(bounds, 2.9, 1), { colIndex: 0, row: 3 }); // 2.9 → row 2 → A3
   });
 });
