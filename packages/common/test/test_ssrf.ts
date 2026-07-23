@@ -224,6 +224,17 @@ test("parseSafeUrlShape: rejects literal internal addresses", () => {
   assert.equal(parseSafeUrlShape("http://[::ffff:127.0.0.1]/x"), null);
 });
 
+test("parseSafeUrlShape: rejects alternate IPv4 notations of blocked addresses", () => {
+  // Safe only because WHATWG URL canonicalizes these to dotted-decimal before
+  // isBlockedIpv4 runs — pin that invariant so a refactor away from `new URL`
+  // (or an engine/polyfill quirk) can't silently reintroduce the classic
+  // decimal/hex/octal/shorthand blocklist bypass.
+  assert.equal(parseSafeUrlShape("http://2130706433/x"), null); // decimal
+  assert.equal(parseSafeUrlShape("http://0x7f000001/x"), null); // hex
+  assert.equal(parseSafeUrlShape("http://0177.0.0.1/x"), null); // octal
+  assert.equal(parseSafeUrlShape("http://127.1/x"), null); // shorthand
+});
+
 test("parseSafeUrlShape: allows literal public addresses", () => {
   assert.notEqual(parseSafeUrlShape("https://1.1.1.1/a.png"), null);
   assert.notEqual(parseSafeUrlShape("https://[2606:4700:4700::1111]/a.png"), null);
