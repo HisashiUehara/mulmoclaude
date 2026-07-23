@@ -16,10 +16,6 @@ import { computeFv, computePmt, computeIpmt, computePpmt, computePv, computeNper
  * - type: 0 = end of period, 1 = beginning of period (optional, default 0)
  */
 const fvHandler: FunctionHandler = (args, context) => {
-  if (args.length < 3 || args.length > 5) {
-    throw new Error("FV requires 3 to 5 arguments");
-  }
-
   const rate = toNumber(context.evaluateFormula(args[0]));
   const nper = toNumber(context.evaluateFormula(args[1]));
   const pmt = toNumber(context.evaluateFormula(args[2]));
@@ -35,10 +31,6 @@ const fvHandler: FunctionHandler = (args, context) => {
  * PV(rate, nper, pmt, [fv], [type])
  */
 const pvHandler: FunctionHandler = (args, context) => {
-  if (args.length < 3 || args.length > 5) {
-    throw new Error("PV requires 3 to 5 arguments");
-  }
-
   const rate = toNumber(context.evaluateFormula(args[0]));
   const nper = toNumber(context.evaluateFormula(args[1]));
   const pmt = toNumber(context.evaluateFormula(args[2]));
@@ -54,10 +46,6 @@ const pvHandler: FunctionHandler = (args, context) => {
  * PMT(rate, nper, pv, [fv], [type])
  */
 const pmtHandler: FunctionHandler = (args, context) => {
-  if (args.length < 3 || args.length > 5) {
-    throw new Error("PMT requires 3 to 5 arguments");
-  }
-
   const rate = toNumber(context.evaluateFormula(args[0]));
   const nper = toNumber(context.evaluateFormula(args[1]));
   const pv = toNumber(context.evaluateFormula(args[2]));
@@ -73,10 +61,6 @@ const pmtHandler: FunctionHandler = (args, context) => {
  * NPER(rate, pmt, pv, [fv], [type])
  */
 const nperHandler: FunctionHandler = (args, context) => {
-  if (args.length < 3 || args.length > 5) {
-    throw new Error("NPER requires 3 to 5 arguments");
-  }
-
   const rate = toNumber(context.evaluateFormula(args[0]));
   const pmt = toNumber(context.evaluateFormula(args[1]));
   const pv = toNumber(context.evaluateFormula(args[2]));
@@ -93,10 +77,6 @@ const nperHandler: FunctionHandler = (args, context) => {
  * Uses Newton-Raphson method for iteration
  */
 const rateHandler: FunctionHandler = (args, context) => {
-  if (args.length < 3 || args.length > 6) {
-    throw new Error("RATE requires 3 to 6 arguments");
-  }
-
   const nper = toNumber(context.evaluateFormula(args[0]));
   const pmt = toNumber(context.evaluateFormula(args[1]));
   const pv = toNumber(context.evaluateFormula(args[2]));
@@ -113,10 +93,6 @@ const rateHandler: FunctionHandler = (args, context) => {
  * IPMT(rate, per, nper, pv, [fv], [type])
  */
 const ipmtHandler: FunctionHandler = (args, context) => {
-  if (args.length < 4 || args.length > 6) {
-    throw new Error("IPMT requires 4 to 6 arguments");
-  }
-
   const rate = toNumber(context.evaluateFormula(args[0]));
   const per = toNumber(context.evaluateFormula(args[1]));
   const nper = toNumber(context.evaluateFormula(args[2]));
@@ -133,10 +109,6 @@ const ipmtHandler: FunctionHandler = (args, context) => {
  * PPMT(rate, per, nper, pv, [fv], [type])
  */
 const ppmtHandler: FunctionHandler = (args, context) => {
-  if (args.length < 4 || args.length > 6) {
-    throw new Error("PPMT requires 4 to 6 arguments");
-  }
-
   const rate = toNumber(context.evaluateFormula(args[0]));
   const per = toNumber(context.evaluateFormula(args[1]));
   const nper = toNumber(context.evaluateFormula(args[2]));
@@ -160,10 +132,6 @@ const collectCashFlows = (valueArgs: string[], context: FunctionContext): number
   valueArgs.flatMap((arg) => (arg.includes(":") ? context.getRangeValues(arg) : [context.evaluateFormula(arg)]).map(toNumber));
 
 const npvHandler: FunctionHandler = (args, context) => {
-  if (args.length < 2) {
-    throw new Error("NPV requires at least 2 arguments");
-  }
-
   const rate = toNumber(context.evaluateFormula(args[0]));
   return computeNpv(rate, collectCashFlows(args.slice(1), context));
 };
@@ -175,10 +143,6 @@ const npvHandler: FunctionHandler = (args, context) => {
  * Uses Newton-Raphson method for iteration
  */
 const irrHandler: FunctionHandler = (args, context) => {
-  if (args.length < 1 || args.length > 2) {
-    throw new Error("IRR requires 1 or 2 arguments");
-  }
-
   const values = context.getRangeValues(args[0]).map(toNumber);
   const guess = args.length === 2 ? toNumber(context.evaluateFormula(args[1])) : 0.1;
 

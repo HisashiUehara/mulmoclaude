@@ -491,30 +491,27 @@ import { computed, onMounted, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { ManageSkillsData, SkillSummary } from "./index";
-import { apiGet, apiPost, apiPut, apiDelete } from "../../utils/api";
+import { apiGet, apiPut, apiDelete } from "../../utils/api";
 import { handleExternalLinkClick } from "@mulmoclaude/markdown-utils/dom/externalLink";
-import { renderMarkdownToSafeHtml } from "../../utils/markdown/renderMarkdown";
-import { useMermaidRenderer } from "../../utils/markdown/useMermaid";
 import { pluginEndpoints } from "../api";
 import { buildRouteUrl } from "../meta-types";
 import type { SkillsEndpoints } from "./definition";
 import {
   loadCollapsedSections,
   persistCollapsedSections,
-  loadRepoCollapsed,
-  persistRepoCollapsed,
   pickInitialSelection,
   entryKey,
-  catalogActionParams,
-  groupEntriesByRepo,
   repoLabel,
+  toggleInSet,
   skillBadgeMeta,
   PRESET_SOURCE_META,
   type SkillSectionKey,
-  type CatalogSource,
 } from "./categories";
 import { isPresetActivation } from "./presetDetection";
 import { updateSkillDescription, removeSkillByName } from "./skillListEdits";
+import { useSkillMarkdown } from "./useSkillMarkdown";
+import { useSkillCatalog } from "./useSkillCatalog";
+import { useExternalRepos } from "./useExternalRepos";
 
 const { t } = useI18n();
 
@@ -553,12 +550,7 @@ function isSectionOpen(key: SkillSectionKey): boolean {
 }
 
 function toggleSection(key: SkillSectionKey): void {
-  const next = new Set(collapsedSections.value);
-  if (next.has(key)) {
-    next.delete(key);
-  } else {
-    next.add(key);
-  }
+  const next = toggleInSet(collapsedSections.value, key);
   collapsedSections.value = next;
   persistCollapsedSections(next);
 }
@@ -575,10 +567,7 @@ const editBody = ref("");
 
 const selected = computed(() => skills.value.find((skill) => skill.name === selectedName.value) ?? null);
 
-const renderedBody = computed(() => renderMarkdownToSafeHtml(detail.value?.body));
-
-const skillMarkdownRef = ref<HTMLElement | null>(null);
-useMermaidRenderer(skillMarkdownRef, renderedBody);
+const { markdownRef: skillMarkdownRef, renderedBody } = useSkillMarkdown(() => detail.value?.body);
 
 // Edit/Delete follows the backend writer contract (writer.ts rejects
 // only source === "user"), NOT the mc- name heuristic. Under #1335
@@ -593,115 +582,78 @@ const listError = ref<string | null>(null);
 
 const endpoints = pluginEndpoints<SkillsEndpoints>("skills");
 
-// Catalog state (#1335 PR-B). Loaded on mount + after a successful
-// star so the row updates from "★ Star" → "★ Starred".
-// `catalogActioningKey` (declared below) disables the button
-// mid-request to prevent double-clicks across Star / Run once.
-interface CatalogEntry {
-  slug: string;
-  name: string;
-  description: string;
-  source: CatalogSource;
-  alreadyActive: boolean;
-  // External entries only — identify the source repo + skill folder
-  // so star / preview / run-once can address them (slug alone is the
-  // derived activeId, not enough to locate the catalog copy).
-  repoId?: string;
-  skillFolder?: string;
-  repoUrl?: string;
-}
-interface CatalogDetail {
-  slug: string;
-  source: CatalogSource;
-  description: string;
-  body: string;
-}
-interface ExternalRepo {
-  repoId: string;
-  url: string;
-  subpath?: string;
-  sha: string;
-  installedAt: string;
-}
-interface ExternalSuggestion {
-  url: string;
-  subpath?: string;
-  displayName: string;
-  description: string;
-  license?: string;
-}
-const catalogPresets = ref<CatalogEntry[]>([]);
-const catalogExternal = ref<CatalogEntry[]>([]);
-const catalogRepos = ref<ExternalRepo[]>([]);
-const catalogError = ref<string | null>(null);
-
-// True when the selected active skill has a matching entry in the
-// preset catalog — meaning a "delete" from `.claude/skills/<slug>/`
-// is recoverable, because the launcher re-syncs the catalog copy
-// under `data/skills/catalog/preset/<slug>/` on every boot
-// (see server/workspace/skills-preset.ts). We expose this case as
-// "Unstar" with a non-destructive confirm message; the underlying
-// DELETE endpoint is identical.
-//
-// Catalog membership (not the `mc-` slug prefix) is the
-// authoritative signal: the writer pipeline does not reserve the
-// `mc-` namespace, so a hand-rolled project skill named `mc-foo`
-// without a catalog entry must still surface the destructive Delete
-// copy. See isPresetActivation tests in test/plugins/manageSkills/.
-const isSelectedPreset = computed(() => isPresetActivation(detail.value?.name, catalogPresets.value));
-// Per-repo collapse set (repoId ∈ set ⇒ collapsed). shallowRef: the
-// Set is replaced wholesale on toggle.
-const repoCollapsed = shallowRef<Set<string>>(loadRepoCollapsed());
-// Add-repo modal state.
-const addRepoOpen = ref(false);
-const addRepoUrl = ref("");
-const addRepoSubpath = ref("");
-const addRepoError = ref<string | null>(null);
-const addRepoBusy = ref(false);
-const suggestions = ref<ExternalSuggestion[]>([]);
-// Which suggestion the user picked: drives the form prefill + the
-// "expanded description" / highlight. Selecting never installs —
-// install stays explicit (Install button / Enter in the URL field).
-const selectedSuggestionUrl = ref<string | null>(null);
-const uninstallingRepoId = ref<string | null>(null);
-const updatingRepoId = ref<string | null>(null);
-// Single in-flight gate covers Star / Run once on the selected
-// entry so a slow request doesn't let the user fire a second
-// action mid-flight.
-const catalogActioningKey = ref<string | null>(null);
-// Right-pane selection for a catalog entry (mutually exclusive
-// with `selectedName` — picking one clears the other).
-const selectedCatalog = ref<CatalogEntry | null>(null);
-const catalogDetail = ref<CatalogDetail | null>(null);
-const catalogDetailLoading = ref(false);
-
-const catalogRenderedBody = computed(() => renderMarkdownToSafeHtml(catalogDetail.value?.body));
-
-const catalogMarkdownRef = ref<HTMLElement | null>(null);
-useMermaidRenderer(catalogMarkdownRef, catalogRenderedBody);
-
-// External catalog entries grouped under their repo, in the repo
-// order returned by `/external/repos`. Repos with zero discoverable
-// entries still render (header + empty state) so an install that
-// found nothing is visible rather than silently absent.
-const externalGroups = computed(() => groupEntriesByRepo(catalogExternal.value, catalogRepos.value));
-
-function isRepoOpen(repoId: string): boolean {
-  return !repoCollapsed.value.has(repoId);
-}
-
-function toggleRepo(repoId: string): void {
-  const next = new Set(repoCollapsed.value);
-  if (next.has(repoId)) {
-    next.delete(repoId);
-  } else {
-    next.add(repoId);
+async function refreshActiveList(): Promise<void> {
+  // Mirrors the onMounted fetch so the left-column list reflects a
+  // newly-starred skill without waiting for the next manageSkills tool
+  // result. Errors here are non-fatal — the catalog state is the source
+  // of truth for the "Starred" badge.
+  const response = await apiGet<{ skills: SkillSummary[] }>(endpoints.list.url);
+  if (response.ok && Array.isArray(response.data.skills)) {
+    skills.value = response.data.skills;
   }
-  repoCollapsed.value = next;
-  persistRepoCollapsed(next);
 }
 
-const selectedCatalogKey = computed(() => (selectedCatalog.value ? entryKey(selectedCatalog.value) : null));
+// Active and catalog selections are mutually exclusive — selecting a
+// catalog row clears the active selection (and vice versa) so the right
+// pane has a single source of truth.
+function clearActiveSelection(): void {
+  selectedName.value = null;
+}
+
+// Preset-catalog cluster (#1335 PR-B): browse / select / ★ Star / preview.
+const catalog = useSkillCatalog({ refreshActiveList, clearActiveSelection });
+const {
+  catalogPresets,
+  catalogExternal,
+  catalogError,
+  selectedCatalog,
+  catalogDetail,
+  catalogDetailLoading,
+  catalogActioningKey,
+  selectedCatalogKey,
+  catalogRenderedBody,
+  catalogMarkdownRef,
+  loadCatalog,
+  selectCatalogEntry,
+  starCatalogEntry,
+} = catalog;
+
+// True when the selected active skill has a matching entry in the preset
+// catalog — meaning a "delete" from `.claude/skills/<slug>/` is
+// recoverable (the launcher re-syncs the catalog copy on every boot). We
+// expose this case as "Unstar" with a non-destructive confirm; the DELETE
+// endpoint is identical. Catalog membership (not the `mc-` slug prefix) is
+// the authoritative signal — see isPresetActivation tests.
+const isSelectedPreset = computed(() => isPresetActivation(detail.value?.name, catalogPresets.value));
+
+// External-repo cluster (#1383 PR-C2): installed repos + add-repo modal.
+const repos = useExternalRepos({
+  catalogExternal,
+  catalogError,
+  reloadCatalog: loadCatalog,
+  refreshActiveList,
+  clearCatalogSelectionForRepo: catalog.clearSelectionIfRepo,
+});
+const {
+  externalGroups,
+  isRepoOpen,
+  toggleRepo,
+  addRepoOpen,
+  addRepoUrl,
+  addRepoSubpath,
+  addRepoError,
+  addRepoBusy,
+  suggestions,
+  selectedSuggestionUrl,
+  uninstallingRepoId,
+  updatingRepoId,
+  loadExternalRepos,
+  openAddRepo,
+  selectSuggestion,
+  installRepo,
+  uninstallRepo,
+  updateRepo,
+} = repos;
 
 // Visual key for the provenance badge on every active row + the
 // preset rows. Provenance is derived via categorizeSkill (NOT the raw
@@ -735,216 +687,22 @@ const presetSourceMeta = computed<SourceMeta>(() => ({
   title: t(PRESET_SOURCE_META.titleKey),
 }));
 
-// Reset the selection when the tool result is replaced (e.g. the
-// user opens a newer `manageSkills` invocation from the sidebar).
-// Lives after the catalog refs so source-order use-before-define
-// is satisfied — the closure runs at watch-fire time, not at
-// module-eval time, but the lint rule is structural.
+function selectActiveSkill(name: string): void {
+  catalog.clearSelection();
+  selectedName.value = name;
+}
+
+// Reset the selection when the tool result is replaced (e.g. the user
+// opens a newer `manageSkills` invocation from the sidebar).
 watch(
   () => props.selectedResult?.uuid,
   () => {
     skills.value = [...(props.selectedResult?.data?.skills ?? [])];
     selectedName.value = pickInitialSelection(activeSkills.value, collapsedSections.value);
-    selectedCatalog.value = null;
-    catalogDetail.value = null;
-    catalogDetailLoading.value = false;
-    catalogActioningKey.value = null;
-    catalogError.value = null;
-    addRepoOpen.value = false;
-    addRepoError.value = null;
-    selectedSuggestionUrl.value = null;
-    uninstallingRepoId.value = null;
-    updatingRepoId.value = null;
+    catalog.reset();
+    repos.resetModalState();
   },
 );
-
-async function loadCatalog(): Promise<void> {
-  const response = await apiGet<{ entries: CatalogEntry[] }>(endpoints.catalogList.url);
-  if (!response.ok) {
-    catalogError.value = t("pluginManageSkills.errCatalogListFailed", { error: response.error });
-    return;
-  }
-  catalogError.value = null;
-  if (Array.isArray(response.data.entries)) {
-    catalogPresets.value = response.data.entries.filter((entry) => entry.source === "preset");
-    catalogExternal.value = response.data.entries.filter((entry) => entry.source === "external");
-  }
-}
-
-async function loadExternalRepos(): Promise<void> {
-  const response = await apiGet<{ repos: ExternalRepo[] }>(endpoints.externalReposList.url);
-  if (!response.ok) {
-    catalogError.value = t("pluginManageSkills.errCatalogRepoListFailed", { error: response.error });
-    return;
-  }
-  if (Array.isArray(response.data.repos)) catalogRepos.value = response.data.repos;
-}
-
-async function loadSuggestions(): Promise<void> {
-  const response = await apiGet<{ suggestions: ExternalSuggestion[] }>(endpoints.externalSuggestions.url);
-  if (response.ok && Array.isArray(response.data.suggestions)) suggestions.value = response.data.suggestions;
-}
-
-function openAddRepo(): void {
-  addRepoUrl.value = "";
-  addRepoSubpath.value = "";
-  addRepoError.value = null;
-  selectedSuggestionUrl.value = null;
-  addRepoOpen.value = true;
-  if (suggestions.value.length === 0) void loadSuggestions();
-}
-
-// Pick a suggestion → prefill the form so the user can review and
-// then press Install. Deliberately does NOT install (avoids the
-// accidental one-click install footgun).
-function selectSuggestion(suggestion: ExternalSuggestion): void {
-  addRepoUrl.value = suggestion.url;
-  addRepoSubpath.value = suggestion.subpath ?? "";
-  addRepoError.value = null;
-  selectedSuggestionUrl.value = suggestion.url;
-}
-
-async function installRepo(url: string, subpath?: string): Promise<void> {
-  if (addRepoBusy.value) return;
-  const trimmedUrl = url.trim();
-  if (trimmedUrl.length === 0) {
-    addRepoError.value = t("pluginManageSkills.errCatalogRepoInvalidUrl");
-    return;
-  }
-  addRepoBusy.value = true;
-  addRepoError.value = null;
-  try {
-    const trimmedSubpath = subpath?.trim();
-    const body: Record<string, string> = { url: trimmedUrl };
-    if (trimmedSubpath) body.subpath = trimmedSubpath;
-    const response = await apiPost<{ installed: true; repoId: string }>(endpoints.externalReposInstall.url, body);
-    if (!response.ok) {
-      addRepoError.value = t("pluginManageSkills.errCatalogRepoInstallFailed", { error: response.error });
-      return;
-    }
-    addRepoOpen.value = false;
-    await Promise.all([loadExternalRepos(), loadCatalog()]);
-  } finally {
-    addRepoBusy.value = false;
-  }
-}
-
-async function uninstallRepo(repoId: string): Promise<void> {
-  if (uninstallingRepoId.value !== null) return;
-  if (typeof window !== "undefined" && !window.confirm(t("pluginManageSkills.catalogUninstallConfirm"))) return;
-  uninstallingRepoId.value = repoId;
-  try {
-    const response = await apiDelete<{ uninstalled: true }>(buildRouteUrl(endpoints.externalReposRemove, { repoId }));
-    if (!response.ok) {
-      catalogError.value = t("pluginManageSkills.errCatalogRepoUninstallFailed", { error: response.error });
-      return;
-    }
-    catalogError.value = null;
-    if (selectedCatalog.value?.repoId === repoId) {
-      selectedCatalog.value = null;
-      catalogDetail.value = null;
-    }
-    // Starred copies survive uninstall (backend-guaranteed, C1) — pull
-    // the active list so any starred-from-this-repo rows stay visible.
-    await Promise.all([loadExternalRepos(), loadCatalog(), refreshActiveList()]);
-  } finally {
-    uninstallingRepoId.value = null;
-  }
-}
-
-// "Update" == re-install with the repo's recorded url/subpath. C1's
-// install path re-fetches upstream HEAD, wipes + re-copies the
-// catalog dir, and rewrites `.source.json` with the new SHA. Starred
-// copies under `.claude/skills/` are untouched (catalog-layer only).
-async function updateRepo(repo: ExternalRepo): Promise<void> {
-  if (updatingRepoId.value !== null) return;
-  updatingRepoId.value = repo.repoId;
-  // try/finally so the in-flight gate always clears even if the
-  // request throws — otherwise the button stays disabled forever
-  // (same hardening as the star handler, Codex review #1374).
-  try {
-    const body: Record<string, string> = { url: repo.url };
-    if (repo.subpath) body.subpath = repo.subpath;
-    const response = await apiPost<{ installed: true; repoId: string }>(endpoints.externalReposInstall.url, body);
-    if (!response.ok) {
-      catalogError.value = t("pluginManageSkills.errCatalogRepoInstallFailed", { error: response.error });
-      return;
-    }
-    catalogError.value = null;
-    await Promise.all([loadExternalRepos(), loadCatalog()]);
-  } finally {
-    updatingRepoId.value = null;
-  }
-}
-
-async function refreshActiveList(): Promise<void> {
-  // Mirrors the onMounted fetch so the left-column list reflects the
-  // newly-starred skill without waiting for the next manageSkills
-  // tool result. Errors here are non-fatal — the catalog state is
-  // the source of truth for the "Starred" badge.
-  const response = await apiGet<{ skills: SkillSummary[] }>(endpoints.list.url);
-  if (response.ok && Array.isArray(response.data.skills)) {
-    skills.value = response.data.skills;
-  }
-}
-
-async function starCatalogEntry(entry: CatalogEntry): Promise<void> {
-  if (entry.alreadyActive) return;
-  catalogActioningKey.value = entryKey(entry);
-  const response = await apiPost<{ starred: true; slug: string }>(endpoints.catalogStar.url, catalogActionParams(entry));
-  catalogActioningKey.value = null;
-  if (!response.ok) {
-    catalogError.value = t("pluginManageSkills.errCatalogStarFailed", { error: response.error });
-    return;
-  }
-  catalogError.value = null;
-  // Refresh both lists so the row flips to "Starred" and the new
-  // active entry shows up in the left column.
-  await Promise.all([loadCatalog(), refreshActiveList()]);
-  // Reconcile the right-pane selection with the refreshed list so
-  // its `alreadyActive` flag reflects reality without forcing the
-  // user to re-click.
-  if (selectedCatalog.value && entryKey(selectedCatalog.value) === entryKey(entry)) {
-    const pool = entry.source === "external" ? catalogExternal.value : catalogPresets.value;
-    const updated = pool.find((candidate) => entryKey(candidate) === entryKey(entry));
-    if (updated) selectedCatalog.value = updated;
-  }
-}
-
-async function fetchCatalogDetail(entry: CatalogEntry): Promise<CatalogDetail | null> {
-  const response = await apiGet<{ detail: CatalogDetail }>(endpoints.catalogPreview.url, catalogActionParams(entry));
-  if (!response.ok) {
-    catalogError.value = t("pluginManageSkills.errCatalogPreviewFailed", { error: response.error });
-    return null;
-  }
-  catalogError.value = null;
-  return response.data.detail;
-}
-
-function selectActiveSkill(name: string): void {
-  // Active and catalog selections are mutually exclusive — picking
-  // one clears the other so the right pane has a single source of
-  // truth.
-  selectedCatalog.value = null;
-  catalogDetail.value = null;
-  selectedName.value = name;
-}
-
-async function selectCatalogEntry(entry: CatalogEntry): Promise<void> {
-  selectedName.value = null;
-  selectedCatalog.value = entry;
-  catalogDetail.value = null;
-  catalogDetailLoading.value = true;
-  const keyAtRequest = entryKey(entry);
-  const fetched = await fetchCatalogDetail(entry);
-  // Selection may have changed while the request was in flight —
-  // drop the response if so (same race-condition guard the active-
-  // skill detail watcher uses). Identity is the (repoId, skillFolder)
-  // composite for external entries, not the lossy slug.
-  if (!selectedCatalog.value || entryKey(selectedCatalog.value) !== keyAtRequest) return;
-  catalogDetailLoading.value = false;
-  if (fetched !== null) catalogDetail.value = fetched;
-}
 
 // Standalone mode: if no selectedResult was passed, fetch the skill
 // list from the API on mount so the view is populated.
@@ -1070,9 +828,6 @@ async function deleteSkill(): Promise<void> {
   // this call the badge + right-pane state would lag until the
   // next mount. (#1335 PR-B2 follow-up.)
   await loadCatalog();
-  if (selectedCatalog.value?.slug === name) {
-    const refreshed = catalogPresets.value.find((candidate) => candidate.slug === name);
-    if (refreshed) selectedCatalog.value = refreshed;
-  }
+  catalog.reconcileAfterDelete(name);
 }
 </script>

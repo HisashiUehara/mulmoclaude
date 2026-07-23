@@ -79,6 +79,23 @@ export function persistCollapsedSections(state: ReadonlySet<SkillSectionKey>): v
   }
 }
 
+/**
+ * Toggle a key's membership in a set, returning a fresh set (the input
+ * is never mutated). Both sidebar collapse handlers — section-level and
+ * per-repo — clone the set, add-or-delete the key, then replace it
+ * wholesale so Vue sees a new reference; this centralises the add-or-
+ * delete so the two call sites can't drift.
+ */
+export function toggleInSet<T>(set: ReadonlySet<T>, key: T): Set<T> {
+  const next = new Set(set);
+  if (next.has(key)) {
+    next.delete(key);
+  } else {
+    next.add(key);
+  }
+  return next;
+}
+
 // Per-external-repo collapse state (#1383 PR-C2). Distinct storage key
 // from the section-level state above: the section axis is a fixed
 // 2-value union (active/catalog), whereas repo ids are open-ended
@@ -170,6 +187,19 @@ export function catalogActionParams(entry: CatalogEntryIdentity): Record<string,
     return { source: "external", repoId: entry.repoId, skillFolder: entry.skillFolder };
   }
   return { source: entry.source, slug: entry.slug };
+}
+
+/**
+ * Request body for the external-repo install endpoint: the URL plus an
+ * optional (trimmed, non-empty) subpath. Centralised so the two callers —
+ * a fresh install and a repo "update" (re-install with the recorded
+ * url/subpath) — send an identical shape and can't drift.
+ */
+export function buildRepoInstallBody(url: string, subpath?: string): Record<string, string> {
+  const body: Record<string, string> = { url };
+  const trimmed = subpath?.trim();
+  if (trimmed) body.subpath = trimmed;
+  return body;
 }
 
 /**

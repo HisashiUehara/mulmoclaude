@@ -3,7 +3,7 @@
  */
 
 import { functionRegistry, toNumber, parseCriteria, type FunctionContext, type FunctionHandler } from "../registry";
-import { computeMode, DIV_ZERO_ERROR } from "./statistical-math";
+import { computeMode, sampleStdev, sampleVariance, DIV_ZERO_ERROR } from "./statistical-math";
 
 const isLetter = (char: string): boolean => /[A-Z]/i.test(char);
 
@@ -55,13 +55,11 @@ const collectNumericValues = (args: string[], context: FunctionContext): number[
 };
 
 const sumHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("SUM requires 1 argument");
   const values = context.getRangeValues(args[0]);
   return values.reduce((sum: number, val) => sum + toNumber(val), 0);
 };
 
 const averageHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("AVERAGE requires 1 argument");
   const values = context.getRangeValues(args[0]);
   if (values.length === 0) return 0;
   const sum = values.reduce((acc: number, val) => acc + toNumber(val), 0);
@@ -69,29 +67,21 @@ const averageHandler: FunctionHandler = (args, context) => {
 };
 
 const maxHandler: FunctionHandler = (args, context) => {
-  if (args.length === 0) {
-    throw new Error("MAX requires at least 1 argument");
-  }
   const values = collectNumericValues(args, context);
   return values.length > 0 ? Math.max(...values) : 0;
 };
 
 const minHandler: FunctionHandler = (args, context) => {
-  if (args.length === 0) {
-    throw new Error("MIN requires at least 1 argument");
-  }
   const values = collectNumericValues(args, context);
   return values.length > 0 ? Math.min(...values) : 0;
 };
 
 const countHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("COUNT requires 1 argument");
   const values = context.getRangeValues(args[0]);
   return values.length;
 };
 
 const medianHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("MEDIAN requires 1 argument");
   const values = context
     .getRangeValues(args[0])
     .map(toNumber)
@@ -103,43 +93,27 @@ const medianHandler: FunctionHandler = (args, context) => {
 };
 
 const modeHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("MODE requires 1 argument");
   const values = context.getRangeValues(args[0]).map(toNumber);
   return computeMode(values);
 };
 
 const stdevHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("STDEV requires 1 argument");
   const values = context.getRangeValues(args[0]).map(toNumber);
-
-  if (values.length === 0) return 0;
-
-  const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
-  const squaredDiffs = values.map((val) => Math.pow(val - mean, 2));
-  const variance = squaredDiffs.reduce((sum, val) => sum + val, 0) / values.length;
-  return Math.sqrt(variance);
+  return sampleStdev(values);
 };
 
 const varHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("VAR requires 1 argument");
   const values = context.getRangeValues(args[0]).map(toNumber);
-
-  if (values.length === 0) return 0;
-
-  const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
-  const squaredDiffs = values.map((val) => Math.pow(val - mean, 2));
-  return squaredDiffs.reduce((sum, val) => sum + val, 0) / values.length;
+  return sampleVariance(values);
 };
 
 const countaHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("COUNTA requires 1 argument");
   const values = context.getRangeValuesRaw?.(args[0]) ?? context.getRangeValues(args[0]);
   // Count non-empty cells
   return values.filter((v) => v !== null && v !== undefined && v !== "").length;
 };
 
 const countifHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 2) throw new Error("COUNTIF requires 2 arguments");
   const values = context.getRangeValuesRaw?.(args[0]) ?? context.getRangeValues(args[0]);
   const criteria = args[1].trim();
   const compareFn = parseCriteria(criteria);
@@ -147,10 +121,6 @@ const countifHandler: FunctionHandler = (args, context) => {
 };
 
 const sumifHandler: FunctionHandler = (args, context) => {
-  if (args.length < 2 || args.length > 3) {
-    throw new Error("SUMIF requires 2 or 3 arguments");
-  }
-
   const criteriaRange = context.getRangeValuesRaw?.(args[0]) ?? context.getRangeValues(args[0]);
   const criteria = args[1].trim();
   // Raw, not numeric-only: dropping blanks here would shift the value range out
@@ -172,10 +142,6 @@ const sumifHandler: FunctionHandler = (args, context) => {
 };
 
 const averageifHandler: FunctionHandler = (args, context) => {
-  if (args.length < 2 || args.length > 3) {
-    throw new Error("AVERAGEIF requires 2 or 3 arguments");
-  }
-
   const criteriaRange = context.getRangeValuesRaw?.(args[0]) ?? context.getRangeValues(args[0]);
   const criteria = args[1].trim();
   // Raw, to stay row-aligned with the criteria range (see SUMIF, #2358).

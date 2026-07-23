@@ -5,11 +5,8 @@
 import { functionRegistry, toNumber, parseCriteria, type FunctionHandler, type FunctionContext } from "../registry";
 import { indexToColumn } from "../parser";
 import { parseRangeBounds, resolveIndexTarget } from "../formulaRefs";
+import { isApproximateMatch } from "./lookup-math";
 import type { CellValue } from "../types";
-
-// The 4th VLOOKUP/HLOOKUP argument (rangeLookup) is approximate-match when TRUE,
-// 1, "1", or omitted; FALSE/0 forces an exact match.
-const isApproximate = (rangeLookup: CellValue): boolean => rangeLookup === true || rangeLookup === 1 || rangeLookup === "1";
 
 const inclusiveRange = (start: number, end: number): number[] => Array.from({ length: Math.max(0, end - start + 1) }, (_, i) => start + i);
 
@@ -97,16 +94,12 @@ const findMatchIndex = (
 };
 
 const vlookupHandler: FunctionHandler = (args, context) => {
-  if (args.length < 3 || args.length > 4) {
-    throw new Error("VLOOKUP requires 3 or 4 arguments");
-  }
-
   const lookupValue = context.evaluateFormula(args[0]);
   const bounds = parseRangeBounds(args[1]);
   if (!bounds) throw new Error("Invalid table array range");
   const colIndexNum = toNumber(context.evaluateFormula(args[2]));
   const rangeLookup = args.length === 4 ? context.evaluateFormula(args[3]) : true;
-  const matchType = isApproximate(rangeLookup) ? 1 : 0;
+  const matchType = isApproximateMatch(rangeLookup) ? 1 : 0;
 
   const startColStr = indexToColumn(bounds.startCol);
   const lookupArray = columnValues(context, bounds.sheetPrefix, startColStr, bounds.startRow, bounds.endRow);
@@ -119,16 +112,12 @@ const vlookupHandler: FunctionHandler = (args, context) => {
 };
 
 const hlookupHandler: FunctionHandler = (args, context) => {
-  if (args.length < 3 || args.length > 4) {
-    throw new Error("HLOOKUP requires 3 or 4 arguments");
-  }
-
   const lookupValue = context.evaluateFormula(args[0]);
   const bounds = parseRangeBounds(args[1]);
   if (!bounds) throw new Error("Invalid range format");
   const rowIndexNum = toNumber(context.evaluateFormula(args[2]));
   const rangeLookup = args.length === 4 ? context.evaluateFormula(args[3]) : true;
-  const matchType = isApproximate(rangeLookup) ? 1 : 0;
+  const matchType = isApproximateMatch(rangeLookup) ? 1 : 0;
 
   const lookupArray = rowValues(context, bounds.sheetPrefix, bounds.startRow, bounds.startCol, bounds.endCol);
   const matchIdx = findMatchIndex(lookupValue, lookupArray, matchType);
@@ -140,10 +129,6 @@ const hlookupHandler: FunctionHandler = (args, context) => {
 };
 
 const matchHandler: FunctionHandler = (args, context) => {
-  if (args.length < 2 || args.length > 3) {
-    throw new Error("MATCH requires 2 or 3 arguments");
-  }
-
   const lookupValue = context.evaluateFormula(args[0]);
   const lookupArrayRange = args[1];
   const matchType = args.length === 3 ? toNumber(context.evaluateFormula(args[2])) : 1;
@@ -156,10 +141,6 @@ const matchHandler: FunctionHandler = (args, context) => {
 };
 
 const indexHandler: FunctionHandler = (args, context) => {
-  if (args.length < 2 || args.length > 4) {
-    throw new Error("INDEX requires 2 to 4 arguments");
-  }
-
   const bounds = parseRangeBounds(args[0]);
   if (!bounds) throw new Error("Invalid range format");
   const rowNum = toNumber(context.evaluateFormula(args[1]));
@@ -171,10 +152,6 @@ const indexHandler: FunctionHandler = (args, context) => {
 };
 
 const xlookupHandler: FunctionHandler = (args, context) => {
-  if (args.length < 3 || args.length > 6) {
-    throw new Error("XLOOKUP requires 3 to 6 arguments");
-  }
-
   const lookupValue = context.evaluateFormula(args[0]);
   const lookupArrayRange = args[1];
   const returnArrayRange = args[2];

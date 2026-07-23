@@ -8,8 +8,7 @@ import { functionRegistry, toNumber, toString, type FunctionHandler } from "../r
 import { computeDatedif } from "../datedif";
 import { dateToSerial, serialToDate } from "../date-utils";
 
-const nowHandler: FunctionHandler = (args) => {
-  if (args.length !== 0) throw new Error("NOW requires 0 arguments");
+const nowHandler: FunctionHandler = () => {
   // Return current date and time as serial number
   // We need to adjust for timezone offset because Excel dates are "local" usually
   // But for simplicity we'll use local time converted to serial
@@ -19,16 +18,13 @@ const nowHandler: FunctionHandler = (args) => {
   return dateToSerial(localAsUtc);
 };
 
-const todayHandler: FunctionHandler = (args) => {
-  if (args.length !== 0) throw new Error("TODAY requires 0 arguments");
+const todayHandler: FunctionHandler = () => {
   const now = new Date();
   const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
   return dateToSerial(today);
 };
 
 const dateHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 3) throw new Error("DATE requires 3 arguments");
-
   const year = toNumber(context.evaluateFormula(args[0]));
   const month = toNumber(context.evaluateFormula(args[1]));
   const day = toNumber(context.evaluateFormula(args[2]));
@@ -40,8 +36,6 @@ const dateHandler: FunctionHandler = (args, context) => {
 };
 
 const timeHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 3) throw new Error("TIME requires 3 arguments");
-
   const hour = toNumber(context.evaluateFormula(args[0]));
   const minute = toNumber(context.evaluateFormula(args[1]));
   const second = toNumber(context.evaluateFormula(args[2]));
@@ -59,28 +53,24 @@ const timeHandler: FunctionHandler = (args, context) => {
 };
 
 const yearHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("YEAR requires 1 argument");
   const serial = toNumber(context.evaluateFormula(args[0]));
   const date = serialToDate(serial);
   return date.getUTCFullYear();
 };
 
 const monthHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("MONTH requires 1 argument");
   const serial = toNumber(context.evaluateFormula(args[0]));
   const date = serialToDate(serial);
   return date.getUTCMonth() + 1; // 1-indexed
 };
 
 const dayHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("DAY requires 1 argument");
   const serial = toNumber(context.evaluateFormula(args[0]));
   const date = serialToDate(serial);
   return date.getUTCDate();
 };
 
 const hourHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("HOUR requires 1 argument");
   const serial = toNumber(context.evaluateFormula(args[0]));
   // Get fractional part
   const timePart = serial - Math.floor(serial);
@@ -89,7 +79,6 @@ const hourHandler: FunctionHandler = (args, context) => {
 };
 
 const minuteHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("MINUTE requires 1 argument");
   const serial = toNumber(context.evaluateFormula(args[0]));
   const timePart = serial - Math.floor(serial);
   const totalSeconds = Math.round(timePart * 86400);
@@ -97,7 +86,6 @@ const minuteHandler: FunctionHandler = (args, context) => {
 };
 
 const secondHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 1) throw new Error("SECOND requires 1 argument");
   const serial = toNumber(context.evaluateFormula(args[0]));
   const timePart = serial - Math.floor(serial);
   const totalSeconds = Math.round(timePart * 86400);
@@ -105,8 +93,6 @@ const secondHandler: FunctionHandler = (args, context) => {
 };
 
 const datedifHandler: FunctionHandler = (args, context) => {
-  if (args.length !== 3) throw new Error("DATEDIF requires 3 arguments");
-
   const startSerial = toNumber(context.evaluateFormula(args[0]));
   const endSerial = toNumber(context.evaluateFormula(args[1]));
   const unit = toString(context.evaluateFormula(args[2]));
