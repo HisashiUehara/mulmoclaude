@@ -14,7 +14,6 @@ import { apiGet, apiPost } from "../../utils/api";
 import { pluginEndpoints } from "../api";
 import type { SkillsEndpoints } from "./definition";
 import { entryKey, catalogActionParams, type CatalogSource } from "./categories";
-import { useSkillMarkdown } from "./useSkillMarkdown";
 import { acquireActionKey, releaseActionKey } from "./actionLock";
 
 type TranslateFn = ReturnType<typeof useI18n>["t"];
@@ -69,8 +68,6 @@ export interface SkillCatalog {
   catalogDetailLoading: Ref<boolean>;
   catalogActioningKey: Ref<string | null>;
   selectedCatalogKey: ComputedRef<string | null>;
-  catalogRenderedBody: ComputedRef<string>;
-  catalogMarkdownRef: Ref<HTMLElement | null>;
   loadCatalog: () => Promise<void>;
   selectCatalogEntry: (entry: CatalogEntry) => Promise<void>;
   starCatalogEntry: (entry: CatalogEntry) => Promise<void>;
@@ -193,7 +190,6 @@ export function useSkillCatalog(deps: SkillCatalogDeps): SkillCatalog {
   // request doesn't let the user fire a second action mid-flight.
   const catalogActioningKey = ref<string | null>(null);
   const selectedCatalogKey = computed(() => (selectedCatalog.value ? entryKey(selectedCatalog.value) : null));
-  const { markdownRef: catalogMarkdownRef, renderedBody: catalogRenderedBody } = useSkillMarkdown(() => catalogDetail.value?.body);
   const state: CatalogState = {
     t,
     endpoints,
@@ -215,8 +211,6 @@ export function useSkillCatalog(deps: SkillCatalogDeps): SkillCatalog {
     catalogDetailLoading,
     catalogActioningKey,
     selectedCatalogKey,
-    catalogRenderedBody,
-    catalogMarkdownRef,
     loadCatalog: () => loadCatalog(state),
     selectCatalogEntry: (entry) => selectCatalogEntry(state, entry),
     starCatalogEntry: (entry) => starCatalogEntry(state, entry),
