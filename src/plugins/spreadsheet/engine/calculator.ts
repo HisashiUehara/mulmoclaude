@@ -10,6 +10,7 @@ import { evaluateFormula as evaluateFormulaFn } from "./evaluator";
 import { parseDate, getDefaultDateFormat } from "./date-parser";
 import type { SheetData, CellValue, CalculatedSheet, CalculationError, FormulaInfo, SpreadsheetCell, CalculateOptions } from "./types";
 import { isObj } from "../../../utils/types";
+import { isEmptyCell } from "./cellEmpty";
 import { errorMessage } from "../../../utils/errors";
 
 /**
@@ -330,6 +331,10 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], option
       for (let col = startCol; col <= endCol; col++) {
         if (row >= 0 && row < sheetData.length && col >= 0 && col < sheetData[row].length) {
           const cell = sheetData[row][col];
+          // A blank cell is not a value. Skipping it here keeps SUM unchanged (a
+          // skipped blank would have read as 0) while stopping it from inflating
+          // AVERAGE's denominator and COUNT's tally (#2358).
+          if (isEmptyCell(cell)) continue;
           // Pass row/col only if current sheet (for recursive evaluation)
           const rawValue = getRawValue(cell, isCurrentSheet ? row : undefined, isCurrentSheet ? col : undefined);
 

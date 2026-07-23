@@ -10,6 +10,7 @@ export * from "./types";
 // Export utilities
 export * from "./parser";
 export * from "./date-locale";
+export * from "./cellEmpty";
 export * from "./formatter";
 export * from "./evaluator";
 export * from "./calculator";
