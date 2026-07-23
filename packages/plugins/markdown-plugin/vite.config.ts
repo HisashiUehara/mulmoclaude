@@ -20,7 +20,7 @@ export default defineConfig({
       // Externalise the host-shared / heavy deps so the host bundles a
       // single copy. gui-chat-protocol MUST be external so the injected
       // PLUGIN_RUNTIME_KEY Symbol matches the host's provider.
-      external: ["vue", "gui-chat-protocol", "gui-chat-protocol/vue", "marked", "js-yaml", "@marp-team/marp-core"],
+      external: [/^@mulmoclaude\/core/, "vue", "gui-chat-protocol", "gui-chat-protocol/vue", "marked", "js-yaml", "@marp-team/marp-core"],
       output: {
         exports: "named",
         globals: {
