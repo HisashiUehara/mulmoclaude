@@ -25,29 +25,23 @@ const RECIPES_DIR = "recipes";
 const FRONTMATTER_OPEN = /^---\r?\n/;
 const FRONTMATTER_CLOSE = /(?:^|\r?\n)---\s*(?:\r?\n|$)/;
 
+// Shared field shape for the `save` and `update` members — the two
+// carry an identical record body and differ only in `kind`.
+const recipeWriteFields = {
+  slug: z.string(),
+  title: z.string(),
+  tags: z.array(z.string()).optional(),
+  servings: z.number().int().nonnegative().optional(),
+  prepTime: z.number().int().nonnegative().optional(),
+  cookTime: z.number().int().nonnegative().optional(),
+  body: z.string(),
+};
+
 const Args = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("list") }),
   z.object({ kind: z.literal("read"), slug: z.string() }),
-  z.object({
-    kind: z.literal("save"),
-    slug: z.string(),
-    title: z.string(),
-    tags: z.array(z.string()).optional(),
-    servings: z.number().int().nonnegative().optional(),
-    prepTime: z.number().int().nonnegative().optional(),
-    cookTime: z.number().int().nonnegative().optional(),
-    body: z.string(),
-  }),
-  z.object({
-    kind: z.literal("update"),
-    slug: z.string(),
-    title: z.string(),
-    tags: z.array(z.string()).optional(),
-    servings: z.number().int().nonnegative().optional(),
-    prepTime: z.number().int().nonnegative().optional(),
-    cookTime: z.number().int().nonnegative().optional(),
-    body: z.string(),
-  }),
+  z.object({ kind: z.literal("save"), ...recipeWriteFields }),
+  z.object({ kind: z.literal("update"), ...recipeWriteFields }),
   z.object({ kind: z.literal("delete"), slug: z.string() }),
 ]);
 
@@ -178,6 +172,15 @@ function summarise(recipe: Recipe): RecipeSummary {
   };
 }
 
+type WritableArgsError = { ok: false; error: "invalid_slug"; slug: string } | { ok: false; error: "missing_title" };
+
+/** Slug + title precheck shared by `save` and `update`; null when valid. */
+function validateWritableArgs(args: { slug: string; title: string }): WritableArgsError | null {
+  if (!isValidSlug(args.slug)) return { ok: false, error: "invalid_slug", slug: args.slug };
+  if (args.title.trim().length === 0) return { ok: false, error: "missing_title" };
+  return null;
+}
+
 export default definePlugin(({ pubsub, files, log }) => {
   // Serialise read-modify-write through a per-plugin promise chain so
   // two parallel save / update / delete calls can't race the on-disk
@@ -238,12 +241,8 @@ export default definePlugin(({ pubsub, files, log }) => {
         }
 
         case "save": {
-          if (!isValidSlug(args.slug)) {
-            return { ok: false, error: "invalid_slug", slug: args.slug };
-          }
-          if (args.title.trim().length === 0) {
-            return { ok: false, error: "missing_title" };
-          }
+          const invalid = validateWritableArgs(args);
+          if (invalid) return invalid;
           return withWriteLock(async () => {
             if (await files.data.exists(recipePath(args.slug))) {
               return { ok: false, error: "exists", slug: args.slug };
@@ -268,12 +267,8 @@ export default definePlugin(({ pubsub, files, log }) => {
         }
 
         case "update": {
-          if (!isValidSlug(args.slug)) {
-            return { ok: false, error: "invalid_slug", slug: args.slug };
-          }
-          if (args.title.trim().length === 0) {
-            return { ok: false, error: "missing_title" };
-          }
+          const invalid = validateWritableArgs(args);
+          if (invalid) return invalid;
           return withWriteLock(async () => {
             const existing = await readRecipe(args.slug);
             if (!existing) return { ok: false, error: "not_found", slug: args.slug };
