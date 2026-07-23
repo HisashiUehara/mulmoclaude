@@ -102,3 +102,5 @@ export function toUtcIsoDate(timestamp: Date): string {
   const day = String(timestamp.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
+
+export type { MinimalLogger, StructuredLogger } from "./logger.js";
