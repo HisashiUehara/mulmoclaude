@@ -10,36 +10,20 @@ import { COMPUTED_TYPES } from "./schema";
 import type { CollectionFieldSpec as FieldSpec, CollectionFieldType as FieldType, CollectionItem, CollectionSchema } from "./schema";
 import type { EditState, TableRowDraft } from "./uiTypes";
 
-/** A fresh, empty row draft for a `table` field's sub-schema. */
-export function emptyRow(subFields: Record<string, FieldSpec>): TableRowDraft {
+/** Build a row draft, reading each sub-field's persisted value via
+ *  `readSub`. An empty row passes a reader that always returns
+ *  `undefined`; a row-from-item reads the source record. Boolean
+ *  presence uses `typeof raw === "boolean"` so an existing explicit
+ *  `false` is recorded as present and round-trips on a no-op save. */
+function buildTableRowDraft(subFields: Record<string, FieldSpec>, readSub: (subKey: string) => unknown): TableRowDraft {
   const text: Record<string, string> = {};
   const bool: Record<string, boolean> = {};
   const boolOriginallyPresent: Record<string, boolean> = {};
   const boolTouched: Record<string, boolean> = {};
   for (const [subKey, subField] of Object.entries(subFields)) {
-    if (subField.type === "boolean") {
-      bool[subKey] = false;
-      boolOriginallyPresent[subKey] = false; // brand-new row
-      boolTouched[subKey] = false;
-    } else {
-      text[subKey] = "";
-    }
-  }
-  return { text, bool, boolOriginallyPresent, boolTouched };
-}
-
-/** Build a row draft from an existing persisted row. */
-export function rowFromItem(item: Record<string, unknown>, subFields: Record<string, FieldSpec>): TableRowDraft {
-  const text: Record<string, string> = {};
-  const bool: Record<string, boolean> = {};
-  const boolOriginallyPresent: Record<string, boolean> = {};
-  const boolTouched: Record<string, boolean> = {};
-  for (const [subKey, subField] of Object.entries(subFields)) {
-    const raw = item[subKey];
+    const raw = readSub(subKey);
     if (subField.type === "boolean") {
       bool[subKey] = raw === true;
-      // `typeof raw === "boolean"` so an existing explicit `false` is
-      // recorded as present and round-trips on a no-op save.
       boolOriginallyPresent[subKey] = typeof raw === "boolean";
       boolTouched[subKey] = false;
     } else {
@@ -47,6 +31,16 @@ export function rowFromItem(item: Record<string, unknown>, subFields: Record<str
     }
   }
   return { text, bool, boolOriginallyPresent, boolTouched };
+}
+
+/** A fresh, empty row draft for a `table` field's sub-schema. */
+export function emptyRow(subFields: Record<string, FieldSpec>): TableRowDraft {
+  return buildTableRowDraft(subFields, () => undefined);
+}
+
+/** Build a row draft from an existing persisted row. */
+export function rowFromItem(item: Record<string, unknown>, subFields: Record<string, FieldSpec>): TableRowDraft {
+  return buildTableRowDraft(subFields, (subKey) => item[subKey]);
 }
 
 /** Decide whether a boolean field's draft value should be emitted (vs.
