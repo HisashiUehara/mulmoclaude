@@ -805,6 +805,7 @@ const jaMessages = {
     metadataEditor: "編集者",
     pageEditHeader: "Wiki編集",
     snapshotExpired: "スナップショットが期限切れ — 現在のページを表示中",
+    snapshotLoadError: "スナップショットを読み込めませんでした — ページは存在する可能性があります。再読み込みしてください。",
     pageDeleted: "ページが削除されました",
     history: {
       tabContent: "本文",

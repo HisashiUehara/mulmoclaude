@@ -791,6 +791,7 @@ const zhMessages = {
     metadataEditor: "编辑者",
     pageEditHeader: "Wiki 编辑",
     snapshotExpired: "快照已过期 — 显示当前页面",
+    snapshotLoadError: "无法加载快照 — 页面可能仍然存在。请尝试刷新。",
     pageDeleted: "页面已删除",
     history: {
       tabContent: "正文",
