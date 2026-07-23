@@ -2,9 +2,10 @@
  * Logical Functions
  */
 
-import { evaluateConditionValues, renderConditionOperand } from "../condition";
+import { evaluateConditionValues, readOperand, renderConditionOperand } from "../condition";
 import { findCellRefs } from "../evaluator";
 import { functionRegistry, type FunctionHandler } from "../registry";
+import type { CellValue } from "../types";
 
 const ifHandler: FunctionHandler = (args, context) => {
   if (args.length !== 3) throw new Error("IF requires 3 arguments");
@@ -146,10 +147,15 @@ const ifsHandler: FunctionHandler = (args, context) => {
     // Parsed, not executed. This used to call `eval` on `condExpr`, which is
     // the substituted text — so a cell containing `globalThis.x = 1` ran as
     // code whenever an IFS referenced it, and so did anything written into the
-    // formula itself. Each operand is resolved with the engine's safe evaluator
-    // (so `A1+1>10` computes the arithmetic) and only the top-level comparison
-    // is applied — the condition is never run as code.
-    if (evaluateConditionValues(condExpr, (operand) => context.evaluateFormula(operand))) {
+    // formula itself. `readOperand` resolves the simple operands (TRUE/FALSE ->
+    // boolean, quoted text, numbers); an arithmetic expression it leaves as raw
+    // text is handed to the engine's safe evaluator so `A1+1>10` is computed.
+    // Only the top-level comparison is applied — the condition is never run.
+    const evaluateOperand = (operand: string): CellValue => {
+      const parsed = readOperand(operand);
+      return typeof parsed === "string" && parsed === operand.trim() ? context.evaluateFormula(operand) : parsed;
+    };
+    if (evaluateConditionValues(condExpr, evaluateOperand)) {
       // If result is a quoted string, return without quotes
 
       if (/^["'](.*)["']$/.test(value)) {
