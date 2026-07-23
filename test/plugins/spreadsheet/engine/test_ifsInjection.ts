@@ -123,6 +123,21 @@ describe("IFS — absolute and mixed references resolve", () => {
   });
 });
 
+describe("IFS — a reference inside a string literal stays literal text", () => {
+  // `A1="B2"` compares A1 to the TEXT "B2". The `"B2"` must not be read as a
+  // reference and replaced with cell B2's value (Codex review).
+  it("does not substitute a ref that sits inside quotes", () => {
+    const sheet: SheetData = {
+      name: "S",
+      data: [
+        [{ v: "B2" }, { v: '=IFS(A1="B2", "hit")' }],
+        [{ v: 0 }, { v: 99 }],
+      ],
+    };
+    assert.equal(new SpreadsheetEngine().calculate(sheet).data[0][1], "hit", "A1's text equals the literal B2");
+  });
+});
+
 describe("IFS — the formula itself is data too", () => {
   it("does not execute an expression written into the condition", () => {
     marker.__ifsProbe4 = false;

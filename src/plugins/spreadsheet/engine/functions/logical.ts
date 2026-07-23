@@ -3,6 +3,7 @@
  */
 
 import { evaluateCondition, renderConditionOperand } from "../condition";
+import { findCellRefs } from "../evaluator";
 import { functionRegistry, type FunctionHandler } from "../registry";
 
 const ifHandler: FunctionHandler = (args, context) => {
@@ -128,25 +129,18 @@ const ifsHandler: FunctionHandler = (args, context) => {
     const condition = args[i];
     const value = args[i + 1];
 
-    // Evaluate condition
+    // Substitute references by POSITION (back to front), skipping any that sit
+    // inside a quoted string literal: `IFS(A1="B2", …)` must compare A1 to the
+    // TEXT "B2", not to cell B2's value (Codex review). findCellRefs already
+    // skips literals and matches absolute / sheet-qualified refs, so this also
+    // avoids the earlier regex double-escaping. renderConditionOperand quotes a
+    // text cell so its own operators are not re-parsed as comparisons.
     let condExpr = condition;
-
-    const cellRefs = condition.match(/(?:'[^']+'|[^'!\s]+)![A-Z]+\d+|\$?[A-Z]+\$?\d+/g);
-    if (cellRefs) {
-      for (const ref of cellRefs) {
-        // Escape the ref ONCE for the regex. Pre-escaping `$`/`'` first (then
-        // escaping again for the pattern) double-escaped absolute (`$A$1`) and
-        // sheet-qualified (`'Sheet 1'!A1`) refs, so they never matched and were
-        // left unresolved in the condition (Codex review).
-        const pattern = new RegExp(ref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g");
-        // `renderConditionOperand`, not `String(...)`: a text cell must land in
-        // the condition as a quoted literal, so `A1="x>y"` compares two strings
-        // rather than parsing the cell's `>` as an operator. A function
-        // replacement keeps a `$` in the rendered value from being read as a
-        // backreference.
-        const rendered = renderConditionOperand(context.getCellValue(ref));
-        condExpr = condExpr.replace(pattern, () => rendered);
-      }
+    const cellRefs = findCellRefs(condition);
+    for (let index = cellRefs.length - 1; index >= 0; index--) {
+      const { ref, start } = cellRefs[index];
+      const rendered = renderConditionOperand(context.getCellValue(ref));
+      condExpr = condExpr.slice(0, start) + rendered + condExpr.slice(start + ref.length);
     }
 
     // Parsed, not executed. This used to call `eval` on `condExpr`, which is
