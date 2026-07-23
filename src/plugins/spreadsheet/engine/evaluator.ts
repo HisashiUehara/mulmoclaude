@@ -8,6 +8,7 @@ import { functionRegistry } from "./registry";
 import type { CellValue } from "./types";
 import { parseDate } from "./date-parser";
 import { caretToPow, replaceConcatOperator, rewriteComparisonEq, isSafeArithmetic, isSafeComparison } from "./translateFormula";
+import { divZeroError, unknownError, nameError, isErrorValue, propagatedError } from "./formulaError";
 
 /**
  * Evaluation context for formulas
@@ -204,6 +205,27 @@ export function parseFunctionArgs(argsStr: string): string[] {
   return args;
 }
 
+/** Run `new Function` on an expression the callers have already gated with a
+ *  character allowlist. A JS parse/eval failure becomes #ERROR! — a genuinely
+ *  broken formula that used to be swallowed into a bare string (#2359). A
+ *  non-finite NUMBER result is only reachable by dividing by zero (comparisons
+ *  yield booleans, concatenation yields strings), so it becomes #DIV/0!. */
+function evalValidatedExpression(jsExpr: string): CellValue {
+  let result: unknown;
+  try {
+    // eslint-disable -- sonarjs/code-eval
+    result = new Function(`return (${jsExpr})`)();
+  } catch {
+    throw unknownError();
+  }
+  if (typeof result === "number") {
+    if (!Number.isFinite(result)) throw divZeroError();
+    return result;
+  }
+  if (typeof result === "string" || typeof result === "boolean") return result;
+  throw unknownError();
+}
+
 /**
  * Evaluate a formula string
  *
@@ -213,253 +235,238 @@ export function parseFunctionArgs(argsStr: string): string[] {
  * - Arithmetic: 2+3, A1*B1, (A1+B1)/2
  * - Nested expressions: ROUND(SUM(A1:A10)/COUNT(A1:A10), 2)
  *
+ * A genuine failure THROWS (a typed FormulaError or any handler error) rather
+ * than returning the raw formula text; the calculator classifies it into
+ * errors[] and shows the Excel error value in the cell (#2359).
+ *
  * @param formula - Formula string (without leading =)
  * @param context - Evaluation context with cell/range accessors
  * @returns Evaluated result (number or string)
  */
 export function evaluateFormula(formula: string, context: EvaluatorContext): CellValue {
-  try {
-    // Handle string literals - remove surrounding quotes
-    // But NOT string concatenations (which contain & operators)
-    const trimmed = formula.trim();
-    if (
-      ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) &&
-      !trimmed.includes("&") // Exclude string concatenations
-    ) {
-      const stringValue = trimmed.slice(1, -1); // Remove first and last character (quotes)
+  // Handle string literals - remove surrounding quotes
+  // But NOT string concatenations (which contain & operators)
+  const trimmed = formula.trim();
+  if (
+    ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) &&
+    !trimmed.includes("&") // Exclude string concatenations
+  ) {
+    const stringValue = trimmed.slice(1, -1); // Remove first and last character (quotes)
 
-      // Auto-parse date strings to serial numbers for compatibility with date arithmetic
-      // This allows formulas like =HLOOKUP("6/1/2024", ...) to work with parsed date cells
-      const dateSerial = parseDate(stringValue, context.preferDDMMYYYY);
-      if (dateSerial !== null) {
-        return dateSerial;
-      }
-
-      return stringValue;
+    // Auto-parse date strings to serial numbers for compatibility with date arithmetic
+    // This allows formulas like =HLOOKUP("6/1/2024", ...) to work with parsed date cells
+    const dateSerial = parseDate(stringValue, context.preferDDMMYYYY);
+    if (dateSerial !== null) {
+      return dateSerial;
     }
 
-    // Check if it's a SIMPLE function call (not a complex expression)
-    // We need to ensure the formula is JUST a function, not "FUNC(...) + something"
-    const funcMatch = formula.match(/^([A-Z]+)\((.*)\)$/i);
-    if (funcMatch) {
-      const [, funcName, argsStr] = funcMatch;
-
-      // Check that the closing paren is actually the end of the function
-      // by counting parentheses in argsStr
-      let parenDepth = 0;
-      let isValidFunction = true;
-      for (const char of argsStr) {
-        if (char === "(") parenDepth++;
-        else if (char === ")") {
-          parenDepth--;
-          if (parenDepth < 0) {
-            // More closing parens than opening - this means we matched too much
-            isValidFunction = false;
-            break;
-          }
-        }
-      }
-
-      // Normalize function name to uppercase for registry lookup
-      const normalizedFuncName = funcName.toUpperCase();
-      const func = functionRegistry.get(normalizedFuncName);
-
-      if (func && isValidFunction) {
-        const args = parseFunctionArgs(argsStr);
-
-        // Validate argument count
-        if (func.minArgs !== undefined && args.length < func.minArgs) {
-          throw new Error(`${normalizedFuncName} requires at least ${func.minArgs} argument${func.minArgs !== 1 ? "s" : ""}`);
-        }
-        if (func.maxArgs !== undefined && args.length > func.maxArgs) {
-          throw new Error(`${normalizedFuncName} accepts at most ${func.maxArgs} argument${func.maxArgs !== 1 ? "s" : ""}`);
-        }
-
-        // Execute function with context
-        return func.handler(args, {
-          getCellValue: context.getCellValue,
-          getRangeValues: context.getRangeValues,
-          getRangeValuesRaw: context.getRangeValuesRaw,
-          evaluateFormula: context.evaluateFormula,
-        });
-      }
-    }
-
-    // Handle simple arithmetic expressions with cell references
-    // First, replace any function calls within the expression
-    let expr = formula;
-
-    // Find and evaluate function calls (e.g., TODAY(), SUM(A1:A10), LOWER(A1), etc.)
-    // Use a simpler approach: find function names followed by parentheses
-    // and manually parse the matching closing parenthesis
-    let searchIndex = 0;
-    const maxIterations = 100; // Prevent infinite loops
-    let iterations = 0;
-
-    while (searchIndex < expr.length && iterations < maxIterations) {
-      iterations++;
-      const funcNameMatch = expr.substring(searchIndex).match(/^([A-Z]+)\(/i);
-      if (!funcNameMatch) {
-        // No more functions found, move to next character
-        searchIndex++;
-        if (searchIndex >= expr.length) break;
-        continue;
-      }
-
-      const funcStartIndex = searchIndex;
-      const funcName = funcNameMatch[1];
-      const argsStartIndex = searchIndex + funcName.length + 1;
-
-      // Find matching closing parenthesis
-      let depth = 1;
-      let argsEndIndex = argsStartIndex;
-      let inString = false;
-      let stringChar = "";
-
-      while (argsEndIndex < expr.length && depth > 0) {
-        const char = expr[argsEndIndex];
-        const prevChar = argsEndIndex > 0 ? expr[argsEndIndex - 1] : "";
-
-        // Track string boundaries
-        if ((char === '"' || char === "'") && prevChar !== "\\") {
-          if (!inString) {
-            inString = true;
-            stringChar = char;
-          } else if (char === stringChar) {
-            inString = false;
-            stringChar = "";
-          }
-        }
-
-        // Only count parens outside of strings
-        if (!inString) {
-          if (char === "(") depth++;
-          else if (char === ")") depth--;
-        }
-        argsEndIndex++;
-      }
-
-      if (depth === 0) {
-        const fullMatch = expr.substring(funcStartIndex, argsEndIndex);
-        const result = context.evaluateFormula(fullMatch);
-        // For string results, wrap in quotes; for numbers, wrap in parentheses
-        const replacement = typeof result === "string" ? `"${result}"` : `(${result})`;
-        expr = expr.substring(0, funcStartIndex) + replacement + expr.substring(argsEndIndex);
-        // Continue from after the replacement
-        searchIndex = funcStartIndex + replacement.length;
-      } else {
-        searchIndex++;
-      }
-    }
-
-    // Then replace cell references with their values. Detection skips quoted
-    // string literals so a `"A1"` constant is not read as a reference.
-    const cellRefs = findCellRefs(expr);
-
-    // A formula that is nothing but one reference returns that cell's value
-    // directly. Rendering it into an expression first would mean escaping the
-    // text, and the escapes would survive into the result — `=A1` on a cell
-    // holding `say "hi"` would come back `say \"hi\"`. Surrounding whitespace
-    // (`= A1`, `=A1 `) is part of "nothing but one reference", so compare the
-    // span against the trimmed expression rather than the raw one.
-    if (cellRefs.length === 1) {
-      const { ref, start } = cellRefs[0];
-      const before = expr.slice(0, start);
-      const after = expr.slice(start + ref.length);
-      if (before.trim() === "" && after.trim() === "") {
-        return context.getCellValue(ref);
-      }
-    }
-
-    // Substitute by POSITION, back to front. A global string replace rewrote
-    // every occurrence of the shorter reference first, so `=A1+A10` had its
-    // `A10` broken into `<A1's value>0` and produced a plausible wrong number
-    // (#2357). Walking backwards keeps the earlier spans valid as we go.
-    for (let index = cellRefs.length - 1; index >= 0; index--) {
-      const { ref, start } = cellRefs[index];
-      expr = expr.slice(0, start) + renderOperand(context.getCellValue(ref)) + expr.slice(start + ref.length);
-    }
-
-    // Parse date strings in arithmetic expressions (e.g., "06/01/2025" → serial number)
-    // This allows formulas like =B3-"06/01/2025" to work correctly
-    expr = expr.replace(/"([^"]+)"/g, (match, dateStr) => {
-      const dateSerial = parseDate(dateStr, context.preferDDMMYYYY);
-      if (dateSerial !== null) {
-        return dateSerial.toString();
-      }
-      return match; // Keep original if not a date
-    });
-
-    // Replace ^ with ** for exponentiation
-    expr = caretToPow(expr);
-
-    // Check if this is a string concatenation expression (contains & and quoted strings)
-    const hasStringConcat = expr.includes("&");
-    const hasQuotedStrings = /["']/.test(expr);
-
-    // If it contains string concatenation, handle it specially
-    if (hasStringConcat && hasQuotedStrings) {
-      try {
-        // Convert & to + for JavaScript string concatenation, leaving any & that
-        // sits inside a string literal untouched.
-        const result = replaceConcatOperator(expr);
-
-        // Validate the STRUCTURE, not the string content: a literal may hold any
-        // character, so masking the literals is what lets `=A1&"!"` and escaped
-        // operands through while still rejecting a genuinely unsafe expression.
-        if (isSafeConcatExpression(result)) {
-          // eslint-disable -- sonarjs/code-eval
-          const evalResult = new Function(`return (${result})`)();
-          return evalResult;
-        }
-      } catch (error) {
-        console.error(`Failed to evaluate string concatenation: ${expr}`, error);
-        return formula;
-      }
-    }
-
-    // Safely evaluate comparison expressions (e.g., 5=6, (5)>(6))
-    // Allow numbers, comparison operators (=, !=, <, >, <=, >=), parentheses, whitespace
-    if (isSafeComparison(expr)) {
-      try {
-        // Replace = with == for JavaScript comparison (but not <= or >=)
-        const jsExpr = rewriteComparisonEq(expr);
-
-        // Use Function constructor which is safer than eval
-        // eslint-disable -- sonarjs/code-eval
-        const result = new Function(`return (${jsExpr})`)();
-        return result;
-      } catch {
-        return formula;
-      }
-    }
-
-    // Safely evaluate arithmetic expressions using Function constructor instead of eval
-    // Allow numbers, operators, parentheses, whitespace, and decimal points
-    if (isSafeArithmetic(expr)) {
-      try {
-        // Use Function constructor which is safer than eval because:
-        // 1. The expression is strictly validated (only numbers and math operators)
-        // 2. No access to local scope variables
-        // 3. No this binding issues
-        // This is safe because we validate the expression first
-        // eslint-disable -- sonarjs/code-eval
-        const result = new Function(`return (${expr})`)();
-        return result;
-      } catch {
-        return formula;
-      }
-    }
-
-    // If the final expression is a quoted string literal, unwrap it
-    const trimmedExpr = expr.trim();
-    if ((trimmedExpr.startsWith('"') && trimmedExpr.endsWith('"')) || (trimmedExpr.startsWith("'") && trimmedExpr.endsWith("'"))) {
-      return trimmedExpr.slice(1, -1); // Remove quotes
-    }
-
-    return expr; // Return processed expression (with cell refs replaced, etc.)
-  } catch (error) {
-    console.error(`Failed to evaluate formula: ${formula}`, error);
-    return formula;
+    return stringValue;
   }
+
+  // Check if it's a SIMPLE function call (not a complex expression)
+  // We need to ensure the formula is JUST a function, not "FUNC(...) + something"
+  const funcMatch = formula.match(/^([A-Z]+)\((.*)\)$/i);
+  if (funcMatch) {
+    const [, funcName, argsStr] = funcMatch;
+
+    // Check that the closing paren is actually the end of the function
+    // by counting parentheses in argsStr
+    let parenDepth = 0;
+    let isValidFunction = true;
+    for (const char of argsStr) {
+      if (char === "(") parenDepth++;
+      else if (char === ")") {
+        parenDepth--;
+        if (parenDepth < 0) {
+          // More closing parens than opening - this means we matched too much
+          isValidFunction = false;
+          break;
+        }
+      }
+    }
+
+    // Normalize function name to uppercase for registry lookup
+    const normalizedFuncName = funcName.toUpperCase();
+    const func = functionRegistry.get(normalizedFuncName);
+
+    if (func && isValidFunction) {
+      const args = parseFunctionArgs(argsStr);
+
+      // Validate argument count
+      if (func.minArgs !== undefined && args.length < func.minArgs) {
+        throw new Error(`${normalizedFuncName} requires at least ${func.minArgs} argument${func.minArgs !== 1 ? "s" : ""}`);
+      }
+      if (func.maxArgs !== undefined && args.length > func.maxArgs) {
+        throw new Error(`${normalizedFuncName} accepts at most ${func.maxArgs} argument${func.maxArgs !== 1 ? "s" : ""}`);
+      }
+
+      // Execute function with context
+      return func.handler(args, {
+        getCellValue: context.getCellValue,
+        getRangeValues: context.getRangeValues,
+        getRangeValuesRaw: context.getRangeValuesRaw,
+        evaluateFormula: context.evaluateFormula,
+      });
+    }
+
+    // A balanced `NAME(...)` spanning the whole formula whose NAME is not a
+    // registered function is an unrecognized name — Excel's #NAME?. Surfacing
+    // it here also stops the arithmetic path below from recursing on it forever
+    // and leaving the literal text in the cell (#2359).
+    if (isValidFunction && !func) {
+      throw nameError(normalizedFuncName);
+    }
+  }
+
+  // Handle simple arithmetic expressions with cell references
+  // First, replace any function calls within the expression
+  let expr = formula;
+
+  // Find and evaluate function calls (e.g., TODAY(), SUM(A1:A10), LOWER(A1), etc.)
+  // Use a simpler approach: find function names followed by parentheses
+  // and manually parse the matching closing parenthesis
+  let searchIndex = 0;
+  const maxIterations = 100; // Prevent infinite loops
+  let iterations = 0;
+
+  while (searchIndex < expr.length && iterations < maxIterations) {
+    iterations++;
+    const funcNameMatch = expr.substring(searchIndex).match(/^([A-Z]+)\(/i);
+    if (!funcNameMatch) {
+      // No more functions found, move to next character
+      searchIndex++;
+      if (searchIndex >= expr.length) break;
+      continue;
+    }
+
+    const funcStartIndex = searchIndex;
+    const funcName = funcNameMatch[1];
+    const argsStartIndex = searchIndex + funcName.length + 1;
+
+    // Find matching closing parenthesis
+    let depth = 1;
+    let argsEndIndex = argsStartIndex;
+    let inString = false;
+    let stringChar = "";
+
+    while (argsEndIndex < expr.length && depth > 0) {
+      const char = expr[argsEndIndex];
+      const prevChar = argsEndIndex > 0 ? expr[argsEndIndex - 1] : "";
+
+      // Track string boundaries
+      if ((char === '"' || char === "'") && prevChar !== "\\") {
+        if (!inString) {
+          inString = true;
+          stringChar = char;
+        } else if (char === stringChar) {
+          inString = false;
+          stringChar = "";
+        }
+      }
+
+      // Only count parens outside of strings
+      if (!inString) {
+        if (char === "(") depth++;
+        else if (char === ")") depth--;
+      }
+      argsEndIndex++;
+    }
+
+    if (depth === 0) {
+      const fullMatch = expr.substring(funcStartIndex, argsEndIndex);
+      const result = context.evaluateFormula(fullMatch);
+      // For string results, wrap in quotes; for numbers, wrap in parentheses
+      const replacement = typeof result === "string" ? `"${result}"` : `(${result})`;
+      expr = expr.substring(0, funcStartIndex) + replacement + expr.substring(argsEndIndex);
+      // Continue from after the replacement
+      searchIndex = funcStartIndex + replacement.length;
+    } else {
+      searchIndex++;
+    }
+  }
+
+  // Then replace cell references with their values. Detection skips quoted
+  // string literals so a `"A1"` constant is not read as a reference.
+  const cellRefs = findCellRefs(expr);
+
+  // A formula that is nothing but one reference returns that cell's value
+  // directly. Rendering it into an expression first would mean escaping the
+  // text, and the escapes would survive into the result — `=A1` on a cell
+  // holding `say "hi"` would come back `say \"hi\"`. Surrounding whitespace
+  // (`= A1`, `=A1 `) is part of "nothing but one reference", so compare the
+  // span against the trimmed expression rather than the raw one.
+  if (cellRefs.length === 1) {
+    const { ref, start } = cellRefs[0];
+    const before = expr.slice(0, start);
+    const after = expr.slice(start + ref.length);
+    if (before.trim() === "" && after.trim() === "") {
+      return context.getCellValue(ref);
+    }
+  }
+
+  // Substitute by POSITION, back to front. A global string replace rewrote
+  // every occurrence of the shorter reference first, so `=A1+A10` had its
+  // `A10` broken into `<A1's value>0` and produced a plausible wrong number
+  // (#2357). Walking backwards keeps the earlier spans valid as we go.
+  for (let index = cellRefs.length - 1; index >= 0; index--) {
+    const { ref, start } = cellRefs[index];
+    const value = context.getCellValue(ref);
+    // A referenced cell holding an error value poisons the whole expression:
+    // rendering it would produce `"#DIV/0!"+1` garbage, so propagate the error
+    // instead of substituting it (#2359, Excel behaviour).
+    if (isErrorValue(value)) throw propagatedError(value);
+    expr = expr.slice(0, start) + renderOperand(value) + expr.slice(start + ref.length);
+  }
+
+  // Parse date strings in arithmetic expressions (e.g., "06/01/2025" → serial number)
+  // This allows formulas like =B3-"06/01/2025" to work correctly
+  expr = expr.replace(/"([^"]+)"/g, (match, dateStr) => {
+    const dateSerial = parseDate(dateStr, context.preferDDMMYYYY);
+    if (dateSerial !== null) {
+      return dateSerial.toString();
+    }
+    return match; // Keep original if not a date
+  });
+
+  // Replace ^ with ** for exponentiation
+  expr = caretToPow(expr);
+
+  // Check if this is a string concatenation expression (contains & and quoted strings)
+  const hasStringConcat = expr.includes("&");
+  const hasQuotedStrings = /["']/.test(expr);
+
+  // If it contains string concatenation, handle it specially. Convert & to +
+  // for JS concatenation (leaving any & inside a literal untouched), then
+  // validate the STRUCTURE with literals masked — a literal may hold any
+  // character, so masking is what lets `=A1&"!"` and escaped operands through
+  // while still rejecting a genuinely unsafe expression. A non-safe structure
+  // falls through to the paths below rather than erroring.
+  if (hasStringConcat && hasQuotedStrings) {
+    const result = replaceConcatOperator(expr);
+    if (isSafeConcatExpression(result)) {
+      return evalValidatedExpression(result);
+    }
+  }
+
+  // Safely evaluate comparison expressions (e.g., 5=6, (5)>(6)). The allowlist
+  // (numbers, `= != < > <= >=`, parens, whitespace) gates the evaluation. It is
+  // a superset of the arithmetic allowlist, so a plain `1/0` is handled here —
+  // evalValidatedExpression turns its Infinity into #DIV/0! (#2359).
+  if (isSafeComparison(expr)) {
+    return evalValidatedExpression(rewriteComparisonEq(expr));
+  }
+
+  // Safely evaluate arithmetic expressions (numbers, operators, parens,
+  // whitespace, decimal points).
+  if (isSafeArithmetic(expr)) {
+    return evalValidatedExpression(expr);
+  }
+
+  // If the final expression is a quoted string literal, unwrap it
+  const trimmedExpr = expr.trim();
+  if ((trimmedExpr.startsWith('"') && trimmedExpr.endsWith('"')) || (trimmedExpr.startsWith("'") && trimmedExpr.endsWith("'"))) {
+    return trimmedExpr.slice(1, -1); // Remove quotes
+  }
+
+  return expr; // Return processed expression (with cell refs replaced, etc.)
 }
