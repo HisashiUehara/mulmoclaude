@@ -9,7 +9,7 @@
 // has to be applied six times. This package is the single source.
 
 import crypto from "crypto";
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response } from "express";
 import rateLimit, { ipKeyGenerator, type RateLimitRequestHandler } from "express-rate-limit";
 
 // Honour an explicit `trust proxy` setting so `req.ip` (the rate-limit
@@ -108,4 +108,47 @@ export function narrowChallenge(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   if (!SAFE_CHALLENGE_RE.test(raw)) return null;
   return raw;
+}
+
+export interface MetaVerificationResult {
+  status: 200 | 403;
+  body: string;
+  verified: boolean;
+}
+
+// Pure decision for Meta's GET handshake: echo `hub.challenge` only when
+// `hub.mode=subscribe`, `hub.verify_token` matches, and the challenge clears
+// `narrowChallenge`. Split out from the Express handler so it can be tested
+// without a request object. Messenger and WhatsApp share this byte-for-byte.
+export function metaVerificationResult(query: Record<string, unknown>, verifyToken: string): MetaVerificationResult {
+  const challenge = narrowChallenge(query["hub.challenge"]);
+  if (query["hub.mode"] === "subscribe" && query["hub.verify_token"] === verifyToken && challenge !== null) {
+    return { status: 200, body: challenge, verified: true };
+  }
+  return { status: 403, body: "Forbidden", verified: false };
+}
+
+export interface MetaWebhookVerificationOptions {
+  rateLimit: RateLimitRequestHandler;
+  verifyToken: string;
+  /** Log prefix, e.g. "messenger" / "whatsapp". */
+  label: string;
+}
+
+// Register the shared Meta webhook-verification GET handler (Messenger,
+// WhatsApp). Always `text/plain` — the CodeQL `js/reflected-xss` defence for
+// the echoed challenge (see narrowChallenge + SAFE_CHALLENGE_RE above).
+export function registerMetaWebhookVerification(app: Express, opts: MetaWebhookVerificationOptions): void {
+  app.get("/webhook", opts.rateLimit, (req: Request, res: Response) => {
+    const result = metaVerificationResult(req.query, opts.verifyToken);
+    if (result.verified) console.log(`[${opts.label}] webhook verified`);
+    res.status(result.status).type("text/plain").send(result.body);
+  });
+}
+
+// Meta prefixes the x-hub-signature-256 hex digest with `sha256=`; strip it
+// before the timing-safe compare. Wraps the generic hex/SHA-256 HMAC check so
+// the Messenger and WhatsApp bridges stop carrying identical copies.
+export function verifyMetaHmacSignature(rawBody: string, signature: string, appSecret: string): boolean {
+  return verifyHmacSignature(rawBody, signature.replace("sha256=", ""), appSecret, "sha256", "hex");
 }

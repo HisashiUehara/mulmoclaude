@@ -1,10 +1,9 @@
 import { describe, it, beforeEach, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { useClipboardCopy } from "../../src/composables/useClipboardCopy.ts";
+import { useClipboardCopy } from "../../src/plugin-vue/index.ts";
 
-// Stub `navigator.clipboard` so the composable can be exercised
-// without jsdom. Tests restore the pre-existing `navigator` in
-// afterEach.
+// Stub `navigator.clipboard` so the composable can be exercised without jsdom. Tests
+// restore the pre-existing `navigator` in afterEach.
 
 interface ClipboardStub {
   writeText: (text: string) => Promise<void>;
@@ -13,8 +12,8 @@ interface NavigatorStub {
   clipboard: ClipboardStub;
 }
 
-// Node exposes `navigator` as a getter-only property from v24+, so
-// a plain assignment throws. `Object.defineProperty` overrides that.
+// Node exposes `navigator` as a getter-only property from v24+, so a plain assignment
+// throws. `Object.defineProperty` overrides that.
 const originalNavigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
 
 let clipboardWrites: string[] = [];
@@ -94,16 +93,16 @@ describe("useClipboardCopy", () => {
     assert.equal(copied.value, false);
   });
 
-  it("multiple copies extend the visible-true window to the latest call", async () => {
+  it("a rapid second copy cancels the first reset and extends the window from the latest call", async () => {
+    // Regression for the clearTimeout fix: without it, the first copy's timer fires at
+    // t=1000 and clears the hint even though a second copy landed at t=500.
     const { copied, copy } = useClipboardCopy(1000);
     await copy("first");
     mock.timers.tick(500);
     await copy("second");
-    // The second copy scheduled a new 1000ms timer. The first timer
-    // still fires at t=1000 (500ms from now) and sets copied=false.
-    // This is the documented behaviour — callers that need strict
-    // reset-on-repeat semantics would need a different design.
-    mock.timers.tick(500);
+    mock.timers.tick(500); // t=1000: the first (cancelled) timer would have fired here.
+    assert.equal(copied.value, true);
+    mock.timers.tick(500); // t=1500: the second copy's timer fires.
     assert.equal(copied.value, false);
   });
 });

@@ -11,6 +11,12 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./meta-webhook": {
+      "types": "./dist/meta-webhook.d.ts",
+      "import": "./dist/meta-webhook.js",
+      "require": "./dist/meta-webhook.js",
+      "default": "./dist/meta-webhook.js"
     }
   },
   "files": [

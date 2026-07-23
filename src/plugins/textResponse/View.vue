@@ -132,7 +132,7 @@ import { useMermaidRenderer } from "../../utils/markdown/useMermaid";
 import { useAppApi } from "../../composables/useAppApi";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { useMarkdownZip } from "../../composables/useMarkdownZip";
-import { useClipboardCopy } from "../../composables/useClipboardCopy";
+import { useClipboardCopy } from "@mulmoclaude/core/plugin-vue";
 import { buildPdfFilename } from "@mulmoclaude/markdown-utils/files/filename";
 import { extractTextResponseTitle, truncateForRender } from "./utils";
 
