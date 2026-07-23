@@ -250,7 +250,6 @@
           :entry="selectedCatalog"
           :source-meta="presetSourceMeta"
           :actioning-key="catalogActioningKey"
-          :selected-key="selectedCatalogKey"
           :loading="catalogDetailLoading"
           :error="catalogError"
           :detail="catalogDetail"
