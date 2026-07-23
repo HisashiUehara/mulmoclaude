@@ -4,7 +4,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { SpreadsheetEngine, renderOperand, type SheetData } from "../../../../src/plugins/spreadsheet/engine/index.ts";
+import { SpreadsheetEngine, renderOperand, findCellRefs, endOfStringLiteral, type SheetData } from "../../../../src/plugins/spreadsheet/engine/index.ts";
 
 /** A single column of values, with `formula` in the cell beside the first. */
 function columnSheet(values: (string | number)[], formula: string): SheetData {
@@ -86,6 +86,64 @@ describe("a lone reference returns the cell value unchanged", () => {
   it("does not take the fast path when the reference is part of an expression", () => {
     const sheet: SheetData = { name: "S", data: [[{ v: 3 }, { v: "=A1+1" }]] };
     assert.equal(new SpreadsheetEngine().calculate(sheet).data[0][1], 4);
+  });
+});
+
+describe("a reference inside a string literal is a constant, not a reference", () => {
+  // `"A1"` is text the user typed, not the cell A1. The substitution used to
+  // scan inside literals, so `="A1"&"!"` returned A1's value (`5!`) instead of
+  // the constant (`A1!`) (Codex review).
+  it("does not substitute a double-quoted ref-looking constant", () => {
+    assert.equal(evaluate(columnSheet([5], '="A1"&"!"')), "A1!");
+  });
+
+  it("substitutes a real reference beside a literal that looks like one", () => {
+    assert.equal(evaluate(columnSheet([7], '=A1&"B2"')), "7B2");
+  });
+
+  // A single-quoted span that is NOT `'Sheet'!cell` is a string literal too, so
+  // its contents must not be read as references.
+  it("does not substitute a single-quoted ref-looking constant", () => {
+    assert.equal(evaluate(columnSheet([5], "='B2'&\"!\"")), "B2!");
+  });
+});
+
+describe("findCellRefs", () => {
+  it("finds every reference in an arithmetic expression", () => {
+    assert.deepEqual(findCellRefs("A1+A10"), [
+      { ref: "A1", start: 0 },
+      { ref: "A10", start: 3 },
+    ]);
+  });
+
+  it("skips references inside a double-quoted literal", () => {
+    assert.deepEqual(findCellRefs('"A1"&"!"'), []);
+    assert.deepEqual(findCellRefs('A1&"B2"'), [{ ref: "A1", start: 0 }]);
+  });
+
+  it("keeps a quoted sheet reference but skips a plain single-quoted literal", () => {
+    assert.deepEqual(findCellRefs("'Sheet1'!A1"), [{ ref: "'Sheet1'!A1", start: 0 }]);
+    assert.deepEqual(findCellRefs("'B2'&\"!\""), []);
+  });
+
+  // An escaped quote must not end the literal early, or the tail would be
+  // scanned for references.
+  it("honours backslash escapes inside a literal", () => {
+    assert.deepEqual(findCellRefs('"say \\"A1\\""'), []);
+  });
+});
+
+describe("endOfStringLiteral", () => {
+  it("returns the index just past the closing quote", () => {
+    assert.equal(endOfStringLiteral('"ab"cd', 0), 4);
+  });
+
+  it("does not close on an escaped quote", () => {
+    assert.equal(endOfStringLiteral('"a\\"b"x', 0), 6);
+  });
+
+  it("returns the length when the literal is never closed", () => {
+    assert.equal(endOfStringLiteral('"abc', 0), 4);
   });
 });
 

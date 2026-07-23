@@ -71,6 +71,80 @@ export function isSafeConcatExpression(expr: string): boolean {
   return /^[\d+\-*/(). "']*$/.test(structure);
 }
 
+/** Index just past the string literal that opens at `start` (a quote char),
+ *  honouring `\` escapes so an escaped quote does not close it early. Returns
+ *  `expr.length` when the literal is never closed. */
+export function endOfStringLiteral(expr: string, start: number): number {
+  const quote = expr[start];
+  let index = start + 1;
+  while (index < expr.length) {
+    if (expr[index] === "\\") {
+      index += 2; // skip the escaped character — it is part of the literal
+      continue;
+    }
+    if (expr[index] === quote) return index + 1;
+    index++;
+  }
+  return expr.length;
+}
+
+/** A `'Sheet Name'!A1` reference beginning at `start` (a `'`), or null when the
+ *  quotes open a plain string literal rather than a sheet-qualified reference. */
+function matchQuotedSheetRef(expr: string, start: number): string | null {
+  const endQuote = expr.indexOf("'", start + 1);
+  if (endQuote === -1 || expr[endQuote + 1] !== "!") return null;
+  const cellPart = expr.substring(endQuote + 2).match(/^(\$?[A-Z]+\$?\d+)/);
+  if (!cellPart) return null;
+  return expr.substring(start, endQuote + 2 + cellPart[0].length);
+}
+
+/** A `Sheet!A1` or bare `A1` / `$A$1` reference beginning at `start`, or null. */
+function matchUnquotedRef(expr: string, start: number): string | null {
+  const rest = expr.substring(start);
+  const sheetMatch = rest.match(/^([A-Z][A-Z0-9]*)!/i);
+  if (sheetMatch) {
+    const cellPart = rest.substring(sheetMatch[0].length).match(/^(\$?[A-Z]+\$?\d+)/);
+    if (cellPart) return sheetMatch[0] + cellPart[0];
+  }
+  const cellMatch = rest.match(/^(\$?[A-Z]+\$?\d+)/);
+  return cellMatch ? cellMatch[0] : null;
+}
+
+/** Every cell reference in an expression, as `{ref, start}` spans in source
+ *  order. Quoted string literals are skipped whole: a `"A1"` in the text is a
+ *  constant, not a reference, and substituting it would turn `="A1"&"!"` into
+ *  A1's value. A `'` opens either a `'Sheet'!A1` reference or a string literal —
+ *  only the former is a reference; the latter is skipped like a `"` literal. */
+export function findCellRefs(expr: string): { ref: string; start: number }[] {
+  const cellRefs: { ref: string; start: number }[] = [];
+  let i = 0;
+  while (i < expr.length) {
+    const char = expr[i];
+    if (char === '"') {
+      i = endOfStringLiteral(expr, i);
+      continue;
+    }
+    if (char === "'") {
+      const sheetRef = matchQuotedSheetRef(expr, i);
+      if (sheetRef) {
+        cellRefs.push({ ref: sheetRef, start: i });
+        i += sheetRef.length;
+      } else {
+        i = endOfStringLiteral(expr, i);
+      }
+      continue;
+    }
+    const ref = matchUnquotedRef(expr, i);
+    if (ref) {
+      cellRefs.push({ ref, start: i });
+      i += ref.length;
+      continue;
+    }
+    i++;
+  }
+  return cellRefs;
+}
+
 /**
  * Parse function arguments, handling nested functions and quoted strings
  *
@@ -272,48 +346,9 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
       }
     }
 
-    // Then replace cell references with their values
-    // Match cell references manually to avoid complex regex
-    const cellRefs: { ref: string; start: number }[] = [];
-    let i = 0;
-    while (i < expr.length) {
-      // Check for cross-sheet reference (quoted or unquoted)
-      let ref = "";
-      if (expr[i] === "'") {
-        // Quoted sheet name
-        const endQuote = expr.indexOf("'", i + 1);
-        if (endQuote !== -1 && expr[endQuote + 1] === "!") {
-          const cellPart = expr.substring(endQuote + 2).match(/^(\$?[A-Z]+\$?\d+)/);
-          if (cellPart) {
-            ref = expr.substring(i, endQuote + 2 + cellPart[0].length);
-            cellRefs.push({ ref, start: i });
-            i += ref.length;
-            continue;
-          }
-        }
-      } else {
-        // Unquoted sheet name or simple cell ref
-        const sheetMatch = expr.substring(i).match(/^([A-Z][A-Z0-9]*)!/i);
-        if (sheetMatch) {
-          const cellPart = expr.substring(i + sheetMatch[0].length).match(/^(\$?[A-Z]+\$?\d+)/);
-          if (cellPart) {
-            ref = sheetMatch[0] + cellPart[0];
-            cellRefs.push({ ref, start: i });
-            i += ref.length;
-            continue;
-          }
-        }
-        // Simple cell reference
-        const cellMatch = expr.substring(i).match(/^(\$?[A-Z]+\$?\d+)/);
-        if (cellMatch) {
-          ref = cellMatch[0];
-          cellRefs.push({ ref, start: i });
-          i += ref.length;
-          continue;
-        }
-      }
-      i++;
-    }
+    // Then replace cell references with their values. Detection skips quoted
+    // string literals so a `"A1"` constant is not read as a reference.
+    const cellRefs = findCellRefs(expr);
 
     // A formula that is nothing but one reference returns that cell's value
     // directly. Rendering it into an expression first would mean escaping the
