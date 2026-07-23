@@ -55,10 +55,11 @@ export default defineConfig({
         "whisper/index": "src/whisper/index.ts",
         "whisper/client": "src/whisper/client.ts",
         "translation/client": "src/translation/client.ts",
-        // Browser-safe Vue composables shared by plugin Views (useFileWatch).
-        // `vue` + `gui-chat-protocol/vue` are externalized so the plugin and
-        // host resolve ONE instance (the injected PLUGIN_RUNTIME_KEY Symbol
-        // must match); `vue` is an optional peer of core.
+        // Browser-safe Vue composables shared by plugin Views and the host
+        // (useFileWatch / useMarkdownDoc / useClipboardCopy). `vue` +
+        // `gui-chat-protocol/vue` are externalized so the plugin and host resolve
+        // ONE instance (the injected PLUGIN_RUNTIME_KEY Symbol must match); `vue`
+        // is an optional peer of core.
         "plugin-vue/index": "src/plugin-vue/index.ts",
         // Browser-safe remote custom-view contract (phase 3) — consumed by the
         // host server, the desktop phone-frame preview, and mulmoserver.
