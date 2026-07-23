@@ -94,6 +94,15 @@ export interface SessionSummary {
   updatedAt: string;
 }
 
+/** List recent sessions (paged). Backs the `/sessions` bridge command. */
+export type ListSessionsFn = (opts: { limit: number; offset: number }) => Promise<{ sessions: SessionSummary[]; total: number }>;
+
+/** Recent messages in a session (paged, newest-first). Backs `/history`. */
+export type GetSessionHistoryFn = (
+  sessionId: string,
+  opts: { limit: number; offset: number },
+) => Promise<{ messages: Array<{ source: string; text: string }>; total: number }>;
+
 export interface ChatServiceDeps {
   /** Relay a user turn into the agent loop. */
   startChat: StartChatFn;
@@ -120,18 +129,12 @@ export interface ChatServiceDeps {
    * Omit if session listing is not available (command will reply
    * "not available").
    */
-  listSessions?: (opts: { limit: number; offset: number }) => Promise<{ sessions: SessionSummary[]; total: number }>;
+  listSessions?: ListSessionsFn;
   /**
    * Get recent messages from a session. Used by /history command.
    * Returns newest-first array of {source, text} pairs.
    */
-  getSessionHistory?: (
-    sessionId: string,
-    opts: { limit: number; offset: number },
-  ) => Promise<{
-    messages: Array<{ source: string; text: string }>;
-    total: number;
-  }>;
+  getSessionHistory?: GetSessionHistoryFn;
   /**
    * Resolve the roleId a given session was started with. Used by the HTTP
    * `/connect` route so the persisted bridge state's role tracks the target

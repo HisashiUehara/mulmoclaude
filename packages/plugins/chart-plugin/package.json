@@ -34,6 +34,9 @@
     "lint": "eslint .",
     "test": "echo 'no in-package tests; presentChart logic is covered by host integration tests'"
   },
+  "dependencies": {
+    "@mulmoclaude/core": "^1.2.0"
+  },
   "peerDependencies": {
     "echarts": "^6.0.0",
     "gui-chat-protocol": "^1.1.0",

@@ -24,6 +24,13 @@ import type { CollectionSchemaInput } from "./schemaZ";
 type Schema = CollectionSchemaInput;
 type Fields = Schema["fields"];
 
+// A field pointer names a REAL declared field only when it is an OWN key of
+// `fields`. A bare `fields[name]` reaches inherited Object.prototype members
+// (`constructor`, `__proto__`, `toString`), so an LLM-authored pointer like
+// `completionField: "constructor"` would resolve to a function and pass every
+// "names a declared field" check, then misfire silently at runtime (#2318).
+const declaredField = (fields: Fields, name: string): Fields[string] | undefined => (Object.hasOwn(fields, name) ? fields[name] : undefined);
+
 // The calendar anchor/end fields accept either a date-only or a datetime
 // field (the latter carries the clock for the day view).
 const isDateLike = (type: string | undefined): boolean => type === "date" || type === "datetime";
@@ -38,7 +45,7 @@ const isTimeStringField = (type: string | undefined): boolean => type === "strin
 const CODE_FIELD_TYPES = new Set(["string", "text", "enum"]);
 
 const namesStoredField = (fields: Fields, name: string, primaryKey: string): boolean => {
-  const target = fields[name];
+  const target = declaredField(fields, name);
   return target !== undefined && !COMPUTED_TYPES.has(target.type) && name !== primaryKey;
 };
 
@@ -160,7 +167,7 @@ function collectCurrencyFieldRefs(fields: Record<string, CurrencyBearingField>):
  *  string — a typo (`curreny`) would otherwise pass the per-field check, then
  *  silently fall back to the literal / USD at render and mislabel amounts. */
 export function currencyFieldRefsNameCodeFields(schema: Schema): boolean {
-  return collectCurrencyFieldRefs(schema.fields).every((name) => CODE_FIELD_TYPES.has(schema.fields[name]?.type ?? ""));
+  return collectCurrencyFieldRefs(schema.fields).every((name) => CODE_FIELD_TYPES.has(declaredField(schema.fields, name)?.type ?? ""));
 }
 
 // ---------------------------------------------------------------------------
@@ -176,7 +183,7 @@ export function currencyFieldRefsNameCodeFields(schema: Schema): boolean {
  *  be omitted (declaring it would invite a contradictory second source of
  *  truth). */
 export function completionPairIsCoherent(schema: Schema): boolean {
-  if (schema.completionField !== undefined && schema.fields[schema.completionField]?.type === "flag") {
+  if (schema.completionField !== undefined && declaredField(schema.fields, schema.completionField)?.type === "flag") {
     return schema.completionDoneValues === undefined;
   }
   return (schema.completionField === undefined) === (schema.completionDoneValues === undefined);
@@ -185,7 +192,7 @@ export function completionPairIsCoherent(schema: Schema): boolean {
 /** `completionField` must name a real top-level field — a typo would silently
  *  disable the notification mechanism otherwise. */
 export function completionFieldIsDeclared(schema: Schema): boolean {
-  return schema.completionField === undefined || schema.fields[schema.completionField] !== undefined;
+  return schema.completionField === undefined || declaredField(schema.fields, schema.completionField) !== undefined;
 }
 
 /** A flag named by `completionField` is evaluated against the RAW record — the
@@ -196,11 +203,11 @@ export function completionFieldIsDeclared(schema: Schema): boolean {
  *  never. General (non-completion) flags keep the full vocabulary — the UI
  *  evaluates them post-enrichment. */
 export function completionFlagReadsOnlyStoredFields(schema: Schema): boolean {
-  const spec = schema.completionField === undefined ? undefined : schema.fields[schema.completionField];
+  const spec = schema.completionField === undefined ? undefined : declaredField(schema.fields, schema.completionField);
   if (spec?.type !== "flag") return true;
   return spec.where.every((cond) =>
     [cond.field, ...(cond.valueFrom ? [cond.valueFrom.field] : [])].every((name) => {
-      const target = schema.fields[name];
+      const target = declaredField(schema.fields, name);
       return target !== undefined && !COMPUTED_TYPES.has(target.type);
     }),
   );
@@ -213,14 +220,14 @@ export function completionFlagReadsOnlyStoredFields(schema: Schema): boolean {
 /** `displayField`, like `completionField`, must name a real top-level field —
  *  a typo would silently fall back to the primaryKey forever. */
 export function displayFieldIsDeclared(schema: Schema): boolean {
-  return schema.displayField === undefined || schema.fields[schema.displayField] !== undefined;
+  return schema.displayField === undefined || declaredField(schema.fields, schema.displayField) !== undefined;
 }
 
 /** A field's `when.field` gates its visibility against a sibling's value, so it
  *  must name a real top-level field — a typo would silently keep the field
  *  hidden forever (the gate never matches). */
 export function fieldVisibilityGatesNameDeclaredFields(schema: Schema): boolean {
-  return Object.values(schema.fields).every((field) => field.when === undefined || schema.fields[field.when.field] !== undefined);
+  return Object.values(schema.fields).every((field) => field.when === undefined || declaredField(schema.fields, field.when.field) !== undefined);
 }
 
 /** A flag's `where` reads sibling fields (both `cond.field` and a same-record
@@ -231,7 +238,9 @@ export function flagConditionsNameDeclaredFields(schema: Schema): boolean {
     (field) =>
       field.type !== "flag" ||
       field.where.every(
-        (cond) => schema.fields[cond.field] !== undefined && (cond.valueFrom === undefined || schema.fields[cond.valueFrom.field] !== undefined),
+        (cond) =>
+          declaredField(schema.fields, cond.field) !== undefined &&
+          (cond.valueFrom === undefined || declaredField(schema.fields, cond.valueFrom.field) !== undefined),
       ),
   );
 }
@@ -244,7 +253,7 @@ export function flagConditionsNameDeclaredFields(schema: Schema): boolean {
 export function embedIdFieldsNameIdBearingFields(schema: Schema): boolean {
   return Object.values(schema.fields).every((field) => {
     if (field.type !== "embed" || field.idField === undefined) return true;
-    const target = schema.fields[field.idField];
+    const target = declaredField(schema.fields, field.idField);
     return target !== undefined && (target.type === "ref" || target.type === "string");
   });
 }
@@ -269,7 +278,7 @@ export function togglesProjectValidEnums(schema: Schema): boolean {
   const { fields } = schema;
   for (const spec of Object.values(fields)) {
     if (spec.type !== "toggle") continue;
-    const target = fields[spec.field];
+    const target = declaredField(fields, spec.field);
     if (!target || target.type !== "enum") return false;
     const allowed = new Set(target.values);
     if (!allowed.has(spec.onValue) || !allowed.has(spec.offValue)) return false;
@@ -291,7 +300,7 @@ export function triggerFieldRequiresCompletion(schema: Schema): boolean {
 /** `triggerField` must name a real `date` field — the gate parses its value as
  *  `YYYY-MM-DD`; any other type can't be compared to the clock. */
 export function triggerFieldIsADateField(schema: Schema): boolean {
-  return schema.triggerField === undefined || schema.fields[schema.triggerField]?.type === "date";
+  return schema.triggerField === undefined || declaredField(schema.fields, schema.triggerField)?.type === "date";
 }
 
 /** `triggerLeadDays` only means something relative to a trigger date. */
@@ -312,13 +321,13 @@ export function spawnRequiresTriggerField(schema: Schema): boolean {
 /** `spawn.when.field` must name a real top-level field — a typo would silently
  *  never match. */
 export function spawnWhenFieldIsDeclared(schema: Schema): boolean {
-  return schema.spawn?.when === undefined || schema.fields[schema.spawn.when.field] !== undefined;
+  return schema.spawn?.when === undefined || declaredField(schema.fields, schema.spawn.when.field) !== undefined;
 }
 
 /** Every `spawn.carry` entry must name a real top-level field — a typo would
  *  silently never copy. */
 export function spawnCarryEntriesAreDeclared(schema: Schema): boolean {
-  return (schema.spawn?.carry ?? []).every((name) => schema.fields[name] !== undefined);
+  return (schema.spawn?.carry ?? []).every((name) => declaredField(schema.fields, name) !== undefined);
 }
 
 /** A successor must NOT be born already matching its own spawn predicate — it
@@ -344,7 +353,7 @@ export function spawnSuccessorStartsInert(schema: Schema): boolean {
  *  schema whose completion is flag-form may only spawn with an explicit
  *  `spawn.when` — which that check CAN evaluate. */
 export function flagCompletionSpawnDeclaresWhen(schema: Schema): boolean {
-  return schema.spawn === undefined || schema.spawn.when !== undefined || schema.fields[schema.completionField ?? ""]?.type !== "flag";
+  return schema.spawn === undefined || schema.spawn.when !== undefined || declaredField(schema.fields, schema.completionField ?? "")?.type !== "flag";
 }
 
 // Resolve the field-driven arm of `spawn.every`, or null when spawn is absent
@@ -362,7 +371,7 @@ function fieldDrivenSpawnEvery(schema: Schema) {
 export function fieldDrivenFromFieldIsEnum(schema: Schema): boolean {
   const driven = fieldDrivenSpawnEvery(schema);
   if (!driven) return true;
-  return schema.fields[driven.fromField]?.type === "enum";
+  return declaredField(schema.fields, driven.fromField)?.type === "enum";
 }
 
 /** §4.2 — `map` keys must EXACTLY cover the enum's `values` (no missing keys —
@@ -371,7 +380,7 @@ export function fieldDrivenFromFieldIsEnum(schema: Schema): boolean {
 export function fieldDrivenMapCoversValues(schema: Schema): boolean {
   const driven = fieldDrivenSpawnEvery(schema);
   if (!driven) return true;
-  const target = schema.fields[driven.fromField];
+  const target = declaredField(schema.fields, driven.fromField);
   if (target?.type !== "enum") return true; // §4.1 reports the type error
   const values = new Set<string>(target.values);
   const keys = Object.keys(driven.map);
@@ -409,7 +418,7 @@ export function fieldDrivenFromFieldCarried(schema: Schema): boolean {
  *  parses its value to place records on the month grid (a `datetime` anchor
  *  also carries the clock for the day view). */
 export function calendarFieldIsDateLike(schema: Schema): boolean {
-  return schema.calendarField === undefined || isDateLike(schema.fields[schema.calendarField]?.type);
+  return schema.calendarField === undefined || isDateLike(declaredField(schema.fields, schema.calendarField)?.type);
 }
 
 /** `calendarEndField` marks the end of a multi-day span, so it only means
@@ -420,7 +429,7 @@ export function calendarEndFieldRequiresCalendarField(schema: Schema): boolean {
 
 /** `calendarEndField` must also name a real `date`/`datetime` field — same parse. */
 export function calendarEndFieldIsDateLike(schema: Schema): boolean {
-  return schema.calendarEndField === undefined || isDateLike(schema.fields[schema.calendarEndField]?.type);
+  return schema.calendarEndField === undefined || isDateLike(declaredField(schema.fields, schema.calendarEndField)?.type);
 }
 
 /** `calendarTimeField` places records on the day view, so it only means
@@ -432,20 +441,20 @@ export function calendarTimeFieldRequiresCalendarField(schema: Schema): boolean 
 /** `calendarTimeField` must name a real top-level field (a free-form time
  *  string the day view parses). */
 export function calendarTimeFieldIsDeclared(schema: Schema): boolean {
-  return schema.calendarTimeField === undefined || schema.fields[schema.calendarTimeField] !== undefined;
+  return schema.calendarTimeField === undefined || declaredField(schema.fields, schema.calendarTimeField) !== undefined;
 }
 
 /** …and that field must be string-backed — the day view parses its value as a
  *  time string, so a number/enum/date column can't drive it. */
 export function calendarTimeFieldIsStringBacked(schema: Schema): boolean {
-  return schema.calendarTimeField === undefined || isTimeStringField(schema.fields[schema.calendarTimeField]?.type);
+  return schema.calendarTimeField === undefined || isTimeStringField(declaredField(schema.fields, schema.calendarTimeField)?.type);
 }
 
 /** `kanbanField` must name a real `enum` field — the board groups records into
  *  one column per declared enum value; any other type has no closed set of
  *  columns to group by. */
 export function kanbanFieldIsAnEnum(schema: Schema): boolean {
-  return schema.kanbanField === undefined || schema.fields[schema.kanbanField]?.type === "enum";
+  return schema.kanbanField === undefined || declaredField(schema.fields, schema.kanbanField)?.type === "enum";
 }
 
 // ---------------------------------------------------------------------------
@@ -460,7 +469,7 @@ export function notifyWhenRequiresCompletion(schema: Schema): boolean {
 
 /** `notifyWhen.field` must name a real top-level field. */
 export function notifyWhenFieldIsDeclared(schema: Schema): boolean {
-  return schema.notifyWhen === undefined || schema.fields[schema.notifyWhen.field] !== undefined;
+  return schema.notifyWhen === undefined || declaredField(schema.fields, schema.notifyWhen.field) !== undefined;
 }
 
 /** Every custom view `id` must be a valid slug — it doubles as the view-mode

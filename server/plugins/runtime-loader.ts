@@ -291,12 +291,15 @@ function resolveCarrier(name: string, mod: Record<string, unknown>, deps: Loader
  *  handlers keep the `(context, args)` signature unchanged. Returns
  *  null when no function is exported under `definition.name` — the
  *  plugin still appears in `tools/list` but dispatch logs + 500s. */
-function resolveExecute(
+export function resolveExecute(
   carrier: Record<string, unknown>,
   definitionName: string,
   usingFactory: boolean,
 ): ((context: unknown, args: unknown) => unknown) | null {
-  const handler = carrier[definitionName];
+  // Own-property guard: a bare `carrier[definitionName]` for a plugin naming its
+  // tool `constructor` / `toString` resolves to an Object.prototype function,
+  // defeating the `typeof … !== "function"` gate below (#2319).
+  const handler = Object.hasOwn(carrier, definitionName) ? carrier[definitionName] : undefined;
   if (typeof handler !== "function") return null;
   if (usingFactory) {
     const factoryHandler = handler as (args: unknown) => unknown;

@@ -542,3 +542,79 @@ describe("collection schema rules — googleCalendar map", () => {
     assertRejects(sync({ id: "summary" }), "never the primaryKey");
   });
 });
+
+// Regression for #2318: a field pointer is an LLM-authored key. A bare
+// `schema.fields[name]` reaches inherited Object.prototype members
+// (`constructor`, `__proto__`, `toString`), so a pointer like
+// `completionField: "constructor"` resolves to a function and PASSES the
+// "names a declared field" check — then misfires silently at runtime. Each of
+// these currently-passing schemas must be REJECTED once the lookup is gated on
+// own-key membership.
+describe("collection schema rules — prototype keys are not declared fields (#2318)", () => {
+  const spawnBase = { completionField: "status", completionDoneValues: ["done"], triggerField: "due" };
+
+  it("rejects a mutate `set` key that is a prototype name", () => {
+    assertRejects({ actions: [{ id: "a", kind: "mutate", label: "A", set: { constructor: "done" } }] }, "must name declared, non-computed fields");
+  });
+
+  it("rejects a googleCalendar map key that is a prototype name", () => {
+    assertRejects({ googleCalendar: { calendarId: "primary", map: { toString: "summary" } } }, "must name a declared, non-computed field");
+  });
+
+  it("rejects a completionField that is a prototype name", () => {
+    assertRejects({ completionField: "constructor", completionDoneValues: ["done"] }, "schema `completionField` must name a top-level field");
+  });
+
+  it("rejects a displayField that is a prototype name", () => {
+    assertRejects({ displayField: "__proto__" }, "schema `displayField` must name a top-level field");
+  });
+
+  it("rejects a field whose `when.field` is a prototype name", () => {
+    assertRejects(
+      { fields: { ...baseFields, extra: { type: "string", label: "Extra", when: { field: "constructor", in: ["x"] } } } },
+      "`when.field` must name",
+    );
+  });
+
+  it("rejects a flag whose `where` field is a prototype name", () => {
+    assertRejects(
+      { fields: { ...baseFields, bad: { type: "flag", label: "Bad", where: [{ field: "toString", op: "eq", value: "x" }] } } },
+      "`where` conditions must name top-level fields",
+    );
+  });
+
+  it("rejects a flag whose `where` valueFrom.field is a prototype name", () => {
+    assertRejects(
+      { fields: { ...baseFields, bad: { type: "flag", label: "Bad", where: [{ field: "status", op: "eq", valueFrom: { field: "constructor" } }] } } },
+      "`where` conditions must name top-level fields",
+    );
+  });
+
+  it("rejects a spawn.when.field that is a prototype name", () => {
+    assertRejects(
+      { ...spawnBase, spawn: { every: { unit: "week", interval: 1 }, when: { field: "constructor", in: ["done"] }, set: { status: "todo" } } },
+      "`spawn.when.field` must name",
+    );
+  });
+
+  it("rejects a spawn.carry entry that is a prototype name", () => {
+    assertRejects(
+      { ...spawnBase, spawn: { every: { unit: "week", interval: 1 }, carry: ["constructor"], set: { status: "todo" } } },
+      "every `spawn.carry` entry must name",
+    );
+  });
+
+  it("rejects a notifyWhen.field that is a prototype name", () => {
+    assertRejects(
+      { completionField: "status", completionDoneValues: ["done"], notifyWhen: { field: "constructor", in: ["x"] } },
+      "schema `notifyWhen.field` must name a top-level field",
+    );
+  });
+
+  // BOUNDARY: a field literally named after a prototype member IS a real OWN
+  // key, so a pointer to it must still be accepted — the guard rejects
+  // INHERITED members, not same-named declared fields.
+  it("accepts a displayField naming an OWN field literally called `toString`", () => {
+    assertAccepts({ fields: { ...baseFields, toString: { type: "string", label: "TS" } }, displayField: "toString" });
+  });
+});

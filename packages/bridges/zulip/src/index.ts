@@ -9,7 +9,7 @@
 //   ZULIP_API_KEY   — Bot API key
 
 import "dotenv/config";
-import { createBridgeClient, chunkText } from "@mulmobridge/client";
+import { createBridgeClient, chunkText, fetchJsonRecord, type JsonRecord } from "@mulmobridge/client";
 import { isRecord } from "@mulmoclaude/common";
 
 const TRANSPORT_ID = "zulip";
@@ -35,39 +35,26 @@ mulmo.onPush((pushEvent) => {
 // ── Zulip API helpers ───────────────────────────────────────────
 
 // fetch helpers — return Record<string, unknown> to avoid `as` casts on JSON.parse
-type JsonRecord = Record<string, unknown>;
-
 async function zulipPost(path: string, params: Record<string, string>): Promise<JsonRecord> {
-  const body = new URLSearchParams(params);
-  const res = await fetch(`${apiBase}${path}`, {
-    method: "POST",
-    headers: {
-      Authorization: authHeader,
-      "Content-Type": "application/x-www-form-urlencoded",
+  return fetchJsonRecord(
+    `${apiBase}${path}`,
+    {
+      method: "POST",
+      headers: { Authorization: authHeader, "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(params).toString(),
+      signal: AbortSignal.timeout(15_000),
     },
-    body: body.toString(),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`POST ${path}: ${res.status} ${text.slice(0, 200)}`);
-  }
-  const json: unknown = await res.json();
-  return isRecord(json) ? json : {};
+    `POST ${path}`,
+  );
 }
 
 async function zulipGet(path: string, params?: Record<string, string>): Promise<JsonRecord> {
   const queryString = params ? `?${new URLSearchParams(params).toString()}` : "";
-  const res = await fetch(`${apiBase}${path}${queryString}`, {
-    headers: { Authorization: authHeader },
-    signal: AbortSignal.timeout((POLL_TIMEOUT_SEC + 10) * 1000),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`GET ${path}: ${res.status} ${text.slice(0, 200)}`);
-  }
-  const json: unknown = await res.json();
-  return isRecord(json) ? json : {};
+  return fetchJsonRecord(
+    `${apiBase}${path}${queryString}`,
+    { headers: { Authorization: authHeader }, signal: AbortSignal.timeout((POLL_TIMEOUT_SEC + 10) * 1000) },
+    `GET ${path}`,
+  );
 }
 
 async function sendMessage(chatId: string, text: string): Promise<void> {

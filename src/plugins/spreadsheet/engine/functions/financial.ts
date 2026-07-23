@@ -2,7 +2,8 @@
  * Financial Functions
  */
 
-import { functionRegistry, toNumber, type FunctionHandler } from "../registry";
+import { functionRegistry, toNumber, type FunctionContext, type FunctionHandler } from "../registry";
+import { computeFv, computePmt, computeIpmt, computePpmt, computePv, computeNper, computeRate, computeNpv, computeIrr } from "../financial-math";
 
 /**
  * FV - Future Value
@@ -25,14 +26,7 @@ const fvHandler: FunctionHandler = (args, context) => {
   const pv = args.length >= 4 ? toNumber(context.evaluateFormula(args[3])) : 0;
   const type = args.length >= 5 ? toNumber(context.evaluateFormula(args[4])) : 0;
 
-  if (rate === 0) {
-    return -(pv + pmt * nper);
-  }
-
-  const pvFactor = Math.pow(1 + rate, nper);
-  const fv = -pv * pvFactor - (pmt * (pvFactor - 1) * (1 + rate * type)) / rate;
-
-  return fv;
+  return computeFv(rate, nper, pmt, pv, type);
 };
 
 /**
@@ -51,14 +45,7 @@ const pvHandler: FunctionHandler = (args, context) => {
   const fv = args.length >= 4 ? toNumber(context.evaluateFormula(args[3])) : 0;
   const type = args.length >= 5 ? toNumber(context.evaluateFormula(args[4])) : 0;
 
-  if (rate === 0) {
-    return -(fv + pmt * nper);
-  }
-
-  const pvFactor = Math.pow(1 + rate, nper);
-  const pv = (-fv - (pmt * (pvFactor - 1) * (1 + rate * type)) / rate) / pvFactor;
-
-  return pv;
+  return computePv(rate, nper, pmt, fv, type);
 };
 
 /**
@@ -77,14 +64,7 @@ const pmtHandler: FunctionHandler = (args, context) => {
   const fv = args.length >= 4 ? toNumber(context.evaluateFormula(args[3])) : 0;
   const type = args.length >= 5 ? toNumber(context.evaluateFormula(args[4])) : 0;
 
-  if (rate === 0) {
-    return -(fv + pv) / nper;
-  }
-
-  const pvFactor = Math.pow(1 + rate, nper);
-  const pmt = (-rate * (fv + pv * pvFactor)) / ((pvFactor - 1) * (1 + rate * type));
-
-  return pmt;
+  return computePmt(rate, nper, pv, fv, type);
 };
 
 /**
@@ -103,14 +83,7 @@ const nperHandler: FunctionHandler = (args, context) => {
   const fv = args.length >= 4 ? toNumber(context.evaluateFormula(args[3])) : 0;
   const type = args.length >= 5 ? toNumber(context.evaluateFormula(args[4])) : 0;
 
-  if (rate === 0) {
-    return -(fv + pv) / pmt;
-  }
-
-  const pmtWithType = pmt * (1 + rate * type);
-  const nper = Math.log((pmtWithType - fv * rate) / (pmtWithType + pv * rate)) / Math.log(1 + rate);
-
-  return nper;
+  return computeNper(rate, pmt, pv, fv, type);
 };
 
 /**
@@ -131,34 +104,7 @@ const rateHandler: FunctionHandler = (args, context) => {
   const type = args.length >= 5 ? toNumber(context.evaluateFormula(args[4])) : 0;
   const guess = args.length >= 6 ? toNumber(context.evaluateFormula(args[5])) : 0.1;
 
-  // Use Newton-Raphson method to find rate
-  let rate = guess;
-  const maxIterations = 100;
-  const tolerance = 1e-7;
-
-  for (let i = 0; i < maxIterations; i++) {
-    if (Math.abs(rate) < tolerance) {
-      rate = tolerance; // Avoid division by zero
-    }
-
-    const y = Math.pow(1 + rate, nper);
-    const f = pv * y + pmt * ((y - 1) / rate) * (1 + rate * type) + fv;
-
-    const df =
-      nper * pv * Math.pow(1 + rate, nper - 1) +
-      (pmt * (1 + rate * type) * (nper * Math.pow(1 + rate, nper - 1) * rate - (Math.pow(1 + rate, nper) - 1))) / (rate * rate) +
-      pmt * type * ((Math.pow(1 + rate, nper) - 1) / rate);
-
-    const newRate = rate - f / df;
-
-    if (Math.abs(newRate - rate) < tolerance) {
-      return newRate;
-    }
-
-    rate = newRate;
-  }
-
-  return rate;
+  return computeRate(nper, pmt, pv, fv, type, guess);
 };
 
 /**
@@ -173,21 +119,12 @@ const ipmtHandler: FunctionHandler = (args, context) => {
 
   const rate = toNumber(context.evaluateFormula(args[0]));
   const per = toNumber(context.evaluateFormula(args[1]));
+  const nper = toNumber(context.evaluateFormula(args[2]));
+  const pv = toNumber(context.evaluateFormula(args[3]));
+  const fv = args.length >= 5 ? toNumber(context.evaluateFormula(args[4])) : 0;
   const type = args.length >= 6 ? toNumber(context.evaluateFormula(args[5])) : 0;
 
-  // Calculate payment first
-  const pmt = pmtHandler([args[0], args[2], args[3], ...(args.length >= 5 ? [args[4]] : []), ...(args.length >= 6 ? [args[5]] : [])], context);
-
-  if (per === 1 && type === 1) {
-    return 0; // No interest in first period when payment is at beginning
-  }
-
-  // Calculate remaining balance at previous period
-  const fvPrevious = fvHandler([args[0], String(type === 1 ? per - 2 : per - 1), String(pmt), args[3], ...(args.length >= 6 ? [args[5]] : [])], context);
-
-  const ipmt = -fvPrevious * rate;
-
-  return type === 1 ? ipmt / (1 + rate) : ipmt;
+  return computeIpmt(rate, per, nper, pv, fv, type);
 };
 
 /**
@@ -200,14 +137,14 @@ const ppmtHandler: FunctionHandler = (args, context) => {
     throw new Error("PPMT requires 4 to 6 arguments");
   }
 
-  // Calculate total payment
-  const pmt = pmtHandler([args[0], args[2], args[3], ...(args.length >= 5 ? [args[4]] : []), ...(args.length >= 6 ? [args[5]] : [])], context);
+  const rate = toNumber(context.evaluateFormula(args[0]));
+  const per = toNumber(context.evaluateFormula(args[1]));
+  const nper = toNumber(context.evaluateFormula(args[2]));
+  const pv = toNumber(context.evaluateFormula(args[3]));
+  const fv = args.length >= 5 ? toNumber(context.evaluateFormula(args[4])) : 0;
+  const type = args.length >= 6 ? toNumber(context.evaluateFormula(args[5])) : 0;
 
-  // Calculate interest payment
-  const ipmt = ipmtHandler(args, context);
-
-  // Principal payment = Total payment - Interest payment
-  return toNumber(pmt) - toNumber(ipmt);
+  return computePpmt(rate, per, nper, pv, fv, type);
 };
 
 /**
@@ -215,32 +152,20 @@ const ppmtHandler: FunctionHandler = (args, context) => {
  * Calculates the net present value of an investment based on a discount rate and a series of future cash flows.
  * NPV(rate, value1, [value2], ...)
  */
+// Flatten NPV's value arguments into one ordered list of numeric cash flows:
+// ranges expand in place (numeric cells only), scalars contribute one value.
+// The order defines each flow's discount period, so ranges and the scalars
+// after them must stay in argument order.
+const collectCashFlows = (valueArgs: string[], context: FunctionContext): number[] =>
+  valueArgs.flatMap((arg) => (arg.includes(":") ? context.getRangeValues(arg) : [context.evaluateFormula(arg)]).map(toNumber));
+
 const npvHandler: FunctionHandler = (args, context) => {
   if (args.length < 2) {
     throw new Error("NPV requires at least 2 arguments");
   }
 
   const rate = toNumber(context.evaluateFormula(args[0]));
-  let npv = 0;
-
-  // Process each cash flow
-  for (let i = 1; i < args.length; i++) {
-    // Check if argument is a range
-    if (args[i].includes(":")) {
-      const values = context.getRangeValues(args[i]);
-      for (let j = 0; j < values.length; j++) {
-        const value = toNumber(values[j]);
-        // Period starts from i for first range element, then continues
-        const period = i + j;
-        npv += value / Math.pow(1 + rate, period);
-      }
-    } else {
-      const value = toNumber(context.evaluateFormula(args[i]));
-      npv += value / Math.pow(1 + rate, i);
-    }
-  }
-
-  return npv;
+  return computeNpv(rate, collectCashFlows(args.slice(1), context));
 };
 
 /**
@@ -261,39 +186,7 @@ const irrHandler: FunctionHandler = (args, context) => {
     throw new Error("IRR requires at least one value");
   }
 
-  // Use Newton-Raphson method
-  let rate = guess;
-  const maxIterations = 100;
-  const tolerance = 1e-7;
-
-  for (let i = 0; i < maxIterations; i++) {
-    let npv = 0;
-    let dnpv = 0;
-
-    for (let j = 0; j < values.length; j++) {
-      const factor = Math.pow(1 + rate, j);
-      npv += values[j] / factor;
-      dnpv -= (j * values[j]) / (factor * (1 + rate));
-    }
-
-    if (Math.abs(npv) < tolerance) {
-      return rate;
-    }
-
-    if (Math.abs(dnpv) < tolerance) {
-      throw new Error("IRR cannot converge");
-    }
-
-    const newRate = rate - npv / dnpv;
-
-    if (Math.abs(newRate - rate) < tolerance) {
-      return newRate;
-    }
-
-    rate = newRate;
-  }
-
-  return rate;
+  return computeIrr(values, guess);
 };
 
 // Register all financial functions

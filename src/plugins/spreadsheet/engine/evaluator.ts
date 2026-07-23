@@ -7,6 +7,7 @@
 import { functionRegistry } from "./registry";
 import type { CellValue } from "./types";
 import { parseDate } from "./date-parser";
+import { caretToPow, replaceConcatOperator, rewriteComparisonEq, isSafeArithmetic, isSafeComparison } from "./translateFormula";
 
 /**
  * Evaluation context for formulas
@@ -18,6 +19,136 @@ export interface EvaluatorContext {
   evaluateFormula: (formula: string) => CellValue;
   /** Reading order for an ambiguous slash date; see engine/date-locale.ts. */
   preferDDMMYYYY?: boolean;
+}
+
+/** Render a cell's value as the text that stands in for it inside an
+ *  expression. Strings are quoted so they cannot be read as identifiers or
+ *  operators, and their own quotes and backslashes are escaped so the literal
+ *  cannot be closed early. A missing value becomes 0, matching how blanks are
+ *  treated everywhere else in the engine. */
+export function renderOperand(value: CellValue | null | undefined): string {
+  if (value === null || value === undefined) return "0";
+  if (typeof value === "string") return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  return value.toString();
+}
+
+/** Replace every quoted string literal with an empty pair of quotes, honouring
+ *  `\` escapes so an escaped quote does not end the literal early. Used to
+ *  validate the STRUCTURE of a concat/arithmetic expression without letting the
+ *  arbitrary CONTENT of a string decide whether the whole thing looks safe. */
+export function maskStringLiterals(expr: string): string {
+  let out = "";
+  let quote: string | null = null;
+  for (let index = 0; index < expr.length; index++) {
+    const char = expr[index];
+    if (quote !== null) {
+      if (char === "\\") {
+        index++; // skip the escaped character — it is part of the literal
+        continue;
+      }
+      if (char === quote) {
+        quote = null;
+        out += char;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      out += char;
+      continue;
+    }
+    out += char;
+  }
+  return out;
+}
+
+/** Whether a `&`-to-`+` concatenation expression is safe to evaluate. Checks the
+ *  structure with string CONTENT masked out — a string literal may hold any
+ *  character (a `!`, a `\`), and validating those against a character allowlist
+ *  rejected valid formulas like `=A1&"!"` and every escaped operand. Once the
+ *  literals are masked, only the joining structure remains to validate. */
+export function isSafeConcatExpression(expr: string): boolean {
+  // A boolean cell renders as a bare `true` / `false` here (renderOperand) —
+  // the only non-literal identifier the substitution can emit. Drop those words
+  // before validating so a boolean operand (`=A1&"!"` with A1 = true) still
+  // evaluates, while any other identifier keeps the structure from matching and
+  // never reaches `new Function`.
+  const structure = maskStringLiterals(expr).replace(/\b(?:true|false)\b/g, "");
+  return /^[\d+\-*/(). "']*$/.test(structure);
+}
+
+/** Index just past the string literal that opens at `start` (a quote char),
+ *  honouring `\` escapes so an escaped quote does not close it early. Returns
+ *  `expr.length` when the literal is never closed. */
+export function endOfStringLiteral(expr: string, start: number): number {
+  const quote = expr[start];
+  let index = start + 1;
+  while (index < expr.length) {
+    if (expr[index] === "\\") {
+      index += 2; // skip the escaped character — it is part of the literal
+      continue;
+    }
+    if (expr[index] === quote) return index + 1;
+    index++;
+  }
+  return expr.length;
+}
+
+/** A `'Sheet Name'!A1` reference beginning at `start` (a `'`), or null when the
+ *  quotes open a plain string literal rather than a sheet-qualified reference. */
+function matchQuotedSheetRef(expr: string, start: number): string | null {
+  const endQuote = expr.indexOf("'", start + 1);
+  if (endQuote === -1 || expr[endQuote + 1] !== "!") return null;
+  const cellPart = expr.substring(endQuote + 2).match(/^(\$?[A-Z]+\$?\d+)/);
+  if (!cellPart) return null;
+  return expr.substring(start, endQuote + 2 + cellPart[0].length);
+}
+
+/** A `Sheet!A1` or bare `A1` / `$A$1` reference beginning at `start`, or null. */
+function matchUnquotedRef(expr: string, start: number): string | null {
+  const rest = expr.substring(start);
+  const sheetMatch = rest.match(/^([A-Z][A-Z0-9]*)!/i);
+  if (sheetMatch) {
+    const cellPart = rest.substring(sheetMatch[0].length).match(/^(\$?[A-Z]+\$?\d+)/);
+    if (cellPart) return sheetMatch[0] + cellPart[0];
+  }
+  const cellMatch = rest.match(/^(\$?[A-Z]+\$?\d+)/);
+  return cellMatch ? cellMatch[0] : null;
+}
+
+/** Every cell reference in an expression, as `{ref, start}` spans in source
+ *  order. Quoted string literals are skipped whole: a `"A1"` in the text is a
+ *  constant, not a reference, and substituting it would turn `="A1"&"!"` into
+ *  A1's value. A `'` opens either a `'Sheet'!A1` reference or a string literal —
+ *  only the former is a reference; the latter is skipped like a `"` literal. */
+export function findCellRefs(expr: string): { ref: string; start: number }[] {
+  const cellRefs: { ref: string; start: number }[] = [];
+  let i = 0;
+  while (i < expr.length) {
+    const char = expr[i];
+    if (char === '"') {
+      i = endOfStringLiteral(expr, i);
+      continue;
+    }
+    if (char === "'") {
+      const sheetRef = matchQuotedSheetRef(expr, i);
+      if (sheetRef) {
+        cellRefs.push({ ref: sheetRef, start: i });
+        i += sheetRef.length;
+      } else {
+        i = endOfStringLiteral(expr, i);
+      }
+      continue;
+    }
+    const ref = matchUnquotedRef(expr, i);
+    if (ref) {
+      cellRefs.push({ ref, start: i });
+      i += ref.length;
+      continue;
+    }
+    i++;
+  }
+  return cellRefs;
 }
 
 /**
@@ -221,66 +352,32 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
       }
     }
 
-    // Then replace cell references with their values
-    // Match cell references manually to avoid complex regex
-    const cellRefs: string[] = [];
-    let i = 0;
-    while (i < expr.length) {
-      // Check for cross-sheet reference (quoted or unquoted)
-      let ref = "";
-      if (expr[i] === "'") {
-        // Quoted sheet name
-        const endQuote = expr.indexOf("'", i + 1);
-        if (endQuote !== -1 && expr[endQuote + 1] === "!") {
-          const cellPart = expr.substring(endQuote + 2).match(/^(\$?[A-Z]+\$?\d+)/);
-          if (cellPart) {
-            ref = expr.substring(i, endQuote + 2 + cellPart[0].length);
-            cellRefs.push(ref);
-            i += ref.length;
-            continue;
-          }
-        }
-      } else {
-        // Unquoted sheet name or simple cell ref
-        const sheetMatch = expr.substring(i).match(/^([A-Z][A-Z0-9]*)!/i);
-        if (sheetMatch) {
-          const cellPart = expr.substring(i + sheetMatch[0].length).match(/^(\$?[A-Z]+\$?\d+)/);
-          if (cellPart) {
-            ref = sheetMatch[0] + cellPart[0];
-            cellRefs.push(ref);
-            i += ref.length;
-            continue;
-          }
-        }
-        // Simple cell reference
-        const cellMatch = expr.substring(i).match(/^(\$?[A-Z]+\$?\d+)/);
-        if (cellMatch) {
-          ref = cellMatch[0];
-          cellRefs.push(ref);
-          i += ref.length;
-          continue;
-        }
+    // Then replace cell references with their values. Detection skips quoted
+    // string literals so a `"A1"` constant is not read as a reference.
+    const cellRefs = findCellRefs(expr);
+
+    // A formula that is nothing but one reference returns that cell's value
+    // directly. Rendering it into an expression first would mean escaping the
+    // text, and the escapes would survive into the result — `=A1` on a cell
+    // holding `say "hi"` would come back `say \"hi\"`. Surrounding whitespace
+    // (`= A1`, `=A1 `) is part of "nothing but one reference", so compare the
+    // span against the trimmed expression rather than the raw one.
+    if (cellRefs.length === 1) {
+      const { ref, start } = cellRefs[0];
+      const before = expr.slice(0, start);
+      const after = expr.slice(start + ref.length);
+      if (before.trim() === "" && after.trim() === "") {
+        return context.getCellValue(ref);
       }
-      i++;
     }
 
-    if (cellRefs.length > 0) {
-      for (const ref of cellRefs) {
-        const value = context.getCellValue(ref);
-        // Escape special regex characters
-        const escapedRef = ref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        // Wrap string values in quotes for proper evaluation
-        // Handle null/undefined values by treating them as 0
-        let replacement: string;
-        if (value === null || value === undefined) {
-          replacement = "0";
-        } else if (typeof value === "string") {
-          replacement = `"${value}"`;
-        } else {
-          replacement = value.toString();
-        }
-        expr = expr.replace(new RegExp(escapedRef, "g"), replacement);
-      }
+    // Substitute by POSITION, back to front. A global string replace rewrote
+    // every occurrence of the shorter reference first, so `=A1+A10` had its
+    // `A10` broken into `<A1's value>0` and produced a plausible wrong number
+    // (#2357). Walking backwards keeps the earlier spans valid as we go.
+    for (let index = cellRefs.length - 1; index >= 0; index--) {
+      const { ref, start } = cellRefs[index];
+      expr = expr.slice(0, start) + renderOperand(context.getCellValue(ref)) + expr.slice(start + ref.length);
     }
 
     // Parse date strings in arithmetic expressions (e.g., "06/01/2025" → serial number)
@@ -294,7 +391,7 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
     });
 
     // Replace ^ with ** for exponentiation
-    expr = expr.replace(/\^/g, "**");
+    expr = caretToPow(expr);
 
     // Check if this is a string concatenation expression (contains & and quoted strings)
     const hasStringConcat = expr.includes("&");
@@ -303,38 +400,14 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
     // If it contains string concatenation, handle it specially
     if (hasStringConcat && hasQuotedStrings) {
       try {
-        // Convert & to + for JavaScript string concatenation
-        // We need to be careful to only replace & that are not inside strings
-        let inString = false;
-        let stringChar = "";
-        let result = "";
+        // Convert & to + for JavaScript string concatenation, leaving any & that
+        // sits inside a string literal untouched.
+        const result = replaceConcatOperator(expr);
 
-        for (let index = 0; index < expr.length; index++) {
-          const char = expr[index];
-          const prevChar = index > 0 ? expr[index - 1] : "";
-
-          // Handle string boundaries
-          if ((char === '"' || char === "'") && prevChar !== "\\") {
-            if (!inString) {
-              inString = true;
-              stringChar = char;
-            } else if (char === stringChar) {
-              inString = false;
-              stringChar = "";
-            }
-          }
-
-          // Replace & with + when not in a string
-          if (char === "&" && !inString) {
-            result += "+";
-          } else {
-            result += char;
-          }
-        }
-
-        // Validate the expression contains only safe characters
-        // Allow: numbers, letters, strings (with quotes), operators, parentheses, whitespace, @, ., comma
-        if (/^[a-zA-Z0-9+\-*/(). "'@,]+$/.test(result)) {
+        // Validate the STRUCTURE, not the string content: a literal may hold any
+        // character, so masking the literals is what lets `=A1&"!"` and escaped
+        // operands through while still rejecting a genuinely unsafe expression.
+        if (isSafeConcatExpression(result)) {
           // eslint-disable -- sonarjs/code-eval
           const evalResult = new Function(`return (${result})`)();
           return evalResult;
@@ -347,10 +420,10 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
 
     // Safely evaluate comparison expressions (e.g., 5=6, (5)>(6))
     // Allow numbers, comparison operators (=, !=, <, >, <=, >=), parentheses, whitespace
-    if (/^[\d+\-*/(). <>!=]+$/.test(expr)) {
+    if (isSafeComparison(expr)) {
       try {
         // Replace = with == for JavaScript comparison (but not <= or >=)
-        const jsExpr = expr.replace(/([^<>!])=([^=])/g, "$1==$2");
+        const jsExpr = rewriteComparisonEq(expr);
 
         // Use Function constructor which is safer than eval
         // eslint-disable -- sonarjs/code-eval
@@ -363,7 +436,7 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
 
     // Safely evaluate arithmetic expressions using Function constructor instead of eval
     // Allow numbers, operators, parentheses, whitespace, and decimal points
-    if (/^[\d+\-*/(). ]+$/.test(expr)) {
+    if (isSafeArithmetic(expr)) {
       try {
         // Use Function constructor which is safer than eval because:
         // 1. The expression is strictly validated (only numbers and math operators)

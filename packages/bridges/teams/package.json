@@ -23,7 +23,7 @@
   "dependencies": {
     "@mulmobridge/client": "^0.1.5",
     "@mulmobridge/protocol": "^0.1.4",
-    "@mulmoclaude/common": "^1.0.0",
+    "@mulmoclaude/common": "^1.1.0",
     "botbuilder": "^4.23.0",
     "dotenv": "^17.0.0",
     "express": "^5.0.0"
