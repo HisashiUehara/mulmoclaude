@@ -147,23 +147,25 @@ const ppmtHandler: FunctionHandler = (args, context) => {
   return computePpmt(rate, per, nper, pv, fv, type);
 };
 
-const readCashflowSeries = (cashflowArgs: string[], context: FunctionContext): number[] =>
-  cashflowArgs.flatMap((arg) => (arg.includes(":") ? context.getRangeValues(arg).map(toNumber) : [toNumber(context.evaluateFormula(arg))]));
-
 /**
  * NPV - Net Present Value
  * Calculates the net present value of an investment based on a discount rate and a series of future cash flows.
  * NPV(rate, value1, [value2], ...)
  */
+// Flatten NPV's value arguments into one ordered list of numeric cash flows:
+// ranges expand in place (numeric cells only), scalars contribute one value.
+// The order defines each flow's discount period, so ranges and the scalars
+// after them must stay in argument order.
+const collectCashFlows = (valueArgs: string[], context: FunctionContext): number[] =>
+  valueArgs.flatMap((arg) => (arg.includes(":") ? context.getRangeValues(arg) : [context.evaluateFormula(arg)]).map(toNumber));
+
 const npvHandler: FunctionHandler = (args, context) => {
   if (args.length < 2) {
     throw new Error("NPV requires at least 2 arguments");
   }
 
   const rate = toNumber(context.evaluateFormula(args[0]));
-  const cashflows = readCashflowSeries(args.slice(1), context);
-
-  return computeNpv(rate, cashflows);
+  return computeNpv(rate, collectCashFlows(args.slice(1), context));
 };
 
 /**

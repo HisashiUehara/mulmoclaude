@@ -67,6 +67,31 @@ describe("the interest and principal split reconstitutes the payment", () => {
   });
 });
 
+describe("computeNpv", () => {
+  const NPV_RATE = 0.1;
+
+  // Each flow discounts by its 1-based POSITION in the flattened list. The #2390
+  // bug used the argument index, so a scalar after a 3-cell range landed at
+  // period 2 instead of 4 — the position is what makes 100/1.1 + 200/1.1^2 +
+  // 300/1.1^3 + 500/1.1^4 correct.
+  it("discounts each flow by its 1-based position", () => {
+    const expected = 100 / 1.1 + 200 / 1.1 ** 2 + 300 / 1.1 ** 3 + 500 / 1.1 ** 4;
+    assert.ok(closeTo(computeNpv(NPV_RATE, [100, 200, 300, 500]), expected, 1e-9));
+  });
+
+  it("sums flows undiscounted at a zero rate", () => {
+    assert.ok(closeTo(computeNpv(0, [100, 200, 300, 500]), 1100, 1e-9));
+  });
+
+  it("is zero for no cash flows", () => {
+    assert.equal(computeNpv(NPV_RATE, []), 0);
+  });
+
+  it("discounts a single flow by one period", () => {
+    assert.ok(closeTo(computeNpv(NPV_RATE, [100]), 100 / 1.1, 1e-9));
+  });
+});
+
 describe("computeFv", () => {
   it("carries the payment-negative sign the interest split relies on", () => {
     // Balance outstanding at the start of period 1 is the present value, which
