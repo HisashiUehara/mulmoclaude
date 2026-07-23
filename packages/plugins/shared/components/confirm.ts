@@ -1,3 +1,7 @@
+// Promise-based confirm dialog state, plugin-side mirror of
+// `src/composables/useConfirm.ts` — see the header note there for
+// why the two files stay separate (useRuntime vs vue-i18n locale).
+
 import { ref } from "vue";
 
 export interface ConfirmOptions {
@@ -33,6 +37,12 @@ export function useConfirm() {
     const opts = typeof options === "string" ? { message: options } : options;
 
     return new Promise<boolean>((resolve) => {
+      // If a previous confirm is still pending, settle it as
+      // "cancelled" before replacing the state. Without this the
+      // earlier `Promise<boolean>` would hang forever and any
+      // caller `await`ing it would deadlock.
+      const previous = confirmState.value.resolve;
+      if (previous) previous(false);
       confirmState.value = {
         isOpen: true,
         title: opts.title || "",
