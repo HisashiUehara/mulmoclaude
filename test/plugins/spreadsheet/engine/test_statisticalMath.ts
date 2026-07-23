@@ -4,7 +4,8 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeMode, sampleVariance, sampleStdev, NA_ERROR, DIV_ZERO_ERROR } from "../../../../src/plugins/spreadsheet/engine/functions/statistical-math.ts";
+import { computeMode, sampleVariance, sampleStdev } from "../../../../src/plugins/spreadsheet/engine/functions/statistical-math.ts";
+import { NA_ERROR, DIV_ZERO_ERROR } from "../../../../src/plugins/spreadsheet/engine/spreadsheet-errors.ts";
 
 describe("computeMode", () => {
   it("returns the single most frequent value", () => {

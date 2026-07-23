@@ -8,6 +8,7 @@
  */
 
 import type { CellValue } from "./types";
+import { isSpreadsheetErrorValue } from "./spreadsheet-errors";
 
 export type ComparisonOperator = ">=" | "<=" | "<>" | "!=" | "==" | "=" | ">" | "<";
 
@@ -173,6 +174,9 @@ export function evaluateConditionValues(condition: string, evaluate: (operand: s
  *  render as themselves. */
 export function renderConditionOperand(value: CellValue | null | undefined): string {
   if (value === null || value === undefined) return '""';
-  if (typeof value === "string") return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-  return value.toString();
+  // A formula error renders as its quoted code, so a condition compares it as
+  // the text a cell shows rather than as a bare `#NUM!` token.
+  const text = isSpreadsheetErrorValue(value) ? value.code : value;
+  if (typeof text === "string") return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  return text.toString();
 }

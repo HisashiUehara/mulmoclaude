@@ -8,7 +8,8 @@ import { functionRegistry } from "./registry";
 import type { CellValue } from "./types";
 import { parseDate } from "./date-parser";
 import { caretToPow, replaceConcatOperator, rewriteComparisonEq, isSafeArithmetic, isSafeComparison } from "./translateFormula";
-import { divZeroError, unknownError, nameError, isErrorValue, propagatedError } from "./formulaError";
+import { divZeroError, unknownError, nameError, propagatedError } from "./formulaError";
+import { errorCodeOf, isSpreadsheetErrorValue } from "./spreadsheet-errors";
 
 /**
  * Evaluation context for formulas
@@ -29,8 +30,9 @@ export interface EvaluatorContext {
  *  treated everywhere else in the engine. */
 export function renderOperand(value: CellValue | null | undefined): string {
   if (value === null || value === undefined) return "0";
-  if (typeof value === "string") return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-  return value.toString();
+  const text = isSpreadsheetErrorValue(value) ? value.code : value;
+  if (typeof text === "string") return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  return text.toString();
 }
 
 /** Replace every quoted string literal with an empty pair of quotes, honouring
@@ -375,6 +377,11 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
     if (depth === 0) {
       const fullMatch = expr.substring(funcStartIndex, argsEndIndex);
       const result = context.evaluateFormula(fullMatch);
+      // A nested call that errored poisons the expression the same way an
+      // errored reference does — substituting it produced `"#NUM!"+1` text.
+      // Only the error VALUE counts: text that merely spells an error (CONCAT)
+      // is an ordinary operand.
+      if (isSpreadsheetErrorValue(result)) throw propagatedError(result.code);
       // For string results, wrap in quotes; for numbers, wrap in parentheses
       const replacement = typeof result === "string" ? `"${result}"` : `(${result})`;
       expr = expr.substring(0, funcStartIndex) + replacement + expr.substring(argsEndIndex);
@@ -411,10 +418,13 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
   for (let index = cellRefs.length - 1; index >= 0; index--) {
     const { ref, start } = cellRefs[index];
     const value = context.getCellValue(ref);
-    // A referenced cell holding an error value poisons the whole expression:
+    // A referenced cell holding an error poisons the whole expression:
     // rendering it would produce `"#DIV/0!"+1` garbage, so propagate the error
-    // instead of substituting it (#2359, Excel behaviour).
-    if (isErrorValue(value)) throw propagatedError(value);
+    // instead of substituting it (#2359, Excel behaviour). A cell whose stored
+    // TEXT spells an error counts here too — Excel stores a typed error literal
+    // as an error, and arithmetic over it is never meaningful.
+    const referencedErrorCode = errorCodeOf(value);
+    if (referencedErrorCode !== null) throw propagatedError(referencedErrorCode);
     expr = expr.slice(0, start) + renderOperand(value) + expr.slice(start + ref.length);
   }
 
