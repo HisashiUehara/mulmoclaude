@@ -554,7 +554,21 @@ import { mulmoBeatSchema, mulmoScriptSchema } from "@mulmocast/types";
 import type { SlideLayout, SlideTheme } from "@mulmocast/deck-web";
 import type { MulmoScriptData } from "../core/types";
 import type { MulmoScriptGenerationEvent } from "../core/contract";
-import { getMissingCharacterKeys, isAllSlideDeck, isSameScript, beatMayHaveMovie, shouldAutoRenderBeat, validateBeatJSON } from "./helpers";
+import {
+  getMissingCharacterKeys,
+  isAllSlideDeck,
+  isSameScript,
+  beatMayHaveMovie,
+  shouldAutoRenderBeat,
+  effectiveBeat as effectiveBeatOf,
+  beatTooltip as beatTooltipOf,
+  characterPrompt as characterPromptOf,
+  isValidBeat as isValidBeatOf,
+  staleSince as staleSinceOf,
+  scriptSourceText as toScriptSourceText,
+  downloadFilename,
+  type Beat,
+} from "./helpers";
 import { errorMessage, useClipboardCopy } from "./support";
 import { useMulmoScriptTransport } from "./transport";
 import { useHostAdapter } from "./hostAdapter";
@@ -575,20 +589,6 @@ const adapter = useHostAdapter();
 const canFetchMedia = computed(() => Boolean(adapter.fetchMediaBlob));
 
 const m = useT();
-
-interface Beat {
-  speaker?: string;
-  text?: string;
-  id?: string;
-  imagePrompt?: string;
-  moviePrompt?: string;
-  image?: { type: string; [key: string]: unknown };
-  /** Beat duration in seconds. The mulmocast schema notes this is
-   *  "Used only when the text is empty" — when there's no TTS audio
-   *  to drive playback, the Play loop uses this as the auto-advance
-   *  timer (#1073). */
-  duration?: number;
-}
 
 interface ImageEntry {
   type: string;
@@ -704,7 +704,7 @@ const characterKeys = computed(() => {
 const chatSessionId = computed(() => adapter.chatSessionId?.value);
 
 function characterPrompt(key: string): string {
-  return (script.value.imageParams?.images?.[key]?.prompt as string) ?? "";
+  return characterPromptOf(script.value.imageParams?.images, key);
 }
 
 function stopPlayingAudio() {
@@ -860,8 +860,7 @@ function jumpToBeat(index: number) {
 }
 
 function beatTooltip(index: number): string {
-  const text = effectiveBeat(index).text ?? "";
-  return text.length > 80 ? `${text.slice(0, 80)}…` : text;
+  return beatTooltipOf(effectiveBeat(index).text);
 }
 
 function lightboxMove(delta: number) {
@@ -898,7 +897,7 @@ const effectiveScript = computed<MulmoScript>(() => ({
   ...script.value,
   beats: beats.value.map((beat, i) => localOverrides[i] ?? beat),
 }));
-const scriptSourceText = computed(() => JSON.stringify(effectiveScript.value, null, 2));
+const scriptSourceText = computed(() => toScriptSourceText(effectiveScript.value));
 
 // #1575 — when every beat is a `slide`, swap the per-beat list UI for
 // the interactive deck editor (@mulmocast/deck-web). Mixed scripts
@@ -1013,7 +1012,7 @@ async function onSourceToggle(open: boolean) {
     if (filePath.value) {
       const response = await api.call("save", { filePath: filePath.value });
       const diskScript = response.ok ? (response.data.script as MulmoScript | undefined) : undefined;
-      if (diskScript) text = JSON.stringify(diskScript, null, 2);
+      if (diskScript) text = toScriptSourceText(diskScript);
       // fall through to in-memory script on failure
     }
     editableSource.value = text;
@@ -1061,19 +1060,19 @@ async function copyText() {
 }
 
 function effectiveBeat(index: number): Beat {
-  return localOverrides[index] ?? beats.value[index] ?? {};
+  return effectiveBeatOf(localOverrides, beats.value, index);
 }
 
 function toggleSource(index: number) {
   if (!sourceOpen[index]) {
-    sourceText[index] = JSON.stringify(effectiveBeat(index), null, 2);
+    sourceText[index] = toScriptSourceText(effectiveBeat(index));
     Reflect.deleteProperty(beatSaveErrors, index);
   }
   sourceOpen[index] = !sourceOpen[index];
 }
 
 function isValidBeat(index: number): boolean {
-  return validateBeatJSON(sourceText[index] ?? "", mulmoBeatSchema);
+  return isValidBeatOf(sourceText[index], mulmoBeatSchema);
 }
 
 async function updateBeat(index: number) {
@@ -1177,7 +1176,7 @@ async function regenerateBeat(index: number) {
 // otherwise late responses from script A's bulk mount-time probes would
 // write into the per-beat maps that now belong to script B.
 function staleSince(requestedFilePath: string): boolean {
-  return filePath.value !== requestedFilePath;
+  return staleSinceOf(filePath.value, requestedFilePath);
 }
 
 async function loadExistingBeatImage(index: number) {
@@ -1719,7 +1718,7 @@ async function downloadMovie() {
   try {
     const blob = await fetchMediaBlob({ moviePath: moviePath.value });
     objectUrl = URL.createObjectURL(blob);
-    const filename = moviePath.value.split("/").pop() ?? "movie.mp4";
+    const filename = downloadFilename(moviePath.value, "movie.mp4");
     const anchor = document.createElement("a");
     anchor.href = objectUrl;
     anchor.download = filename;
@@ -1775,7 +1774,7 @@ async function downloadPdf() {
   try {
     const blob = await fetchMediaBlob({ pdfPath: pdfPath.value });
     objectUrl = URL.createObjectURL(blob);
-    const filename = pdfPath.value.split("/").pop() ?? "deck.pdf";
+    const filename = downloadFilename(pdfPath.value, "deck.pdf");
     const anchor = document.createElement("a");
     anchor.href = objectUrl;
     anchor.download = filename;

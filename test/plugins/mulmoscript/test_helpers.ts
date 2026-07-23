@@ -8,11 +8,19 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   beatMayHaveMovie,
+  beatTooltip,
+  characterPrompt,
+  downloadFilename,
+  effectiveBeat,
   getMissingCharacterKeys,
   isAllSlideDeck,
   isSameScript,
+  isValidBeat,
+  scriptSourceText,
   shouldAutoRenderBeat,
+  staleSince,
   validateBeatJSON,
+  type Beat,
   type SafeParseSchema,
 } from "../../../packages/plugins/mulmoscript-plugin/src/vue/helpers.ts";
 
@@ -195,5 +203,136 @@ describe("isAllSlideDeck", () => {
     assert.equal(isAllSlideDeck(undefined), false);
     assert.equal(isAllSlideDeck("script"), false);
     assert.equal(isAllSlideDeck([slide]), false);
+  });
+});
+
+describe("effectiveBeat", () => {
+  const beats: Beat[] = [{ text: "original 0" }, { text: "original 1" }];
+
+  it("returns the on-disk beat when there is no override", () => {
+    assert.deepEqual(effectiveBeat({}, beats, 1), { text: "original 1" });
+  });
+
+  // The user's in-place edit must win over the on-disk beat, otherwise a
+  // just-saved edit would flash back to its pre-edit content.
+  it("prefers a local override over the on-disk beat", () => {
+    assert.deepEqual(effectiveBeat({ 1: { text: "edited 1" } }, beats, 1), { text: "edited 1" });
+  });
+
+  // Callers read `.text` / `.image` off the result unconditionally, so an
+  // out-of-range index must yield an object, never undefined.
+  it("returns an empty beat for an out-of-range index", () => {
+    assert.deepEqual(effectiveBeat({}, beats, 9), {});
+    assert.deepEqual(effectiveBeat({}, [], 0), {});
+  });
+});
+
+describe("beatTooltip", () => {
+  it("returns an empty string for missing text", () => {
+    assert.equal(beatTooltip(undefined), "");
+    assert.equal(beatTooltip(""), "");
+  });
+
+  it("returns short text unchanged", () => {
+    assert.equal(beatTooltip("hello"), "hello");
+  });
+
+  // Boundary: 80 chars is returned whole, 81 is the first cut. Off-by-one
+  // here would either clip a legal-length tooltip or leak an over-long one.
+  it("returns text of exactly the cap length unchanged", () => {
+    const exactly80 = "a".repeat(80);
+    assert.equal(beatTooltip(exactly80), exactly80);
+  });
+
+  it("truncates past the cap and appends an ellipsis", () => {
+    const over = "a".repeat(81);
+    assert.equal(beatTooltip(over), `${"a".repeat(80)}…`);
+    assert.equal(beatTooltip(over).length, 81);
+  });
+});
+
+describe("characterPrompt", () => {
+  const images: Record<string, { type: string; prompt?: string }> = {
+    alice: { type: "imagePrompt", prompt: "a knight" },
+    bob: { type: "imagePrompt" },
+  };
+
+  it("returns the prompt for a known key", () => {
+    assert.equal(characterPrompt(images, "alice"), "a knight");
+  });
+
+  it("returns an empty string when the key is absent", () => {
+    assert.equal(characterPrompt(images, "carol"), "");
+  });
+
+  it("returns an empty string when the entry has no prompt", () => {
+    assert.equal(characterPrompt(images, "bob"), "");
+  });
+
+  it("returns an empty string when there are no images", () => {
+    assert.equal(characterPrompt(undefined, "alice"), "");
+    assert.equal(characterPrompt({}, "alice"), "");
+  });
+});
+
+describe("isValidBeat", () => {
+  const acceptAll: SafeParseSchema = { safeParse: () => ({ success: true }) };
+  const rejectAll: SafeParseSchema = { safeParse: () => ({ success: false }) };
+
+  it("validates parseable source the schema approves", () => {
+    assert.equal(isValidBeat('{"text":"hi"}', acceptAll), true);
+    assert.equal(isValidBeat('{"text":"hi"}', rejectAll), false);
+  });
+
+  // A never-opened source editor has no entry; the empty-string default is
+  // not parseable JSON, so it must report invalid rather than throw.
+  it("treats a missing or empty source as invalid", () => {
+    assert.equal(isValidBeat(undefined, acceptAll), false);
+    assert.equal(isValidBeat("", acceptAll), false);
+  });
+});
+
+describe("staleSince", () => {
+  // The guard drops a late response once the View navigated elsewhere. The
+  // direction is load-bearing — an inverted check would let one script's
+  // responses write into another's per-beat state.
+  it("is stale only when the current path differs from the requested one", () => {
+    assert.equal(staleSince("stories/b.json", "stories/a.json"), true);
+    assert.equal(staleSince("stories/a.json", "stories/a.json"), false);
+  });
+
+  it("treats two empty paths as not stale", () => {
+    assert.equal(staleSince("", ""), false);
+  });
+});
+
+describe("scriptSourceText", () => {
+  it("pretty-prints with a two-space indent", () => {
+    assert.equal(scriptSourceText({ a: 1 }), '{\n  "a": 1\n}');
+  });
+
+  it("round-trips through JSON.parse", () => {
+    const value = { title: "x", beats: [{ text: "a" }] };
+    assert.deepEqual(JSON.parse(scriptSourceText(value)), value);
+  });
+});
+
+describe("downloadFilename", () => {
+  it("takes the basename of a path", () => {
+    assert.equal(downloadFilename("stories/deck/movie.mp4", "movie.mp4"), "movie.mp4");
+  });
+
+  it("returns the whole string when there is no separator", () => {
+    assert.equal(downloadFilename("clip.mp4", "movie.mp4"), "clip.mp4");
+  });
+
+  // Pinned limitation: `.pop()` returns "" (not undefined) for a trailing
+  // slash or empty path, and `?? fallback` does not replace "", so the
+  // fallback is effectively unreachable for any string input. Server paths
+  // always carry a basename, so this never surfaces — the test exists so a
+  // later reader doesn't "simplify" `??` to `||` and silently change it.
+  it("yields an empty name (NOT the fallback) for a trailing slash or empty path", () => {
+    assert.equal(downloadFilename("stories/deck/", "movie.mp4"), "");
+    assert.equal(downloadFilename("", "movie.mp4"), "");
   });
 });
