@@ -52,3 +52,14 @@ test("errorMessage: non-string details/message ignored, fall through", () => {
   assert.equal(errorMessage({ details: 500 }, "fb"), "fb");
   assert.equal(errorMessage({ message: { nested: true } }, "fb"), "fb");
 });
+
+test("errorMessage: an array is not treated as an error-like object (deliberate — arrays fall through, not read for a stray .message)", () => {
+  // The old `typeof err === "object"` branch would have returned a string
+  // `.message`/`.details` set on an array; `isRecord` excludes arrays, so an
+  // array now falls through like any non-record. Realistic thrown values
+  // (Error / gRPC-style {details} / {message}) are unaffected; only the
+  // pathological `Object.assign([], { message })` differs, intentionally.
+  const arrayWithMessage = Object.assign([], { message: "stray" });
+  assert.equal(errorMessage(arrayWithMessage, "fb"), "fb");
+  assert.equal(errorMessage([1, 2, 3]), "1,2,3");
+});

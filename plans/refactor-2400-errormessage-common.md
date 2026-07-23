@@ -6,12 +6,12 @@ Closes #2400.
 
 `errorMessage(err, fallback?)` (unknown → human-readable string) lives in 4 places:
 
-| File | Note |
-|---|---|
-| `packages/core/src/utils/errors.ts` | #2217 consolidation, but **server-only** surface (`@mulmoclaude/core/utils`) |
-| `packages/plugins/accounting-plugin/src/shared/errors.ts` | hand-copy |
-| `packages/plugins/markdown-plugin/src/utils/errors.ts` | hand-copy |
-| `packages/plugins/mulmoscript-plugin/src/vue/support.ts` | hand-copy (marked "soft-forced" in `docs/shared-utils.md`) |
+| File                                                      | Note                                                                         |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `packages/core/src/utils/errors.ts`                       | #2217 consolidation, but **server-only** surface (`@mulmoclaude/core/utils`) |
+| `packages/plugins/accounting-plugin/src/shared/errors.ts` | hand-copy                                                                    |
+| `packages/plugins/markdown-plugin/src/utils/errors.ts`    | hand-copy                                                                    |
+| `packages/plugins/mulmoscript-plugin/src/vue/support.ts`  | hand-copy (marked "soft-forced" in `docs/shared-utils.md`)                   |
 
 The plugins copy it because `@mulmoclaude/core/utils` is server-only and cannot be
 imported from browser (Vue) code. `@mulmoclaude/common` is the zero-dependency,
@@ -19,7 +19,13 @@ no-`node:` browser-safe leaf package — the correct home for an isomorphic help
 
 ## Diff of the 4 implementations
 
-All four are **behaviorally identical**:
+All four are **behaviorally identical for every realistic thrown value** (Error,
+gRPC-style `{details}`, `{message}`, string, number, null, undefined). The only
+difference from the old `typeof err === "object"` cast is that `isRecord`
+excludes arrays: an array carrying a stray string `.message`/`.details` now
+falls through to `String(err)` instead of surfacing that property. That input
+never occurs in this codebase, and treating an array as error-like was never
+intended; the array behaviour is pinned as a deliberate test. Original body:
 
 ```ts
 export function errorMessage(err: unknown, fallback?: string): string {
