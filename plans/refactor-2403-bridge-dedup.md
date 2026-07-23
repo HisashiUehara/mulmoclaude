@@ -26,14 +26,11 @@ The relay runs on Cloudflare Workers (Web Crypto / `crypto.subtle`, `fetch`); th
 - `@mulmobridge/webhook-runtime`: `metaVerificationResult(query, verifyToken)` pure decision fn used by the Express `registerMetaWebhookVerification(...)` I/O wrapper; `verifyMetaHmacSignature(rawBody, signature, appSecret)`. Extend `test/test_webhook-runtime.ts`.
 - `@mulmobridge/client`: `frameText(data)` pure; `asJsonRecord(json)` pure narrower used by `fetchJsonRecord(url, init, errorLabel)` I/O wrapper. `test/test_frame.ts`, `test/test_http.ts`.
 
-## Version discipline (follows the #2400 errorMessage convention)
+## Version discipline (bump-once-at-publish)
 
-New exports on published packages → minor bump + sweep every declared consumer range (deps/devDeps/peerDeps), root + launcher, keep `check:launcher-sync` green. NOT bumping the launcher's own `version`.
+Per the standing policy, shared-package `version` fields are NOT bumped per-PR and consumer ranges are NOT swept per-PR — that happens once, at publish time. This PR is **code + tests + docs only**: no `version` change to `@mulmoclaude/common`, `@mulmobridge/webhook-runtime`, or `@mulmobridge/client`, and no consumer range churn. Workspace resolution ignores the version number for internal imports, so the new `@mulmoclaude/common/meta-webhook` subpath and the other additions resolve at the unchanged versions.
 
-- `@mulmoclaude/common` 1.1.0 → 1.2.0 (sweep all consumers to `^1.2.0`).
-- `@mulmobridge/webhook-runtime` 1.0.0 → 1.1.0 (sweep 6 bridge consumers to `^1.1.0`).
-- `@mulmobridge/client` 0.1.5 → 0.2.0 (sweep all consumers to `^0.2.0`); ADD `@mulmoclaude/common: ^1.2.0` to client deps (needed for `isRecord`).
-- Do NOT touch `test/scripts/mulmoclaude/fixtures/drift-drifted/**` (intentional-drift launcher-sync fixtures).
+- Only two non-version package.json edits are kept: the `@mulmoclaude/common/meta-webhook` export-map entry (common), and the `@mulmobridge/client` → `@mulmoclaude/common` dep edge (range `^1.1.0`, matching every other consumer — needed for `isRecord`).
 
 ## Docs
 
