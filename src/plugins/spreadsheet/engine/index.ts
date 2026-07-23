@@ -11,6 +11,7 @@ export * from "./types";
 export * from "./parser";
 export * from "./date-locale";
 export * from "./cellEmpty";
+export * from "./datedif";
 export * from "./formatter";
 export * from "./evaluator";
 export * from "./calculator";

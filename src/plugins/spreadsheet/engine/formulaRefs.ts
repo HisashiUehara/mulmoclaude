@@ -57,6 +57,22 @@ export function expandRange(rangeStr: string): CellCoord[] {
   return cells;
 }
 
+// Expand a range OR a single cell into coordinates, upcasing first so
+// lowercase references (`a1:b2`, which spreadsheets accept) are not dropped,
+// and falling back to a single cell when there is no colon. `collectRangeValues`
+// in the calculator used a range-only, case-sensitive regex, so `A1`,
+// `$A$1:$A$10` and `a1:a10` all silently produced no values (#2356). Ordering
+// matches `expandRange`: top-to-bottom, left-to-right.
+export function expandRangeOrCell(ref: string): CellCoord[] | null {
+  const upper = ref.trim().toUpperCase();
+  if (upper.includes(":")) {
+    const cells = expandRange(upper);
+    return cells.length > 0 ? cells : null;
+  }
+  const single = parseSingleCellRef(upper);
+  return single ? [single] : null;
+}
+
 // Parse a single cell ref (`A1`, `$A$1`, `AA100`) into a coord.
 // Returns null for malformed input rather than throwing — keeps the
 // caller's loop flat (the engine-layer `parseCellRef` throws, which

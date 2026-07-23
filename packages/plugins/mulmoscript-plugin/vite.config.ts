@@ -29,6 +29,7 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
+        /^@mulmoclaude\/core/,
         "vue",
         "gui-chat-protocol",
         "gui-chat-protocol/vue",

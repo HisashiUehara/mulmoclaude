@@ -23,7 +23,7 @@
   "dependencies": {
     "@mulmobridge/client": "^0.1.5",
     "@mulmobridge/protocol": "^0.1.4",
-    "@mulmoclaude/common": "^1.0.0",
+    "@mulmoclaude/common": "^1.1.0",
     "dotenv": "^17.0.0",
     "nostr-tools": "^2.24.1"
   },

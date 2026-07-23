@@ -7,6 +7,7 @@
 import { formatNumber } from "./formatter";
 import { columnToIndex } from "./parser";
 import { evaluateFormula as evaluateFormulaFn } from "./evaluator";
+import { expandRangeOrCell } from "./formulaRefs";
 import { parseDate, getDefaultDateFormat } from "./date-parser";
 import type { SheetData, CellValue, CalculatedSheet, CalculationError, FormulaInfo, SpreadsheetCell, CalculateOptions } from "./types";
 import { isObj } from "../../../utils/types";
@@ -20,7 +21,7 @@ import { errorMessage } from "../../../utils/errors";
  * @param data - Potentially malformed sheet data
  * @returns Normalized 2D array
  */
-function normalizeData(data: any): SpreadsheetCell[][] {
+export function normalizeData(data: any): SpreadsheetCell[][] {
   // Handle null/undefined
   if (!data) {
     return [];
@@ -318,35 +319,28 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], option
       }
     }
 
-    const match = rangeRef.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
-    if (!match) return [];
-
-    const startCol = columnToIndex(match[1]);
-    const startRow = parseInt(match[2]) - 1;
-    const endCol = columnToIndex(match[3]);
-    const endRow = parseInt(match[4]) - 1;
+    const coords = expandRangeOrCell(rangeRef);
+    if (!coords) return [];
 
     const values: CellValue[] = [];
-    for (let row = startRow; row <= endRow; row++) {
-      for (let col = startCol; col <= endCol; col++) {
-        if (row >= 0 && row < sheetData.length && col >= 0 && col < sheetData[row].length) {
-          const cell = sheetData[row][col];
-          // Pass row/col only if current sheet (for recursive evaluation)
-          const rawValue = getRawValue(cell, isCurrentSheet ? row : undefined, isCurrentSheet ? col : undefined);
+    for (const { row, col } of coords) {
+      if (row >= 0 && row < sheetData.length && col >= 0 && col < sheetData[row].length) {
+        const cell = sheetData[row][col];
+        // Pass row/col only if current sheet (for recursive evaluation)
+        const rawValue = getRawValue(cell, isCurrentSheet ? row : undefined, isCurrentSheet ? col : undefined);
 
-          if (options.numericOnly) {
-            // A blank cell is not a value. Dropping it from the NUMERIC list
-            // keeps SUM unchanged (a blank read as 0) while stopping it from
-            // inflating AVERAGE's denominator and COUNT's tally (#2358). The
-            // raw list keeps every cell so SUMIF/AVERAGEIF's criteria and value
-            // ranges stay row-aligned — dropping there would shift indexes and
-            // aggregate the wrong rows (Codex review).
-            if (!isEmptyCell(cell) && !isNaN(rawValue as number)) {
-              values.push(rawValue);
-            }
-          } else {
+        if (options.numericOnly) {
+          // A blank cell is not a value. Dropping it from the NUMERIC list keeps
+          // SUM unchanged (a blank read as 0) while stopping it from inflating
+          // AVERAGE's denominator and COUNT's tally (#2358). The raw list keeps
+          // every cell so SUMIF/AVERAGEIF's criteria and value ranges stay
+          // row-aligned; dropping there would shift indexes and aggregate the
+          // wrong rows (Codex review).
+          if (!isEmptyCell(cell) && !isNaN(rawValue as number)) {
             values.push(rawValue);
           }
+        } else {
+          values.push(rawValue);
         }
       }
     }
