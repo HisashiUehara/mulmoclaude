@@ -8,7 +8,7 @@ import { formatNumber } from "./formatter";
 import { columnToIndex } from "./parser";
 import { evaluateFormula as evaluateFormulaFn } from "./evaluator";
 import { parseDate, getDefaultDateFormat } from "./date-parser";
-import type { SheetData, CellValue, CalculatedSheet, CalculationError, FormulaInfo, SpreadsheetCell } from "./types";
+import type { SheetData, CellValue, CalculatedSheet, CalculationError, FormulaInfo, SpreadsheetCell, CalculateOptions } from "./types";
 import { isObj } from "../../../utils/types";
 import { errorMessage } from "../../../utils/errors";
 
@@ -66,7 +66,7 @@ function normalizeData(data: any): SpreadsheetCell[][] {
  * @param data - Raw sheet data
  * @returns Processed data with dates converted to serial numbers
  */
-function preprocessDates(data: SpreadsheetCell[][]): SpreadsheetCell[][] {
+function preprocessDates(data: SpreadsheetCell[][], preferDDMMYYYY: boolean): SpreadsheetCell[][] {
   return data.map((row) =>
     row.map((cell) => {
       // Skip if not a cell object or if it has a formula
@@ -78,13 +78,13 @@ function preprocessDates(data: SpreadsheetCell[][]): SpreadsheetCell[][] {
 
       // Only parse strings that aren't formulas
       if (typeof value === "string" && !value.startsWith("=")) {
-        const dateSerial = parseDate(value);
+        const dateSerial = parseDate(value, preferDDMMYYYY);
 
         if (dateSerial !== null) {
           // It's a date! Convert to serial number
           return {
             v: dateSerial,
-            f: cell.f || getDefaultDateFormat(value), // Use existing format or detect from input
+            f: cell.f || getDefaultDateFormat(value, preferDDMMYYYY), // Use existing format or detect from input
           };
         }
       }
@@ -102,17 +102,18 @@ function preprocessDates(data: SpreadsheetCell[][]): SpreadsheetCell[][] {
  * @param allSheets - All sheets for cross-sheet references
  * @returns Calculated sheet with formulas evaluated
  */
-export function calculateSheet(sheet: SheetData, allSheets?: SheetData[]): CalculatedSheet {
+export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], options: CalculateOptions = {}): CalculatedSheet {
+  const preferDDMMYYYY = options.preferDDMMYYYY ?? false;
   // Normalize malformed data structures first
   const normalizedData = normalizeData(sheet.data);
 
   // Pre-process dates before calculation
-  const processedData = preprocessDates(normalizedData);
+  const processedData = preprocessDates(normalizedData, preferDDMMYYYY);
 
   // Also preprocess all sheets if provided
   const processedAllSheets = allSheets?.map((s) => ({
     ...s,
-    data: preprocessDates(normalizeData(s.data)),
+    data: preprocessDates(normalizeData(s.data), preferDDMMYYYY),
   }));
 
   const data = processedData;
@@ -258,7 +259,7 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[]): Calcu
           sheetsCache.set(targetSheetName, targetCalculated);
 
           // Recursively calculate the target sheet
-          const targetResult = calculateSheet(targetSheet, processedAllSheets);
+          const targetResult = calculateSheet(targetSheet, processedAllSheets, { preferDDMMYYYY });
           sheetsCache.set(targetSheetName, targetResult.data);
           sheetData = targetResult.data as any[][];
         } else {
@@ -307,7 +308,7 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[]): Calcu
           sheetsCache.set(targetSheetName, targetCalculated);
 
           // Recursively calculate the target sheet
-          const targetResult = calculateSheet(targetSheet, processedAllSheets);
+          const targetResult = calculateSheet(targetSheet, processedAllSheets, { preferDDMMYYYY });
           sheetsCache.set(targetSheetName, targetResult.data);
           sheetData = targetResult.data as any[][];
         } else {
@@ -358,6 +359,7 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[]): Calcu
       getRangeValues,
       getRangeValuesRaw,
       evaluateFormula,
+      preferDDMMYYYY,
     });
   };
 
@@ -435,7 +437,7 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[]): Calcu
           // Must be integer (dates without time component)
           // Avoids formatting calculated averages/sums as dates
           // Apply default date format
-          calculated[rowIdx][colIdx] = formatNumber(calculatedValue, "MM/DD/YYYY");
+          calculated[rowIdx][colIdx] = formatNumber(calculatedValue, preferDDMMYYYY ? "DD/MM/YYYY" : "MM/DD/YYYY");
         }
       }
     }
@@ -455,6 +457,6 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[]): Calcu
  * @param sheets - Array of sheets to calculate
  * @returns Array of calculated sheets
  */
-export function calculateWorkbook(sheets: SheetData[]): CalculatedSheet[] {
-  return sheets.map((sheet) => calculateSheet(sheet, sheets));
+export function calculateWorkbook(sheets: SheetData[], options: CalculateOptions = {}): CalculatedSheet[] {
+  return sheets.map((sheet) => calculateSheet(sheet, sheets, options));
 }

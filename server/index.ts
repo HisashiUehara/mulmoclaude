@@ -121,7 +121,8 @@ import { isViewDataPath } from "./api/auth/viewToken.js";
 import { deleteTokenFile, generateAndWriteToken, getCurrentToken } from "./api/auth/token.js";
 import { log } from "./system/logger/index.js";
 import { logBackgroundError } from "./utils/logBackgroundError.js";
-import { isNonEmptyString, isRecord } from "./utils/types.js";
+import { isNonEmptyString } from "./utils/types.js";
+import { collectSessionEntriesNewestFirst } from "./utils/sessionJsonl.js";
 import { errorMessage } from "./utils/errors.js";
 import { registerScheduledSkills } from "./workspace/skills/scheduler.js";
 import { registerUserTasks } from "./workspace/skills/user-tasks.js";
@@ -643,22 +644,11 @@ async function getSessionRoleForBridge(sessionId: string): Promise<string | null
 async function getSessionHistoryForBridge(sessionId: string, opts: { limit: number; offset: number }) {
   const content = await readSessionJsonl(sessionId);
   if (!content) return { messages: [], total: 0 };
-  const allMessages: { source: string; text: string }[] = [];
-  const lines = content.split("\n").filter(Boolean);
-  // Collect all text events newest-first
-  for (let i = lines.length - 1; i >= 0; i--) {
-    try {
-      const entry: unknown = JSON.parse(lines[i]);
-      if (isRecord(entry) && entry.type === EVENT_TYPES.text && typeof entry.message === "string") {
-        allMessages.push({
-          source: isNonEmptyString(entry.source) ? entry.source : "unknown",
-          text: entry.message,
-        });
-      }
-    } catch {
-      // skip malformed lines
-    }
-  }
+  const allMessages = collectSessionEntriesNewestFirst(content, (entry) =>
+    entry.type === EVENT_TYPES.text && typeof entry.message === "string"
+      ? { source: isNonEmptyString(entry.source) ? entry.source : "unknown", text: entry.message }
+      : undefined,
+  );
   const total = allMessages.length;
   const messages = allMessages.slice(opts.offset, opts.offset + opts.limit);
   return { messages, total };

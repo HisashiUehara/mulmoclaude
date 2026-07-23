@@ -9,7 +9,8 @@ import { writeNewFileExclusive } from "../../utils/files/upload-io.js";
 import { MAX_RENAME_ATTEMPTS, renamedCandidate, sanitizeUploadFilename } from "../../utils/files/upload-name.js";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, notFound, sendError, serverError } from "../../utils/httpError.js";
-import { jsonSyntaxError, MAX_PREVIEW_BYTES, validatePutContentRequest } from "../../utils/files/content-write-validate.js";
+import { jsonSyntaxError, MAX_PREVIEW_BYTES } from "../../utils/files/content-write-validate.js";
+import { respondWithWrittenFile, validateWriteRequestOr400, type WriteContentResponse } from "./filesWriteResponse.js";
 import { getOptionalStringQuery } from "../../utils/request.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { GitignoreFilter } from "../../utils/gitignore.js";
@@ -225,12 +226,6 @@ interface FileContentText {
 interface WriteContentRequest {
   path?: unknown;
   content?: unknown;
-}
-
-interface WriteContentResponse {
-  path: string;
-  size: number;
-  modifiedMs: number;
 }
 
 interface FileContentMeta {
@@ -1026,14 +1021,9 @@ async function performCreateWrite(
 // passes a slug for a file it believes doesn't exist; we re-check
 // here to close the TOCTOU window between two tabs.
 router.post(API_ROUTES.files.create, async (req: Request<object, unknown, WriteContentRequest>, res: Response<WriteContentResponse | ErrorResponse>) => {
-  const validation = validatePutContentRequest(req.body);
-  if (!validation.ok) {
-    log.warn("files", validation.logMsg, validation.logExtra);
-    badRequest(res, validation.message);
-    return;
-  }
-  const { relPath, content, bytes: contentBytes } = validation;
-  log.info("files", "POST create: start", { pathPreview: previewSnippet(relPath), bytes: contentBytes });
+  const inputs = validateWriteRequestOr400(req.body, res, "POST create");
+  if (!inputs) return;
+  const { relPath, content, bytes: contentBytes } = inputs;
 
   const resolved = await resolveNewFilePath(relPath);
   if (!resolved.ok) {
@@ -1054,17 +1044,7 @@ router.post(API_ROUTES.files.create, async (req: Request<object, unknown, WriteC
   }
   const created = await performCreateWrite(resolved, content, relPath, res);
   if (!created) return;
-  const fresh = await statSafeAsync(resolved.absPath);
-  log.info("files", "POST create: ok", {
-    pathPreview: previewSnippet(relPath),
-    bytes: fresh?.size ?? contentBytes,
-  });
-  void publishFileChange(relPath);
-  res.json({
-    path: relPath,
-    size: fresh?.size ?? contentBytes,
-    modifiedMs: fresh?.mtimeMs ?? Date.now(),
-  });
+  await respondWithWrittenFile(res, { absPath: resolved.absPath, relPath, fallbackBytes: contentBytes, logLabel: "POST create" });
 });
 
 /** Cap on one dropped file, in decoded bytes.
@@ -1170,6 +1150,9 @@ router.post(API_ROUTES.files.upload, async (req: Request<object, unknown, Upload
     sendError(res, written.status, written.message);
     return;
   }
+  // Kept off `respondWithWrittenFile`: the success line reports the
+  // decoded payload size the client sent, not the post-write stat that
+  // the create / overwrite routes log.
   const fresh = await statSafeAsync(written.absPath);
   log.info("files", "POST upload: ok", { pathPreview: previewSnippet(written.relPath), bytes: bytes.byteLength });
   void publishFileChange(written.relPath);
@@ -1177,14 +1160,9 @@ router.post(API_ROUTES.files.upload, async (req: Request<object, unknown, Upload
 });
 
 router.put(API_ROUTES.files.content, async (req: Request<object, unknown, WriteContentRequest>, res: Response<WriteContentResponse | ErrorResponse>) => {
-  const validation = validatePutContentRequest(req.body);
-  if (!validation.ok) {
-    log.warn("files", validation.logMsg, validation.logExtra);
-    badRequest(res, validation.message);
-    return;
-  }
-  const { relPath, content, bytes: contentBytes } = validation;
-  log.info("files", "PUT content: start", { pathPreview: previewSnippet(relPath), bytes: contentBytes });
+  const inputs = validateWriteRequestOr400(req.body, res, "PUT content");
+  if (!inputs) return;
+  const { relPath, content, bytes: contentBytes } = inputs;
 
   const resolved = await resolveExistingTextFile(relPath);
   if (!resolved.ok) {
@@ -1205,21 +1183,7 @@ router.put(API_ROUTES.files.content, async (req: Request<object, unknown, WriteC
     serverError(res, "Failed to write file");
     return;
   }
-  const fresh = await statSafeAsync(resolved.absPath);
-  log.info("files", "PUT content: ok", {
-    pathPreview: previewSnippet(relPath),
-    bytes: fresh?.size ?? contentBytes,
-  });
-  // Notify subscribers + run side-effect hooks (e.g. memory topic
-  // index regeneration in #1032). Fire-and-forget; the publisher
-  // logs failures internally and the user-facing write already
-  // succeeded.
-  void publishFileChange(relPath);
-  res.json({
-    path: relPath,
-    size: fresh?.size ?? contentBytes,
-    modifiedMs: fresh?.mtimeMs ?? Date.now(),
-  });
+  await respondWithWrittenFile(res, { absPath: resolved.absPath, relPath, fallbackBytes: contentBytes, logLabel: "PUT content" });
 });
 
 router.get(API_ROUTES.files.raw, (req: Request<object, unknown, unknown, PathQuery>, res: Response<ErrorResponse>) => {

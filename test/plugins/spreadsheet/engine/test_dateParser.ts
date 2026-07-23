@@ -171,6 +171,7 @@ describe("parseDate — validity and range", () => {
 describe("getDefaultDateFormat", () => {
   it("echoes the shape it was given", () => {
     assert.equal(getDefaultDateFormat("2025-03-04"), "YYYY-MM-DD");
+    assert.equal(getDefaultDateFormat("2025/03/04"), "YYYY/MM/DD");
     assert.equal(getDefaultDateFormat("4-Mar-2025"), "DD-MMM-YYYY");
     assert.equal(getDefaultDateFormat("Mar 4, 2025"), "MMM D, YYYY");
     assert.equal(getDefaultDateFormat("March 4, 2025"), "MMMM D, YYYY");
@@ -183,13 +184,28 @@ describe("getDefaultDateFormat", () => {
     assert.equal(getDefaultDateFormat("June 4, 2025"), "MMMM D, YYYY");
   });
 
-  // Everything unmatched falls through to US slash order — including strings
-  // that are not dates at all, and including a date the parser itself would
-  // read as day-first.
-  it("falls back to MM/DD/YYYY for slash dates and for anything unrecognised", () => {
-    assert.equal(getDefaultDateFormat("03/04/2025"), "MM/DD/YYYY");
-    assert.equal(getDefaultDateFormat("13/04/2025"), "MM/DD/YYYY");
+  // A slash date is labelled in the order the parser READ it, so the cell
+  // renders the halves the way the user typed them.
+  it("labels a slash date in its reading order", () => {
+    assert.equal(getDefaultDateFormat("03/04/2025"), "MM/DD/YYYY", "ambiguous: US default");
+    assert.equal(getDefaultDateFormat("03/04/2025", true), "DD/MM/YYYY", "ambiguous: day-first when preferred");
+    assert.equal(getDefaultDateFormat("13/04/2025"), "DD/MM/YYYY", "13 can only be a day, whatever the preference");
+    assert.equal(getDefaultDateFormat("03/13/2025", true), "MM/DD/YYYY", "13 can only be a day here too");
+  });
+
+  // Slash-separated ISO parses year-first, so it must be LABELLED year-first
+  // too. Falling through to the slash default re-rendered it as MM/DD or DD/MM
+  // — the same digits in a different order, which reads as a different date
+  // (Codex review).
+  it("keeps a year-first label for YYYY/MM/DD under either preference", () => {
+    assert.equal(getDefaultDateFormat("2025/03/04"), "YYYY/MM/DD");
+    assert.equal(getDefaultDateFormat("2025/03/04", true), "YYYY/MM/DD");
+    assert.equal(getDefaultDateFormat("2025/3/4", true), "YYYY/MM/DD", "unpadded too");
+  });
+
+  it("falls back to the preference for anything unrecognised", () => {
     assert.equal(getDefaultDateFormat("not a date"), "MM/DD/YYYY");
+    assert.equal(getDefaultDateFormat("not a date", true), "DD/MM/YYYY");
     assert.equal(getDefaultDateFormat(""), "MM/DD/YYYY");
   });
 });

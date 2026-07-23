@@ -16,6 +16,8 @@ export interface EvaluatorContext {
   getRangeValues: (range: string) => CellValue[];
   getRangeValuesRaw?: (range: string) => CellValue[];
   evaluateFormula: (formula: string) => CellValue;
+  /** Reading order for an ambiguous slash date; see engine/date-locale.ts. */
+  preferDDMMYYYY?: boolean;
 }
 
 /** Render a cell's value as the text that stands in for it inside an
@@ -108,7 +110,7 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
 
       // Auto-parse date strings to serial numbers for compatibility with date arithmetic
       // This allows formulas like =HLOOKUP("6/1/2024", ...) to work with parsed date cells
-      const dateSerial = parseDate(stringValue);
+      const dateSerial = parseDate(stringValue, context.preferDDMMYYYY);
       if (dateSerial !== null) {
         return dateSerial;
       }
@@ -300,7 +302,7 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
     // Parse date strings in arithmetic expressions (e.g., "06/01/2025" → serial number)
     // This allows formulas like =B3-"06/01/2025" to work correctly
     expr = expr.replace(/"([^"]+)"/g, (match, dateStr) => {
-      const dateSerial = parseDate(dateStr);
+      const dateSerial = parseDate(dateStr, context.preferDDMMYYYY);
       if (dateSerial !== null) {
         return dateSerial.toString();
       }

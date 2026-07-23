@@ -57,7 +57,17 @@ export interface CalculationError {
   type: "circular" | "invalid_ref" | "div_zero" | "syntax" | "unknown";
 }
 
-export interface EngineOptions {
+/** Per-calculation settings that change how cell CONTENT is read, as opposed
+ *  to how the engine runs. Passed down explicitly so the engine stays pure —
+ *  no ambient locale, no import-time state. */
+export interface CalculateOptions {
+  /** Read an ambiguous `A/B/YYYY` date as day-first. Only affects dates whose
+   *  two leading numbers are both 12 or under; anything else decides itself.
+   *  See engine/date-locale.ts for how a locale maps onto this. */
+  preferDDMMYYYY?: boolean;
+}
+
+export interface EngineOptions extends CalculateOptions {
   maxIterations?: number; // For circular reference detection
   enableCrossSheetRefs?: boolean; // Default: true
   strictMode?: boolean; // Throw on errors vs. return 0
