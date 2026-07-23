@@ -35,6 +35,9 @@
     "typecheck": "vue-tsc --noEmit",
     "test": "tsx --test test/test_*.ts test/accounting/test_*.ts"
   },
+  "dependencies": {
+    "@mulmoclaude/common": "^1.1.0"
+  },
   "peerDependencies": {
     "express": "^5.2.1",
     "gui-chat-protocol": "^1.1.0",
