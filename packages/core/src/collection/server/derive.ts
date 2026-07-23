@@ -8,6 +8,7 @@
 
 import { backlinkRows, projectBacklinkRow, rollupValue } from "../core/backlinks";
 import { deriveAll, type DeriveRefRecords } from "../core/deriveAll";
+import { ownProp } from "../core/ownProp";
 import { uniqueBacklinkSources, uniqueEmbedTargets, uniqueRefTargets } from "../core/linkTargets";
 import { loadCollection, type DiscoveryOptions } from "./discovery";
 import type { LoadedCollection } from "./discoveredCollection";
@@ -83,7 +84,8 @@ function projectComputed(schema: CollectionSchema, enriched: CollectionItem, lin
     }
     if (field.type === "embed" && field.to) {
       const targetId = embedTargetId(field, enriched);
-      enriched[key] = (targetId && linked[field.to]?.byId[targetId]) || null;
+      const target = ownProp(linked, field.to);
+      enriched[key] = (targetId && target && ownProp(target.byId, targetId)) || null;
     }
     if (field.type === "backlinks") {
       enriched[key] = projectBacklinks(field, schema, enriched, linked);
