@@ -59,6 +59,20 @@ export function parseFrontmatter(raw: string): ParsedMarkdown {
   return { meta, body, hasHeader: true };
 }
 
+/** Split a document into its frontmatter `prefix` (the `---\n…\n---\n`
+ *  envelope, empty string when there is none) and the `body` that
+ *  follows. `prefix + body` reproduces the input exactly: `body` is
+ *  always a suffix of `raw` (see `parseFrontmatter`), so `prefix` is
+ *  the leading slice of the exact remaining length. Reach for this
+ *  instead of re-deriving the split when you need to rewrite the body
+ *  and re-attach the original header verbatim — e.g. toggling a task
+ *  checkbox without disturbing the YAML. */
+export function splitFrontmatter(raw: string): { prefix: string; body: string } {
+  const { body } = parseFrontmatter(raw);
+  const prefix = raw.slice(0, raw.length - body.length);
+  return { prefix, body };
+}
+
 /** Serialize a meta object + body back into the canonical
  *  `---\n...\n---\n\nbody` shape. An empty `meta` returns the body
  *  alone (no envelope) — the lazy-on-write contract: don't add

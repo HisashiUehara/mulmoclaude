@@ -98,6 +98,7 @@ This catalog only covers **cross-cutting** helpers — formatters, error helpers
 | `server/utils/markdown.ts`                | server-side helpers                                                              | Server-side markdown utilities (not for Vue).                                                                                                            |
 | `src/utils/dom/externalLink.ts`           | `handleExternalLinkClick(event)`                                                 | Single source of truth for v-html link delegation. Every `v-html` consumer routes external links through this so OS-vs-in-app navigation is consistent.  |
 | `src/utils/dom/scrollable.ts`             | `isNearBottom(element, thresholdPx)`, `NEAR_BOTTOM_THRESHOLD_PX`                 | Is a scroll container parked at (or just above) its bottom — the gate auto-follow surfaces use so streaming output never yanks a reader who scrolled up. |
+| `@mulmoclaude/markdown-utils/markdown/frontmatter` | `parseFrontmatter`, `splitFrontmatter`, `serializeWithFrontmatter`, `mergeFrontmatter` | Canonical YAML `---`-envelope parse / split / serialize / merge. `splitFrontmatter(raw)` returns `{ prefix, body }` (envelope + body, `prefix + body === raw`) — use it to rewrite a body and re-attach the header verbatim instead of hand-rolling the length slice. |
 
 ## Collections
 
