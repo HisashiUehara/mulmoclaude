@@ -6,14 +6,17 @@ import { functionRegistry, toString, type FunctionHandler } from "../registry";
 
 const VALUE_ERROR = "#VALUE!";
 
-const isLetter = (char: string): boolean => /\p{L}/u.test(char);
+// A letter or a combining mark. A decomposed accented letter (e + U+0301) is two
+// code points; counting the mark as part of the word stops PROPER from treating
+// the base letter that follows it as a new word (éclair → Éclair, not ÉClair).
+const isWordCharacter = (char: string): boolean => /[\p{L}\p{M}]/u.test(char);
 
 // Excel PROPER capitalises a letter at the start of the text or after any
 // non-letter (space, punctuation, digit) and lowercases the rest — so word
 // boundaries include "'" and "-", which a space-only split misses.
 export const toProperCase = (text: string): string => {
   const chars = Array.from(text);
-  const cased = chars.map((char, index) => (index === 0 || !isLetter(chars[index - 1]) ? char.toUpperCase() : char.toLowerCase()));
+  const cased = chars.map((char, index) => (index === 0 || !isWordCharacter(chars[index - 1]) ? char.toUpperCase() : char.toLowerCase()));
   return cased.join("");
 };
 

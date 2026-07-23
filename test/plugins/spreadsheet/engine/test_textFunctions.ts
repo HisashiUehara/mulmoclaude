@@ -151,6 +151,13 @@ describe("toProperCase — word boundaries include punctuation", () => {
     assert.equal(toProperCase(""), "");
   });
 
+  // A decomposed accented letter is a base letter + a combining mark; the mark
+  // must not read as a word boundary and capitalize the next letter (#2388).
+  it("keeps a decomposed accented letter as one word", () => {
+    assert.equal(toProperCase("e\u0301clair"), "E\u0301clair", "NFD: e + combining acute");
+    assert.equal(toProperCase("\u00e9clair"), "\u00c9clair", "NFC composed form");
+  });
+
   it("leaves leading punctuation in place and capitalises the first letter", () => {
     assert.equal(toProperCase("'hello"), "'Hello");
   });
