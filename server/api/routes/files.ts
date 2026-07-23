@@ -36,9 +36,34 @@ import { spawn } from "node:child_process";
 // but we CAN distinguish "spawn succeeded" from "command not found /
 // permission denied" (e.g. `xdg-open` missing on a headless Linux
 // host). Client-side error handling depends on this signal.
-function spawnDetachedOsCommand(command: string, args: readonly string[], label: string): Promise<boolean> {
+/** The argv for opening a path in the host file manager, per platform. Pure,
+ *  so the per-OS choice can be tested without spawning anything — running the
+ *  real command in a test opens Finder on macOS and Explorer on Windows. */
+export function openArgv(absPath: string, platform: typeof process.platform): { command: string; args: string[] } {
+  if (platform === "darwin") return { command: "open", args: [absPath] };
+  if (platform === "win32") return { command: "explorer.exe", args: [absPath] };
+  return { command: "xdg-open", args: [absPath] };
+}
+
+/** The argv for revealing a path (folder opened, file selected). macOS `open -R`
+ *  and Windows `explorer /select,` select the file; Linux `xdg-open <dir>` only
+ *  opens the folder — there is no portable "select this item" across Linux file
+ *  managers, and landing next to the file is enough for drag-and-drop (#1985).
+ *  Same argv-array (no shell) discipline as `openArgv`, so a filename with shell
+ *  metacharacters can never be reinterpreted as command syntax. */
+export function revealArgv(absPath: string, platform: typeof process.platform): { command: string; args: string[] } {
+  if (platform === "darwin") return { command: "open", args: ["-R", absPath] };
+  if (platform === "win32") return { command: "explorer.exe", args: [`/select,${absPath}`] };
+  return { command: "xdg-open", args: [path.dirname(absPath)] };
+}
+
+/** Injectable so a test can assert the argv without launching the real file
+ *  manager. Defaults to Node's `spawn`. */
+export type Spawner = typeof spawn;
+
+function spawnDetachedOsCommand(command: string, args: readonly string[], label: string, spawner: Spawner): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
-    const child = spawn(command, args, { detached: true, stdio: "ignore" });
+    const child = spawner(command, args as string[], { detached: true, stdio: "ignore" });
     let settled = false;
     child.once("error", (err) => {
       if (settled) return;
@@ -55,30 +80,14 @@ function spawnDetachedOsCommand(command: string, args: readonly string[], label:
   });
 }
 
-export function openInHostOs(absPath: string): Promise<boolean> {
-  const { platform } = process;
-  const [command, args] =
-    platform === "darwin" ? (["open", [absPath]] as const) : platform === "win32" ? (["explorer.exe", [absPath]] as const) : (["xdg-open", [absPath]] as const);
-  return spawnDetachedOsCommand(command, args, "open");
+export function openInHostOs(absPath: string, spawner: Spawner = spawn): Promise<boolean> {
+  const { command, args } = openArgv(absPath, process.platform);
+  return spawnDetachedOsCommand(command, args, "open", spawner);
 }
 
-// Reveal the file in the host file manager. macOS `open -R` and
-// Windows `explorer /select,` open the containing folder with the
-// file selected; Linux `xdg-open <dir>` opens the folder only —
-// there's no portable "select this item" across the many Linux file
-// managers, and landing next to the file is enough for drag-and-drop
-// (#1985 follow-up). Same argv-array (no shell) discipline as
-// `openInHostOs` so a filename with shell metacharacters can never be
-// reinterpreted as command syntax.
-export function revealInHostOs(absPath: string): Promise<boolean> {
-  const { platform } = process;
-  const [command, args] =
-    platform === "darwin"
-      ? (["open", ["-R", absPath]] as const)
-      : platform === "win32"
-        ? (["explorer.exe", [`/select,${absPath}`]] as const)
-        : (["xdg-open", [path.dirname(absPath)]] as const);
-  return spawnDetachedOsCommand(command, args, "reveal");
+export function revealInHostOs(absPath: string, spawner: Spawner = spawn): Promise<boolean> {
+  const { command, args } = revealArgv(absPath, process.platform);
+  return spawnDetachedOsCommand(command, args, "reveal", spawner);
 }
 
 const router = Router();
