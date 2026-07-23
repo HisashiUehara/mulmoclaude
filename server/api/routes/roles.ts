@@ -6,6 +6,7 @@ import { pushSessionEvent } from "../../events/session-store/index.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
 import { roleExists, deleteRole, saveRole } from "../../utils/files/roles-io.js";
+import { isValidRoleId } from "../../utils/files/roleId.js";
 import { log } from "../../system/logger/index.js";
 import { previewSnippet } from "../../utils/logPreview.js";
 
@@ -62,6 +63,7 @@ function listRolesResult(): Record<string, unknown> {
 
 function deleteRoleResult(roleId: string | undefined, sessionId: string): Record<string, unknown> {
   if (!roleId) return { success: false, error: "roleId is required for delete action" };
+  if (!isValidRoleId(roleId)) return { success: false, error: `Invalid role id '${roleId}'.` };
   if (BUILTIN_IDS.has(roleId)) {
     return { success: false, error: "Cannot delete built-in roles." };
   }
@@ -81,6 +83,8 @@ function validateSaveInput(input: ManageRolesInput): { role: NonNullable<ManageR
   const { action, role, oldRoleId } = input;
   if (!role) return "role definition required for create/update";
   if (!role.id) return "role.id is required";
+  if (!isValidRoleId(role.id)) return `Invalid role id '${role.id}'.`;
+  if (oldRoleId !== undefined && !isValidRoleId(oldRoleId)) return `Invalid role id '${oldRoleId}'.`;
 
   // Rename is strictly an update-with-different-id. Gating on
   // action === "update" means a malformed create payload that

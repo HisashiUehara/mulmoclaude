@@ -401,7 +401,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter, isNavigationFailure } from "vue-router";
 import { useI18n } from "vue-i18n";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
@@ -420,7 +420,6 @@ import {
   WIKI_ACTION,
   WIKI_ROUTE_SECTION,
   buildWikiRouteParams,
-  isSafeWikiSlug,
   readWikiRouteTarget,
   wikiActionFor,
   incomingLinks,
@@ -432,6 +431,7 @@ import HistoryTab from "./history/HistoryTab.vue";
 import WikiPageBody from "./components/WikiPageBody.vue";
 import WikiGraphView from "./components/WikiGraphView.vue";
 import { loadPageEdit } from "./pageEditLoader";
+import { resolveWikiSlug } from "./currentSlug";
 
 const wikiEndpoints = pluginEndpoints<WikiEndpoints>("wiki");
 const PAGE_WIKI = pluginPageRoute("wiki");
@@ -515,13 +515,14 @@ let restoreToastTimer: ReturnType<typeof setTimeout> | null = null;
 // pageTab-reset watcher can pick up route + selectedResult changes
 // uniformly without re-walking each call site that mutates the
 // underlying state.
-const currentSlugReactive = computed<string | null>(() => {
-  const raw =
-    route.name === PAGE_WIKI && route.params.section === WIKI_ROUTE_SECTION.pages && typeof route.params.slug === "string"
-      ? route.params.slug
-      : (props.selectedResult?.data?.pageName ?? null);
-  return isSafeWikiSlug(raw) ? raw : null;
-});
+const currentSlugReactive = computed<string | null>(() =>
+  resolveWikiSlug({
+    onWikiRoute: route.name === PAGE_WIKI,
+    onPagesSection: route.params.section === WIKI_ROUTE_SECTION.pages,
+    routeSlug: route.params.slug,
+    resultPageName: props.selectedResult?.data?.pageName ?? null,
+  }),
+);
 
 watch(currentSlugReactive, (next, prev) => {
   if (next === prev) return;
@@ -549,12 +550,21 @@ const { refresh, abort: abortFreshFetch } = useFreshPluginData<WikiData>({
   },
   extract: (json) => (json as { data?: WikiData }).data ?? null,
   apply: (data) => {
+    // The endpoint only fetches the correct payload for index / page
+    // views; for log / lint_report / page-edit it returns the bare index,
+    // which would clobber the embedded result. Skip those (mirrors the
+    // guard Preview.vue carries — CodeRabbit V1 #6).
+    if (action.value !== WIKI_ACTION.index && action.value !== WIKI_ACTION.page) return;
     action.value = data.action ?? "index";
     title.value = data.title ?? "Wiki";
     content.value = data.content ?? "";
     pageEntries.value = data.pageEntries ?? [];
     pageExists.value = data.pageExists ?? true;
   },
+});
+
+onBeforeUnmount(() => {
+  if (restoreToastTimer !== null) clearTimeout(restoreToastTimer);
 });
 
 function handleRestored(): void {
@@ -726,7 +736,10 @@ watch(action, (next) => {
 // scrollable container would otherwise keep the previous page's
 // scrollTop. Reset to the top whenever the rendered body changes.
 const scrollRef = ref<HTMLElement | null>(null);
-watch(content, async () => {
+// Reset scroll on page/view navigation only — keying on page identity, not
+// raw `content`, so an in-place edit (e.g. a task-checkbox toggle) doesn't
+// yank a scrolled-down reader back to the top.
+watch([currentSlugReactive, action], async () => {
   await nextTick();
   if (scrollRef.value) scrollRef.value.scrollTop = 0;
 });
@@ -895,17 +908,12 @@ function requestUpdatePage() {
 }
 
 function currentSlug(): string | null {
-  // Prefer the URL on /wiki (source of truth for that route); fall
-  // back to the tool-result payload when WikiView is mounted as a
-  // manageWiki result inside /chat. `isSafeWikiSlug` guards against
-  // traversal tokens — the router guard already strips these from
-  // standalone /wiki URLs, but the tool-result payload arrives from
-  // the server/agent and can't assume that upstream filter.
-  const raw =
-    route.name === PAGE_WIKI && route.params.section === WIKI_ROUTE_SECTION.pages && typeof route.params.slug === "string"
-      ? route.params.slug
-      : (props.selectedResult?.data?.pageName ?? null);
-  return isSafeWikiSlug(raw) ? raw : null;
+  return resolveWikiSlug({
+    onWikiRoute: route.name === PAGE_WIKI,
+    onPagesSection: route.params.section === WIKI_ROUTE_SECTION.pages,
+    routeSlug: route.params.slug,
+    resultPageName: props.selectedResult?.data?.pageName ?? null,
+  });
 }
 
 // Serialised POST chain for rapid task-checkbox clicks (#775). Each
