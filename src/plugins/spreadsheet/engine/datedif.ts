@@ -62,7 +62,11 @@ export function computeDatedif(startSerial: number, endSerial: number, unit: str
       // Jan 30 → Mar 1 borrowed Feb's 28 days and returned -1.
       const completeMonths = yearDiff * MONTHS_PER_YEAR + monthDiff - (dayDiff < 0 ? 1 : 0);
       const anchor = addMonthsClamped(startDate, completeMonths);
-      return Math.round((endDate.getTime() - anchor.getTime()) / MS_PER_DAY);
+      // Compare whole days only. `end` may carry a time-of-day (a datetime
+      // serial); anchor is already UTC midnight, so strip end's time too or the
+      // remainder would swing with the clock (Codex review).
+      const endMidnight = Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate());
+      return Math.round((endMidnight - anchor.getTime()) / MS_PER_DAY);
     }
 
     case "YM": {

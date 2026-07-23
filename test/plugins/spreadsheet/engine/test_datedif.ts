@@ -71,6 +71,15 @@ describe("computeDatedif — MD (day-of-month diff, months ignored)", () => {
     assert.equal(diff([2023, 1, 30], [2023, 3, 1], "MD"), 1, "Jan 30 + 1 month → Feb 28, then 1 day");
     assert.equal(diff([2024, 1, 30], [2024, 3, 1], "MD"), 1, "leap year: Jan 30 + 1 month → Feb 29, then 1 day");
   });
+
+  // The remainder counts whole days: a datetime serial's time-of-day must not
+  // change the result (an 18:00 fraction on `end` once rounded MD up to 2).
+  it("ignores the time-of-day of a datetime serial", () => {
+    const start = serial(2023, 1, 30);
+    const end = serial(2023, 3, 1);
+    assert.equal(computeDatedif(start, end + 0.75, "MD"), 1, "end at 18:00 still yields 1");
+    assert.equal(computeDatedif(start + 0.75, end + 0.25, "MD"), 1, "start and end times both ignored");
+  });
 });
 
 describe("computeDatedif — YM (month diff, years ignored)", () => {
