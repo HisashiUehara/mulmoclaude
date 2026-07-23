@@ -93,6 +93,15 @@ describe("takeRight — negative count is an error", () => {
     assert.equal(takeRight("Hello", 2), "lo");
   });
 
+  it("truncates a fractional count toward zero", () => {
+    assert.equal(takeRight("Hello", 2.5), "lo");
+  });
+
+  it("errors on a non-finite count", () => {
+    assert.equal(takeRight("Hello", NaN), VALUE_ERROR);
+    assert.equal(takeRight("Hello", Infinity), VALUE_ERROR);
+  });
+
   it("returns an empty string from an empty text", () => {
     assert.equal(takeRight("", 3), "");
   });
@@ -113,6 +122,11 @@ describe("takeLeft — negative count is an error", () => {
 
   it("returns the leftmost characters for a normal count", () => {
     assert.equal(takeLeft("Hello", 2), "He");
+  });
+
+  it("truncates a fractional count and errors on a non-finite one", () => {
+    assert.equal(takeLeft("Hello", 2.9), "He");
+    assert.equal(takeLeft("Hello", NaN), VALUE_ERROR);
   });
 });
 
@@ -151,6 +165,12 @@ describe("SpreadsheetEngine — text edge cases end to end", () => {
   it("evaluates RIGHT / LEFT with a negative count as an error", () => {
     assert.equal(evalFormula('RIGHT("Hello",-1)'), VALUE_ERROR);
     assert.equal(evalFormula('LEFT("Hello",-1)'), VALUE_ERROR);
+  });
+
+  it("errors on a non-numeric count and truncates a fractional one", () => {
+    assert.equal(evalFormula('LEFT("Hello","x")'), VALUE_ERROR);
+    assert.equal(evalFormula('RIGHT("Hello","x")'), VALUE_ERROR);
+    assert.equal(evalFormula('RIGHT("Hello",2.5)'), "lo");
   });
 
   it("evaluates PROPER across punctuation boundaries", () => {

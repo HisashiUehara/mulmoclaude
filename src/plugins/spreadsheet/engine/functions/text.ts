@@ -19,9 +19,24 @@ export const toProperCase = (text: string): string => {
 
 // Excel LEFT/RIGHT reject a negative count with #VALUE!; 0 and over-length
 // counts keep substring's clamping.
-export const takeLeft = (text: string, count: number): string => (count < 0 ? VALUE_ERROR : text.substring(0, count));
+// Excel truncates a fractional count toward zero and rejects a non-finite or
+// negative one with #VALUE! (LEFT/RIGHT with "x" or -1). Normalising once keeps
+// LEFT and RIGHT consistent instead of each feeding a raw Number() to substring.
+const normalizeCharCount = (count: number): number | string => {
+  // Test the sign before truncating: Math.trunc(-0.5) is -0, which is not < 0.
+  if (!Number.isFinite(count) || count < 0) return VALUE_ERROR;
+  return Math.trunc(count);
+};
 
-export const takeRight = (text: string, count: number): string => (count < 0 ? VALUE_ERROR : text.substring(text.length - count));
+export const takeLeft = (text: string, count: number): string => {
+  const chars = normalizeCharCount(count);
+  return typeof chars === "string" ? chars : text.substring(0, chars);
+};
+
+export const takeRight = (text: string, count: number): string => {
+  const chars = normalizeCharCount(count);
+  return typeof chars === "string" ? chars : text.substring(text.length - chars);
+};
 
 // Replace the nth (1-based) occurrence; split/join keeps matches non-overlapping,
 // matching the replace-all path.
