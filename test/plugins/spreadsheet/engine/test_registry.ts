@@ -173,12 +173,14 @@ describe("parseCriteria — the ways it silently matches nothing", () => {
     assert.equal(gtText("abc"), false);
   });
 
-  // Excel supports `*` and `?` wildcards here; this implementation does not,
-  // so the criteria degrades to an exact string match.
-  it("treats a wildcard as a literal character, not a pattern", () => {
+  // `*` and `?` are Excel wildcards; `~` escapes them back to literals.
+  it("treats a wildcard as a pattern, and ~ escapes it", () => {
     const wildcard = parseCriteria("app*");
-    assert.equal(wildcard("apple"), false);
-    assert.equal(wildcard("app*"), true, "only the literal string matches");
+    assert.equal(wildcard("apple"), true);
+    assert.equal(wildcard("app"), true, "* may match nothing");
+    assert.equal(wildcard("axe"), false);
+    assert.equal(parseCriteria("app~*")("app*"), true, "escaped, so only the literal matches");
+    assert.equal(parseCriteria("app~*")("apple"), false);
   });
 });
 
@@ -186,7 +188,7 @@ describe("parseCriteria — exact match", () => {
   it("matches a plain string exactly", () => {
     const apple = parseCriteria("apple");
     assert.equal(apple("apple"), true);
-    assert.equal(apple("Apple"), false, "matching is case-sensitive");
+    assert.equal(apple("Apple"), true, "matching is case-insensitive, as in Excel");
     assert.equal(apple("apples"), false);
   });
 
