@@ -50,7 +50,7 @@ import type { CollectionItem, CollectionSchema } from "../core/schema";
 import { CollectionSchemaZ } from "../core/schemaZ";
 import { CollectionQueryZ } from "../core/queryZ";
 import { defangForPrompt } from "../core/promptSafety";
-import { loadCollection, type DiscoveryOptions } from "./discovery";
+import { loadCollection, resolvePrimaryField, type DiscoveryOptions } from "./discovery";
 import type { LoadedCollection } from "./discoveredCollection";
 import { resolveCreateItemId } from "./io";
 import { readOnlyRefusal, storeFor, type CollectionStore } from "./store";
@@ -145,7 +145,10 @@ function optionalStringArray(value: unknown, name: string): { ok: true; value?: 
  *  follow-up getItems/putItems. */
 function projectFields(record: CollectionItem, fields: string[], primaryKey: string): CollectionItem {
   const keys = fields.includes(primaryKey) ? fields : [primaryKey, ...fields];
-  return Object.fromEntries(keys.filter((key) => key in record).map((key) => [key, record[key]]));
+  // Own-property only: a requested field named `toString` / `constructor`
+  // must project as absent, not pull an inherited prototype function that
+  // `JSON.stringify` then drops — leaving the LLM to read the field as empty.
+  return Object.fromEntries(keys.filter((key) => Object.hasOwn(record, key)).map((key) => [key, record[key]]));
 }
 
 /** The validation warning appended to a getItems result when stored
@@ -484,7 +487,7 @@ async function writeAndMirrorSchema(slug: string, schema: unknown, deps: ManageC
  *  gate doesn't apply. Returns a one-line reason, or null when the schema
  *  would be accepted. */
 function schemaDiscoveryGate(schema: CollectionSchema, base: string): string | null {
-  const primaryField = schema.fields[schema.primaryKey];
+  const primaryField = resolvePrimaryField(schema.fields, schema.primaryKey);
   if (!primaryField) return `primaryKey '${schema.primaryKey}' is not one of the declared fields`;
   if (primaryField.primary !== true) return `the primaryKey field '${schema.primaryKey}' must be flagged \`primary: true\``;
   if (schema.dataPath !== undefined && resolveDataDir(schema.dataPath, base) === null) return `dataPath '${schema.dataPath}' escapes the workspace`;
