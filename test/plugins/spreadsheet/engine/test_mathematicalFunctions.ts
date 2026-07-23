@@ -55,9 +55,23 @@ describe("floorToSignificance / ceilingToSignificance — sign domain", () => {
     assert.equal(ceilingToSignificance(-2.5, -2), -4);
   });
 
-  it("returns 0 for a zero significance and for a zero value", () => {
-    assert.equal(floorToSignificance(5, 0), 0);
+  it("returns 0 for a zero value", () => {
+    assert.equal(floorToSignificance(0, 2), 0);
     assert.equal(ceilingToSignificance(0, 2), 0);
+  });
+
+  // Excel is deliberately asymmetric here: FLOOR(x, 0) is #DIV/0! while
+  // CEILING(x, 0) is 0. Both used to answer 0, so FLOOR swallowed a divide-by-
+  // zero (#2360). Keep the pair pinned so neither is "made consistent" later.
+  it("is #DIV/0! for FLOOR with a zero significance, but 0 for CEILING", () => {
+    assert.equal(floorToSignificance(3, 0), DIV_ZERO_ERROR);
+    assert.equal(ceilingToSignificance(3, 0), 0);
+  });
+
+  // The zero check has to win over the sign check, or a negative number with a
+  // zero significance would report the wrong error (#NUM! instead of #DIV/0!).
+  it("reports #DIV/0! rather than #NUM! for a negative number over a zero significance", () => {
+    assert.equal(floorToSignificance(-3, 0), DIV_ZERO_ERROR);
   });
 });
 
@@ -125,6 +139,8 @@ describe("the handlers surface the errors end-to-end", () => {
 
   it("displays the Excel error codes through the engine", () => {
     assert.equal(evalFormula("=FLOOR(-2.5, 2)"), "#NUM!");
+    assert.equal(evalFormula("=FLOOR(3, 0)"), "#DIV/0!");
+    assert.equal(evalFormula("=CEILING(3, 0)"), 0);
     assert.equal(evalFormula("=SQRT(-1)"), "#NUM!");
     assert.equal(evalFormula("=MOD(5, 0)"), "#DIV/0!");
     assert.equal(evalFormula("=ROUND(-2.5, 0)"), -3);
