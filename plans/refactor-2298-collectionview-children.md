@@ -75,12 +75,27 @@ Emits: `repair`. No dynamic testid, no logic.
 
 ## Verification
 
-- `yarn format`, `yarn lint`, `yarn typecheck`, `yarn build`, unit tests.
-- **Collection mock e2e, baseline-vs-change**: with the change stashed, the
-  10-spec batch gives 50/50; with the change restored, the same batch gives
-  50/50. The remaining 8 collection specs add 23/23. All 18 collection spec
-  files green (73 tests).
-- No version bumps.
+- `yarn format`, `yarn lint` (0 errors), `yarn typecheck`, `yarn build`, unit
+  tests — all green. No version bumps.
+- **Collection mock e2e, baseline-vs-change**: all 18 collection spec files
+  (`collection-*.spec.ts` + `present-collection.spec.ts`), **73 tests**.
+  Baseline (`origin/main`'s CollectionView) **73/73**; with the extraction
+  **73/73**.
+
+### Run e2e on a private port when several worktrees are active
+
+`e2e/playwright.config.ts` pins port **45173** with
+**`reuseExistingServer: true`**. With more than one agent worktree active, a
+`yarn test:e2e` run can attach to *another worktree's* dev server and exercise
+code that isn't yours — which makes green and red runs equally meaningless. An
+early run here failed 32/50 across specs the change cannot touch (calendar,
+flag-filter), purely from that.
+
+Verify with a throwaway config that takes a private port and
+`reuseExistingServer: false`, so Playwright boots a server from *this*
+worktree. Both numbers above were produced that way; the plugin must be
+rebuilt first, because the host imports `@mulmoclaude/collection-plugin/vue`
+from `dist/`, not from source.
 
 ## Result
 
