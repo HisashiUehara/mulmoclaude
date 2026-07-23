@@ -392,6 +392,7 @@ import {
   type SourceMeta,
 } from "./categories";
 import { isPresetActivation } from "./presetDetection";
+import { updateSkillDescription, removeSkillByName } from "./skillListEdits";
 import { useSkillMarkdown } from "./useSkillMarkdown";
 import { useSkillCatalog } from "./useSkillCatalog";
 import { useExternalRepos } from "./useExternalRepos";
@@ -412,10 +413,12 @@ const props = defineProps<{
   selectedResult?: ToolResultComplete<ManageSkillsData>;
 }>();
 
-// Local mutable copy of the skill list so the Delete button can
-// remove rows without waiting for a fresh tool_result push.
-// Re-seeded whenever the underlying tool result changes.
-const skills = ref<SkillSummary[]>(props.selectedResult?.data?.skills ?? []);
+// Local copy of the skill list so the Delete button can remove rows
+// without waiting for a fresh tool_result push. Shallow-copied (not the
+// prop array by reference) so local edits never rewrite the shared
+// tool result the Preview / chat export also read. Re-seeded whenever
+// the underlying tool result changes.
+const skills = ref<SkillSummary[]>([...(props.selectedResult?.data?.skills ?? [])]);
 
 // Collapsed-section state for the sidebar (active / catalog). Persisted
 // to localStorage so each user's preference survives reloads.
@@ -573,7 +576,7 @@ function selectActiveSkill(name: string): void {
 watch(
   () => props.selectedResult?.uuid,
   () => {
-    skills.value = props.selectedResult?.data?.skills ?? [];
+    skills.value = [...(props.selectedResult?.data?.skills ?? [])];
     selectedName.value = pickInitialSelection(activeSkills.value, collapsedSections.value);
     catalog.reset();
     repos.resetModalState();
@@ -658,20 +661,20 @@ async function saveEdit(): Promise<void> {
     detailError.value = t("pluginManageSkills.errSaveFailed", { error: result.error });
     return;
   }
-  detail.value = {
-    ...detail.value,
-    description: editDescription.value,
-    body: editBody.value,
-  };
-  // Update the sidebar summary too.
-  const idx = skills.value.findIndex((skill) => skill.name === name);
-  if (idx >= 0) {
-    skills.value[idx] = {
-      ...skills.value[idx],
+  // The sidebar summary keys off the captured `name`, so it stays correct
+  // even if the selection changed mid-save.
+  skills.value = updateSkillDescription(skills.value, name, editDescription.value);
+  // But `detail.value` may now describe a different skill (the user clicked
+  // away while the PUT was in flight) — only patch it when it is still ours,
+  // or we would graft skill A's edits onto skill B's pane.
+  if (detail.value?.name === name) {
+    detail.value = {
+      ...detail.value,
       description: editDescription.value,
+      body: editBody.value,
     };
+    editing.value = false;
   }
-  editing.value = false;
 }
 
 // Delete is project-scope only — see saveProjectSkill / deleteProjectSkill
@@ -696,10 +699,7 @@ async function deleteSkill(): Promise<void> {
     return;
   }
   // Remove from the local list, advance selection, clear detail.
-  const idx = skills.value.findIndex((skill) => skill.name === name);
-  if (idx >= 0) {
-    skills.value.splice(idx, 1);
-  }
+  skills.value = removeSkillByName(skills.value, name);
   selectedName.value = pickInitialSelection(activeSkills.value, collapsedSections.value);
   detail.value = null;
   // Refresh the catalog so a deleted star reverts to ☆ Star.

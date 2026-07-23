@@ -40,13 +40,14 @@
     <div v-if="loading" class="text-sm text-gray-400 italic">{{ t("pluginManageSkills.loading") }}</div>
     <div v-else-if="error" class="text-sm text-red-600">{{ error }}</div>
     <!-- eslint-disable vue/no-v-html -- markdown sanitized via sanitizeMarkdownHtml; same trust chain as the active-skill body in View.vue -->
-    <div v-else-if="detail" ref="markdownRef" class="markdown-content text-gray-700" v-html="renderedBody"></div>
+    <div v-else-if="detail" ref="markdownRef" class="markdown-content text-gray-700" @click="handleExternalLinkClick" v-html="renderedBody"></div>
     <!-- eslint-enable vue/no-v-html -->
   </div>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
+import { handleExternalLinkClick } from "@mulmoclaude/markdown-utils/dom/externalLink";
 import type { SourceMeta } from "./categories";
 import type { CatalogDetail, CatalogEntry } from "./useSkillCatalog";
 import { useSkillMarkdown } from "./useSkillMarkdown";

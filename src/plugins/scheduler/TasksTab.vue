@@ -134,6 +134,7 @@ import { buildRouteUrl } from "../meta-types";
 import type { SchedulerEndpoints } from "./automationsDefinition";
 import { formatShortTime } from "../../utils/format/date";
 import { formatSchedule as formatTaskSchedule, type TaskSchedule as FormatterTaskSchedule } from "./formatSchedule";
+import { originKind, resultDotKind, nextEnabledState, type TaskOriginKind, type ResultDotKind } from "./taskDisplay";
 import { scrollIntoViewByTestId } from "../../utils/dom/scrollIntoViewByTestId";
 
 const { t } = useI18n();
@@ -192,22 +193,34 @@ async function fetchTasks(): Promise<void> {
   tasks.value = result.data.tasks;
 }
 
+const ORIGIN_LABEL_KEY: Record<TaskOriginKind, string> = {
+  system: "pluginSchedulerTasks.originSystem",
+  user: "pluginSchedulerTasks.originUser",
+  skill: "pluginSchedulerTasks.originSkill",
+};
+
+const ORIGIN_CLASS: Record<TaskOriginKind, string> = {
+  system: "bg-gray-100 text-gray-600",
+  user: "bg-blue-100 text-blue-700",
+  skill: "bg-purple-100 text-purple-700",
+};
+
+const RESULT_DOT_CLASS: Record<ResultDotKind, string> = {
+  success: "bg-green-500",
+  error: "bg-red-500",
+  other: "bg-gray-400",
+};
+
 function originLabel(origin: string): string {
-  if (origin === "system") return t("pluginSchedulerTasks.originSystem");
-  if (origin === "user") return t("pluginSchedulerTasks.originUser");
-  return t("pluginSchedulerTasks.originSkill");
+  return t(ORIGIN_LABEL_KEY[originKind(origin)]);
 }
 
 function originClass(origin: string): string {
-  if (origin === "system") return "bg-gray-100 text-gray-600";
-  if (origin === "user") return "bg-blue-100 text-blue-700";
-  return "bg-purple-100 text-purple-700";
+  return ORIGIN_CLASS[originKind(origin)];
 }
 
 function resultDotClass(result: string): string {
-  if (result === "success") return "bg-green-500";
-  if (result === "error") return "bg-red-500";
-  return "bg-gray-400";
+  return RESULT_DOT_CLASS[resultDotKind(result)];
 }
 
 function formatSchedule(schedule: TaskSchedule): string {
@@ -228,7 +241,7 @@ async function runTask(taskId: string): Promise<void> {
 async function toggleEnabled(task: SchedulerTask): Promise<void> {
   mutationError.value = "";
   const url = buildRouteUrl(endpoints.taskUpdate, { id: task.id });
-  const result = await apiPut(url, { enabled: task.enabled === false });
+  const result = await apiPut(url, { enabled: nextEnabledState(task.enabled) });
   if (!result.ok) {
     mutationError.value = t("pluginSchedulerTasks.toggleFailed", { error: result.error });
     return;

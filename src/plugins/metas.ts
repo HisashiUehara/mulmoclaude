@@ -117,8 +117,11 @@ export function buildPluginAggregate<V>(
   extract: (meta: PluginMeta) => Readonly<Record<string, V>> | undefined,
   dimension: IntraPluginCollision["dimension"],
 ): { aggregate: Record<string, V>; owner: Record<string, string>; collisions: IntraPluginCollision[] } {
-  const aggregate: Record<string, V> = {};
-  const owner: Record<string, string> = {};
+  // Null-prototype targets: with a plain `{}`, `aggregate["__proto__"] = v`
+  // hits the inherited setter — the entry is silently dropped (no collision
+  // ever reported) and an object value would replace the prototype.
+  const aggregate: Record<string, V> = Object.create(null);
+  const owner: Record<string, string> = Object.create(null);
   const collisions: IntraPluginCollision[] = [];
   for (const meta of metas) {
     const record = extract(meta);
@@ -139,7 +142,10 @@ export function buildPluginAggregate<V>(
       owner[key] = meta.toolName;
     }
   }
-  return { aggregate, owner, collisions };
+  // Spread back to plain objects: spread DEFINES own properties (no setter),
+  // so a `__proto__` entry survives as a normal own key, while callers get
+  // ordinary objects (deep-equal-friendly, normal prototype).
+  return { aggregate: { ...aggregate }, owner: { ...owner }, collisions };
 }
 
 /** Filter a plugin record so only the keys that survive the merge
@@ -156,7 +162,8 @@ export function filterPluginKeys<V>(
   pluginRecord: Readonly<Record<string, V>>,
   pluginByKey: Readonly<Record<string, string>>,
 ): { cleaned: Record<string, V>; dropped: HostPluginCollision[] } {
-  const cleaned: Record<string, V> = {};
+  // Null-prototype for the same `__proto__` reason as `buildPluginAggregate`.
+  const cleaned: Record<string, V> = Object.create(null);
   const dropped: HostPluginCollision[] = [];
   for (const [key, value] of Object.entries(pluginRecord)) {
     if (hostKeys.has(key)) {
@@ -165,7 +172,7 @@ export function filterPluginKeys<V>(
     }
     cleaned[key] = value;
   }
-  return { cleaned, dropped };
+  return { cleaned: { ...cleaned }, dropped };
 }
 
 // ────────────────────────────────────────────────────────────────
