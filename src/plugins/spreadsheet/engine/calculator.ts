@@ -20,7 +20,7 @@ import { errorMessage } from "../../../utils/errors";
  * @param data - Potentially malformed sheet data
  * @returns Normalized 2D array
  */
-function normalizeData(data: any): SpreadsheetCell[][] {
+export function normalizeData(data: any): SpreadsheetCell[][] {
   // Handle null/undefined
   if (!data) {
     return [];
