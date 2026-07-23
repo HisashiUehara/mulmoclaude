@@ -331,15 +331,17 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], option
       for (let col = startCol; col <= endCol; col++) {
         if (row >= 0 && row < sheetData.length && col >= 0 && col < sheetData[row].length) {
           const cell = sheetData[row][col];
-          // A blank cell is not a value. Skipping it here keeps SUM unchanged (a
-          // skipped blank would have read as 0) while stopping it from inflating
-          // AVERAGE's denominator and COUNT's tally (#2358).
-          if (isEmptyCell(cell)) continue;
           // Pass row/col only if current sheet (for recursive evaluation)
           const rawValue = getRawValue(cell, isCurrentSheet ? row : undefined, isCurrentSheet ? col : undefined);
 
           if (options.numericOnly) {
-            if (!isNaN(rawValue as number)) {
+            // A blank cell is not a value. Dropping it from the NUMERIC list
+            // keeps SUM unchanged (a blank read as 0) while stopping it from
+            // inflating AVERAGE's denominator and COUNT's tally (#2358). The
+            // raw list keeps every cell so SUMIF/AVERAGEIF's criteria and value
+            // ranges stay row-aligned — dropping there would shift indexes and
+            // aggregate the wrong rows (Codex review).
+            if (!isEmptyCell(cell) && !isNaN(rawValue as number)) {
               values.push(rawValue);
             }
           } else {

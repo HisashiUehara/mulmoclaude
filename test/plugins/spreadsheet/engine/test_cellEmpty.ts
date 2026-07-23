@@ -98,3 +98,25 @@ describe("blank cells are not values in an aggregate (#2358)", () => {
     assert.equal(new SpreadsheetEngine().calculate(sheet).data[0][1], 3, "(6 + 0) / 2, the blank excluded");
   });
 });
+
+describe("blanks stay in the raw range so criteria and values stay aligned", () => {
+  // SUMIF reads the criteria range and the sum range separately. Dropping
+  // blanks from the raw list would compact each independently and shift the
+  // rows out of alignment, aggregating the wrong values (Codex review on
+  // #2383). A blank in the criteria column must NOT desync the two ranges.
+  it("keeps SUMIF row-aligned when a criteria cell is blank", () => {
+    const sheet: SheetData = {
+      name: "S",
+      data: [
+        [{ v: 10 }, { v: 100 }, { v: '=SUMIF(A1:A4,">5",B1:B4)' }],
+        [{ v: "" }, { v: 200 }],
+        [{ v: 20 }, { v: 300 }],
+        [{ v: 30 }, { v: 400 }],
+      ],
+    };
+    // A1=10, A3=20, A4=30 are >5; their B values are 100, 300, 400 → 800.
+    // If the blank A2 shifted the value range, B would misalign and the sum
+    // would be wrong.
+    assert.equal(new SpreadsheetEngine().calculate(sheet).data[0][2], 800);
+  });
+});
