@@ -41,6 +41,38 @@ scroll reset for that view.
 
 All 25 `data-testid`s keep their exact string, DOM nesting, and layout classes.
 
+## Follow-up slice (`refactor/2300-wiki-children`) — 681 → 632
+
+Of the four regions deferred above, exactly two turned out to be provably safe;
+the other two are permanently blocked. This follow-up takes the two safe ones and
+closes out the split.
+
+### Extracted
+
+| Component | Region | Why safe |
+|---|---|---|
+| `WikiGraphTab.vue` | graph tab (`wiki-graph`) | Own `v-else-if` branch. No `scrollRef`, no `wiki-page-body`, no scoped-style class. The graph spec only touches `wiki-tab-graph` (WikiHeader), `wiki-graph-canvas` (WikiGraphView) and `wiki-linked-references` (content body) — none traverse from this div. |
+| `WikiPageTabs.vue` | page tab strip (`wiki-page-tabs`) | A **sibling** of the `scrollRef` div, never an ancestor of `wiki-page-body`, so `wikiBody.locator("xpath=..")` is untouched. No `scrollRef`, no scoped-style class. |
+
+`PAGE_TAB` / `PageTab` moved to `src/plugins/wiki/pageTab.ts` so the parent (which
+still needs them for the `v-show` / composer guards) and `WikiPageTabs` share one
+definition instead of hardcoding the tab strings twice.
+
+### Permanently blocked (do not retry)
+
+- **Index list** — carries BOTH hazards: `ref="scrollRef"` on its scroll div
+  (extracting severs the parent's ref binding, silently killing the scroll reset)
+  AND the scoped `.entry-tag-chip` class on its per-entry chips.
+- **Page content body / page-edit body / log-lint body** — each carries
+  `ref="scrollRef"`, and the content body additionally owns the
+  `wiki-page-body → scrollRef` parent/child pair the xpath test asserts on.
+- **Per-page empty states** — live *inside* the content body's `scrollRef` div as
+  the `v-if`/`v-else-if` arms whose `v-else` is `WikiPageBody`; splitting them
+  would break that chain.
+
+With those blocked, 632 lines is the safe floor for `View.vue` short of first
+rewriting `wiki-navigation.spec.ts:216` off its xpath traversal.
+
 ## Slices
 
 ### A. Composables — `src/plugins/wiki/composables/` (zero DOM impact)
