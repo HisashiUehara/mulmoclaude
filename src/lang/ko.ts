@@ -762,6 +762,12 @@ const koMessages = {
     detailsToggle: "상세 보기",
     promptLabel: "프롬프트",
     roleLabel: "역할",
+    confirmDelete: "작업 「{name}」을(를) 삭제하시겠습니까? 되돌릴 수 없습니다.",
+    hintNewsRss: "뉴스 / RSS 가져오기",
+    hintJournal: "일일 저널 처리",
+    hintWiki: "위키 유지 관리",
+    hintMemory: "메모리 추출",
+    hintCalendar: "캘린더 / 연락처 동기화",
   },
   pluginCanvas: {
     undo: "실행 취소",

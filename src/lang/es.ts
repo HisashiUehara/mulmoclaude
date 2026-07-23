@@ -776,6 +776,12 @@ const esMessages = {
     detailsToggle: "Mostrar detalles",
     promptLabel: "Prompt",
     roleLabel: "Rol",
+    confirmDelete: "¿Eliminar la tarea « {name} »? Esta acción no se puede deshacer.",
+    hintNewsRss: "Obtención de noticias / RSS",
+    hintJournal: "Pase diario del diario",
+    hintWiki: "Mantenimiento del wiki",
+    hintMemory: "Extracción de memoria",
+    hintCalendar: "Sincronización de calendario / contactos",
   },
   pluginCanvas: {
     undo: "Deshacer",

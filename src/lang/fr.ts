@@ -770,6 +770,12 @@ const frMessages = {
     detailsToggle: "Afficher les détails",
     promptLabel: "Prompt",
     roleLabel: "Rôle",
+    confirmDelete: "Supprimer la tâche « {name} » ? Cette action est irréversible.",
+    hintNewsRss: "Récupération actualités / RSS",
+    hintJournal: "Passage quotidien du journal",
+    hintWiki: "Maintenance du wiki",
+    hintMemory: "Extraction de mémoire",
+    hintCalendar: "Synchronisation agenda / contacts",
   },
   pluginCanvas: {
     undo: "Annuler",
