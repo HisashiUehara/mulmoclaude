@@ -7,6 +7,7 @@
 import { functionRegistry } from "./registry";
 import type { CellValue } from "./types";
 import { parseDate } from "./date-parser";
+import { caretToPow, replaceConcatOperator, rewriteComparisonEq, isSafeArithmetic, isSafeComparison } from "./translateFormula";
 
 /**
  * Evaluation context for formulas
@@ -390,7 +391,7 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
     });
 
     // Replace ^ with ** for exponentiation
-    expr = expr.replace(/\^/g, "**");
+    expr = caretToPow(expr);
 
     // Check if this is a string concatenation expression (contains & and quoted strings)
     const hasStringConcat = expr.includes("&");
@@ -399,34 +400,9 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
     // If it contains string concatenation, handle it specially
     if (hasStringConcat && hasQuotedStrings) {
       try {
-        // Convert & to + for JavaScript string concatenation
-        // We need to be careful to only replace & that are not inside strings
-        let inString = false;
-        let stringChar = "";
-        let result = "";
-
-        for (let index = 0; index < expr.length; index++) {
-          const char = expr[index];
-          const prevChar = index > 0 ? expr[index - 1] : "";
-
-          // Handle string boundaries
-          if ((char === '"' || char === "'") && prevChar !== "\\") {
-            if (!inString) {
-              inString = true;
-              stringChar = char;
-            } else if (char === stringChar) {
-              inString = false;
-              stringChar = "";
-            }
-          }
-
-          // Replace & with + when not in a string
-          if (char === "&" && !inString) {
-            result += "+";
-          } else {
-            result += char;
-          }
-        }
+        // Convert & to + for JavaScript string concatenation, leaving any & that
+        // sits inside a string literal untouched.
+        const result = replaceConcatOperator(expr);
 
         // Validate the STRUCTURE, not the string content: a literal may hold any
         // character, so masking the literals is what lets `=A1&"!"` and escaped
@@ -444,10 +420,10 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
 
     // Safely evaluate comparison expressions (e.g., 5=6, (5)>(6))
     // Allow numbers, comparison operators (=, !=, <, >, <=, >=), parentheses, whitespace
-    if (/^[\d+\-*/(). <>!=]+$/.test(expr)) {
+    if (isSafeComparison(expr)) {
       try {
         // Replace = with == for JavaScript comparison (but not <= or >=)
-        const jsExpr = expr.replace(/([^<>!])=([^=])/g, "$1==$2");
+        const jsExpr = rewriteComparisonEq(expr);
 
         // Use Function constructor which is safer than eval
         // eslint-disable -- sonarjs/code-eval
@@ -460,7 +436,7 @@ export function evaluateFormula(formula: string, context: EvaluatorContext): Cel
 
     // Safely evaluate arithmetic expressions using Function constructor instead of eval
     // Allow numbers, operators, parentheses, whitespace, and decimal points
-    if (/^[\d+\-*/(). ]+$/.test(expr)) {
+    if (isSafeArithmetic(expr)) {
       try {
         // Use Function constructor which is safer than eval because:
         // 1. The expression is strictly validated (only numbers and math operators)
