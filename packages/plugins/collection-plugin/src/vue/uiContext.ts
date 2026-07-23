@@ -10,6 +10,10 @@
 import type { Component } from "vue";
 import type { TranslateTransport } from "@mulmoclaude/core/translation/client";
 import type { RemoteViewMutateRequest, RemoteViewPage, RemoteViewPageRequest } from "@mulmoclaude/core/remote-view";
+// Registry Discover-catalog contract — single-sourced in core (browser-safe
+// subpath) so a server-side shape change is a compile error here, not silent
+// drift (#2407). Re-exported below for this plugin's own consumers.
+import type { RegistryEntry, RegistrySummary, RegistryListResponse, RegistryImportResponse } from "@mulmoclaude/core/collection/registry";
 import type {
   CollectionDetailResponse,
   ItemMutationResponse,
@@ -142,60 +146,10 @@ export interface CollectionConfirmOptions {
   variant?: "primary" | "success" | "danger";
 }
 
-/** One collection in a curated registry's published index (the host fetches
- *  each registry's index.json and proxies them all to the Discover tab). */
-export interface RegistryEntry {
-  id: string;
-  author: string;
-  slug: string;
-  title: string;
-  icon: string;
-  description: string;
-  version: string;
-  tags: string[];
-  license: string;
-  fieldCount: number;
-  views: string[];
-  hasSeed: boolean;
-  seedCount: number;
-  screenshot?: string;
-  path: string;
-  contentSha: string;
-  /** Label of the source registry — `"official"` for the canonical
-   *  receptron/mulmoclaude-collections, otherwise the `name` of an entry in
-   *  the user's `config/collections-registries.json`. The Discover card shows
-   *  this as a small badge so users can tell apart same-title collections from
-   *  different sources. */
-  registryName: string;
-}
-
-/** Per-registry summary in the merged Discover response. */
-export interface RegistrySummary {
-  name: string;
-  /** `ok` = fresh, `stale` = served from cache because the upstream failed,
-   *  `failed` = no cache to fall back to (the entries contribution is 0). */
-  status: "ok" | "stale" | "failed";
-  generatedAt: string | null;
-  error: string | null;
-  entryCount: number;
-}
-
-/** `GET …collectionsRegistry.list` — the Discover catalog merged across every
- *  configured registry. */
-export interface RegistryListResponse {
-  registries: RegistrySummary[];
-  /** Convenience flag: true iff any single registry's contribution was stale. */
-  stale: boolean;
-  collections: RegistryEntry[];
-}
-
-/** `POST …collectionsRegistry.import` — install result. */
-export interface RegistryImportResponse {
-  localSlug: string;
-  updated: boolean;
-  seedWritten: number;
-  seedSkipped: boolean;
-}
+// The Discover-catalog registry contract (entry / summary / list / import
+// response) is owned by `@mulmoclaude/core/collection/registry` and re-exported
+// here so this plugin's consumers keep importing it from one place.
+export type { RegistryEntry, RegistrySummary, RegistryListResponse, RegistryImportResponse };
 
 export interface CollectionUi {
   /** Fetch a collection's detail (schema + records) by slug — backs both the
