@@ -91,6 +91,14 @@ export const groupThousands = (digits: string): string =>
     return needsSeparator ? `${grouped},${digit}` : `${grouped}${digit}`;
   }, "");
 
+/** Group the integer part of a formatted number ("1234567.89" → "1,234,567.89"),
+ *  leaving any fractional part after the decimal point untouched. */
+export const addThousandSeparators = (formatted: string): string => {
+  const parts = formatted.split(".");
+  parts[0] = groupThousands(parts[0]);
+  return parts.join(".");
+};
+
 /**
  * Format a number according to Excel format code
  *
@@ -117,17 +125,10 @@ export function formatNumber(value: number, format: string): string {
     // Handle currency formats
     if (format.includes("$")) {
       const decimals = (format.match(/\.0+/) || [""])[0].length - 1;
-      const hasComma = format.includes(",");
-
-      let formatted = Math.abs(value).toFixed(decimals >= 0 ? decimals : 0);
-      if (hasComma) {
-        const parts = formatted.split(".");
-        parts[0] = groupThousands(parts[0]);
-        formatted = parts.join(".");
-      }
-      formatted = "$" + formatted;
-      if (value < 0) formatted = "-" + formatted;
-      return formatted;
+      const magnitude = Math.abs(value).toFixed(decimals >= 0 ? decimals : 0);
+      const grouped = format.includes(",") ? addThousandSeparators(magnitude) : magnitude;
+      const withSymbol = "$" + grouped;
+      return value < 0 ? "-" + withSymbol : withSymbol;
     }
 
     // Handle percentage
@@ -139,12 +140,8 @@ export function formatNumber(value: number, format: string): string {
     // Handle comma separator
     if (format.includes(",")) {
       const decimals = (format.match(/\.0+/) || [""])[0].length - 1;
-      let formatted = Math.abs(value).toFixed(decimals >= 0 ? decimals : 0);
-      const parts = formatted.split(".");
-      parts[0] = groupThousands(parts[0]);
-      formatted = parts.join(".");
-      if (value < 0) formatted = "-" + formatted;
-      return formatted;
+      const grouped = addThousandSeparators(Math.abs(value).toFixed(decimals >= 0 ? decimals : 0));
+      return value < 0 ? "-" + grouped : grouped;
     }
 
     // Handle decimal places
