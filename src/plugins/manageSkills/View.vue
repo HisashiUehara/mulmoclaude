@@ -704,13 +704,16 @@ async function deleteSkill(): Promise<void> {
     detailError.value = result.error || t("pluginManageSkills.errDeleteFailed");
     return;
   }
-  // Remove from the local list. Only advance the selection / clear detail
-  // when the deleted skill is STILL the selected one — the DELETE may have
-  // been slow and the user may have clicked another skill meanwhile, whose
-  // detail fetch is already in flight and must not be clobbered.
-  skills.value = removeSkillByName(skills.value, name);
+  // Remove from the local list, then advance the selection to the deleted
+  // row's neighbour (NOT the first row). Only advance when the deleted skill
+  // is STILL the selected one — the DELETE may have been slow and the user
+  // may have clicked another skill meanwhile, whose detail fetch is already
+  // in flight and must not be clobbered. `previousActive` is captured before
+  // the removal so the deleted row's index still locates its neighbour.
+  const previousActive = activeSkills.value;
   const wasSelected = selectedName.value === name;
-  selectedName.value = nextSelectionAfterDelete(selectedName.value, name, activeSkills.value, collapsedSections.value);
+  skills.value = removeSkillByName(skills.value, name);
+  selectedName.value = nextSelectionAfterDelete(previousActive, name, selectedName.value, collapsedSections.value);
   // The selectedName watch reloads detail on change; only null it here when
   // the selection didn't move (deleted skill was NOT selected leaves detail
   // alone; deleted-and-was-selected with no successor nulls via the watch).

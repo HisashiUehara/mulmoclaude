@@ -66,7 +66,10 @@ These are verified or plausible but out of scope for a mechanical fix-plus-test 
   — own `repoListError` ref, live e2e + mutation verified)**;
   ~~post-delete selection clobber~~ **(shipped,
   fix/manageskills-post-delete-selection — `nextSelectionAfterDelete` pure
-  fn + tests, mutation verified)**; ~~`actionLock` extraction
+  fn: keeps a newer selection when a slow DELETE resolves after the user
+  clicked another skill, AND advances the selection to the deleted row's
+  neighbour instead of bouncing to the alphabetical first row; unit + e2e,
+  mutation verified)**; ~~`actionLock` extraction
   (release-if-owner)~~ **(shipped, fix/manageskills-loader-races)**.
 - **manageRoles** ~~IME-Enter commits half-typed names; no re-entrancy guard
   on Enter; unconfirmed delete; refresh-failure swallowed~~ **(shipped,

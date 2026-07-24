@@ -142,23 +142,35 @@ export function pickInitialSelection(skillList: readonly SkillIdentity[], collap
 }
 
 /**
- * After a delete completes, decide what stays selected. A DELETE can be
- * slow, and the user may click a DIFFERENT skill while it is in flight —
- * so only advance the selection when the currently-selected skill is the
- * one that was deleted. Otherwise keep the user's newer choice (its detail
- * fetch is already in flight and must not be clobbered).
+ * After a delete completes, decide what stays selected. Two facets:
  *
- * `remaining` is the post-delete list; `collapsed` gates the fallback the
- * same way `pickInitialSelection` does.
+ * 1. Stale-delete race: a DELETE can be slow, and the user may click a
+ *    DIFFERENT skill while it is in flight. Only advance the selection when
+ *    the currently-selected skill is the one that was deleted — otherwise
+ *    keep the user's newer choice (its detail fetch is already in flight and
+ *    must not be clobbered).
+ * 2. Neighbour advance: when the SELECTED skill is deleted, land on the row
+ *    that took its slot (its next neighbour), or the new last row when it was
+ *    last — NOT the alphabetical first row (which is the mount-time
+ *    `pickInitialSelection` behaviour and would bounce the user to the top).
+ *
+ * `previousList` is the sorted active list BEFORE the removal (the deleted
+ * row's index in it locates the neighbour); `collapsed` gates the "don't
+ * select a hidden row" fallback the same way `pickInitialSelection` does.
  */
 export function nextSelectionAfterDelete(
-  currentSelection: string | null,
+  previousList: readonly SkillIdentity[],
   deletedName: string,
-  remaining: readonly SkillIdentity[],
+  currentSelection: string | null,
   collapsed: ReadonlySet<SkillSectionKey>,
 ): string | null {
   if (currentSelection !== deletedName) return currentSelection;
-  return pickInitialSelection(remaining, collapsed);
+  if (collapsed.has("active")) return null;
+  const deletedIndex = previousList.findIndex((skill) => skill.name === deletedName);
+  const remaining = previousList.filter((skill) => skill.name !== deletedName);
+  if (deletedIndex === -1 || remaining.length === 0) return null;
+  const neighbourIndex = Math.min(deletedIndex, remaining.length - 1);
+  return remaining[neighbourIndex].name;
 }
 
 // Catalog provenance for a browsable entry (#1335 preset / #1383

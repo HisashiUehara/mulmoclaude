@@ -290,31 +290,46 @@ describe("manageSkills pickInitialSelection", () => {
 });
 
 describe("manageSkills nextSelectionAfterDelete", () => {
-  const remaining = [
+  // Sorted the way activeSkills renders it (alphabetical). This is the list
+  // BEFORE the removal, so the deleted row's index still locates its neighbour.
+  const list = [
+    { name: "a-skill", source: "user" as const },
     { name: "b-skill", source: "user" as const },
     { name: "c-skill", source: "user" as const },
   ];
 
-  // Regression: deleting skill A while the user has clicked skill B must NOT
-  // clobber B's selection (its detail fetch is already in flight).
+  // Stale-delete race: deleting skill A while the user has clicked skill C
+  // must NOT clobber C's selection (its detail fetch is already in flight).
+  // C is deliberately NOT A's neighbour, so dropping the guard would return
+  // the neighbour (b-skill) and this assertion would catch it.
   it("keeps the current selection when a DIFFERENT skill was deleted", () => {
-    assert.equal(nextSelectionAfterDelete("b-skill", "a-skill", remaining, new Set()), "b-skill");
-  });
-
-  it("advances to the first remaining skill when the SELECTED skill was deleted", () => {
-    assert.equal(nextSelectionAfterDelete("a-skill", "a-skill", remaining, new Set()), "b-skill");
-  });
-
-  it("returns null when the selected skill was deleted and none remain", () => {
-    assert.equal(nextSelectionAfterDelete("a-skill", "a-skill", [], new Set()), null);
-  });
-
-  it("returns null when the selected skill was deleted and the active section is collapsed", () => {
-    assert.equal(nextSelectionAfterDelete("a-skill", "a-skill", remaining, new Set(["active"])), null);
+    assert.equal(nextSelectionAfterDelete(list, "a-skill", "c-skill", new Set()), "c-skill");
   });
 
   it("keeps a null selection untouched when a different skill was deleted", () => {
-    assert.equal(nextSelectionAfterDelete(null, "a-skill", remaining, new Set()), null);
+    assert.equal(nextSelectionAfterDelete(list, "a-skill", null, new Set()), null);
+  });
+
+  // Neighbour advance: land on the row that took the deleted row's slot, NOT
+  // the alphabetical first row.
+  it("advances to the next neighbour when the selected MIDDLE skill was deleted", () => {
+    assert.equal(nextSelectionAfterDelete(list, "b-skill", "b-skill", new Set()), "c-skill");
+  });
+
+  it("advances to the new last row when the selected LAST skill was deleted", () => {
+    assert.equal(nextSelectionAfterDelete(list, "c-skill", "c-skill", new Set()), "b-skill");
+  });
+
+  it("advances to the next neighbour when the selected FIRST skill was deleted", () => {
+    assert.equal(nextSelectionAfterDelete(list, "a-skill", "a-skill", new Set()), "b-skill");
+  });
+
+  it("returns null when the selected skill was the only remaining one", () => {
+    assert.equal(nextSelectionAfterDelete([{ name: "a-skill", source: "user" as const }], "a-skill", "a-skill", new Set()), null);
+  });
+
+  it("returns null when the selected skill was deleted and the active section is collapsed", () => {
+    assert.equal(nextSelectionAfterDelete(list, "b-skill", "b-skill", new Set(["active"])), null);
   });
 });
 
