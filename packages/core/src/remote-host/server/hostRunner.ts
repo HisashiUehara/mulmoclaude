@@ -174,59 +174,75 @@ const processCommand = async (ctx: RunnerContext, ref: DocumentReference, comman
   options.onEvent?.(await runHandler(ref, claim, handler));
 };
 
-// Subscribe to the queued-command stream and dispatch each command. On a
-// transient listener error, re-subscribe with bounded exponential backoff so a
-// brief network/backend blip doesn't down the host; on a fatal error (or once the
-// retries are exhausted) call `goOffline`. Presence stays online across the retry
-// window so remotes don't see a flap for a momentary blip. Returns a stop that
+// A resilient command listener: its mutable retry state plus the fixed collaborators.
+interface ListenerRun {
+  queuedCommands: Query;
+  ctx: RunnerContext;
+  goOffline: () => void;
+  stopped: boolean;
+  unsubscribe: () => void;
+  retryTimer: ReturnType<typeof setTimeout> | null;
+  attempt: number;
+}
+
+// Best-effort oldest-first DISPATCH only — commands run concurrently and may
+// finish out of order (chat is asynchronous). We sort in memory rather than
+// orderBy("createdAt") because a Firestore orderBy silently EXCLUDES docs missing
+// the field, dropping every pre-offline-queue command.
+const dispatchAddedCommands = (ctx: RunnerContext, snapshot: QuerySnapshot): void => {
+  const now = Date.now();
+  snapshot
+    .docChanges()
+    .filter((change) => change.type === "added")
+    .map((change) => ({ ref: change.doc.ref, command: change.doc.data() as Command }))
+    .sort((left, right) => byCreatedAt(left.command, right.command))
+    .forEach(({ ref, command }) => {
+      processCommand(ctx, ref, command, now).catch(noop);
+    });
+};
+
+// Re-subscribe after a transient error, backing off exponentially.
+function scheduleResubscribe(run: ListenerRun): void {
+  run.retryTimer = setTimeout(() => subscribeCommands(run), backoffDelayMs(run.attempt));
+  run.attempt += 1;
+}
+
+// A Firestore onSnapshot error terminates THIS listener and never recovers on its
+// own. Transient → re-subscribe with bounded backoff (presence stays online);
+// fatal, or retries exhausted → go offline.
+function handleListenError(run: ListenerRun, error: FirestoreError): void {
+  run.ctx.options.onEvent?.({ phase: "error", method: "listen", message: error.message });
+  if (run.stopped) return;
+  if (classifyListenerError(error) === "fatal" || run.attempt >= MAX_LISTEN_RETRIES) {
+    run.goOffline();
+    return;
+  }
+  scheduleResubscribe(run);
+}
+
+function subscribeCommands(run: ListenerRun): void {
+  run.retryTimer = null;
+  if (run.stopped) return;
+  run.unsubscribe = onSnapshot(
+    run.queuedCommands,
+    (snapshot) => {
+      run.attempt = 0; // a healthy snapshot proves the listener recovered
+      dispatchAddedCommands(run.ctx, snapshot);
+    },
+    (error) => handleListenError(run, error),
+  );
+}
+
+// Subscribe to the queued-command stream; re-subscribe on transient listener
+// errors with bounded backoff, go offline on a fatal one. Returns a stop that
 // cancels any pending retry and detaches the listener.
 const listenForCommands = (queuedCommands: Query, ctx: RunnerContext, goOffline: () => void): (() => void) => {
-  let stopped = false;
-  let unsubscribe: () => void = noop;
-  let retryTimer: ReturnType<typeof setTimeout> | null = null;
-  let attempt = 0;
-
-  // Best-effort oldest-first DISPATCH only — commands run concurrently and may
-  // finish out of order (chat is asynchronous). We sort in memory rather than
-  // orderBy("createdAt") because a Firestore orderBy silently EXCLUDES docs
-  // missing the field, dropping every pre-offline-queue command. A healthy
-  // snapshot also proves the listener recovered, so it clears the retry counter.
-  const dispatchQueued = (snapshot: QuerySnapshot): void => {
-    attempt = 0;
-    const now = Date.now();
-    snapshot
-      .docChanges()
-      .filter((change) => change.type === "added")
-      .map((change) => ({ ref: change.doc.ref, command: change.doc.data() as Command }))
-      .sort((left, right) => byCreatedAt(left.command, right.command))
-      .forEach(({ ref, command }) => {
-        processCommand(ctx, ref, command, now).catch(noop);
-      });
-  };
-
-  function handleListenError(error: FirestoreError): void {
-    ctx.options.onEvent?.({ phase: "error", method: "listen", message: error.message });
-    if (stopped) return;
-    if (classifyListenerError(error) === "fatal" || attempt >= MAX_LISTEN_RETRIES) {
-      goOffline();
-      return;
-    }
-    retryTimer = setTimeout(subscribe, backoffDelayMs(attempt));
-    attempt += 1;
-  }
-
-  function subscribe(): void {
-    retryTimer = null;
-    if (stopped) return;
-    unsubscribe = onSnapshot(queuedCommands, dispatchQueued, handleListenError);
-  }
-
-  subscribe();
-
+  const run: ListenerRun = { queuedCommands, ctx, goOffline, stopped: false, unsubscribe: noop, retryTimer: null, attempt: 0 };
+  subscribeCommands(run);
   return () => {
-    stopped = true;
-    if (retryTimer) clearTimeout(retryTimer);
-    unsubscribe();
+    run.stopped = true;
+    if (run.retryTimer) clearTimeout(run.retryTimer);
+    run.unsubscribe();
   };
 };
 

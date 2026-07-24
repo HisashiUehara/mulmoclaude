@@ -20,3 +20,18 @@ export const shouldAutoReconnect = (signals: RemoteHostSignals): boolean => sign
 // Show the persistent banner only after a silent reconnect has FAILED, so it
 // doesn't flash during a normal quick restart that the next poll heals on its own.
 export const shouldShowRemoteHostBanner = (signals: RemoteHostSignals): boolean => signals.intended && !signals.connected && signals.reconnectFailed;
+
+export interface ReconnectStateUpdate {
+  // Remove the parked blob from storage.
+  dropBlob: boolean;
+  // Surface the reconnect banner.
+  failed: boolean;
+}
+
+// How to update stored state after a popup-free reconnect attempt. The parked
+// blob is dropped ONLY when the server says it's genuinely expired (`unauthorized`)
+// — a transient failure keeps it for the next poll's retry. Intent is NEVER
+// cleared here (only an explicit disconnect clears it), so the banner keeps
+// prompting a manual re-login even after the dead blob is removed.
+export const reconnectStateUpdate = (ok: boolean, status: number, unauthorized: number): ReconnectStateUpdate =>
+  ok ? { dropBlob: false, failed: false } : { dropBlob: status === unauthorized, failed: true };

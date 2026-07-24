@@ -14,7 +14,7 @@ import { API_ROUTES } from "../config/apiRoutes";
 import { apiGet, apiPost } from "../utils/api";
 import { errorMessage } from "../utils/errors";
 import i18n from "../lib/vue-i18n";
-import { shouldAutoReconnect, shouldShowRemoteHostBanner, type RemoteHostSignals } from "./remoteHostDecisions";
+import { reconnectStateUpdate, shouldAutoReconnect, shouldShowRemoteHostBanner, type RemoteHostSignals } from "./remoteHostDecisions";
 
 const translate = (key: string): string => i18n.global.t(key);
 
@@ -53,7 +53,9 @@ const error = ref<string | null>(null);
 const busy = ref(false);
 const reconnectInFlight = ref(false);
 const reconnectFailed = ref(false);
-// Mirror of "a session blob is parked" so intent is reactive (localStorage is not).
+// "The user wants to be connected." Tracked separately from blob presence so a
+// genuinely-expired blob can be dropped (stops /reconnect retries on a dead blob)
+// WITHOUT hiding the reconnect banner. Only an explicit disconnect clears intent.
 const hasIntent = ref<boolean>(loadStoredSession() !== null);
 
 const persistSession = (blob: string | null): void => {
@@ -63,7 +65,6 @@ const persistSession = (blob: string | null): void => {
   } catch {
     /* storage unavailable — reconnect just won't survive a restart */
   }
-  hasIntent.value = blob !== null;
 };
 
 const signals = (): RemoteHostSignals => ({
@@ -84,7 +85,10 @@ const refreshStatus = async (): Promise<void> => {
   status.value = res.data.status;
   // Keep the parked blob fresh (the refresh token can rotate) — but never clear
   // it on a disconnected status, so an auto-reconnect still has it.
-  if (res.data.session) persistSession(res.data.session);
+  if (res.data.session) {
+    persistSession(res.data.session);
+    hasIntent.value = true;
+  }
   if (res.data.status.connected) reconnectFailed.value = false;
   error.value = null;
 };
@@ -98,16 +102,15 @@ const tryAutoReconnect = async (): Promise<void> => {
     if (res.ok) {
       status.value = res.data.status;
       persistSession(res.data.session);
+      hasIntent.value = true;
       reconnectFailed.value = false;
-    } else if (res.status === UNAUTHORIZED) {
-      // Blob genuinely expired/invalid: drop it and surface the banner so the
-      // user re-logs in via popup.
-      persistSession(null);
-      reconnectFailed.value = true;
     } else {
-      // Transient (network / backend 5xx): keep the blob and show the banner; the
-      // next poll retries silently.
-      reconnectFailed.value = true;
+      // 401 → drop the genuinely-expired blob (so the next poll won't retry a dead
+      // blob) but KEEP intent, so the banner keeps prompting a manual re-login.
+      // Transient (network / 5xx) → keep the blob; the next poll retries silently.
+      const { dropBlob, failed } = reconnectStateUpdate(res.ok, res.status, UNAUTHORIZED);
+      if (dropBlob) persistSession(null);
+      reconnectFailed.value = failed;
     }
   } finally {
     reconnectInFlight.value = false;
@@ -152,6 +155,7 @@ const connect = async (): Promise<void> => {
     }
     status.value = res.data.status;
     persistSession(res.data.session);
+    hasIntent.value = true;
     reconnectFailed.value = false;
   } catch (err) {
     error.value = errorMessage(err, translate("remoteHost.signInFailed"));
@@ -171,6 +175,7 @@ const disconnect = async (): Promise<void> => {
     }
     status.value = res.data.status;
     persistSession(null); // forget the parked session on an explicit disconnect
+    hasIntent.value = false;
     reconnectFailed.value = false;
   } catch (err) {
     error.value = errorMessage(err, translate("remoteHost.disconnectFailed"));

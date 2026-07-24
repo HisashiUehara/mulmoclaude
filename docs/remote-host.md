@@ -115,8 +115,9 @@ Each host supplies only its own specifics under `server/remoteHost/`:
   (`unavailable`, `deadline-exceeded`, `internal`, `cancelled`, `aborted`,
   `resource-exhausted`) from fatal ones (`permission-denied`, `unauthenticated`,
   or any unrecognized code). Transient → re-subscribe with bounded exponential
-  backoff (`backoffDelayMs`, 1 s→30 s, `MAX_LISTEN_RETRIES` attempts) while
-  presence stays online, so a brief blip doesn't flap the host. Fatal, or retries
+  backoff — `MAX_LISTEN_RETRIES` (5) attempts at 1 s, 2 s, 4 s, 8 s, 16 s (~31 s
+  total; `backoffDelayMs` itself caps at 30 s for higher attempts) while presence
+  stays online, so a brief blip doesn't flap the host. Fatal, or retries
   exhausted → `writePresence(false)`, clear the interval, `onClosed()`. A healthy
   snapshot resets the retry counter; `stop()` cancels any pending retry. Re-subscribe
   is safe against double execution — `claimCommand`'s queued→processing transaction
