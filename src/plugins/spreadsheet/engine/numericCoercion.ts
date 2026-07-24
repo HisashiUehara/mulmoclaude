@@ -9,10 +9,7 @@
  */
 
 import type { CellValue } from "./types";
-
-/** Returned (as a cell value) when a scalar coercion cannot read a number,
- *  matching how the rest of the engine surfaces errors (functions/text.ts). */
-export const VALUE_ERROR = "#VALUE!";
+import { VALUE_ERROR, type SpreadsheetError } from "./spreadsheet-errors";
 
 const numberOrNull = (num: number): number | null => (isNaN(num) ? null : num);
 
@@ -40,8 +37,9 @@ export function parseNumericString(value: string): number | null {
  * `#VALUE!` rather than a silent 0. A partly-numeric string still yields its
  * leading number, matching the engine's other numeric reads.
  */
-export function toScalarNumber(value: CellValue): number | string {
+export function toScalarNumber(value: CellValue): number | SpreadsheetError {
   if (typeof value === "number") return value;
   if (typeof value === "boolean") return value ? 1 : 0;
+  if (typeof value !== "string") return value;
   return parseNumericString(value) ?? VALUE_ERROR;
 }

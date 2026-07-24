@@ -5,7 +5,7 @@
 import { evaluateConditionValues, readOperand, renderConditionOperand } from "../condition";
 import { findCellRefs } from "../evaluator";
 import { functionRegistry, type FunctionHandler } from "../registry";
-import { isErrorResult } from "../spreadsheet-errors";
+import { isErrorResult, isSpreadsheetErrorValue, NA_ERROR } from "../spreadsheet-errors";
 import { coerceToBoolean } from "../coerce-boolean";
 import type { CellValue } from "../types";
 
@@ -26,25 +26,12 @@ const ifHandler: FunctionHandler = (args, context) => {
     return resultValue.slice(1, -1);
   }
 
-  // If result is a nested formula, evaluate it recursively
-  if (/^(SUM|AVERAGE|MAX|MIN|COUNT|IF|AND|OR|NOT)\(/i.test(resultValue)) {
-    return context.evaluateFormula(resultValue);
-  }
-
-  // Otherwise evaluate as expression
-  let expr = resultValue;
-
-  const refs = resultValue.match(/(?:'[^']+'|[^'!\s]+)![A-Z]+\d+|\$?[A-Z]+\$?\d+/g);
-  if (refs) {
-    for (const ref of refs) {
-      const value = context.getCellValue(ref);
-      const escapedRef = ref.replace(/\$/g, "\\$").replace(/'/g, "\\'");
-      expr = expr.replace(new RegExp(escapedRef.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), String(value));
-    }
-  }
-
-  const numResult = parseFloat(expr);
-  return isNaN(numResult) ? expr : numResult;
+  // Everything else — a nested call, an arithmetic expression, a reference — is
+  // evaluated by the engine. Hand-rolling it here silently returned a plausible
+  // wrong value twice over: a hard-coded list of nine function names sent
+  // `ROUND(A1,1)` back as its own text, and the fallback read `A1+1` through
+  // `parseFloat("3+1")`, yielding 3.
+  return context.evaluateFormula(resultValue);
 };
 
 const andHandler: FunctionHandler = (args, context) => {
@@ -69,21 +56,16 @@ const notHandler: FunctionHandler = (args, context) => {
   return !coerceToBoolean(context.evaluateFormula(args[0]));
 };
 
-/** Whether `source` is a single quoted string literal. Its value is text even
- *  when that text looks like an error code, so IFERROR must not swallow it. */
-const isQuotedLiteral = (source: string): boolean => {
-  const trimmed = source.trim();
-  return trimmed.length >= 2 && ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'")));
-};
-
 const iferrorHandler: FunctionHandler = (args, context) => {
   try {
     const result = context.evaluateFormula(args[0]);
-    // Catches NaN/∞ AND the Excel error strings functions now return (a math
-    // domain miss like SQRT(-1) → "#NUM!"), so IFERROR(SQRT(-1), 0) is 0. A
-    // quoted literal that merely looks like an error (IFERROR("#NUM!", 42)) is
-    // real text, not an error value, so it passes through (Codex review).
-    if (!isQuotedLiteral(args[0]) && isErrorResult(result)) {
+    // Catches NaN/∞ and the formula error VALUES functions return (a math domain
+    // miss like SQRT(-1) → #NUM!), so IFERROR(SQRT(-1), 0) is 0. Text that
+    // merely spells an error is not an error value, so it passes through
+    // whether it was written as a literal (IFERROR("#NUM!", 42)) or computed
+    // (IFERROR(CONCAT("#N","UM!"), 42)) — the computed case is why errors carry
+    // provenance at all (#2451).
+    if (isErrorResult(result)) {
       return context.evaluateFormula(args[1]);
     }
     return result;
@@ -95,8 +77,8 @@ const iferrorHandler: FunctionHandler = (args, context) => {
 
 const ifnaHandler: FunctionHandler = (args, context) => {
   const result = context.evaluateFormula(args[0]);
-  // Check if result is N/A (could be represented as specific error value)
-  if (result === null || result === undefined || result === "#N/A") {
+  const isNotAvailable = isSpreadsheetErrorValue(result) && result.code === NA_ERROR.code;
+  if (result === null || result === undefined || isNotAvailable) {
     return context.evaluateFormula(args[1]);
   }
   return result;
@@ -149,7 +131,7 @@ const ifsHandler: FunctionHandler = (args, context) => {
   }
 
   // If no conditions match, return error
-  return "#N/A";
+  return NA_ERROR;
 };
 
 const trueHandler: FunctionHandler = () => true;

@@ -770,6 +770,12 @@ const frMessages = {
     detailsToggle: "Afficher les détails",
     promptLabel: "Prompt",
     roleLabel: "Rôle",
+    confirmDelete: "Supprimer la tâche « {name} » ? Cette action est irréversible.",
+    hintNewsRss: "Récupération actualités / RSS",
+    hintJournal: "Passage quotidien du journal",
+    hintWiki: "Maintenance du wiki",
+    hintMemory: "Extraction de mémoire",
+    hintCalendar: "Synchronisation agenda / contacts",
   },
   pluginCanvas: {
     undo: "Annuler",
@@ -805,6 +811,7 @@ const frMessages = {
     metadataEditor: "Éditeur",
     pageEditHeader: "Édition du wiki",
     snapshotExpired: "Instantané expiré — affichage de la page actuelle",
+    snapshotLoadError: "Impossible de charger l'instantané — la page existe peut-être encore. Actualisez la page.",
     pageDeleted: "Page supprimée",
     history: {
       tabContent: "Contenu",

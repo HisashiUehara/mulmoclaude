@@ -780,6 +780,12 @@ const deMessages = {
     detailsToggle: "Details anzeigen",
     promptLabel: "Prompt",
     roleLabel: "Rolle",
+    confirmDelete: "Aufgabe {name} löschen? Dies kann nicht rückgängig gemacht werden.",
+    hintNewsRss: "News- / RSS-Abruf",
+    hintJournal: "Täglicher Journallauf",
+    hintWiki: "Wiki-Wartung",
+    hintMemory: "Speicherextraktion",
+    hintCalendar: "Kalender- / Kontaktsynchronisierung",
   },
   pluginCanvas: {
     undo: "Rückgängig",
@@ -816,6 +822,7 @@ const deMessages = {
     metadataEditor: "Bearbeiter",
     pageEditHeader: "Wiki-Bearbeitung",
     snapshotExpired: "Snapshot abgelaufen — aktuelle Seite wird angezeigt",
+    snapshotLoadError: "Snapshot konnte nicht geladen werden — die Seite existiert möglicherweise noch. Bitte aktualisieren.",
     pageDeleted: "Seite gelöscht",
     history: {
       tabContent: "Inhalt",
