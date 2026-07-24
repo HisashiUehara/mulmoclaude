@@ -804,6 +804,7 @@ const enMessages = {
     styleLabel: "Style:",
     stylePromptWithPath: "Turn the image at `{path}` into a {style} style image.",
     stylePromptNoPath: "Turn my drawing on the canvas into a {style} style image.",
+    saveFailed: "Not saved",
   },
   pluginWiki: {
     backToIndex: "Back to index",
