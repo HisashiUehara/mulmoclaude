@@ -5,6 +5,10 @@
 import { functionRegistry, toNumber, parseCriteria, type FunctionContext, type FunctionHandler } from "../registry";
 import { computeMode, sampleStdev, sampleVariance } from "./statistical-math";
 import { DIV_ZERO_ERROR } from "../spreadsheet-errors";
+import type { CellValue } from "../types";
+
+// Excel accepts up to 255 arguments for its aggregate functions.
+const MAX_AGGREGATE_ARGS = 255;
 
 const isLetter = (char: string): boolean => /[A-Z]/i.test(char);
 
@@ -55,16 +59,34 @@ const collectNumericValues = (args: string[], context: FunctionContext): number[
   return values;
 };
 
+// Same walk as `collectNumericValues`, but keeping each cell as it is: COUNTA
+// counts non-empty cells, so text must survive the trip.
+const collectRawValues = (args: string[], context: FunctionContext): CellValue[] => {
+  const values: CellValue[] = [];
+
+  for (const rawArg of args) {
+    const arg = rawArg?.trim();
+    if (!arg) continue;
+
+    if (isRangeReference(arg)) {
+      values.push(...(context.getRangeValuesRaw?.(arg) ?? context.getRangeValues(arg)));
+    } else {
+      values.push(context.evaluateFormula(arg));
+    }
+  }
+
+  return values;
+};
+
 const sumHandler: FunctionHandler = (args, context) => {
-  const values = context.getRangeValues(args[0]);
-  return values.reduce((sum: number, val) => sum + toNumber(val), 0);
+  const values = collectNumericValues(args, context);
+  return values.reduce((sum: number, value) => sum + value, 0);
 };
 
 const averageHandler: FunctionHandler = (args, context) => {
-  const values = context.getRangeValues(args[0]);
+  const values = collectNumericValues(args, context);
   if (values.length === 0) return 0;
-  const sum = values.reduce((acc: number, val) => acc + toNumber(val), 0);
-  return sum / values.length;
+  return values.reduce((acc: number, value) => acc + value, 0) / values.length;
 };
 
 const maxHandler: FunctionHandler = (args, context) => {
@@ -78,15 +100,11 @@ const minHandler: FunctionHandler = (args, context) => {
 };
 
 const countHandler: FunctionHandler = (args, context) => {
-  const values = context.getRangeValues(args[0]);
-  return values.length;
+  return collectNumericValues(args, context).length;
 };
 
 const medianHandler: FunctionHandler = (args, context) => {
-  const values = context
-    .getRangeValues(args[0])
-    .map(toNumber)
-    .sort((a, b) => a - b);
+  const values = collectNumericValues(args, context).sort((a, b) => a - b);
 
   if (values.length === 0) return 0;
   const mid = Math.floor(values.length / 2);
@@ -94,24 +112,21 @@ const medianHandler: FunctionHandler = (args, context) => {
 };
 
 const modeHandler: FunctionHandler = (args, context) => {
-  const values = context.getRangeValues(args[0]).map(toNumber);
-  return computeMode(values);
+  return computeMode(collectNumericValues(args, context));
 };
 
 const stdevHandler: FunctionHandler = (args, context) => {
-  const values = context.getRangeValues(args[0]).map(toNumber);
-  return sampleStdev(values);
+  return sampleStdev(collectNumericValues(args, context));
 };
 
 const varHandler: FunctionHandler = (args, context) => {
-  const values = context.getRangeValues(args[0]).map(toNumber);
-  return sampleVariance(values);
+  return sampleVariance(collectNumericValues(args, context));
 };
 
 const countaHandler: FunctionHandler = (args, context) => {
-  const values = context.getRangeValuesRaw?.(args[0]) ?? context.getRangeValues(args[0]);
+  const values = collectRawValues(args, context);
   // Count non-empty cells
-  return values.filter((v) => v !== null && v !== undefined && v !== "").length;
+  return values.filter((value) => value !== null && value !== undefined && value !== "").length;
 };
 
 const countifHandler: FunctionHandler = (args, context) => {
@@ -172,7 +187,7 @@ functionRegistry.register({
   name: "SUM",
   handler: sumHandler,
   minArgs: 1,
-  maxArgs: 1,
+  maxArgs: MAX_AGGREGATE_ARGS,
   description: "Returns the sum of all numbers in a range",
   examples: ["SUM(A1:A10)", "SUM(B2:B20)"],
   category: "Statistical",
@@ -182,7 +197,7 @@ functionRegistry.register({
   name: "AVERAGE",
   handler: averageHandler,
   minArgs: 1,
-  maxArgs: 1,
+  maxArgs: MAX_AGGREGATE_ARGS,
   description: "Returns the average (arithmetic mean) of numbers in a range",
   examples: ["AVERAGE(A1:A10)", "AVERAGE(B2:B20)"],
   category: "Statistical",
@@ -210,7 +225,7 @@ functionRegistry.register({
   name: "COUNT",
   handler: countHandler,
   minArgs: 1,
-  maxArgs: 1,
+  maxArgs: MAX_AGGREGATE_ARGS,
   description: "Counts the number of cells in a range",
   examples: ["COUNT(A1:A10)", "COUNT(B2:B20)"],
   category: "Statistical",
@@ -220,7 +235,7 @@ functionRegistry.register({
   name: "MEDIAN",
   handler: medianHandler,
   minArgs: 1,
-  maxArgs: 1,
+  maxArgs: MAX_AGGREGATE_ARGS,
   description: "Returns the median (middle) value in a range",
   examples: ["MEDIAN(A1:A10)", "MEDIAN(B2:B20)"],
   category: "Statistical",
@@ -230,7 +245,7 @@ functionRegistry.register({
   name: "MODE",
   handler: modeHandler,
   minArgs: 1,
-  maxArgs: 1,
+  maxArgs: MAX_AGGREGATE_ARGS,
   description: "Returns the most frequently occurring value in a range",
   examples: ["MODE(A1:A10)", "MODE(B2:B20)"],
   category: "Statistical",
@@ -240,7 +255,7 @@ functionRegistry.register({
   name: "STDEV",
   handler: stdevHandler,
   minArgs: 1,
-  maxArgs: 1,
+  maxArgs: MAX_AGGREGATE_ARGS,
   description: "Returns the standard deviation of numbers in a range",
   examples: ["STDEV(A1:A10)", "STDEV(B2:B20)"],
   category: "Statistical",
@@ -250,7 +265,7 @@ functionRegistry.register({
   name: "VAR",
   handler: varHandler,
   minArgs: 1,
-  maxArgs: 1,
+  maxArgs: MAX_AGGREGATE_ARGS,
   description: "Returns the variance of numbers in a range",
   examples: ["VAR(A1:A10)", "VAR(B2:B20)"],
   category: "Statistical",
@@ -260,7 +275,7 @@ functionRegistry.register({
   name: "COUNTA",
   handler: countaHandler,
   minArgs: 1,
-  maxArgs: 1,
+  maxArgs: MAX_AGGREGATE_ARGS,
   description: "Counts the number of non-empty cells in a range",
   examples: ["COUNTA(A1:A10)", "COUNTA(B2:B20)"],
   category: "Statistical",
