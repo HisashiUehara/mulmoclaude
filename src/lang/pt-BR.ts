@@ -781,6 +781,7 @@ const ptBRMessages = {
     styleLabel: "Estilo:",
     stylePromptWithPath: "Transforme a imagem em `{path}` em uma imagem no estilo {style}.",
     stylePromptNoPath: "Transforme meu desenho na tela em uma imagem no estilo {style}.",
+    saveFailed: "Não salvo",
   },
   pluginWiki: {
     backToIndex: "Voltar ao índice",

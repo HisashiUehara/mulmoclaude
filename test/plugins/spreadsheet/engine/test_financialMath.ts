@@ -16,8 +16,15 @@ import {
   computeNpv,
   computeIrr,
 } from "../../../../src/plugins/spreadsheet/engine/financial-math.ts";
+import { NUM_ERROR, type SpreadsheetError } from "../../../../src/plugins/spreadsheet/engine/spreadsheet-errors.ts";
 
 const closeTo = (actual: number, expected: number, eps = 0.01): boolean => Math.abs(actual - expected) <= eps;
+
+/** RATE / IRR may answer `#NUM!`; the convergent cases assert on the number. */
+const converged = (result: number | SpreadsheetError): number => {
+  if (typeof result !== "number") throw new Error(`expected a rate, got ${String(result)}`);
+  return result;
+};
 
 // A 250,000 loan at 0.5%/period over 360 periods — the issue's worked example.
 const RATE = 0.005;
@@ -138,15 +145,11 @@ describe("computeNper", () => {
 describe("computeRate", () => {
   it("recovers the rate implied by a known payment via Newton-Raphson", () => {
     const payment = computePmt(0.05, 12, 1000, 0, 0);
-    assert.ok(closeTo(computeRate(12, payment, 1000, 0, 0, 0.1), 0.05, 1e-6), "RATE recovers 0.05");
+    assert.ok(closeTo(converged(computeRate(12, payment, 1000, 0, 0, 0.1)), 0.05, 1e-6), "RATE recovers 0.05");
   });
 
-  // Deliberate known limitation: with no real root the iteration diverges to a
-  // finite nonsense value; Excel reports #NUM!. Pinned so a future change to the
-  // convergence handling is a conscious decision, not a silent regression.
-  it("returns a divergent finite value instead of Excel's #NUM! when no root exists", () => {
-    const diverged = computeRate(10, 100, 100, 100, 0, 0.1);
-    assert.ok(closeTo(diverged, -2.5804947624929158, 1e-9), "divergent finite rate is preserved");
+  it("reports #NUM! instead of a divergent rate when no root exists", () => {
+    assert.equal(computeRate(10, 100, 100, 100, 0, 0.1), NUM_ERROR);
   });
 });
 
@@ -168,18 +171,18 @@ describe("computeNpv", () => {
 
 describe("computeIrr", () => {
   it("finds the rate that zeroes the NPV (Excel IRR)", () => {
-    assert.ok(closeTo(computeIrr([-100, 60, 60], 0.1), 0.130662, 1e-5), "IRR ≈ 0.130662");
+    assert.ok(closeTo(converged(computeIrr([-100, 60, 60], 0.1)), 0.130662, 1e-5), "IRR ≈ 0.130662");
   });
 
   it("drives the period-0 discounted cash flows to zero at the returned rate", () => {
-    const irr = computeIrr([-1000, 500, 400, 300, 100], 0.1);
+    const irr = converged(computeIrr([-1000, 500, 400, 300, 100], 0.1));
     const npvFromPeriodZero = [-1000, 500, 400, 300, 100].reduce((sum, value, index) => sum + value / (1 + irr) ** index, 0);
     assert.ok(closeTo(npvFromPeriodZero, 0, 1e-6), "NPV at IRR ≈ 0");
   });
 
-  // Same-sign cash flows have no internal rate of return; the derivative collapses
-  // and the current code throws rather than returning Excel's #NUM!. Pinned.
-  it("throws when the cash flows never change sign", () => {
-    assert.throws(() => computeIrr([100, 200, 300], 0.1), /IRR cannot converge/);
+  // Same-sign cash flows have no internal rate of return: the derivative collapses
+  // and there is nowhere to step, which Excel reports as #NUM!.
+  it("reports #NUM! when the cash flows never change sign", () => {
+    assert.equal(computeIrr([100, 200, 300], 0.1), NUM_ERROR);
   });
 });

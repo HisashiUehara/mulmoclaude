@@ -31,6 +31,14 @@
         </div>
 
         <div class="flex items-center gap-1">
+          <span
+            v-if="saveFailed"
+            class="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1 mr-1"
+            role="alert"
+            data-testid="canvas-save-failed"
+          >
+            {{ t("pluginCanvas.saveFailed") }}
+          </span>
           <button
             class="w-8 h-8 flex items-center justify-center rounded border-2 border-gray-300 bg-white hover:bg-gray-50"
             :title="t('pluginCanvas.undo')"
@@ -61,6 +69,7 @@
         v-if="canvasWidth > 0"
         ref="canvasRef"
         :key="`${selectedResult?.uuid || 'default'}-${canvasRenderKey}`"
+        :canvas-id="canvasDomId"
         :width="canvasWidth"
         :height="canvasHeight"
         stroke-type="dash"
@@ -80,7 +89,9 @@
         }"
         :lock="false"
         @mouseup="saveDrawing"
+        @mouseleave="saveDrawing"
         @touchend="saveDrawing"
+        @touchcancel="saveDrawing"
       />
       <div class="flex items-center gap-2 flex-wrap mt-3">
         <span class="text-xs text-gray-500 mr-1">{{ t("pluginCanvas.styleLabel") }}</span>
@@ -108,6 +119,7 @@ import { pluginEndpoints } from "../api";
 import { resolveImageSrc } from "@mulmoclaude/markdown-utils/image/resolve";
 import { bumpImage } from "@mulmoclaude/markdown-utils/image/cacheBust";
 import { computeCanvasSize } from "./canvasSize";
+import { canvasElementId } from "./canvasElementId";
 
 const imageStoreEndpoints = pluginEndpoints<{ update: string }>("imageStore");
 
@@ -146,6 +158,15 @@ const brushColor = ref("#000000");
 const canvasWidth = ref(0);
 const canvasHeight = ref(0);
 const canvasRenderKey = ref(0);
+
+// Per-instance DOM id so two canvases mounted at once (two openCanvas
+// results in stack layout) don't collide on the library's default
+// `#VueDrawingCanvas` selector and cross-contaminate each other's saves.
+const canvasDomId = computed(() => canvasElementId(props.selectedResult?.uuid, canvasRenderKey.value));
+
+// Set when a stroke's PUT fails so the user sees their work isn't
+// persisting, instead of the failure vanishing into console.error.
+const saveFailed = ref(false);
 
 // The PNG on disk is the source of truth. The path is baked into
 // the tool result at openCanvas time (server-allocated), so reload
@@ -186,11 +207,23 @@ const backgroundImage = computed(() => {
 let uploadInFlight = false;
 let pendingSave = false;
 
-// Snapshot the current bitmap and PUT it back to the pre-allocated
-// file. No result mutation — the path is fixed from canvas creation,
-// so nothing upstream needs to know about saves. `function` (not
-// `const`) so the undo/redo/clear handlers below can reference it
-// without TDZ ordering problems.
+// PUT a data-URI back to the pre-allocated file. No result mutation —
+// the path is fixed from canvas creation, so nothing upstream needs to
+// know about saves. Surfaces failures via `saveFailed` instead of
+// letting them vanish into console.error.
+async function putImage(imageDataUri: string): Promise<void> {
+  const result = await apiPut<{ path: string }>(imageStoreEndpoints.update, {
+    relativePath: imagePath.value,
+    imageData: imageDataUri,
+  });
+  if (!result.ok) throw new Error(`PUT failed: ${result.error}`);
+  bumpImage(imagePath.value);
+}
+
+// Snapshot the current bitmap and PUT it. Coalesces concurrent calls so
+// a burst of stroke-ends collapses to one in-flight upload plus at most
+// one trailing re-run. `function` (not `const`) so undo/redo can
+// reference it without TDZ ordering problems.
 async function saveDrawing(): Promise<void> {
   if (!canvasRef.value || !imagePath.value) return;
   if (uploadInFlight) {
@@ -200,14 +233,11 @@ async function saveDrawing(): Promise<void> {
   uploadInFlight = true;
   try {
     const imageDataUri: string = await canvasRef.value.save();
-    const result = await apiPut<{ path: string }>(imageStoreEndpoints.update, {
-      relativePath: imagePath.value,
-      imageData: imageDataUri,
-    });
-    if (!result.ok) throw new Error(`PUT failed: ${result.error}`);
-    bumpImage(imagePath.value);
+    await putImage(imageDataUri);
+    saveFailed.value = false;
   } catch (error) {
     console.error("Failed to save drawing:", error);
+    saveFailed.value = true;
   } finally {
     uploadInFlight = false;
     if (pendingSave) {
@@ -227,9 +257,30 @@ const redo = () => {
   canvasRef.value?.redo();
   setTimeout(saveDrawing, 50);
 };
-const clear = () => {
+
+// Clear can't just reset the library's strokes: the saved PNG IS the
+// canvas background, so `reset()` re-composites the old drawing and the
+// library's snapshot-during-redraw races back to disk. Instead PUT a
+// blank white PNG directly, then remount so the child drops its stale
+// cached `loadedImage` and re-fetches the now-blank file as background.
+const clear = async () => {
   canvasRef.value?.reset();
-  saveDrawing();
+  if (!imagePath.value) return;
+  const blank = document.createElement("canvas");
+  blank.width = canvasWidth.value;
+  blank.height = canvasHeight.value;
+  const ctx = blank.getContext("2d");
+  if (!ctx) return;
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, blank.width, blank.height);
+  try {
+    await putImage(blank.toDataURL("image/png"));
+    saveFailed.value = false;
+    canvasRenderKey.value++;
+  } catch (error) {
+    console.error("Failed to clear drawing:", error);
+    saveFailed.value = true;
+  }
 };
 
 const updateCanvasSize = () => {

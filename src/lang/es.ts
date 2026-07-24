@@ -790,6 +790,7 @@ const esMessages = {
     styleLabel: "Estilo:",
     stylePromptWithPath: "Convierte la imagen en `{path}` en una imagen de estilo {style}.",
     stylePromptNoPath: "Convierte mi dibujo en el lienzo en una imagen de estilo {style}.",
+    saveFailed: "Sin guardar",
   },
   pluginWiki: {
     backToIndex: "Volver al índice",

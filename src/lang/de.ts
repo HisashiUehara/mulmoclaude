@@ -794,6 +794,7 @@ const deMessages = {
     styleLabel: "Stil:",
     stylePromptWithPath: "Wandle das Bild unter `{path}` in ein Bild im {style}-Stil um.",
     stylePromptNoPath: "Wandle meine Zeichnung auf dem Canvas in ein Bild im {style}-Stil um.",
+    saveFailed: "Nicht gespeichert",
   },
   pluginWiki: {
     backToIndex: "Zurück zum Index",
