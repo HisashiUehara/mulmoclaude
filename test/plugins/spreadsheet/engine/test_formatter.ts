@@ -4,7 +4,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { formatNumber } from "../../../../src/plugins/spreadsheet/engine/formatter.ts";
+import { addThousandSeparators, formatNumber } from "../../../../src/plugins/spreadsheet/engine/formatter.ts";
 import { dateToSerial } from "../../../../src/plugins/spreadsheet/engine/date-utils.ts";
 
 const serialOf = (year: number, month: number, day: number, hour = 0, minute = 0, second = 0) =>
@@ -132,5 +132,26 @@ describe("formatNumber — plain numbers", () => {
 
   it("reads the decimal count from the leading .0 run of a mixed format", () => {
     assert.equal(formatNumber(0.5, "0.0#"), "0.5");
+  });
+});
+
+// The split/group/join wrapper the currency and plain-comma branches of
+// formatNumber both share: group the integer part, leave any fraction alone.
+describe("addThousandSeparators", () => {
+  it("groups the integer part in threes", () => {
+    assert.equal(addThousandSeparators("1000"), "1,000");
+    assert.equal(addThousandSeparators("1234567"), "1,234,567");
+  });
+
+  it("leaves the fractional part untouched", () => {
+    assert.equal(addThousandSeparators("1234567.89"), "1,234,567.89");
+    assert.equal(addThousandSeparators("12.5"), "12.5");
+    assert.equal(addThousandSeparators("0.50"), "0.50");
+  });
+
+  it("passes short and empty integer parts through unchanged", () => {
+    assert.equal(addThousandSeparators("100"), "100");
+    assert.equal(addThousandSeparators("999"), "999");
+    assert.equal(addThousandSeparators(""), "");
   });
 });
