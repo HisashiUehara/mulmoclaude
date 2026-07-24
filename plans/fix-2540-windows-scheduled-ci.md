@@ -36,7 +36,7 @@ Both are `/`-separated contracts on every host (see `toPosixWorkspacePath` in
 `src/config/pubsubChannels.ts`). So a Windows host was serving mixed-separator
 paths — a real bug, not just a test-expectation mismatch.
 
-It stayed invisible on the ubuntu/macos matrix because the rule was bound to
+It stayed invisible on the Ubuntu/macOS matrix because the rule was bound to
 the runner's own `path.join`.
 
 ## Changes
