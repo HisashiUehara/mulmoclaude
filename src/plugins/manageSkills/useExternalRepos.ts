@@ -59,6 +59,13 @@ export interface ExternalReposGroup {
 // (#2481) instead of being mirrored into two lists that can drift apart.
 interface ReposRefs {
   catalogRepos: Ref<ExternalRepo[]>;
+  /** Failure of the installed-repo LIST load. Kept separate from the
+   *  shared `catalogError` (which carries per-action install/uninstall/
+   *  update failures): the two loaders run concurrently via `Promise.all`,
+   *  so routing a repo-list failure into `catalogError` let a sibling
+   *  `loadCatalog` success null it out — the repo groups vanished with no
+   *  error shown. This channel surfaces next to the repo list instead. */
+  repoListError: Ref<string | null>;
   /** Per-repo collapse set (repoId ∈ set ⇒ collapsed). */
   repoCollapsed: Ref<Set<string>>;
   addRepoOpen: Ref<boolean>;
@@ -106,9 +113,11 @@ function toggleRepo(state: ReposState, repoId: string): void {
 async function loadExternalRepos(state: ReposState): Promise<void> {
   const response = await apiGet<{ repos: ExternalRepo[] }>(state.endpoints.externalReposList.url);
   if (!response.ok) {
-    state.deps.catalogError.value = state.t("pluginManageSkills.errCatalogRepoListFailed", { error: response.error });
+    state.repoListError.value = state.t("pluginManageSkills.errCatalogRepoListFailed", { error: response.error });
     return;
   }
+  // Clear on success so a recovered load drops a stale error banner.
+  state.repoListError.value = null;
   if (Array.isArray(response.data.repos)) state.catalogRepos.value = response.data.repos;
 }
 
@@ -213,6 +222,7 @@ function resetModalState(state: ReposState): void {
 function createReposRefs(): ReposRefs {
   return {
     catalogRepos: ref<ExternalRepo[]>([]),
+    repoListError: ref<string | null>(null),
     // shallowRef: the Set is replaced wholesale on toggle, so the deep
     // proxy ref() would build is wasted.
     repoCollapsed: shallowRef<Set<string>>(loadRepoCollapsed()),

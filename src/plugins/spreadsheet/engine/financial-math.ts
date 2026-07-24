@@ -8,6 +8,8 @@
  * arguments back through the formula evaluator.
  */
 
+import { NUM_ERROR, type SpreadsheetError } from "./spreadsheet-errors";
+
 /** Future value after `nper` periods. `type` is 0 (end of period) or 1 (begin). */
 export function computeFv(rate: number, nper: number, pmt: number, pv: number, type: number): number {
   if (rate === 0) return -(pv + pmt * nper);
@@ -55,13 +57,14 @@ export function computeNper(rate: number, pmt: number, pv: number, fv: number, t
 }
 
 // Newton-Raphson is iterative; a valid annuity / cash-flow series converges well
-// inside these bounds. On non-convergence RATE and IRR return the last iterate (a
-// divergent value or NaN) rather than Excel's #NUM!, preserving prior behaviour.
+// inside these bounds. A series with no real solution never does, so exhausting
+// the loop means "no answer" — Excel reports #NUM! there, and returning the last
+// iterate instead would hand back a divergent value or NaN as if it were a rate.
 const NEWTON_MAX_ITERATIONS = 100;
 const NEWTON_TOLERANCE = 1e-7;
 
 /** Interest rate per period solving the annuity equation, via Newton-Raphson. */
-export function computeRate(nper: number, pmt: number, pv: number, fv: number, type: number, guess: number): number {
+export function computeRate(nper: number, pmt: number, pv: number, fv: number, type: number, guess: number): number | SpreadsheetError {
   let rate = guess;
   for (let i = 0; i < NEWTON_MAX_ITERATIONS; i++) {
     if (Math.abs(rate) < NEWTON_TOLERANCE) rate = NEWTON_TOLERANCE; // avoid division by zero
@@ -72,10 +75,10 @@ export function computeRate(nper: number, pmt: number, pv: number, fv: number, t
       (pmt * (1 + rate * type) * (nper * Math.pow(1 + rate, nper - 1) * rate - (growth - 1))) / (rate * rate) +
       pmt * type * ((growth - 1) / rate);
     const newRate = rate - f / df;
-    if (Math.abs(newRate - rate) < NEWTON_TOLERANCE) return newRate;
+    if (Math.abs(newRate - rate) < NEWTON_TOLERANCE) return Number.isFinite(newRate) ? newRate : NUM_ERROR;
     rate = newRate;
   }
-  return rate;
+  return NUM_ERROR;
 }
 
 /** Net present value of `cashflows`, each discounted one period further into the future. */
@@ -84,7 +87,7 @@ export function computeNpv(rate: number, cashflows: number[]): number {
 }
 
 /** Internal rate of return of `values` (element 0 at period 0), via Newton-Raphson. */
-export function computeIrr(values: number[], guess: number): number {
+export function computeIrr(values: number[], guess: number): number | SpreadsheetError {
   let rate = guess;
   for (let i = 0; i < NEWTON_MAX_ITERATIONS; i++) {
     let npv = 0;
@@ -95,10 +98,11 @@ export function computeIrr(values: number[], guess: number): number {
       dnpv -= (j * values[j]) / (factor * (1 + rate));
     }
     if (Math.abs(npv) < NEWTON_TOLERANCE) return rate;
-    if (Math.abs(dnpv) < NEWTON_TOLERANCE) throw new Error("IRR cannot converge");
+    // A flat derivative leaves nowhere to step: the series has no root here.
+    if (Math.abs(dnpv) < NEWTON_TOLERANCE) return NUM_ERROR;
     const newRate = rate - npv / dnpv;
-    if (Math.abs(newRate - rate) < NEWTON_TOLERANCE) return newRate;
+    if (Math.abs(newRate - rate) < NEWTON_TOLERANCE) return Number.isFinite(newRate) ? newRate : NUM_ERROR;
     rate = newRate;
   }
-  return rate;
+  return NUM_ERROR;
 }
