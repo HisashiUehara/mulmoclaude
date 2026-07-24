@@ -370,6 +370,118 @@ test.describe("manageSkills plugin — delete (phase 1)", () => {
   });
 });
 
+// ---- Delete: post-delete selection advance --------------------------
+// A 3-project-skill fixture so deleting the MIDDLE row can distinguish the
+// neighbour-advance fix from the old "bounce to the first row" clobber:
+// with only two rows, first == neighbour and the bug is invisible.
+
+const THREE_PROJECT_SKILLS = ["alpha-skill", "beta-skill", "gamma-skill"] as const;
+
+async function setupThreeProjectSkills(page: Page) {
+  await mockAllApis(page, {
+    sessions: [
+      {
+        id: "skills-session",
+        title: "Skills Session",
+        roleId: "general",
+        startedAt: "2026-04-14T10:00:00Z",
+        updatedAt: "2026-04-14T10:05:00Z",
+      },
+    ],
+  });
+
+  await page.route(
+    (url) => url.pathname.startsWith("/api/sessions/") && url.pathname !== "/api/sessions",
+    (route) =>
+      route.fulfill({
+        json: [
+          { type: "session_meta", roleId: "general", sessionId: "skills-session" },
+          { type: "text", source: "user", message: "Show my skills" },
+          {
+            type: "tool_result",
+            source: "tool",
+            result: {
+              uuid: "skills-result-3",
+              toolName: "manageSkills",
+              title: "Skills",
+              message: "Found 3 skills.",
+              data: {
+                skills: THREE_PROJECT_SKILLS.map((name) => ({
+                  name,
+                  description: `${name} description`,
+                  source: "project",
+                })),
+              },
+            },
+          },
+        ],
+      }),
+  );
+
+  await page.route(
+    (url) => url.pathname.startsWith("/api/skills/") && url.pathname !== "/api/skills",
+    (route: Route) => {
+      const method = route.request().method();
+      const name = decodeURIComponent(route.request().url().split("/api/skills/").pop() ?? "").split("?")[0] ?? "";
+      if (method === "DELETE") {
+        return route.fulfill({ json: { deleted: true, name } });
+      }
+      if (!(THREE_PROJECT_SKILLS as readonly string[]).includes(name)) {
+        return route.fulfill({ status: 404, json: { error: `skill not found: ${name}` } });
+      }
+      return route.fulfill({
+        json: {
+          skill: { name, description: `${name} description`, body: `## ${name}\n\nbody`, source: "project", path: `/fake/${name}/SKILL.md` },
+        },
+      });
+    },
+  );
+}
+
+test.describe("manageSkills plugin — post-delete selection", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupThreeProjectSkills(page);
+    page.on("dialog", (dialog) => dialog.accept());
+  });
+
+  test("deleting the selected middle skill advances to the neighbour, not the first row", async ({ page }) => {
+    await page.goto("/chat/skills-session");
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+    await page.getByText("3 skills").first().click();
+    await expect(page.getByTestId("skill-item-beta-skill")).toBeVisible();
+
+    // Select the middle row and delete it.
+    await page.getByTestId("skill-item-beta-skill").click();
+    await expect(page.getByTestId("skill-body-rendered")).toContainText("beta-skill");
+    await page.getByTestId("skill-delete-btn").click();
+
+    // The deleted row is gone.
+    await expect(page.getByTestId("skill-item-beta-skill")).toHaveCount(0);
+
+    // Selection advanced to the next neighbour (gamma-skill), NOT the
+    // alphabetical first row (alpha-skill).
+    await expect(page.getByTestId("skill-body-rendered")).toContainText("gamma-skill");
+    await expect(page.getByTestId("skill-item-gamma-skill")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("skill-item-alpha-skill")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("deleting the selected last skill advances to the new last row", async ({ page }) => {
+    await page.goto("/chat/skills-session");
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+    await page.getByText("3 skills").first().click();
+    await expect(page.getByTestId("skill-item-gamma-skill")).toBeVisible();
+
+    await page.getByTestId("skill-item-gamma-skill").click();
+    await expect(page.getByTestId("skill-body-rendered")).toContainText("gamma-skill");
+    await page.getByTestId("skill-delete-btn").click();
+
+    await expect(page.getByTestId("skill-item-gamma-skill")).toHaveCount(0);
+    // Falls back to the previous neighbour (now the last row), not alpha.
+    await expect(page.getByTestId("skill-body-rendered")).toContainText("beta-skill");
+    await expect(page.getByTestId("skill-item-beta-skill")).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
 // ── #1383 PR-C2: hierarchical external-skill catalog ──────────────
 
 interface StarCall {

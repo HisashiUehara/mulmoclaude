@@ -127,6 +127,7 @@ import {
   loadCollapsedSections,
   persistCollapsedSections,
   pickInitialSelection,
+  nextSelectionAfterDelete,
   toggleInSet,
   PRESET_SOURCE_META,
   type SkillSectionKey,
@@ -415,10 +416,20 @@ async function deleteSkill(): Promise<void> {
     detailError.value = result.error || t("pluginManageSkills.errDeleteFailed");
     return;
   }
-  // Remove from the local list, advance selection, clear detail.
+  // Remove from the local list, then advance the selection to the deleted
+  // row's neighbour (NOT the first row). Only advance when the deleted skill
+  // is STILL the selected one — the DELETE may have been slow and the user
+  // may have clicked another skill meanwhile, whose detail fetch is already
+  // in flight and must not be clobbered. `previousActive` is captured before
+  // the removal so the deleted row's index still locates its neighbour.
+  const previousActive = activeSkills.value;
+  const wasSelected = selectedName.value === name;
   skills.value = removeSkillByName(skills.value, name);
-  selectedName.value = pickInitialSelection(activeSkills.value, collapsedSections.value);
-  detail.value = null;
+  selectedName.value = nextSelectionAfterDelete(previousActive, name, selectedName.value, collapsedSections.value);
+  // The selectedName watch reloads detail on change; only null it here when
+  // the selection didn't move (deleted skill was NOT selected leaves detail
+  // alone; deleted-and-was-selected with no successor nulls via the watch).
+  if (wasSelected && selectedName.value === null) detail.value = null;
   // Refresh the catalog so a deleted star reverts to ☆ Star.
   // `alreadyActive` is computed from disk at list time — without
   // this call the badge + right-pane state would lag until the
