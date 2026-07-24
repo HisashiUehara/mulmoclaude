@@ -61,11 +61,12 @@ describe("renderWikiLinks", () => {
     assert.equal(renderWikiLinks("x [[foo]bar]] y"), "x [[foo]bar]] y");
   });
 
-  it("handles triple brackets the same way the old regex did", () => {
-    // `[[[foo]]]` → the old regex matched `[[[foo]]` greedily so
-    // the page name became `[foo` (including the third `[`) and
-    // the last `]` remained as trailing text. Preserve that quirk.
-    assert.equal(renderWikiLinks("[[[foo]]]"), '<span class="wiki-link" data-page="[foo">[foo</span>]');
+  it("matches the inner link in triple brackets — page name cannot contain `[`", () => {
+    // `[[[foo]]]` → WIKI_LINK_PATTERN excludes `[` from the capture
+    // group, so it matches the inner `[[foo]]` (page `foo`) and leaves
+    // the outer `[` / `]` as literal text. The old regex's `[foo` page
+    // name was the bug this parity fix removes.
+    assert.equal(renderWikiLinks("[[[foo]]]"), '[<span class="wiki-link" data-page="foo">foo</span>]');
   });
 
   it("handles wiki links with spaces in the page name", () => {

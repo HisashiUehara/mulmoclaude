@@ -19,8 +19,14 @@
  *  unmatched `[[` could still pin the CPU. 200 is well above the
  *  longest legitimate title we've seen and matches the cap the
  *  server-side `WIKI_LINK_PATTERN` constant has carried since the
- *  original implementation in #951. */
-export const WIKI_LINK_PATTERN = /\[\[([^\][\r\n]{1,200})\]\]/g;
+ *  original implementation in #951.
+ *
+ *  Shared with the renderer's hand-rolled scanner so the two can't
+ *  drift: the renderer must reject the same newline-bearing and
+ *  over-length bodies, or a link would render clickable while the
+ *  graph / backlinks / lint (which use this pattern) never see it. */
+export const WIKI_LINK_MAX_LEN = 200;
+export const WIKI_LINK_PATTERN = new RegExp(`\\[\\[([^\\][\\r\\n]{1,${WIKI_LINK_MAX_LEN}})\\]\\]`, "g");
 
 /** The structural shape of an inline `[[target|display]]` link.
  *  `target` is what the resolver / lint compares against page
