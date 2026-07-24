@@ -77,22 +77,20 @@ jobs:
             throw "expected NTFS Junction, got '$($x.LinkType)' — probe assumption violated"
           }
 
-      # The probe's ESM check actually LOADS `@mulmoclaude/x-plugin` through
-      # the resolver hook, so its built entry (`dist/index.js`, per the
-      # package's `exports` map) must exist in the mounted dev-workspace dir —
-      # production ships built dist, this repro must too. `yarn install`
-      # doesn't build it (no `prepare` script) and the plugin is a
-      # self-contained bundle (no `@mulmoclaude/core` or npm deps at load
-      # time, `vite build` inlines everything), so building just this one
-      # package is enough for the import to resolve.
-      - name: Build @mulmoclaude/x-plugin (probe imports its built ESM entry)
-        run: yarn workspace @mulmoclaude/x-plugin run build
-
-      # The #2052 end-to-end step boots the real mcp-server.ts, which imports
-      # @mulmoclaude/core, @mulmobridge/protocol, @mulmobridge/client and the
-      # preset plugins through their built `dist/`. Production ships built dist;
-      # this repro must too.
-      - name: Build every workspace package (the e2e MCP child imports their dist)
+      # Everything downstream loads workspace packages through their built
+      # `dist/` — the probe's ESM check LOADS `@mulmoclaude/x-plugin` via the
+      # resolver hook, and the #2052 end-to-end step boots the real
+      # mcp-server.ts against `@mulmoclaude/core`, `@mulmobridge/protocol`,
+      # `@mulmobridge/client` and the preset plugins. Production ships built
+      # dist; this repro must too, and `yarn install` builds nothing (no
+      # `prepare` scripts).
+      #
+      # One whole-workspace build rather than a hand-picked subset: a plugin
+      # that grows a workspace dependency then fails to resolve it. That is
+      # exactly how a standalone `yarn workspace @mulmoclaude/x-plugin run
+      # build` step here broke this canary once x-plugin started importing
+      # `@mulmoclaude/common`, which nothing had built yet.
+      - name: Build every workspace package (the probe + MCP child import their dist)
         run: yarn build:packages:dev
 
       # windows-latest ships Docker CLI + a Windows-only engine, no Docker

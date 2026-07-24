@@ -6,7 +6,7 @@ import { workspacePath } from "../../workspace/workspace.js";
 import { statSafe, statSafeAsync, readDirSafeAsync, resolveWithinRoot, writeFileAtomic } from "../../utils/files/index.js";
 import { stripDataUri } from "../../utils/files/attachment-store.js";
 import { writeNewFileExclusive } from "../../utils/files/upload-io.js";
-import { MAX_RENAME_ATTEMPTS, renamedCandidate, sanitizeUploadFilename } from "../../utils/files/upload-name.js";
+import { MAX_RENAME_ATTEMPTS, renamedCandidate, sanitizeUploadFilename, uploadRelPath } from "../../utils/files/upload-name.js";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, notFound, sendError, serverError } from "../../utils/httpError.js";
 import { jsonSyntaxError, MAX_PREVIEW_BYTES } from "../../utils/files/content-write-validate.js";
@@ -1098,7 +1098,7 @@ export async function writeUploadWithRename(
   deps: UploadWriteDeps = defaultUploadWriteDeps,
 ): Promise<{ ok: true; relPath: string; absPath: string } | { ok: false; status: number; message: string }> {
   for (let attempt = 0; attempt <= MAX_RENAME_ATTEMPTS; attempt += 1) {
-    const relPath = path.join(dirRel, attempt === 0 ? safeName : renamedCandidate(safeName, attempt));
+    const relPath = uploadRelPath(dirRel, attempt === 0 ? safeName : renamedCandidate(safeName, attempt));
     const resolved = await deps.resolve(relPath);
     if (!resolved.ok) return { ok: false, status: resolved.status, message: resolved.message };
     try {
@@ -1152,7 +1152,7 @@ router.post(API_ROUTES.files.upload, async (req: Request<object, unknown, Upload
     return;
   }
   const { dir, safeName, bytes } = validation;
-  log.info("files", "POST upload: start", { pathPreview: previewSnippet(path.join(dir, safeName)), bytes: bytes.byteLength });
+  log.info("files", "POST upload: start", { pathPreview: previewSnippet(uploadRelPath(dir, safeName)), bytes: bytes.byteLength });
 
   const written = await writeUploadWithRename(dir, safeName, bytes);
   if (!written.ok) {

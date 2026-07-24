@@ -56,6 +56,21 @@ export function sanitizeUploadFilename(rawName: string): string | null {
   return base.length > MAX_FILENAME_LENGTH ? truncateKeepingExtension(base) : base;
 }
 
+/** The workspace-relative path an upload lands on, always POSIX-shaped.
+ *  Bare `path.join` yields `data\photo.png` on a Windows host, and that string
+ *  is what the route hands back to the client and publishes as the file-change
+ *  channel — both contracts are `/`-separated on every host.
+ *
+ *  Separators are swapped, never segments dropped: a leading `/` has to survive
+ *  so the resolver still sees an absolute path and refuses it.
+ *
+ *  `join` is a parameter so the Windows separator rule can be asserted from a
+ *  POSIX runner — bound to the host's `path.join`, the whole rule is invisible
+ *  outside Windows CI, which is how the backslash form reached main. */
+export function uploadRelPath(dirRel: string, filename: string, join: (dir: string, name: string) => string = path.join): string {
+  return join(dirRel, filename).replace(/\\/g, "/");
+}
+
 /** The nth collision candidate for a name: `foo.png` at 1 → `foo (1).png`.
  *  Extension-less and dotfile names keep their shape (`.env` → `.env (1)`). */
 export function renamedCandidate(filename: string, attempt: number): string {
