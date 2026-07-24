@@ -102,15 +102,17 @@ const vlookupHandler: FunctionHandler = (args, context) => {
   const rangeLookup = args.length === 4 ? context.evaluateFormula(args[3]) : true;
   const matchType = isApproximateMatch(rangeLookup) ? 1 : 0;
 
+  // Excel rejects a col_index_num past the table's width; reading on regardless
+  // addressed a cell outside the range and usually returned a silent 0 (#2360).
+  // Checked before the search: an out-of-range index is an argument error, so it
+  // wins over the #N/A a missing key would otherwise mask it with (Codex review).
+  const colOffset = resolveTableOffset(colIndexNum, bounds.endCol - bounds.startCol + 1);
+  if (colOffset === null) return REF_ERROR;
+
   const startColStr = indexToColumn(bounds.startCol);
   const lookupArray = columnValues(context, bounds.sheetPrefix, startColStr, bounds.startRow, bounds.endRow);
   const matchIdx = findMatchIndex(lookupValue, lookupArray, matchType);
   if (matchIdx === -1) return NA_ERROR;
-
-  // Excel rejects a col_index_num past the table's width; reading on regardless
-  // addressed a cell outside the range and usually returned a silent 0 (#2360).
-  const colOffset = resolveTableOffset(colIndexNum, bounds.endCol - bounds.startCol + 1);
-  if (colOffset === null) return REF_ERROR;
 
   const resultColStr = indexToColumn(bounds.startCol + colOffset);
   const resultRow = bounds.startRow + matchIdx;
@@ -125,12 +127,12 @@ const hlookupHandler: FunctionHandler = (args, context) => {
   const rangeLookup = args.length === 4 ? context.evaluateFormula(args[3]) : true;
   const matchType = isApproximateMatch(rangeLookup) ? 1 : 0;
 
+  const rowOffset = resolveTableOffset(rowIndexNum, bounds.endRow - bounds.startRow + 1);
+  if (rowOffset === null) return REF_ERROR;
+
   const lookupArray = rowValues(context, bounds.sheetPrefix, bounds.startRow, bounds.startCol, bounds.endCol);
   const matchIdx = findMatchIndex(lookupValue, lookupArray, matchType);
   if (matchIdx === -1) return NA_ERROR;
-
-  const rowOffset = resolveTableOffset(rowIndexNum, bounds.endRow - bounds.startRow + 1);
-  if (rowOffset === null) return REF_ERROR;
 
   const resultColStr = indexToColumn(bounds.startCol + matchIdx);
   const resultRow = bounds.startRow + rowOffset;

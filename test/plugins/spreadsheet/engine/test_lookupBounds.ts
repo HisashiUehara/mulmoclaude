@@ -72,6 +72,30 @@ describe("VLOOKUP column bounds", () => {
   });
 });
 
+// Excel treats an out-of-range index as an argument error, evaluated before the
+// key is searched for. Validating it after the match let a missing key mask it as
+// #N/A, so a typo'd index looked like "value not in the table" (Codex review).
+describe("an out-of-range index outranks a missing key", () => {
+  it("is #REF! for VLOOKUP with a missing key and an index past the table", () => {
+    assert.equal(table('=VLOOKUP("zz",A1:B2,9,FALSE)'), "#REF!");
+  });
+
+  it("is #REF! for VLOOKUP with a missing key and a zero or negative index", () => {
+    assert.equal(table('=VLOOKUP("zz",A1:B2,0,FALSE)'), "#REF!");
+    assert.equal(table('=VLOOKUP("zz",A1:B2,-1,FALSE)'), "#REF!");
+  });
+
+  it("is #REF! for HLOOKUP with a missing key and an index past the table", () => {
+    assert.equal(table('=HLOOKUP("zz",A1:B2,9,FALSE)'), "#REF!");
+  });
+
+  // The approximate path reaches #N/A by a different route (no candidate <= the
+  // key) rather than by an absent exact match, so it needs its own case.
+  it("is #REF! on the approximate path when the key is below every candidate", () => {
+    assert.equal(table("=VLOOKUP(0,A1:B2,9,TRUE)"), "#REF!");
+  });
+});
+
 describe("single-line tables still reject index 0", () => {
   // A one-column table is where INDEX's whole-line `0` would have slipped through.
   const oneColumn = (formula: string): unknown => {
@@ -88,6 +112,14 @@ describe("single-line tables still reject index 0", () => {
 
   it("still returns the key column for index 1", () => {
     assert.equal(oneColumn('=VLOOKUP("b",A1:A2,1,FALSE)'), "b");
+  });
+
+  it("is #REF! when the key is missing too, not #N/A", () => {
+    assert.equal(oneColumn('=VLOOKUP("zz",A1:A2,0,FALSE)'), "#REF!");
+  });
+
+  it("still reports #N/A for a missing key with a valid index", () => {
+    assert.equal(oneColumn('=VLOOKUP("zz",A1:A2,1,FALSE)'), "#N/A");
   });
 });
 
