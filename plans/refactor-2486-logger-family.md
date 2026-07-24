@@ -45,7 +45,42 @@ nothing.
    `@mulmoclaude/common`; accounting declares the dep). chat-service `Logger`
    is left as-is: `@mulmobridge/chat-service` has no `@mulmoclaude/common`
    dependency and this PR adds no new dependencies.
-5. Catalog rows for both types in `docs/shared-utils.md`.
+5. Catalog rows for both types in `docs/shared-utils.md`, plus a
+   "Known duplicates" row naming the canonical and the one deliberate copy
+   (the section CLAUDE.md requires for any family with >1 live implementation).
+
+## Verified non-sites
+
+Grepping the two shapes also turns up three declarations that are NOT members of
+the family; recorded so a future sweep does not mistake them for missed sites:
+
+- `packages/core/src/whisper/internal.ts` `WhisperLogger` — same three method
+  names, but `data` is `unknown`, not `Record<string, unknown>`. Aliasing it to
+  `MinimalLogger` would *narrow* the parameter and break the host adapter in
+  `server/system/whisper/index.ts` that already widens into it.
+- `packages/core/src/file-change/index.ts` (`warn?:`) and
+  `packages/core/src/workspace-setup/sync.ts` (`onInfo?` / `onWarn?`) — inline
+  callback fields on a config object, named for their role in that config rather
+  than as a logger. Aliasing reads worse than the inline signature.
+
+## Tests
+
+`packages/core/test/host/test_loggerAliases.ts` pins the alias contract on both
+sides. The compile-time half is a round-trip assignment chain
+(`StructuredLogger` → the `hostSlot` re-export → `CollectionLogger` →
+`FeedsLogger` → `GoogleLogger` → back): an alias that *gains* a member breaks the
+assignment into it, one that *loses* a member breaks the assignment back out. The
+subset aliases are pinned with fresh object literals, so a missing member fails
+and an extra one trips excess-property checking. That half runs under
+`yarn typecheck` (core's tsconfig includes `test/`); `Object.keys` assertions
+repeat the pin at runtime, because `tsx --test` strips types without checking
+them.
+
+Verify-by-break: giving `FeedsLogger` an extra `trace` member turned the
+round-trip test red (`TS2741: Property 'trace' is missing in type
+'StructuredLogger'`), and narrowing `NotifierLogger` to
+`Pick<MinimalLogger, "warn">` turned the subset test red (`TS2353: 'error' does
+not exist in type 'NotifierLogger'`). Both restored green.
 
 ## Verification
 
