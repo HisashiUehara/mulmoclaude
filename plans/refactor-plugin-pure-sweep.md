@@ -65,10 +65,10 @@ These are verified or plausible but out of scope for a mechanical fix-plus-test 
 - **wiki**: stale-response tokens for `callApi`/`loadPageEditData`; non-404
   snapshot failure rendered as "page deleted"; renderer vs `WIKI_LINK_PATTERN`
   divergence (core); save-queue extraction (`taskSaveQueue`).
-- **textResponse / StackView**: speaker labels hardcoded English (×8);
+- ~~**textResponse / StackView**: speaker labels hardcoded English (×8);
   StackView duplicate capture-phase link handler (opens 2 tabs); StackView
   edit panel emits to nothing (silent edit loss); copy button copies rewritten
-  display text in Files-Explorer mode.
+  display text in Files-Explorer mode.~~ **Shipped (fix/textresponse-stackview).**
 - **generateImage**: stale-image cache watch; chart-plugin sparse `instances[]`.
 - **shared**: 3 near-duplicate `ImageToolData` interfaces; `saveBlob` missing
   from `docs/shared-utils.md`.
