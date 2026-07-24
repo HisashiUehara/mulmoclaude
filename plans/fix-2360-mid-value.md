@@ -23,9 +23,15 @@ Two more silent-wrong-answer cases from #2360.
   `normalizeCharCount` (non-finite / negative count → `#VALUE!`, fractional
   truncates toward zero) and requires `start >= 1`.
 - `parseValueText(raw)` — strips currency symbols and thousands separators, then
-  requires the **whole** remainder to be a number via `Number` (not `parseFloat`);
-  a trailing `%` is read as a fraction, and an empty string is an error rather
-  than `Number("") === 0`.
+  requires the **whole** remainder to match a decimal/scientific pattern before
+  converting (not `parseFloat`, which returns the readable prefix); a trailing
+  `%` is read as a fraction, and an empty string is an error rather than
+  `Number("") === 0`.
+
+  Two guards, because `Number` alone is too permissive in two different ways:
+  the pattern rejects JS-only spellings (`0x10` → 16, `0b10` → 2, `1_000`, the
+  literal `Infinity`), and a finiteness check rejects an exponent that matches
+  the pattern but overflows (`1e999` → `Infinity`).
 
 Both are exported pure functions, so the rules are testable without the engine.
 
@@ -40,9 +46,16 @@ the return type is declared.)
 ## Tests
 
 `test_midValue.ts`: MID negative / non-finite / start < 1 / normal / overrun /
-zero / fractional; VALUE trailing text, empty, plain, currency, percent; plus
-both surfacing through `SpreadsheetEngine`. Mutation-checked — restoring the raw
-`substring` and `parseFloat` turns six red. Full engine suite green (713).
+zero / fractional; VALUE trailing text, empty, plain, currency, percent,
+JS-only syntaxes, overflowing exponent, decimal/scientific; plus both surfacing
+through `SpreadsheetEngine`. Full engine suite green (737).
+
+Mutation-checked, each guard separately — restoring the raw `substring` and
+`parseFloat` turns six red; dropping the decimal pattern reds the JS-syntax
+test; dropping the finiteness check reds the overflow test. The finiteness
+check needs its own case because the pattern already rejects the literal
+`Infinity` spelling, so without an overflow input the guard tests green when
+deleted.
 
 ## Still open in #2360
 
