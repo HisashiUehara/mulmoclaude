@@ -156,3 +156,11 @@ npm view <pkg> version --registry https://registry.npmjs.org/
 ```
 
 A range update reaches users only through that consumer's own next release, so it does not force an immediate republish of all 50 packages — but it MUST be in the tree before the consumer is published next.
+
+### Tag every publish — no untagged releases
+
+Every `npm publish` of a workspace package MUST be accompanied by a git tag `@scope/name@X.Y.Z` (no `v` prefix) on the published commit, plus a GH release (`--latest=false`). The `/publish` skill does this — do NOT publish by hand and skip the tag.
+
+Rationale: the tag is the ONLY reliable marker of "what commit this npm version was cut from". Answering *"which packages changed since their last release and need republishing?"* is a `git diff <name>@<version> HEAD -- <dir>` — which is impossible when the tag is missing. This is not hypothetical: the `1.0.0` plugins (`@mulmoclaude/*-plugin`) were published to npm without `@…@1.0.0` tags (a bulk `0.x → 1.0.0` re-version), so release-drift detection for them had to fall back to guessing the version-bump commit. `version` in `package.json` == npm's latest tells you it was published, but NOT whether the current source differs from what shipped — only the tag does.
+
+When you discover a past publish that was never tagged, create the tag retroactively on the commit that bumped `version` to the published value (best effort), so future drift detection works.
