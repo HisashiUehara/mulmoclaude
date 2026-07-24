@@ -78,6 +78,19 @@ function formatDate(serial: number, format: string): string {
   return format.replace(DATE_TOKEN_RE, (token) => replacements[token] ?? token);
 }
 
+const THOUSANDS_GROUP_SIZE = 3;
+
+/**
+ * Insert thousands separators into a run of digits ("1234567" → "1,234,567").
+ * Regex free on purpose: the classic `\B(?=(\d{3})+(?!\d))` lookahead
+ * backtracks badly on a long run of digits.
+ */
+export const groupThousands = (digits: string): string =>
+  Array.from(digits).reduce((grouped, digit, index) => {
+    const needsSeparator = index > 0 && (digits.length - index) % THOUSANDS_GROUP_SIZE === 0;
+    return needsSeparator ? `${grouped},${digit}` : `${grouped}${digit}`;
+  }, "");
+
 /**
  * Format a number according to Excel format code
  *
@@ -108,17 +121,8 @@ export function formatNumber(value: number, format: string): string {
 
       let formatted = Math.abs(value).toFixed(decimals >= 0 ? decimals : 0);
       if (hasComma) {
-        // Add thousand separators without regex to avoid performance issues
         const parts = formatted.split(".");
-        const integerPart = parts[0];
-        let result = "";
-        for (let i = integerPart.length - 1, count = 0; i >= 0; i--, count++) {
-          if (count > 0 && count % 3 === 0) {
-            result = "," + result;
-          }
-          result = integerPart[i] + result;
-        }
-        parts[0] = result;
+        parts[0] = groupThousands(parts[0]);
         formatted = parts.join(".");
       }
       formatted = "$" + formatted;
@@ -136,17 +140,8 @@ export function formatNumber(value: number, format: string): string {
     if (format.includes(",")) {
       const decimals = (format.match(/\.0+/) || [""])[0].length - 1;
       let formatted = Math.abs(value).toFixed(decimals >= 0 ? decimals : 0);
-      // Add thousand separators without regex to avoid performance issues
       const parts = formatted.split(".");
-      const integerPart = parts[0];
-      let result = "";
-      for (let i = integerPart.length - 1, count = 0; i >= 0; i--, count++) {
-        if (count > 0 && count % 3 === 0) {
-          result = "," + result;
-        }
-        result = integerPart[i] + result;
-      }
-      parts[0] = result;
+      parts[0] = groupThousands(parts[0]);
       formatted = parts.join(".");
       if (value < 0) formatted = "-" + formatted;
       return formatted;
