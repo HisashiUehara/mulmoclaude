@@ -103,4 +103,5 @@ export function toUtcIsoDate(timestamp: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+export { scanEnvOptions, snakeToLowerCamel, type ScanEnvOptionsConfig } from "./envScan.js";
 export type { MinimalLogger, StructuredLogger } from "./logger.js";
