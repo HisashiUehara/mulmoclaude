@@ -764,6 +764,7 @@ const zhMessages = {
     styleLabel: "样式:",
     stylePromptWithPath: "将 `{path}` 处的图像转换为 {style} 风格的图像。",
     stylePromptNoPath: "将我在画布上的绘图转换为 {style} 风格的图像。",
+    saveFailed: "未保存",
   },
   pluginWiki: {
     backToIndex: "返回目录",
