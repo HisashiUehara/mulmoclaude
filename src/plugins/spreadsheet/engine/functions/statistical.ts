@@ -60,9 +60,7 @@ const sumHandler: FunctionHandler = (args, context) => {
   return values.reduce((sum: number, val) => sum + toNumber(val), 0);
 };
 
-const averageHandler: FunctionHandler = (args, context) => {
-  return computeAverage(context.getRangeValues(args[0]).map(toNumber));
-};
+const averageHandler: FunctionHandler = (args, context) => computeAverage(context.getRangeValues(args[0]).map(toNumber));
 
 const maxHandler: FunctionHandler = (args, context) => {
   const values = collectNumericValues(args, context);
@@ -79,9 +77,7 @@ const countHandler: FunctionHandler = (args, context) => {
   return values.length;
 };
 
-const medianHandler: FunctionHandler = (args, context) => {
-  return computeMedian(context.getRangeValues(args[0]).map(toNumber));
-};
+const medianHandler: FunctionHandler = (args, context) => computeMedian(context.getRangeValues(args[0]).map(toNumber));
 
 const modeHandler: FunctionHandler = (args, context) => {
   const values = context.getRangeValues(args[0]).map(toNumber);
