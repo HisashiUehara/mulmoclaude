@@ -20,7 +20,8 @@
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'no in-package tests; debug plugin is exercised manually via /debug'"
+    "test": "echo 'no in-package tests; debug plugin is exercised manually via /debug'",
+    "lint": "eslint src"
   },
   "peerDependencies": {
     "gui-chat-protocol": "^1.2.0",

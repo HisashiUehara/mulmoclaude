@@ -78,7 +78,9 @@ These are verified or plausible but out of scope for a mechanical fix-plus-test 
   imported without re-coupling).
 - **wiki**: ~~stale-response tokens for `callApi`/`loadPageEditData`; non-404
   snapshot failure rendered as "page deleted"~~ **(shipped, fix/wiki-stale-response)**;
-  ~~renderer vs `WIKI_LINK_PATTERN` divergence (core)~~ **(shipped, #2515)**;
+  ~~renderer vs `WIKI_LINK_PATTERN` divergence (core)~~ **(shipped,
+  fix/wiki-render-pattern-parity — shared `WIKI_LINK_MAX_LEN`, renderer now
+  rejects newline / over-length bodies, parity + mutation tests)**;
   ~~save-queue extraction (`taskSaveQueue`)~~ **(shipped,
   refactor/wiki-save-queue — pure `createTaskSaveQueue`, 9 node:test cases
   incl. the #775 generation-invalidation invariant and a rejected-persist

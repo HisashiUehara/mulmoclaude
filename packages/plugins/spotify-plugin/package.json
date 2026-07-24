@@ -24,7 +24,8 @@
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'no in-package tests; covered by host tests under test/plugins/spotify/'"
+    "test": "echo 'no in-package tests; covered by host tests under test/plugins/spotify/'",
+    "lint": "eslint src"
   },
   "dependencies": {
     "@mulmoclaude/common": "^1.1.0"

@@ -1,7 +1,7 @@
 {
   "name": "@mulmobridge/google-chat",
   "version": "0.1.1",
-  "description": "Google Chat bridge for MulmoBridge \u2014 connect Google Chat to MulmoClaude",
+  "description": "Google Chat bridge for MulmoBridge — connect Google Chat to MulmoClaude",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,7 +16,8 @@
     "build": "tsc",
     "prepack": "yarn build",
     "typecheck": "tsc --noEmit",
-    "test": "echo no tests yet"
+    "test": "echo no tests yet",
+    "lint": "eslint src"
   },
   "license": "MIT",
   "author": "Receptron Team",

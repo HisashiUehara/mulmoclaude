@@ -33,7 +33,8 @@
   "scripts": {
     "build": "vite build && vue-tsc -p tsconfig.build.json --emitDeclarationOnly",
     "typecheck": "vue-tsc --noEmit",
-    "test": "tsx --test test/test_*.ts test/accounting/test_*.ts"
+    "test": "tsx --test test/test_*.ts test/accounting/test_*.ts",
+    "lint": "eslint src test"
   },
   "dependencies": {
     "@mulmoclaude/common": "^1.1.0",
