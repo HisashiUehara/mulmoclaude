@@ -949,6 +949,8 @@ const zhMessages = {
     errDeleteFailed: "删除失败",
     errNetworkError: "网络错误",
     errServerError: "服务器错误: {status}",
+    errRefreshFailed: "已保存，但列表刷新失败。",
+    confirmDelete: "删除角色「{name}」？此操作无法撤销。",
   },
   pluginUiImage: {
     promptLabel: "{label}:",

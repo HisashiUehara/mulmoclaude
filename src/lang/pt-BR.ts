@@ -965,6 +965,8 @@ const ptBRMessages = {
     errDeleteFailed: "Falha ao excluir",
     errNetworkError: "Erro de rede",
     errServerError: "Erro do servidor: {status}",
+    errRefreshFailed: "Salvo, mas não foi possível atualizar a lista.",
+    confirmDelete: "Excluir o papel « {name} »? Esta ação não pode ser desfeita.",
   },
   pluginUiImage: {
     promptLabel: "{label}:",
