@@ -172,7 +172,10 @@
                   v-model="editForm.name"
                   type="text"
                   class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-400"
-                  @keydown.enter="saveEdit(role.id)"
+                  @keydown="editNameEnter.onKeydown"
+                  @compositionstart="editNameEnter.onCompositionStart"
+                  @compositionend="editNameEnter.onCompositionEnd"
+                  @blur="editNameEnter.onBlur"
                 />
               </div>
               <div class="w-32">
@@ -287,6 +290,8 @@ import { apiGet, apiPost } from "../../utils/api";
 import { pluginEndpoints, pluginAllPluginNames } from "../api";
 import type { RolesEndpoints } from "./definition";
 import { formToRole, roleToForm, validateRoleForm, type RoleForm, type RoleFormError } from "./roleForm";
+import { useImeAwareEnter } from "../../composables/useImeAwareEnter";
+import { confirmItemDelete } from "../../utils/confirmDelete";
 
 const { t } = useI18n();
 
@@ -435,19 +440,25 @@ async function callManage(body: Record<string, unknown>): Promise<ManageResult> 
 
 async function refreshList() {
   const result = await callManage({ action: "list" });
-  if (result.success) {
-    const data = result as { data?: { customRoles?: CustomRole[] } };
-    customRoles.value = data.data?.customRoles ?? [];
-    if (props.selectedResult) {
-      emit("updateResult", {
-        ...props.selectedResult,
-        ...result,
-        uuid: props.selectedResult.uuid,
-      });
-    }
-    // Let App.vue know the dropdown needs to refresh.
-    await Promise.resolve(appApi.refreshRoles());
+  if (!result.success) {
+    // A mutation succeeded but the follow-up list reload failed — surface it
+    // (and self-heal via the abort-coordinated GET) instead of silently
+    // leaving the list stale, which reads as "the create/edit didn't work".
+    saveError.value = result.error ?? t("pluginManageRoles.errRefreshFailed");
+    void refreshCustomRoles();
+    return;
   }
+  const data = result as { data?: { customRoles?: CustomRole[] } };
+  customRoles.value = data.data?.customRoles ?? [];
+  if (props.selectedResult) {
+    emit("updateResult", {
+      ...props.selectedResult,
+      ...result,
+      uuid: props.selectedResult.uuid,
+    });
+  }
+  // Let App.vue know the dropdown needs to refresh.
+  await Promise.resolve(appApi.refreshRoles());
 }
 
 const ROLE_FORM_ERROR_KEY: Record<RoleFormError["code"], string> = {
@@ -469,6 +480,7 @@ const newFormError = computed<string | null>(() => formErrorMessage(validateRole
 const editFormError = computed<string | null>(() => formErrorMessage(validateRoleForm(editForm.value, selectedId.value, existingRoleIds.value)));
 
 async function saveNew() {
+  if (saving.value) return;
   if (newFormError.value) {
     createError.value = newFormError.value;
     return;
@@ -486,6 +498,9 @@ async function saveNew() {
 }
 
 async function saveEdit(originalId: string) {
+  // Re-entrancy guard: the Update button is disabled while saving, but the
+  // name field's Enter handler (and key auto-repeat) bypasses the button.
+  if (saving.value) return;
   if (editFormError.value) {
     saveError.value = editFormError.value;
     return;
@@ -507,6 +522,9 @@ async function saveEdit(originalId: string) {
 }
 
 async function deleteRole(roleId: string) {
+  if (saving.value) return;
+  const role = customRoles.value.find((candidate) => candidate.id === roleId);
+  if (!confirmItemDelete(t("pluginManageRoles.confirmDelete", { name: role?.name ?? roleId }))) return;
   saving.value = true;
   saveError.value = "";
   const result = await callManage({ action: "delete", roleId });
@@ -518,4 +536,13 @@ async function deleteRole(roleId: string) {
   }
   saving.value = false;
 }
+
+// IME-aware Enter for the edit-name field: on Chrome/Firefox `isComposing`
+// stays true through the confirming Enter; on Safari `compositionend` fires
+// first, so the composable's post-composition race window suppresses it too.
+// Without this, confirming a kana/hanzi conversion with Enter submits a
+// half-typed name.
+const editNameEnter = useImeAwareEnter(() => {
+  if (selectedId.value) void saveEdit(selectedId.value);
+});
 </script>

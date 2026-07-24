@@ -990,6 +990,8 @@ const enMessages = {
     errDeleteFailed: "Delete failed",
     errNetworkError: "Network error",
     errServerError: "Server error: {status}",
+    errRefreshFailed: "Saved, but the list failed to refresh.",
+    confirmDelete: 'Delete the role "{name}"? This cannot be undone.',
   },
   pluginUiImage: {
     promptLabel: "{label}:",
