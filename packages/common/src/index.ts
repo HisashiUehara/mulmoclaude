@@ -128,3 +128,4 @@ export function escapeHtml(value: string): string {
 }
 
 export { scanEnvOptions, snakeToLowerCamel, type ScanEnvOptionsConfig } from "./envScan.js";
+export type { MinimalLogger, StructuredLogger } from "./logger.js";
