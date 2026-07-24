@@ -438,200 +438,23 @@
             <span class="material-icons text-base">close</span>
           </button>
         </div>
-        <table class="min-w-full text-xs">
-          <thead>
-            <tr class="bg-slate-50 border-b border-slate-200">
-              <th
-                v-for="[key, field] in listColumnFields"
-                :key="key"
-                :aria-sort="isSortableField(field) ? sortAriaValue(key) : undefined"
-                class="px-5 py-3 font-bold text-slate-500 text-left uppercase tracking-wider whitespace-nowrap"
-              >
-                <div class="flex items-center gap-1">
-                  <span class="truncate max-w-[14rem]" :title="field.label">{{ field.label }}</span>
-                  <button
-                    v-if="isSortableField(field)"
-                    type="button"
-                    class="inline-flex items-center justify-center rounded p-0.5 -my-1 leading-none transition-colors"
-                    :class="sortButtonClass(key)"
-                    :data-testid="`collections-sort-${key}`"
-                    :aria-label="t('collectionsView.sortBy', { field: field.label })"
-                    @click.stop="cycleSort(key)"
-                    @pointerenter="hoveredSortKey = key"
-                    @pointerleave="hoveredSortKey = null"
-                  >
-                    <span class="material-icons text-base align-middle">{{ sortIconName(key) }}</span>
-                  </button>
-                </div>
-              </th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100 bg-white">
-            <template v-for="item in sortedItems" :key="String(item[collection.schema.primaryKey] ?? '')">
-              <tr
-                class="hover:bg-slate-50/70 cursor-pointer transition-colors focus:outline-none focus:bg-indigo-50/30"
-                :class="isRowOpen(item) || isEditingRow(item) ? 'bg-indigo-50/40' : ''"
-                role="button"
-                tabindex="0"
-                :aria-label="t('collectionsView.openItem', { id: String(item[collection.schema.primaryKey] ?? '') })"
-                :data-testid="`collections-row-${item[collection.schema.primaryKey]}`"
-                @click="openView(item)"
-                @keydown.enter.self="openView(item)"
-                @keydown.space.self.prevent="openView(item)"
-              >
-                <td v-for="[key, field] in listColumnFields" :key="key" class="px-5 py-2 text-slate-700 align-middle max-w-xs font-medium">
-                  <!-- Conditionally hidden field (`when` predicate) → blank cell. -->
-                  <template v-if="fieldVisible(field, item)">
-                    <!-- Toggle → inline checkbox projecting an enum field.
-                         Stores nothing itself; toggling writes onValue/
-                         offValue to the projected field via the same PUT. -->
-                    <input
-                      v-if="field.type === 'toggle'"
-                      type="checkbox"
-                      :checked="toggleChecked(item, field)"
-                      :disabled="isReadOnly || isRowInlineSaving(item)"
-                      class="h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/20 cursor-pointer align-middle disabled:opacity-50 disabled:cursor-not-allowed"
-                      :data-testid="`collections-inline-toggle-${key}-${item[collection.schema.primaryKey]}`"
-                      :aria-label="field.label"
-                      @click.stop
-                      @change="commitToggle(item, field)"
-                    />
-
-                    <!-- Boolean → inline checkbox. Tap toggles + saves
-                         immediately; `@click.stop` so it doesn't open the
-                         row's detail panel. Unset (undefined) and explicit
-                         false both render unchecked. -->
-                    <input
-                      v-else-if="field.type === 'boolean'"
-                      type="checkbox"
-                      :checked="item[key] === true"
-                      :disabled="isReadOnly || isRowInlineSaving(item)"
-                      class="h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/20 cursor-pointer align-middle disabled:opacity-50 disabled:cursor-not-allowed"
-                      :data-testid="`collections-inline-bool-${key}-${item[collection.schema.primaryKey]}`"
-                      :aria-label="field.label"
-                      @click.stop
-                      @change="commitInlineEdit(item, String(key), field, ($event.target as HTMLInputElement).checked)"
-                    />
-
-                    <!-- Flag (computed boolean predicate) → read-only check.
-                         Never stored; recomputed by deriveAll, so there is
-                         nothing to edit inline. -->
-                    <span
-                      v-else-if="field.type === 'flag'"
-                      class="material-icons text-lg align-middle"
-                      :class="flagValueOf(String(key), item) ? 'text-emerald-600' : 'text-slate-300'"
-                      :data-testid="`collections-flag-${key}-${item[collection.schema.primaryKey]}`"
-                      :aria-label="`${field.label}: ${t(flagValueOf(String(key), item) ? 'common.yes' : 'common.no')}`"
-                      role="img"
-                      >{{ flagValueOf(String(key), item) ? "check_circle" : "radio_button_unchecked" }}</span
-                    >
-
-                    <!-- Ref link badge (binding-driven nav, router-optional) -->
-                    <span v-else-if="field.type === 'ref' && field.to && typeof item[key] === 'string' && item[key]" class="block truncate">
-                      <a
-                        :href="cui.recordHref?.(field.to, String(item[key]))"
-                        :tabindex="cui.recordHref?.(field.to, String(item[key])) ? undefined : 0"
-                        role="link"
-                        class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold"
-                        :data-testid="`collections-ref-link-${key}-${item[key]}`"
-                        @click="activateRefLink($event, field.to, String(item[key]), true)"
-                        @keydown.enter="activateRefLink($event, field.to, String(item[key]), true)"
-                        @keydown.space="activateRefLink($event, field.to, String(item[key]), true)"
-                        >{{ refDisplay(field.to, String(item[key])) }}</a
-                      >
-                    </span>
-
-                    <!-- Enum → inline dropdown. Selecting writes + saves
-                         immediately; the empty placeholder clears the field.
-                         `@click.stop` keeps the row's detail panel closed. -->
-                    <select
-                      v-else-if="field.type === 'enum' && Array.isArray(field.values) && field.values.length > 0"
-                      :value="item[key] == null ? '' : String(item[key])"
-                      :disabled="isReadOnly || isRowInlineSaving(item)"
-                      class="rounded-lg border px-2 py-0.5 text-[11px] font-semibold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      :class="enumControlClass(String(key), item[key])"
-                      :data-testid="`collections-inline-enum-${key}-${item[collection.schema.primaryKey]}`"
-                      :aria-label="field.label"
-                      @click.stop
-                      @change="commitInlineEdit(item, String(key), field, ($event.target as HTMLSelectElement).value)"
-                    >
-                      <option v-if="showEnumPlaceholder(item, String(key))" value="">{{ t("collectionsView.selectPlaceholder") }}</option>
-                      <option v-for="value in field.values" :key="value" :value="value">{{ value }}</option>
-                    </select>
-
-                    <!-- Money -->
-                    <span v-else-if="field.type === 'money'" class="block truncate tabular-nums font-semibold text-slate-900">{{
-                      formatMoney(item[key], resolveCurrency(field, item), locale)
-                    }}</span>
-
-                    <!-- Table summary counter -->
-                    <span
-                      v-else-if="field.type === 'table'"
-                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200/40"
-                    >
-                      <span class="material-icons text-[11px]">list</span>
-                      <span>{{ tableSummary(item[key]) }}</span>
-                    </span>
-
-                    <!-- Derived formula fields -->
-                    <span
-                      v-else-if="field.type === 'derived'"
-                      class="inline-block truncate tabular-nums font-bold text-indigo-900 bg-indigo-50/50 px-1.5 py-0.5 rounded border border-indigo-100/50"
-                      >{{ derivedDisplay(field, evaluateDerivedAgainstItem(field, String(key), item), item) }}</span
-                    >
-
-                    <!-- Rollup aggregates (cross-collection, host/client-computed) -->
-                    <span
-                      v-else-if="field.type === 'rollup'"
-                      class="inline-block truncate tabular-nums font-bold text-indigo-900 bg-indigo-50/50 px-1.5 py-0.5 rounded border border-indigo-100/50"
-                      :data-testid="`collections-rollup-${key}-${item[collection.schema.primaryKey]}`"
-                      >{{ render.rollupDisplay(field, item) }}</span
-                    >
-
-                    <!-- URL string → external link (new tab). `@click.stop` so
-                     clicking the link doesn't also open the row's detail. -->
-                    <a
-                      v-else-if="field.type !== 'file' && isExternalUrl(item[key])"
-                      :href="String(item[key])"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="block truncate text-blue-600 hover:text-blue-800 hover:underline font-semibold"
-                      :data-testid="`collections-url-link-${key}-${item[collection.schema.primaryKey]}`"
-                      @click.stop
-                      >{{ String(item[key]) }}</a
-                    >
-
-                    <!-- File: served HTML/SVG artifact → open the rendered
-                         app in a new tab. `@click.stop` keeps the row's
-                         detail panel from also opening. -->
-                    <a
-                      v-else-if="field.type === 'file' && artifactUrl(item[key])"
-                      :href="artifactUrl(item[key]) ?? undefined"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="block truncate text-blue-600 hover:text-blue-800 hover:underline font-semibold"
-                      :data-testid="`collections-file-link-${key}-${item[collection.schema.primaryKey]}`"
-                      @click.stop
-                      >{{ String(item[key]) }}</a
-                    >
-
-                    <!-- File: any other workspace path → open in File Explorer. -->
-                    <a
-                      v-else-if="field.type === 'file' && fileRoutePath(item[key])"
-                      :href="fileRoutePath(item[key]) ?? undefined"
-                      class="block truncate text-blue-600 hover:text-blue-800 hover:underline font-semibold"
-                      :data-testid="`collections-file-link-${key}-${item[collection.schema.primaryKey]}`"
-                      @click="activatePathLink($event, fileRoutePath(item[key]) ?? '', true)"
-                      >{{ String(item[key]) }}</a
-                    >
-
-                    <span v-else class="block truncate text-slate-600">{{ formatCell(item[key], field.type) }}</span>
-                  </template>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
+        <CollectionTable
+          v-model:hovered-sort-key="hoveredSortKey"
+          :collection="collection"
+          :list-column-fields="listColumnFields"
+          :sorted-items="sortedItems"
+          :render="render"
+          :is-read-only="isReadOnly"
+          :enum-originally-empty="enumOriginallyEmpty"
+          :inline-saving-rows="inlineSavingRows"
+          :sort-state="sortState"
+          :open-row-id="openRowId"
+          :editing-row-id="editingRowId"
+          @open-view="openView"
+          @cycle-sort="cycleSort"
+          @commit-toggle="commitToggle"
+          @commit-inline-edit="commitInlineEdit"
+        />
       </div>
     </div>
 
@@ -708,6 +531,7 @@ import CollectionRecordPanel from "./CollectionRecordPanel.vue";
 import CollectionViewConfigModal from "./CollectionViewConfigModal.vue";
 import CollectionCustomView from "./CollectionCustomView.vue";
 import CollectionRemoteViewPreview from "./CollectionRemoteViewPreview.vue";
+import CollectionTable from "./CollectionTable.vue";
 import { useCollectionRendering } from "../useCollectionRendering";
 import {
   readCollectionViewMode,
@@ -724,14 +548,12 @@ import {
 import { collectionUi } from "../uiContext";
 import { useClickOutside } from "../composables/useClickOutside";
 import { useTableSort } from "../composables/useTableSort";
-import { activateRefLink, activatePathLink } from "../refLink";
+import { activatePathLink } from "../refLink";
 import {
   dateOf,
-  isSortableField,
   itemMatchesQuery,
   completionCoveredByFieldChip,
   snapshotEmptyEnums,
-  cellKey,
   rowIdOf,
   flagFieldValue,
   toggleChecked,
@@ -743,8 +565,6 @@ import {
   actionVisible,
   agentActionRunKey,
   COMPUTED_TYPES,
-  fieldVisible,
-  resolveEnumColor,
   buildUpdatedRecord,
   coerceInlineValue,
   draftToRecord,
@@ -929,12 +749,12 @@ function applyServerRunningActions(keys: string[] | undefined, genAtFetch: numbe
 const chatOpen = ref(false);
 
 // Shared rendering + linked-data layer: owns the ref/embed caches and
-// every value-formatting helper, reused by the extracted record panel
-// (table + calendar) so there's one implementation. Destructure the
-// helpers the list table renders with; pass the whole object to the
-// panel as its `render` prop.
+// every value-formatting helper, reused by the extracted table / cell / record
+// panel so there's one implementation. The whole object is passed down as the
+// `render` prop; only the few helpers this component still calls directly
+// (sort deps, dataSource route) are destructured here.
 const render = useCollectionRendering(collection, locale);
-const { refDisplay, formatMoney, resolveCurrency, derivedDisplay, evaluateDerivedAgainstItem, formatCell, isExternalUrl, artifactUrl, fileRoutePath } = render;
+const { refDisplay, evaluateDerivedAgainstItem, fileRoutePath } = render;
 
 const searchQuery = ref("");
 
@@ -1091,9 +911,6 @@ const {
   hoveredSortKey,
   sortedItems,
   cycleSort,
-  sortIconName,
-  sortButtonClass,
-  sortAriaValue,
   resetForSlug: resetSortForSlug,
 } = useTableSort({
   collection,
@@ -1115,34 +932,22 @@ function rowId(item: CollectionItem): string {
   return rowIdOf(collection.value?.schema.primaryKey, item);
 }
 
-/** Whether an inline enum dropdown should render its empty placeholder
- *  option: only for cells with no value at load time. */
-function showEnumPlaceholder(item: CollectionItem, fieldKey: string): boolean {
-  return enumOriginallyEmpty.value.has(cellKey(rowId(item), fieldKey));
-}
-
-/** Tailwind fill/text/border classes tinting an inline enum `<select>` by its
- *  current value's colour (palette, or notification red/amber/grey when the
- *  field is the schema's notifyWhen target). */
-function enumControlClass(fieldKey: string, value: unknown): string {
-  const schema = collection.value?.schema;
-  if (!schema) return "";
-  const cls = resolveEnumColor(schema, fieldKey, value);
-  return `${cls.badge} ${cls.border}`;
-}
-
 /** This row is the one open in read-only detail. */
 function isRowOpen(item: CollectionItem): boolean {
   return viewing.value !== null && rowId(viewing.value) === rowId(item);
 }
 
-/** This row is the one being edited (highlights it in the list while the
- *  edit modal is open). Create mode has no backing row, so nothing matches. */
-function isEditingRow(item: CollectionItem): boolean {
+/** rowId of the record open in read-only detail (drives the table's row
+ *  highlight), or null when nothing is open. */
+const openRowId = computed<string | null>(() => (viewing.value ? rowId(viewing.value) : null));
+
+/** rowId of the record being edited (highlights it in the list while the edit
+ *  modal is open), or null. Create mode has no backing row, so nothing matches. */
+const editingRowId = computed<string | null>(() => {
   const draft = editing.value;
-  if (!draft || draft.mode === "create") return false;
-  return draft.originalId === rowId(item);
-}
+  if (!draft || draft.mode === "create") return null;
+  return draft.originalId;
+});
 
 /** Re-run a feed collection's retrieval now, then reload its records.
  *  Only reachable when `schema.ingest` is present (button is gated). */
@@ -2027,15 +1832,6 @@ const liveDerived = computed<CollectionItem | null>(() => {
   return render.deriveRecord(liveRecord.value);
 });
 
-/** Short summary for a `table`-typed cell in the main collection
- *  table. Counts rows; nothing fancier yet (per-row preview is
- *  hard to fit in a single cell). */
-function tableSummary(value: unknown): string {
-  if (!Array.isArray(value)) return "—";
-  if (value.length === 0) return "—";
-  return t("collectionsView.tableSummary", { count: value.length });
-}
-
 async function saveEditor(): Promise<void> {
   if (!collection.value || !editing.value) return;
   // Snapshot mutable refs before any await — route changes during
@@ -2075,12 +1871,6 @@ async function saveEditor(): Promise<void> {
  *  option; the PUT body omits the key via `buildUpdatedRecord`. */
 function applyInlineValue(item: CollectionItem, key: string, value: unknown): void {
   item[key] = value;
-}
-
-/** True while this row has an inline cell save in flight — its inline
- *  controls render disabled to serialize edits (one PUT per row). */
-function isRowInlineSaving(item: CollectionItem): boolean {
-  return inlineSavingRows.value.has(rowId(item));
 }
 
 /** Inline table-cell edit (boolean checkbox / enum dropdown): optimistic
