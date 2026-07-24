@@ -112,7 +112,7 @@
     "fast-xml-parser": "^5.10.1",
     "firebase": "12.16.0",
     "graphai": "^2.0.18",
-    "gui-chat-protocol": "1.1.0",
+    "gui-chat-protocol": "1.2.0",
     "heic-convert": "^2.1.0",
     "heic2any": "^0.0.4",
     "highlight.js": "^11.11.1",

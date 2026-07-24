@@ -57,14 +57,14 @@ const PACKAGE_JSON = `{
     "dev": "vite build --watch"
   },
   "peerDependencies": {
-    "gui-chat-protocol": "^0.3.0",
+    "gui-chat-protocol": "^1.2.0",
     "vue": "^3.5.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.6",
     "eslint": "^9.0.0",
-    "gui-chat-protocol": "^0.3.0",
+    "gui-chat-protocol": "^1.2.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.0.0",
     "vite": "^8.0.10",
@@ -238,7 +238,7 @@ const INDEX_TS = `// Plugin server entry — runs inside the host's Node process
 // node:fs / node:path / console / direct fetch are all unused —
 // every I/O goes through the runtime. The eslint preset enforces it.
 
-import { definePlugin } from "gui-chat-protocol";
+import { createSerialLock, definePlugin } from "gui-chat-protocol";
 import { z } from "zod";
 import { TOOL_DEFINITION } from "./definition";
 
@@ -259,12 +259,7 @@ const DEFAULT: Counter = { value: 0 };
 export default definePlugin(({ pubsub, files, log }) => {
   // Serialise read-modify-write so two parallel \`increment\` calls
   // don't both read the same snapshot and silently drop one update.
-  let writeLock: Promise<unknown> = Promise.resolve();
-  function withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
-    const next = writeLock.catch(() => undefined).then(fn);
-    writeLock = next.catch(() => undefined);
-    return next;
-  }
+  const withWriteLock = createSerialLock();
 
   async function read(): Promise<Counter> {
     if (!(await files.data.exists(COUNTER_FILE))) return DEFAULT;
@@ -529,11 +524,14 @@ npm publish
 
 ## Plugin runtime API
 
-This plugin uses the \`gui-chat-protocol\` v0.3 runtime API:
+This plugin uses the \`gui-chat-protocol\` v1.2 runtime API:
 
 - \`definePlugin(({ runtime }) => ({ TOOL_DEFINITION, [toolName]: handler }))\` —
   factory that returns the handler bound to the runtime's destructured
   pieces.
+- \`createSerialLock()\` — returns a \`withWriteLock(fn)\` that runs
+  read-modify-write handlers one at a time, so parallel tool calls
+  can't overwrite each other's snapshot.
 - \`runtime.files.data\` — persistent JSON / text under
   \`~/mulmoclaude/data/plugins/<encoded-pkg>/\`. Backup target.
 - \`runtime.files.config\` — per-machine UI prefs.
