@@ -108,11 +108,19 @@ Each host supplies only its own specifics under `server/remoteHost/`:
 ### The command loop, precisely (core `startHostRunner`)
 
 - **Presence + capabilities.** `writePresence(true)` on start, then a heartbeat
-  `setInterval` once a minute (`opts.heartbeatMs`, default 60 s). On `stop()` or fatal listener death it
-  writes `writePresence(false)` and clears the interval — so remotes see the host go
-  offline instead of a live-but-dead host that silently consumes no commands.
-  Every write carries the capability advertisement (next section), not just the
-  `online` flag.
+  `setInterval` once a minute (`opts.heartbeatMs`, default 60 s). Every write
+  carries the capability advertisement (next section), not just the `online` flag.
+- **Listener resilience (#2535).** A Firestore `onSnapshot` error no longer downs
+  the host permanently. `classifyListenerError` splits transient codes
+  (`unavailable`, `deadline-exceeded`, `internal`, `cancelled`, `aborted`,
+  `resource-exhausted`) from fatal ones (`permission-denied`, `unauthenticated`,
+  or any unrecognized code). Transient → re-subscribe with bounded exponential
+  backoff (`backoffDelayMs`, 1 s→30 s, `MAX_LISTEN_RETRIES` attempts) while
+  presence stays online, so a brief blip doesn't flap the host. Fatal, or retries
+  exhausted → `writePresence(false)`, clear the interval, `onClosed()`. A healthy
+  snapshot resets the retry counter; `stop()` cancels any pending retry. Re-subscribe
+  is safe against double execution — `claimCommand`'s queued→processing transaction
+  still gates each command exactly once.
 
 ### Capability advertisement — presence doc, auto-derived
 
@@ -362,16 +370,31 @@ Bearer-guarded loopback routes (paths under `API_ROUTES.remoteHost` in
 
 ## Frontend
 
-- **`src/components/RemoteHostControl.vue`** — the only remote-host UI. A toolbar
-  `phonelink` button (green when connected) with a popover showing online/offline,
-  uid, and Connect/Disconnect. Connect runs the browser Google sign-in, extracts
-  the `idToken`, and `apiPost`s to `/connect`. Popover help text links the mobile
-  URL `https://mulmoserver.web.app` and hints at custom remote views.
+- **`src/composables/useRemoteHost.ts`** — shared module-scoped store for the
+  connection state (one singleton for both the toolbar control and the offline
+  banner). It **polls** `/status` every 15 s and, when a session blob is parked
+  (the user intended to be connected) but the host is disconnected, **silently
+  auto-reconnects** from the parked blob — so a server restart or a server-side
+  listener death recovers within one interval instead of only when the popover is
+  opened. Pure decision rules (`shouldAutoReconnect`, `shouldShowRemoteHostBanner`)
+  live in **`src/composables/remoteHostDecisions.ts`** (unit-tested without Firebase).
+- **`src/components/RemoteHostControl.vue`** — the toolbar `phonelink` button
+  (green when connected) with a popover showing online/offline, uid, and
+  Connect/Disconnect. Connect runs the browser Google sign-in, extracts the
+  `idToken`, and `apiPost`s to `/connect`. Consumes `useRemoteHost`; starts/stops
+  the poll loop on mount/unmount. Popover help text links the mobile URL
+  `https://mulmoserver.web.app` and hints at custom remote views.
+- **`src/components/RemoteHostOfflineBanner.vue`** (#2535) — a persistent banner
+  (mounted in `App.vue` next to `BackendOfflineBanner`) shown only when the host
+  was meant to be connected but dropped and a silent auto-reconnect couldn't
+  restore it (e.g. the parked blob expired → needs a Google popup). Its Reconnect
+  button re-runs sign-in. Gated on `shouldShowRemoteHostBanner` so it doesn't flap
+  during a normal quick restart.
 - **`src/components/SidebarHeader.vue`** — mounts `<RemoteHostControl />` in the
   toolbar chrome row.
 - **`src/config/firebaseConfig.ts`** (pure public web config, source of truth) +
   **`src/config/firebase.ts`** (browser SDK init) — project `mulmoserver`.
-- i18n keys `remoteHost.*` across all `src/lang/*` locales.
+- i18n keys `remoteHost.*` and `remoteHostOffline.*` across all `src/lang/*` locales.
 
 There is **no in-app remote-view renderer** in this repo — mobile views render on
 the external mulmoserver client. The desktop side only builds a *preview* of a
