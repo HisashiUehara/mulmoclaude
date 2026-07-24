@@ -93,9 +93,15 @@ const refreshStatus = async (): Promise<void> => {
   error.value = null;
 };
 
+// Only ever called behind `shouldAutoReconnect` (intended && !connected), so a
+// missing blob here means we can't silently recover — surface the banner for a
+// popup re-login (which needs no blob) instead of returning silently.
 const tryAutoReconnect = async (): Promise<void> => {
   const blob = loadStoredSession();
-  if (!blob) return;
+  if (!blob) {
+    reconnectFailed.value = true;
+    return;
+  }
   reconnectInFlight.value = true;
   try {
     const res = await apiPost<StatusResponse>(API_ROUTES.remoteHost.reconnect, { session: blob });
