@@ -33,6 +33,32 @@ export function applicableViewModes(schema: CollectionSchema): CollectionViewMod
   return modes;
 }
 
+/** The EFFECTIVE view for a raw mode, collapsing any mode whose enabling
+ *  condition is gone: `calendar`/`kanban` fall back to `table` once their
+ *  date/enum field vanishes (e.g. after a collection switch), and a
+ *  `custom:<id>` falls back once that id is no longer a declared view. Single
+ *  source of truth for the toggle highlight and the body branches. */
+export function resolveActiveViewMode(
+  view: CollectionViewMode,
+  hasCalendar: boolean,
+  hasKanban: boolean,
+  customViewIds: readonly string[],
+): CollectionViewMode {
+  if (view === "calendar" && hasCalendar) return "calendar";
+  if (view === "kanban" && hasKanban) return "kanban";
+  if (view.startsWith("custom:")) {
+    const viewId = view.slice("custom:".length);
+    if (customViewIds.includes(viewId)) return view;
+  }
+  return "table";
+}
+
+/** Narrow a (possibly custom) mode to a built-in one, for surfaces that can
+ *  only represent the built-ins (the embedded card's `viewState`). */
+export function builtInViewOrTable(mode: CollectionViewMode): BuiltInViewMode {
+  return mode === "calendar" || mode === "kanban" ? mode : "table";
+}
+
 const STORAGE_KEY = "collection_view_modes";
 const SORT_STORAGE_KEY = "collection_sorts";
 
