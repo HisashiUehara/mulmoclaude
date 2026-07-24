@@ -21,17 +21,23 @@ same org, so the correct fix is to move the primitive upstream and import it.
 
 ## Plan
 
-1. **Dep range sweep.** Bump `gui-chat-protocol` to 1.2.0 in every
-   `package.json` that declares it, preserving each declaration's existing
-   style (exact pin stays exact, caret stays caret):
-   - root `package.json` (exact `1.1.0` → `1.2.0`)
-   - `packages/mulmoclaude/package.json` (launcher, exact)
-   - `packages/plugins/accounting-plugin/package.json` (exact devDep + caret peer)
-   - `packages/core` + every other plugin peer/dev range (`^1.1.0` → `^1.2.0`)
+1. **Dep range sweep.** Every `gui-chat-protocol` declaration in the repo
+   becomes `^1.2.0` — `dependencies`, `devDependencies` and
+   `peerDependencies` alike, in all 24 sites across the root, the launcher,
+   `packages/core` and every plugin. The three former exact pins (root,
+   `packages/mulmoclaude`, `accounting-plugin`'s devDep) move to the caret
+   form too, so the whole tree reads as one range. The only untouched
+   occurrence is `accounting-plugin`'s `peerDependenciesMeta` entry, which
+   carries `{ "optional": true }` and no version.
 
-   Required by `scripts/mulmoclaude/launcherSync.mjs` invariant 1 (root ↔
-   launcher must match) and invariant 5 (every bundled plugin's
-   `gui-chat-protocol` peer must be major.minor-lockstep with the launcher pin).
+   `scripts/mulmoclaude/launcherSync.mjs` stays green: invariant 1 compares
+   the root and launcher range strings (both `^1.2.0`), and invariants 3/5
+   read the launcher pin through `parseLowerBound`, which resolves `^1.2.0`
+   to `1.2.0` — so every bundled plugin's peer is still major.minor-lockstep.
+
+   PR #2504 (`updatePackage20260724`) had bumped roughly half these sites
+   ahead of this branch, leaving files that declared `^1.1.0` in one block
+   and `^1.2.0` in another; this sweep is what makes the tree consistent again.
 
 2. **Delete the three copies.** Each becomes:
 
@@ -52,6 +58,8 @@ same org, so the correct fix is to move the primitive upstream and import it.
    The template's own generated `package.json` still declared
    `gui-chat-protocol: ^0.3.0` — bumped to `^1.2.0`, otherwise a freshly
    scaffolded plugin would import a symbol its declared range cannot resolve.
+   The generated README's "v0.3 runtime API" heading is corrected to v1.2 and
+   gains a `createSerialLock()` bullet.
 
 ## Behaviour
 
