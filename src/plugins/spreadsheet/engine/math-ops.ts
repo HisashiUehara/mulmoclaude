@@ -38,15 +38,17 @@ export function roundDownTo(value: number, digits: number): number {
 const sameSign = (value: number, significance: number): boolean => value === 0 || Math.sign(value) === Math.sign(significance);
 
 /** Excel FLOOR: nearest multiple of `significance` toward zero; opposite signs
- *  are #NUM!, and a zero significance is 0. */
+ *  are #NUM!, and a zero significance is #DIV/0! — the division by the
+ *  significance is what FLOOR reports, so it wins over the sign check. */
 export function floorToSignificance(value: number, significance: number): number | SpreadsheetError {
-  if (significance === 0) return 0;
+  if (significance === 0) return DIV_ZERO_ERROR;
   if (!sameSign(value, significance)) return NUM_ERROR;
   return Math.floor(value / significance) * significance;
 }
 
 /** Excel CEILING: nearest multiple of `significance` away from zero; opposite
- *  signs are #NUM!, and a zero significance is 0. */
+ *  signs are #NUM!, and a zero significance is 0 — deliberately NOT FLOOR's
+ *  #DIV/0!, an asymmetry Excel keeps and this engine has to match. */
 export function ceilingToSignificance(value: number, significance: number): number | SpreadsheetError {
   if (significance === 0) return 0;
   if (!sameSign(value, significance)) return NUM_ERROR;

@@ -4,8 +4,66 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeMode, sampleVariance, sampleStdev } from "../../../../src/plugins/spreadsheet/engine/functions/statistical-math.ts";
-import { NA_ERROR, DIV_ZERO_ERROR } from "../../../../src/plugins/spreadsheet/engine/spreadsheet-errors.ts";
+import {
+  computeAverage,
+  computeMedian,
+  computeMode,
+  sampleVariance,
+  sampleStdev,
+} from "../../../../src/plugins/spreadsheet/engine/functions/statistical-math.ts";
+import { NA_ERROR, DIV_ZERO_ERROR, NUM_ERROR } from "../../../../src/plugins/spreadsheet/engine/spreadsheet-errors.ts";
+
+// AVERAGE and MEDIAN of nothing used to be 0 — a number a reader cannot tell
+// from a real average of zeros (#2360). Excel reports the absence, and with
+// DIFFERENT codes: AVERAGE divides by a count of zero (#DIV/0!) while MEDIAN
+// has no division at all, just no middle element (#NUM!).
+
+describe("computeAverage", () => {
+  it("is the arithmetic mean", () => {
+    assert.equal(computeAverage([10, 20, 30]), 20);
+    assert.equal(computeAverage([1, 2]), 1.5);
+  });
+
+  it("averages a single value to itself", () => {
+    assert.equal(computeAverage([7]), 7);
+  });
+
+  it("keeps stored zeros in the denominator", () => {
+    assert.equal(computeAverage([0, 0, 3]), 1);
+  });
+
+  it("returns #DIV/0! for an empty set", () => {
+    assert.equal(computeAverage([]), DIV_ZERO_ERROR);
+  });
+});
+
+describe("computeMedian", () => {
+  it("returns the middle value of an odd-sized set", () => {
+    assert.equal(computeMedian([3, 1, 2]), 2);
+  });
+
+  it("averages the two middle values of an even-sized set", () => {
+    assert.equal(computeMedian([4, 1, 3, 2]), 2.5);
+  });
+
+  it("returns the value itself for a single-value set", () => {
+    assert.equal(computeMedian([7]), 7);
+  });
+
+  it("sorts numerically, not lexicographically", () => {
+    assert.equal(computeMedian([10, 9, 100]), 10);
+  });
+
+  it("does not reorder the caller's array", () => {
+    const values = [3, 1, 2];
+    computeMedian(values);
+    assert.deepEqual(values, [3, 1, 2]);
+  });
+
+  it("returns #NUM! for an empty set", () => {
+    assert.equal(computeMedian([]), NUM_ERROR);
+  });
+});
 
 describe("computeMode", () => {
   it("returns the single most frequent value", () => {
