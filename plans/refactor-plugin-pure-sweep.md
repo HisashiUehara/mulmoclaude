@@ -55,8 +55,10 @@ These are verified or plausible but out of scope for a mechanical fix-plus-test 
   race on slow background load (C3 — needs the background-preload gate; narrow
   window, only when drawing during the initial load of an EXISTING drawing);
   ResizeObserver + debounced remount; height clamp in stack layout.
-- **photoLocations**: declared `locations-changed` pubsub channel wired nowhere
-  (stale list until remount).
+- ~~**photoLocations**: declared `locations-changed` pubsub channel wired nowhere
+  (stale list until remount).~~ **(shipped, fix/photolocations-pubsub — server
+  publisher fires on sidecar write, View subscribes + silent-refetches; unit +
+  write-path integration, mutation verified)**
 - ~~**scheduler TasksTab**: unsequenced refetch races; full-list remount on every
   mutation (scroll/expand reset); unconfirmed one-click delete; hardcoded English
   frequency-hint labels (8-locale change).~~ **Shipped (fix/scheduler-tasks-robustness).**
