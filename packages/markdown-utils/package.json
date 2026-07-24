@@ -33,7 +33,7 @@
   "license": "MIT",
   "author": "Receptron Team",
   "dependencies": {
-    "js-yaml": "^5.2.1",
+    "js-yaml": "^5.2.2",
     "marked": "^18.0.7"
   },
   "peerDependencies": {
