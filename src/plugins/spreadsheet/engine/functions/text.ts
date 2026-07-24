@@ -201,10 +201,15 @@ const textHandler: FunctionHandler = (args, context) => {
  *  `parseFloat` stops at the first character it cannot read, so `VALUE("12abc")`
  *  came back 12 where Excel reports #VALUE!. An empty string is not a number
  *  here even though `Number("")` is 0. */
+// Decimal or scientific notation only. `Number` alone also accepts JS-only
+// spellings a spreadsheet never should — `0x10` → 16, `0b10` → 2, `Infinity` —
+// so the shape is checked before converting (Codex review).
+const DECIMAL_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+
 const wholeNumberOrNull = (text: string): number | null => {
-  if (text === "") return null;
+  if (!DECIMAL_NUMBER.test(text)) return null;
   const parsed = Number(text);
-  return Number.isNaN(parsed) ? null : parsed;
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
 /** Excel VALUE: the WHOLE string must be a number once its currency symbols and

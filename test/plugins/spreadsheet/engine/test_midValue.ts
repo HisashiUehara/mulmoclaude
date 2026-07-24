@@ -73,6 +73,22 @@ describe("parseValueText — the whole string must be a number", () => {
     assert.equal(parseValueText("50%"), 0.5);
     assert.equal(parseValueText("12abc%"), VALUE_ERROR, "still a whole-string match");
   });
+
+  // `Number` accepts JS-only spellings a spreadsheet never should (Codex review).
+  it("rejects JS-only numeric syntaxes", () => {
+    assert.equal(parseValueText("0x10"), VALUE_ERROR, "hex");
+    assert.equal(parseValueText("0b10"), VALUE_ERROR, "binary");
+    assert.equal(parseValueText("0o17"), VALUE_ERROR, "octal");
+    assert.equal(parseValueText("Infinity"), VALUE_ERROR);
+    assert.equal(parseValueText("1_000"), VALUE_ERROR, "numeric separator");
+  });
+
+  it("still reads decimal and scientific notation", () => {
+    assert.equal(parseValueText("1e3"), 1000);
+    assert.equal(parseValueText("-2.5E-2"), -0.025);
+    assert.equal(parseValueText(".5"), 0.5);
+    assert.equal(parseValueText("+7"), 7);
+  });
 });
 
 describe("through the engine", () => {
