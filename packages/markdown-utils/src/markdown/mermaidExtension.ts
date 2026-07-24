@@ -24,10 +24,7 @@
 // short-circuits into the placeholder and never reaches highlight.
 
 import type { MarkedExtension, Tokens } from "marked";
-
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
+import { escapeHtml } from "@mulmoclaude/common";
 
 export const mermaidExtension: MarkedExtension = {
   renderer: {
