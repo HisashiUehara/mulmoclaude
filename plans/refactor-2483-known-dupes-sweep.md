@@ -61,3 +61,10 @@ issue の選択肢 (a) を採る。
 - `@mulmoclaude/*` は publish 時まで bump しない(CLAUDE.md / memory)。
 - `@mulmobridge/*` には runtime export を追加しないので smoke `drift` gate は無影響。
 - `node scripts/mulmoclaude/launcherSync.mjs` は green のまま。
+- 新規に宣言した `@mulmoclaude/common` の range はすべて `^1.1.0` — 既存 consumer(core / x-plugin / markdown-plugin / accounting-plugin / mulmoscript-plugin / launcher)と同一。
+
+## 実施結果
+
+- ビルド順レースは机上論ではなく実測: `packages/common/dist` を消すと `yarn workspace @mulmoclaude/markdown-utils run build` が exit 2 で落ちる。tier 0 切り出し後は cold build が通ることを確認済み。
+- `escapeHtml` のテストは変異検査済み — `["'", "&#39;"]` を `["'", "'"]` に壊すと 7 件中 4 件が red になり、戻すと green。
+- `server/build/dispatcher.mjs` は `packages/core` を触ったため再生成が必要(CI の `git diff --exit-code` gate 対象)。`yarn build` で更新されたものをコミット済み。
