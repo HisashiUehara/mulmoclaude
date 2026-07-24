@@ -129,6 +129,11 @@ const deMessages = {
     hideDetails: "Details ausblenden",
     retry: "Erneut versuchen",
   },
+  remoteHostOffline: {
+    title: "Remote-Host getrennt",
+    body: "Ihr Telefon kann erst nach dem erneuten Verbinden an dieses Gerät senden.",
+    reconnect: "Erneut verbinden",
+  },
   remoteHost: {
     title: "Remote-Host",
     online: "Remote-Host online",

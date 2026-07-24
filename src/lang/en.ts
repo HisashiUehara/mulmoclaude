@@ -147,6 +147,11 @@ const enMessages = {
     hideDetails: "Hide details",
     retry: "Retry",
   },
+  remoteHostOffline: {
+    title: "Remote host disconnected",
+    body: "Your phone can't send to this device until you reconnect.",
+    reconnect: "Reconnect",
+  },
   remoteHost: {
     title: "Remote host",
     online: "Remote host online",

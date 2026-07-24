@@ -132,6 +132,11 @@ const jaMessages = {
     hideDetails: "詳細を隠す",
     retry: "再試行",
   },
+  remoteHostOffline: {
+    title: "リモートホストが切断されました",
+    body: "再接続するまで、スマホからの送信はこの端末に届きません。",
+    reconnect: "再接続",
+  },
   remoteHost: {
     title: "リモートホスト",
     online: "リモートホスト: オンライン",

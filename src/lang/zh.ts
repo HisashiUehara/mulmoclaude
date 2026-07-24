@@ -128,6 +128,11 @@ const zhMessages = {
     hideDetails: "隐藏详情",
     retry: "重试",
   },
+  remoteHostOffline: {
+    title: "远程主机已断开",
+    body: "重新连接之前，手机将无法发送到此设备。",
+    reconnect: "重新连接",
+  },
   remoteHost: {
     title: "远程主机",
     online: "远程主机在线",

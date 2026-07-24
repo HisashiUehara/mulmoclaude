@@ -133,6 +133,11 @@ const koMessages = {
     hideDetails: "세부 정보 숨기기",
     retry: "다시 시도",
   },
+  remoteHostOffline: {
+    title: "원격 호스트 연결 끊김",
+    body: "다시 연결하기 전에는 휴대폰에서 이 기기로 보낼 수 없습니다.",
+    reconnect: "다시 연결",
+  },
   remoteHost: {
     title: "원격 호스트",
     online: "원격 호스트 온라인",
