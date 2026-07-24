@@ -51,6 +51,7 @@
           :repo-collapsed="repoCollapsed"
           :selected-catalog-key="selectedCatalogKey"
           :catalog-error="catalogError"
+          :repo-list-error="repoListError"
           :preset-source-meta="presetSourceMeta"
           :updating-repo-id="updatingRepoId"
           :uninstalling-repo-id="uninstallingRepoId"
@@ -253,6 +254,7 @@ const repos = useExternalRepos({
 const {
   externalGroups,
   repoCollapsed,
+  repoListError,
   toggleRepo,
   addRepoOpen,
   addRepoUrl,

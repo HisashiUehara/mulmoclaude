@@ -1,6 +1,6 @@
 {
   "name": "@mulmobridge/mastodon",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Mastodon bridge for MulmoBridge — connect Mastodon DMs / mentions to MulmoClaude",
   "type": "module",
   "main": "./dist/index.js",

@@ -56,6 +56,10 @@
         {{ t("pluginManageSkills.catalogEmpty") }}
       </p>
       <div v-if="catalogError" class="px-4 py-2 text-xs text-red-600">{{ catalogError }}</div>
+      <!-- The repo-list load failure gets its own channel, separate from a
+           per-repo action error in the groups (which a shared catalogError
+           would clobber). -->
+      <div v-if="repoListError" class="px-4 py-2 text-xs text-red-600" data-testid="skill-catalog-repo-list-error">{{ repoListError }}</div>
 
       <SkillRepoGroup
         v-for="group in externalGroups"
@@ -103,6 +107,7 @@ defineProps<{
   repoCollapsed: Set<string>;
   selectedCatalogKey: string | null;
   catalogError: string | null;
+  repoListError: string | null;
   presetSourceMeta: SourceMeta;
   updatingRepoId: string | null;
   uninstallingRepoId: string | null;
