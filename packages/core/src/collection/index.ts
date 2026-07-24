@@ -22,6 +22,7 @@ export * from "./core/backlinks";
 export * from "./core/linkTargets";
 export * from "./core/where";
 export * from "./core/completion";
+export * from "./core/chatSeed";
 export * from "./core/dynamicIcon";
 export * from "./core/derivedFormula";
 export * from "./core/deriveAll";

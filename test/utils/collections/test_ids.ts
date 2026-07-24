@@ -1,12 +1,12 @@
 // Unit tests for the pure id helpers (packages/core/src/collection/core/ids.ts).
-// Focus: `generateUniqueId`'s collision re-roll (the logic lifted out of the
-// view's `generateUniqueItemId`); the slug/record-id validators are exercised
-// via schema tests already.
+// Focus: `generateUniqueId`'s collision re-roll and `nextUniqueItemId` (the
+// existing-set build + re-roll lifted out of the view's `generateUniqueItemId`);
+// the slug/record-id validators are exercised via schema tests already.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { generateUniqueId } from "@mulmoclaude/core/collection";
+import { generateUniqueId, nextUniqueItemId, type CollectionItem } from "@mulmoclaude/core/collection";
 
 /** A deterministic generator returning the given ids in order, then repeating
  *  the last one forever — models `shortHexId` for a fixed roll sequence. */
@@ -64,5 +64,31 @@ describe("generateUniqueId", () => {
     };
     generateUniqueId(new Set(["always"]), gen, 2);
     assert.equal(calls, 3); // 1 initial + 2 retries
+  });
+});
+
+describe("nextUniqueItemId", () => {
+  const items: CollectionItem[] = [{ id: "a" }, { id: "b" }, { n: 7 }];
+
+  it("returns the first candidate that collides with no loaded record's primary key", () => {
+    assert.equal(nextUniqueItemId(items, "id", sequence("a", "b", "free")), "free");
+  });
+
+  it("accepts the first candidate when nothing collides", () => {
+    assert.equal(nextUniqueItemId(items, "id", sequence("fresh")), "fresh");
+  });
+
+  it("builds the existing set from the given primary key, ignoring other keys", () => {
+    // "7" lives under `n`, not `id`, so it does not block an id-keyed roll of "7".
+    assert.equal(nextUniqueItemId(items, "id", sequence("7")), "7");
+  });
+
+  it("treats a record missing the primary key as the empty id", () => {
+    // The `{ n: 7 }` record contributes "" to the id set, so "" collides.
+    assert.equal(nextUniqueItemId(items, "id", sequence("", "ok")), "ok");
+  });
+
+  it("returns from an empty collection on the first roll", () => {
+    assert.equal(nextUniqueItemId([], "id", sequence("only")), "only");
   });
 });
