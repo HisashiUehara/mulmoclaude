@@ -4,8 +4,9 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
 
-import { renamedCandidate, sanitizeUploadFilename } from "../../server/utils/files/upload-name.js";
+import { renamedCandidate, sanitizeUploadFilename, uploadRelPath } from "../../server/utils/files/upload-name.js";
 
 /** A control character, written as an escape so it stays visible in review. */
 const BELL = String.fromCharCode(7);
@@ -93,5 +94,69 @@ describe("renamedCandidate", () => {
 
   it("only splits on the last extension", () => {
     assert.equal(renamedCandidate("archive.tar.gz", 3), "archive.tar (3).gz");
+  });
+});
+
+// The route returns this string to the client and publishes it as the
+// file-change channel, so it has to look the same on every host. Every case
+// runs against BOTH host join rules — bound to the runner's own `path.join`,
+// the Windows separator rule is invisible outside Windows CI, which is how the
+// backslash form reached main in the first place.
+describe("uploadRelPath", () => {
+  const hosts = [
+    { name: "posix", join: path.posix.join },
+    { name: "win32", join: path.win32.join },
+  ];
+
+  /** Same expectation on every host — that identity IS the contract. */
+  function expectOnEveryHost(dirRel: string, filename: string, expected: string): void {
+    for (const host of hosts) {
+      assert.equal(uploadRelPath(dirRel, filename, host.join), expected, `${host.name} host`);
+    }
+  }
+
+  it("joins dir and filename with a POSIX separator", () => {
+    expectOnEveryHost("data", "photo.png", "data/photo.png");
+  });
+
+  it("keeps a nested directory POSIX-shaped", () => {
+    expectOnEveryHost("data/2026/07", "photo.png", "data/2026/07/photo.png");
+  });
+
+  it("normalises a Windows-shaped directory from the client", () => {
+    expectOnEveryHost("data\\sub", "photo.png", "data/sub/photo.png");
+  });
+
+  it("returns the bare filename at the workspace root", () => {
+    expectOnEveryHost("", "photo.png", "photo.png");
+  });
+
+  it("collapses a leading `./`", () => {
+    expectOnEveryHost("./data", "photo.png", "data/photo.png");
+  });
+
+  it("keeps a rename candidate's spaces and parentheses intact", () => {
+    expectOnEveryHost("data", renamedCandidate("photo.png", 1), "data/photo (1).png");
+  });
+
+  // Containment is the resolver's job, but it only recognises an escape it can
+  // still see — so the traversal has to survive this join rather than be
+  // silently normalised away.
+  it("preserves a traversal for the resolver to reject", () => {
+    expectOnEveryHost("../escape", "photo.png", "../escape/photo.png");
+  });
+
+  // Dropping the leading separator here would turn a path the resolver refuses
+  // as absolute into a workspace-relative one it happily writes.
+  it("keeps an absolute POSIX dir absolute", () => {
+    expectOnEveryHost("/etc", "passwd", "/etc/passwd");
+  });
+
+  it("keeps a Windows drive-absolute dir absolute", () => {
+    expectOnEveryHost("C:\\Windows", "evil.dll", "C:/Windows/evil.dll");
+  });
+
+  it("defaults to the host's own join", () => {
+    assert.equal(uploadRelPath("data", "photo.png"), "data/photo.png");
   });
 });
