@@ -955,6 +955,8 @@ const koMessages = {
     errDeleteFailed: "삭제 실패",
     errNetworkError: "네트워크 오류",
     errServerError: "서버 오류: {status}",
+    errRefreshFailed: "저장했지만 목록을 새로고침하지 못했습니다.",
+    confirmDelete: "역할 「{name}」을(를) 삭제하시겠습니까? 되돌릴 수 없습니다.",
   },
   pluginUiImage: {
     promptLabel: "{label}:",

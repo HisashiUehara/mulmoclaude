@@ -970,6 +970,8 @@ const esMessages = {
     errDeleteFailed: "Error al eliminar",
     errNetworkError: "Error de red",
     errServerError: "Error del servidor: {status}",
+    errRefreshFailed: "Guardado, pero no se pudo actualizar la lista.",
+    confirmDelete: "¿Eliminar el rol « {name} »? Esta acción no se puede deshacer.",
   },
   pluginUiImage: {
     promptLabel: "{label}:",
