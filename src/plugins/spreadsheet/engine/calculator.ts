@@ -16,6 +16,11 @@ import { errorMessage } from "../../../utils/errors";
 import { classifyThrownError, invalidRefError } from "./formulaError";
 import { isSpreadsheetErrorValue, spreadsheetError } from "./spreadsheet-errors";
 
+// The grid a reference should read from, plus the sheet-name-stripped ref and
+// whether it points at the sheet currently being calculated (which decides
+// whether recursive formula evaluation is allowed for the cell it lands on).
+type ResolvedSheetRef = { sheetData: (SpreadsheetCell | CellValue)[][]; ref: string; isCurrentSheet: boolean };
+
 /**
  * Normalize malformed data structures
  * Some models generate flat arrays instead of 2D arrays - fix them
@@ -243,40 +248,42 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], option
     return isNaN(num) ? cell : num;
   };
 
+  // Resolve a possibly cross-sheet reference to the grid it reads from, plus the
+  // sheet-name-stripped ref. A same-sheet ref returns the current `calculated`
+  // grid; a cross-sheet ref computes and caches its target sheet. null means the
+  // named sheet does not exist — the caller picks the terminal action (#REF! for
+  // a single cell, [] for a range). The two-stage cache seed (raw copy published
+  // BEFORE recursing, real result after) is the cross-sheet infinite-loop guard.
+  const resolveSheetData = (fullRef: string): ResolvedSheetRef | null => {
+    const sheetMatch = fullRef.match(/^(?:'([^']+)'|([^!]+))!(.+)$/);
+    if (!sheetMatch) return { sheetData: calculated, ref: fullRef, isCurrentSheet: true };
+
+    const targetSheetName = sheetMatch[1] || sheetMatch[2]; // Quoted or unquoted sheet name
+    const innerRef = sheetMatch[3]; // Reference part after the sheet name
+
+    // Check cache first to prevent infinite loops
+    const cached = sheetsCache.get(targetSheetName);
+    if (cached) return { sheetData: cached, ref: innerRef, isCurrentSheet: false };
+
+    const targetSheet = processedAllSheets?.find((s) => s.name === targetSheetName);
+    if (!targetSheet || !targetSheet.data) return null;
+
+    // Seed the cache with a raw copy BEFORE recursing so a cyclic back-reference
+    // finds this sheet mid-flight, then overwrite it with the calculated result.
+    // Resolve cross-sheet values RAW (skip display formatting) so a date cell
+    // reads as its serial, not the presentation string "03/04/2025".
+    const targetCalculated = targetSheet.data.map((row) => [...row]);
+    sheetsCache.set(targetSheetName, targetCalculated);
+    const targetResult = calculateSheet(targetSheet, processedAllSheets, { preferDDMMYYYY, skipFormatting: true });
+    sheetsCache.set(targetSheetName, targetResult.data);
+    return { sheetData: targetResult.data, ref: innerRef, isCurrentSheet: false };
+  };
+
   // Helper to get cell value by reference (e.g., "B2", "$B$2", or "'Sheet1'!B2")
   const getCellValue = (ref: string): CellValue => {
-    let sheetData: any[][] = calculated;
-    let cellRef = ref;
-    let isCurrentSheet = true;
-
-    // Check for cross-sheet reference (e.g., 'Sheet Name'!B2 or Sheet1!B2)
-    const sheetMatch = ref.match(/^(?:'([^']+)'|([^!]+))!(.+)$/);
-    if (sheetMatch) {
-      const targetSheetName = sheetMatch[1] || sheetMatch[2]; // Quoted or unquoted sheet name
-      cellRef = sheetMatch[3]; // Cell reference part
-      isCurrentSheet = false;
-
-      // Check cache first to prevent infinite loops
-      if (sheetsCache.has(targetSheetName)) {
-        sheetData = sheetsCache.get(targetSheetName)!;
-      } else {
-        // Find the sheet in all sheets
-        const targetSheet = processedAllSheets?.find((s) => s.name === targetSheetName);
-        if (targetSheet && targetSheet.data) {
-          // Calculate formulas for the target sheet with cache
-          const targetCalculated = targetSheet.data.map((row) => [...row]);
-          sheetsCache.set(targetSheetName, targetCalculated);
-
-          // Resolve cross-sheet values RAW (skip display formatting) so a date
-          // cell reads as its serial, not the presentation string "03/04/2025".
-          const targetResult = calculateSheet(targetSheet, processedAllSheets, { preferDDMMYYYY, skipFormatting: true });
-          sheetsCache.set(targetSheetName, targetResult.data);
-          sheetData = targetResult.data as any[][];
-        } else {
-          throw invalidRefError(ref); // Sheet not found → #REF!
-        }
-      }
-    }
+    const resolved = resolveSheetData(ref);
+    if (!resolved) throw invalidRefError(ref); // Sheet not found → #REF!
+    const { sheetData, ref: cellRef, isCurrentSheet } = resolved;
 
     // Remove $ symbols for absolute references
     const cleanRef = cellRef.replace(/\$/g, "");
@@ -296,37 +303,9 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[], option
   };
 
   const collectRangeValues = (range: string, options: { numericOnly: boolean }): CellValue[] => {
-    let sheetData: any[][] = calculated;
-    let rangeRef = range;
-    let isCurrentSheet = true;
-
-    // Check for cross-sheet reference
-    const sheetMatch = range.match(/^(?:'([^']+)'|([^!]+))!(.+)$/);
-    if (sheetMatch) {
-      const targetSheetName = sheetMatch[1] || sheetMatch[2];
-      rangeRef = sheetMatch[3];
-      isCurrentSheet = false;
-
-      // Check cache first
-      if (sheetsCache.has(targetSheetName)) {
-        sheetData = sheetsCache.get(targetSheetName)!;
-      } else {
-        // Find and calculate the target sheet
-        const targetSheet = processedAllSheets?.find((s) => s.name === targetSheetName);
-        if (targetSheet && targetSheet.data) {
-          const targetCalculated = targetSheet.data.map((row) => [...row]);
-          sheetsCache.set(targetSheetName, targetCalculated);
-
-          // Resolve cross-sheet values RAW (skip display formatting) so a date
-          // cell reads as its serial, not the presentation string "03/04/2025".
-          const targetResult = calculateSheet(targetSheet, processedAllSheets, { preferDDMMYYYY, skipFormatting: true });
-          sheetsCache.set(targetSheetName, targetResult.data);
-          sheetData = targetResult.data as any[][];
-        } else {
-          return [];
-        }
-      }
-    }
+    const resolved = resolveSheetData(range);
+    if (!resolved) return []; // Sheet not found → empty range
+    const { sheetData, ref: rangeRef, isCurrentSheet } = resolved;
 
     const coords = expandRangeOrCell(rangeRef);
     if (!coords) return [];
