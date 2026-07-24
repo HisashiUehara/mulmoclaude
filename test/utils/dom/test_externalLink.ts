@@ -85,11 +85,18 @@ describe("isCrossOriginHttpUrl", () => {
 // the jsdom globals after the static import above is safe.
 
 // The "leave it alone" cases deliberately let the anchor click run its
-// default action, which makes jsdom print "Not implemented: navigation
-// to another Document" for every one of them. Swallow that specific
-// channel so a passing run stays quiet.
+// default action, which makes jsdom report "Not implemented: navigation
+// to another Document" for every one of them. Suppress THAT MESSAGE only
+// — a blanket `jsdomError` sink would also swallow malformed-DOM errors
+// and other not-implemented paths, so a real regression could pass
+// silently. Anything else is collected and asserted on after each click.
+const EXPECTED_JSDOM_ERROR = "Not implemented: navigation to another Document";
+const unexpectedJsdomErrors: string[] = [];
 const virtualConsole = new VirtualConsole();
-virtualConsole.on("jsdomError", () => {});
+virtualConsole.on("jsdomError", (error: Error) => {
+  if (error.message === EXPECTED_JSDOM_ERROR) return;
+  unexpectedJsdomErrors.push(error.message);
+});
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: `${ORIGIN}/skills`, virtualConsole });
 Object.assign(globalThis, { window: dom.window, document: dom.window.document, MouseEvent: dom.window.MouseEvent });
 
@@ -122,6 +129,7 @@ interface ClickInit {
 // the click originating somewhere inside the rendered body.
 const clickInMarkdownBody = (bodyHtml: string, selector: string, init: ClickInit = {}): ClickOutcome => {
   openCalls.length = 0;
+  unexpectedJsdomErrors.length = 0;
   const container = document.createElement("div");
   container.innerHTML = bodyHtml;
   document.body.replaceChildren(container);
@@ -133,6 +141,7 @@ const clickInMarkdownBody = (bodyHtml: string, selector: string, init: ClickInit
   });
   const event = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0, ...init });
   clickTarget.dispatchEvent(event);
+  assert.deepEqual(unexpectedJsdomErrors, [], "jsdom reported an error other than the expected navigation notice");
   outcome.defaultPrevented = event.defaultPrevented;
   outcome.opened = [...openCalls];
   return outcome;
