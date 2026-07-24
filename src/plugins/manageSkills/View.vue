@@ -35,217 +35,33 @@
            ★ star / ▶ run once without bloating the prompt). Aligns
            with the #1335 catalog/active model. -->
       <div class="w-64 shrink-0 border-r border-gray-100 overflow-y-auto bg-gray-50">
-        <!-- ★ Active -->
-        <div data-testid="skill-section-active">
-          <button
-            type="button"
-            data-testid="skill-section-toggle-active"
-            class="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:bg-gray-100 border-b border-gray-100"
-            :aria-expanded="isSectionOpen('active')"
-            aria-controls="skill-section-panel-active"
-            @click="toggleSection('active')"
-          >
-            <span class="flex items-center gap-1">
-              <span class="material-icons text-base">{{ isSectionOpen("active") ? "expand_more" : "chevron_right" }}</span>
-              {{ t("pluginManageSkills.sectionActive") }}
-            </span>
-            <span data-testid="skill-section-count-active" class="text-gray-400 font-normal normal-case">{{ activeSkills.length }}</span>
-          </button>
-          <div v-show="isSectionOpen('active')" id="skill-section-panel-active" role="group">
-            <div
-              v-for="skill in activeSkills"
-              :key="skill.name"
-              :data-testid="`skill-item-${skill.name}`"
-              class="cursor-pointer px-4 py-3 border-b border-gray-100 text-sm hover:bg-white transition-colors focus:outline-none focus:bg-white focus:border-l-2 focus:border-l-blue-400"
-              :class="selectedName === skill.name && !selectedCatalog ? 'bg-white border-l-2 border-l-blue-500' : ''"
-              role="button"
-              tabindex="0"
-              :aria-pressed="selectedName === skill.name && !selectedCatalog"
-              @click="selectActiveSkill(skill.name)"
-              @keydown.enter.prevent="selectActiveSkill(skill.name)"
-              @keydown.space.prevent="selectActiveSkill(skill.name)"
-            >
-              <div class="flex items-center gap-2">
-                <div class="flex-1 min-w-0">
-                  <div class="font-medium text-gray-800 truncate">{{ skill.name }}</div>
-                  <div class="text-xs text-gray-500 truncate mt-0.5">
-                    {{ skill.description }}
-                  </div>
-                </div>
-                <span class="shrink-0 material-icons text-sm" :class="skillBadge(skill).colour" :title="skillBadge(skill).title" aria-hidden="true">{{
-                  skillBadge(skill).icon
-                }}</span>
-              </div>
-            </div>
-            <i18n-t v-if="activeSkills.length === 0" keypath="pluginManageSkills.emptyWithPath" tag="p" class="p-4 text-sm text-gray-400 italic">
-              <template #path>
-                <code class="text-[11px]">{{ t("pluginManageSkills.emptySkillPath") }}</code>
-              </template>
-            </i18n-t>
-          </div>
-        </div>
-
-        <!-- 📚 Catalog: launcher-managed presets. Rows behave like the
-             active list — click selects an entry, loading its detail
-             into the right pane with ★ Star / ▶ Run once actions.
-             Anthropic + Community sub-catalogs land with #1335 PR-C. -->
-        <div data-testid="skill-section-catalog" class="border-t border-gray-200">
-          <button
-            type="button"
-            data-testid="skill-section-toggle-catalog"
-            class="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:bg-gray-100 border-b border-gray-100"
-            :aria-expanded="isSectionOpen('catalog')"
-            aria-controls="skill-section-panel-catalog"
-            @click="toggleSection('catalog')"
-          >
-            <span class="flex items-center gap-1">
-              <span class="material-icons text-base">{{ isSectionOpen("catalog") ? "expand_more" : "chevron_right" }}</span>
-              {{ t("pluginManageSkills.sectionCatalog") }}
-            </span>
-            <span data-testid="skill-section-count-catalog" class="text-gray-400 font-normal normal-case">{{
-              catalogPresets.length + catalogExternal.length
-            }}</span>
-          </button>
-          <div v-show="isSectionOpen('catalog')" id="skill-section-panel-catalog" role="group">
-            <div class="px-4 py-2 text-[11px] uppercase tracking-wide text-gray-500 font-semibold" data-testid="skill-catalog-section-heading">
-              {{ t("pluginManageSkills.catalogPresetHeading") }}
-            </div>
-            <div
-              v-for="entry in catalogPresets"
-              :key="`catalog-preset-${entryKey(entry)}`"
-              :data-testid="`skill-catalog-item-${entryKey(entry)}`"
-              class="cursor-pointer px-4 py-3 border-b border-gray-100 text-sm hover:bg-white transition-colors focus:outline-none focus:bg-white focus:border-l-2 focus:border-l-blue-400"
-              :class="selectedCatalogKey === entryKey(entry) ? 'bg-white border-l-2 border-l-blue-500' : ''"
-              role="button"
-              tabindex="0"
-              :aria-pressed="selectedCatalogKey === entryKey(entry)"
-              @click="selectCatalogEntry(entry)"
-              @keydown.enter.prevent="selectCatalogEntry(entry)"
-              @keydown.space.prevent="selectCatalogEntry(entry)"
-            >
-              <div class="flex items-center gap-2">
-                <div class="flex-1 min-w-0">
-                  <div class="font-medium text-gray-700 truncate">{{ entry.name }}</div>
-                  <div class="text-xs text-gray-500 truncate mt-0.5">{{ entry.description }}</div>
-                </div>
-                <span
-                  v-if="entry.alreadyActive"
-                  class="shrink-0 material-icons text-sm text-yellow-500"
-                  :title="t('pluginManageSkills.catalogStarred')"
-                  :data-testid="`skill-catalog-starred-indicator-${entryKey(entry)}`"
-                  aria-hidden="true"
-                  >star</span
-                >
-                <span class="shrink-0 material-icons text-sm" :class="presetSourceMeta.colour" :title="presetSourceMeta.title" aria-hidden="true">{{
-                  presetSourceMeta.icon
-                }}</span>
-              </div>
-            </div>
-            <p v-if="catalogPresets.length === 0 && !catalogError" class="px-4 py-3 text-xs text-gray-400 italic" data-testid="skill-catalog-empty">
-              {{ t("pluginManageSkills.catalogEmpty") }}
-            </p>
-            <div v-if="catalogError" class="px-4 py-2 text-xs text-red-600">{{ catalogError }}</div>
-
-            <!-- Installed-repo LIST load failure — surfaced here next to the
-                 repo groups, not in the shared catalogError (which a
-                 concurrent catalog load would clobber). -->
-            <div v-if="repoListError" class="px-4 py-2 text-xs text-red-600" data-testid="skill-catalog-repo-list-error">{{ repoListError }}</div>
-
-            <!-- External repos (#1383 PR-C2): one collapsible subgroup
-                 per installed repo. Rows behave exactly like preset
-                 rows (select → right pane with ★ Star / ▶ Run once). -->
-            <div
-              v-for="group in externalGroups"
-              :key="`catalog-repo-${group.repo.repoId}`"
-              :data-testid="`skill-catalog-repo-${group.repo.repoId}`"
-              class="border-t border-gray-100"
-            >
-              <div class="w-full flex items-center hover:bg-gray-100">
-                <button
-                  type="button"
-                  :data-testid="`skill-catalog-repo-toggle-${group.repo.repoId}`"
-                  class="flex-1 min-w-0 flex items-center gap-1 px-4 py-2 text-[11px] uppercase tracking-wide text-gray-500 font-semibold"
-                  :aria-expanded="isRepoOpen(group.repo.repoId)"
-                  @click="toggleRepo(group.repo.repoId)"
-                >
-                  <span class="material-icons text-sm">{{ isRepoOpen(group.repo.repoId) ? "expand_more" : "chevron_right" }}</span>
-                  <span class="truncate normal-case text-gray-600">{{ repoLabel(group.repo) }}</span>
-                  <span class="text-gray-400 font-normal">({{ group.entries.length }})</span>
-                </button>
-                <button
-                  type="button"
-                  class="h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:text-blue-600 disabled:opacity-40"
-                  :data-testid="`skill-catalog-repo-update-${group.repo.repoId}`"
-                  :disabled="updatingRepoId === group.repo.repoId || uninstallingRepoId === group.repo.repoId"
-                  :title="t('pluginManageSkills.catalogUpdateRepo')"
-                  :aria-label="t('pluginManageSkills.catalogUpdateRepo')"
-                  :aria-busy="updatingRepoId === group.repo.repoId"
-                  @click="updateRepo(group.repo)"
-                >
-                  <span class="material-icons text-sm" :class="updatingRepoId === group.repo.repoId ? 'animate-spin' : ''" aria-hidden="true">refresh</span>
-                </button>
-                <button
-                  type="button"
-                  class="h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:text-red-600 disabled:opacity-40"
-                  :data-testid="`skill-catalog-repo-uninstall-${group.repo.repoId}`"
-                  :disabled="uninstallingRepoId === group.repo.repoId || updatingRepoId === group.repo.repoId"
-                  :title="t('pluginManageSkills.catalogUninstallRepo')"
-                  :aria-label="t('pluginManageSkills.catalogUninstallRepo')"
-                  :aria-busy="uninstallingRepoId === group.repo.repoId"
-                  @click="uninstallRepo(group.repo.repoId)"
-                >
-                  <span class="material-icons text-sm" aria-hidden="true">delete_outline</span>
-                </button>
-              </div>
-              <div v-show="isRepoOpen(group.repo.repoId)" role="group">
-                <div
-                  v-for="entry in group.entries"
-                  :key="`catalog-ext-${entryKey(entry)}`"
-                  :data-testid="`skill-catalog-item-${entryKey(entry)}`"
-                  class="cursor-pointer px-4 py-3 border-b border-gray-100 text-sm hover:bg-white transition-colors focus:outline-none focus:bg-white focus:border-l-2 focus:border-l-blue-400"
-                  :class="selectedCatalogKey === entryKey(entry) ? 'bg-white border-l-2 border-l-blue-500' : ''"
-                  role="button"
-                  tabindex="0"
-                  :aria-pressed="selectedCatalogKey === entryKey(entry)"
-                  @click="selectCatalogEntry(entry)"
-                  @keydown.enter.prevent="selectCatalogEntry(entry)"
-                  @keydown.space.prevent="selectCatalogEntry(entry)"
-                >
-                  <div class="flex items-center gap-2">
-                    <div class="flex-1 min-w-0">
-                      <div class="font-medium text-gray-700 truncate">{{ entry.name }}</div>
-                      <div class="text-xs text-gray-500 truncate mt-0.5">{{ entry.description }}</div>
-                    </div>
-                    <span
-                      v-if="entry.alreadyActive"
-                      class="shrink-0 material-icons text-sm text-yellow-500"
-                      :title="t('pluginManageSkills.catalogStarred')"
-                      :data-testid="`skill-catalog-starred-indicator-${entryKey(entry)}`"
-                      aria-hidden="true"
-                      >star</span
-                    >
-                    <span class="shrink-0 material-icons text-sm text-gray-400" :title="t('pluginManageSkills.sourceExternalTitle')" aria-hidden="true"
-                      >cloud</span
-                    >
-                  </div>
-                </div>
-                <p v-if="group.entries.length === 0" class="px-4 py-3 text-xs text-gray-400 italic">
-                  {{ t("pluginManageSkills.catalogRepoEmpty") }}
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              data-testid="skill-catalog-add-repo"
-              class="w-full flex items-center gap-1 px-4 py-3 text-sm text-blue-600 hover:bg-white border-t border-gray-100"
-              @click="openAddRepo"
-            >
-              <span class="material-icons text-sm" aria-hidden="true">add</span>
-              {{ t("pluginManageSkills.catalogAddRepo") }}
-            </button>
-          </div>
-        </div>
+        <SkillActiveList
+          :skills="activeSkills"
+          :open="isSectionOpen('active')"
+          :selected-name="selectedName"
+          :catalog-selected="selectedCatalog !== null"
+          @toggle="toggleSection('active')"
+          @select="selectActiveSkill"
+        />
+        <SkillCatalogList
+          :open="isSectionOpen('catalog')"
+          :presets="catalogPresets"
+          :external-count="catalogExternal.length"
+          :external-groups="externalGroups"
+          :repo-collapsed="repoCollapsed"
+          :selected-catalog-key="selectedCatalogKey"
+          :catalog-error="catalogError"
+          :repo-list-error="repoListError"
+          :preset-source-meta="presetSourceMeta"
+          :updating-repo-id="updatingRepoId"
+          :uninstalling-repo-id="uninstallingRepoId"
+          @toggle="toggleSection('catalog')"
+          @select-entry="selectCatalogEntry"
+          @toggle-repo="toggleRepo"
+          @update-repo="updateRepo"
+          @uninstall-repo="uninstallRepo"
+          @add-repo="openAddRepo"
+        />
       </div>
 
       <!-- Right: detail pane -->
@@ -262,99 +78,24 @@
         />
 
         <div v-else-if="!selected" class="p-6 text-sm text-gray-400 italic">{{ t("pluginManageSkills.selectHint") }}</div>
-        <div v-else class="p-6">
-          <div class="flex items-start justify-between gap-4 mb-4">
-            <div class="min-w-0">
-              <h3 class="text-xl font-semibold text-gray-800 truncate">
-                {{ selected.name }}
-              </h3>
-              <p class="text-sm text-gray-600 mt-1">
-                {{ selected.description }}
-              </p>
-            </div>
-            <div class="flex items-center gap-2 shrink-0">
-              <template v-if="editing">
-                <button
-                  class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
-                  data-testid="skill-cancel-btn"
-                  @click="cancelEdit"
-                >
-                  {{ t("common.cancel") }}
-                </button>
-                <button
-                  class="h-8 px-2.5 flex items-center gap-1 text-sm rounded bg-green-600 hover:bg-green-700 text-white disabled:opacity-40"
-                  :disabled="saving"
-                  data-testid="skill-save-btn"
-                  @click="saveEdit"
-                >
-                  <span class="material-icons text-sm">save</span>
-                  {{ t("common.save") }}
-                </button>
-              </template>
-              <template v-else>
-                <button
-                  v-if="isSelectedEditable"
-                  class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
-                  :disabled="detailLoading"
-                  data-testid="skill-edit-btn"
-                  @click="startEdit"
-                >
-                  <span class="material-icons text-sm">edit</span>
-                  {{ t("pluginManageSkills.btnEdit") }}
-                </button>
-                <button
-                  v-if="isSelectedEditable"
-                  class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
-                  :class="isSelectedPreset ? '' : 'border-red-300 text-red-600 hover:bg-red-50'"
-                  :disabled="detailLoading || deleting"
-                  :data-testid="isSelectedPreset ? 'skill-unstar-btn' : 'skill-delete-btn'"
-                  :title="isSelectedPreset ? t('pluginManageSkills.unstarPresetSkill') : t('pluginManageSkills.deleteProjectSkill')"
-                  @click="deleteSkill"
-                >
-                  <span class="material-icons text-sm" :class="isSelectedPreset ? 'text-amber-500' : ''">{{
-                    isSelectedPreset ? "star_border" : "delete"
-                  }}</span>
-                  {{ isSelectedPreset ? t("pluginManageSkills.btnUnstar") : t("pluginManageSkills.btnDelete") }}
-                </button>
-              </template>
-            </div>
-          </div>
-          <div v-if="detailLoading" class="text-sm text-gray-400 italic">{{ t("pluginManageSkills.loading") }}</div>
-          <div v-else-if="detailError" class="text-sm text-red-600">
-            {{ detailError }}
-          </div>
-          <!-- Edit mode -->
-          <div v-else-if="editing && detail" class="space-y-4">
-            <div>
-              <label class="block text-xs font-medium text-gray-500 mb-1"> {{ t("pluginManageSkills.fieldDescription") }} </label>
-              <input
-                v-model="editDescription"
-                data-testid="skill-edit-description"
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-800"
-              />
-            </div>
-            <div class="flex-1">
-              <label class="block text-xs font-medium text-gray-500 mb-1"> {{ t("pluginManageSkills.fieldBody") }} </label>
-              <textarea
-                v-model="editBody"
-                data-testid="skill-edit-body"
-                class="w-full h-96 px-3 py-2 text-sm font-mono border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-800 resize-y"
-              ></textarea>
-            </div>
-          </div>
-          <!-- View mode -->
-          <!-- eslint-disable vue/no-v-html -- sanitized via DOMPurify; multi-line element so disable/enable pair (CLAUDE.md UI rule) instead of -next-line -->
-          <div
-            v-else-if="detail && renderedBody"
-            ref="skillMarkdownRef"
-            class="markdown-content text-gray-700"
-            data-testid="skill-body-rendered"
-            @click="handleExternalLinkClick"
-            v-html="renderedBody"
-          ></div>
-          <!-- eslint-enable vue/no-v-html -->
-          <p v-else-if="detail" class="text-sm text-gray-400 italic">{{ t("pluginManageSkills.emptyBody") }}</p>
-        </div>
+        <SkillDetailPane
+          v-else
+          v-model:edit-description="editDescription"
+          v-model:edit-body="editBody"
+          :selected="selected"
+          :detail="detail"
+          :editing="editing"
+          :saving="saving"
+          :deleting="deleting"
+          :detail-loading="detailLoading"
+          :detail-error="detailError"
+          :is-selected-editable="isSelectedEditable"
+          :is-selected-preset="isSelectedPreset"
+          @edit="startEdit"
+          @cancel="cancelEdit"
+          @save="saveEdit"
+          @delete="deleteSkill"
+        />
       </div>
     </div>
 
@@ -377,9 +118,8 @@
 import { computed, onMounted, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
-import type { ManageSkillsData, SkillSummary } from "./index";
+import type { ManageSkillsData, SkillSummary, SkillDetail } from "./index";
 import { apiGet, apiPut, apiDelete } from "../../utils/api";
-import { handleExternalLinkClick } from "@mulmoclaude/markdown-utils/dom/externalLink";
 import { pluginEndpoints } from "../api";
 import { buildRouteUrl } from "../meta-types";
 import type { SkillsEndpoints } from "./definition";
@@ -388,31 +128,22 @@ import {
   persistCollapsedSections,
   pickInitialSelection,
   nextSelectionAfterDelete,
-  entryKey,
-  repoLabel,
   toggleInSet,
-  skillBadgeMeta,
   PRESET_SOURCE_META,
   type SkillSectionKey,
   type SourceMeta,
 } from "./categories";
 import { isPresetActivation } from "./presetDetection";
 import { updateSkillDescription, removeSkillByName } from "./skillListEdits";
-import { useSkillMarkdown } from "./useSkillMarkdown";
 import { useSkillCatalog } from "./useSkillCatalog";
 import { useExternalRepos } from "./useExternalRepos";
 import AddRepoModal from "./AddRepoModal.vue";
 import CatalogDetailPane from "./CatalogDetailPane.vue";
+import SkillActiveList from "./SkillActiveList.vue";
+import SkillCatalogList from "./SkillCatalogList.vue";
+import SkillDetailPane from "./SkillDetailPane.vue";
 
 const { t } = useI18n();
-
-interface SkillDetail {
-  name: string;
-  description: string;
-  body: string;
-  source: "user" | "project";
-  path: string;
-}
 
 const props = defineProps<{
   selectedResult?: ToolResultComplete<ManageSkillsData>;
@@ -457,8 +188,6 @@ const editDescription = ref("");
 const editBody = ref("");
 
 const selected = computed(() => skills.value.find((skill) => skill.name === selectedName.value) ?? null);
-
-const { markdownRef: skillMarkdownRef, renderedBody } = useSkillMarkdown(() => detail.value?.body);
 
 // Edit/Delete follows the backend writer contract (writer.ts rejects
 // only source === "user"), NOT the mc- name heuristic. Under #1335
@@ -525,8 +254,8 @@ const repos = useExternalRepos({
 });
 const {
   externalGroups,
+  repoCollapsed,
   repoListError,
-  isRepoOpen,
   toggleRepo,
   addRepoOpen,
   addRepoUrl,
@@ -545,27 +274,10 @@ const {
   updateRepo,
 } = repos;
 
-// Visual key for the provenance badge on every active row + the
-// preset rows. Provenance is derived via categorizeSkill (NOT the raw
-// `source`, which can't express "system") so the badge stays
-// consistent with sectionLegend and the edit gate:
-//   - system  `mc-` bundled, read-only      — launcher-owned
-//   - project `<workspace>/.claude/skills/` — this workspace only
-//   - user    `~/.claude/skills/`           — global across workspaces
-//   - preset  catalog (not yet ★ Starred)   — launcher-managed
-// Icons + colours are deliberately monochromatic except for the
-// preset case where we hint "library / shelf" with the inventory
-// glyph. The yellow ★ for "starred" is rendered separately so the
-// scope badge stays semantically about provenance, not state.
-//
-// Thin view wrapper: the pure skillBadgeMeta returns an i18n title KEY;
-// resolve it here through the live t() so the template keeps its
-// { icon, title, colour } contract.
-function skillBadge(skill: SkillSummary): SourceMeta {
-  const meta = skillBadgeMeta(skill);
-  return { icon: meta.icon, colour: meta.colour, title: t(meta.titleKey) };
-}
-
+// Catalog preset rows share one provenance badge (the launcher-managed
+// "library" glyph). Thin view wrapper: the pure PRESET_SOURCE_META
+// carries an i18n title KEY; resolve it here through the live t() so the
+// child keeps its { icon, title, colour } contract.
 const presetSourceMeta = computed<SourceMeta>(() => ({
   icon: PRESET_SOURCE_META.icon,
   colour: PRESET_SOURCE_META.colour,

@@ -894,13 +894,17 @@ import {
   completionCoveredByFieldChip,
   snapshotEmptyEnums,
   cellKey,
-  generateUniqueId,
+  rowIdOf,
+  flagFieldValue,
+  toggleChecked,
+  chipMatches,
+  nextUniqueItemId,
+  skillCommandSeed,
   shortHexId,
   defangForPrompt,
   actionVisible,
   agentActionRunKey,
   COMPUTED_TYPES,
-  itemIsDone,
   fieldVisible,
   resolveEnumColor,
   buildUpdatedRecord,
@@ -909,6 +913,7 @@ import {
   firstMissingRequiredField,
   rowFromItem,
   type Ymd,
+  type FlagChip,
   type SortValueDeps,
   type CollectionAction,
   type CollectionMutateAction,
@@ -1122,14 +1127,6 @@ function storedFlagFiltersFor(slug: string | undefined): FlagFilterState {
 }
 const flagFilters = ref<FlagFilterState>(storedFlagFiltersFor(activeSlug.value));
 
-interface FlagChip {
-  key: string;
-  label: string;
-  /** Set on the synthesized legacy-completion chip (predicate =
-   *  `itemIsDone`); absent on chips backed by a real field. */
-  synthetic?: boolean;
-}
-
 /** The field types that earn a filter-menu entry: declared predicates
  *  (`flag`) plus the fields that ARE a predicate already — a stored
  *  `boolean` and a `toggle`'s projected on/off state. Enums stay out:
@@ -1171,32 +1168,21 @@ function flagFilterMode(key: string): FlagFilterMode | undefined {
   return Object.hasOwn(filters, key) ? filters[key] : undefined;
 }
 
-/** A flag FIELD's computed boolean for one row (list cells + sort):
- *  the enriched record's value, so a flag over derived/rollup inputs
- *  reads correctly. */
+/** A flag FIELD's computed boolean for one row (list cells + sort): reads the
+ *  enriched record so a flag over derived/rollup inputs is correct. */
 function flagValueOf(key: string, item: CollectionItem): boolean {
-  return render.deriveRecord(item)[key] === true;
-}
-
-/** The chip's boolean for one row — `itemIsDone` for the synthesized
- *  completion chip, the stored/projected value for `boolean`/`toggle`
- *  fields, the computed flag value otherwise. */
-function chipMatches(chip: FlagChip, item: CollectionItem): boolean {
-  const schema = collection.value?.schema;
-  if (!schema) return false;
-  if (chip.synthetic) return itemIsDone(schema, item);
-  const field = schema.fields[chip.key];
-  if (field?.type === "toggle") return toggleChecked(item, field);
-  if (field?.type === "boolean") return item[chip.key] === true;
-  return flagValueOf(chip.key, item);
+  return flagFieldValue(render.deriveRecord(item), key);
 }
 
 /** `filteredItems` further narrowed by every ACTIVE chip (AND). Consumed
  *  only by the table (sortedItems / count summary / empty state). */
 const tableFilteredItems = computed<CollectionItem[]>(() => {
+  const schema = collection.value?.schema;
   const active = flagChips.value.filter((chip) => flagFilterMode(chip.key) !== undefined);
-  if (active.length === 0) return filteredItems.value;
-  return filteredItems.value.filter((item) => active.every((chip) => chipMatches(chip, item) === (flagFilterMode(chip.key) === "only")));
+  if (!schema || active.length === 0) return filteredItems.value;
+  return filteredItems.value.filter((item) =>
+    active.every((chip) => chipMatches(chip, schema, item, render.deriveRecord) === (flagFilterMode(chip.key) === "only")),
+  );
 });
 
 /** Cycle a chip all → hide → only → all. */
@@ -1288,8 +1274,7 @@ const {
 
 /** Stringified primary-key value for a row (the row's stable identity). */
 function rowId(item: CollectionItem): string {
-  const primaryKey = collection.value?.schema.primaryKey;
-  return primaryKey ? String(item[primaryKey] ?? "") : "";
+  return rowIdOf(collection.value?.schema.primaryKey, item);
 }
 
 /** Whether an inline enum dropdown should render its empty placeholder
@@ -1581,7 +1566,7 @@ function buildChatSeed(slug: string, message: string, itemId?: string): string {
   // have a `/<slug>` skill command, so seed that. (Checked via `source`
   // directly, not the `isFeed` computed defined further down, to keep this
   // helper self-contained and avoid a use-before-define.)
-  if (current?.source !== "feed") return itemId ? `/${slug} id=${itemId} ${message}` : `/${slug} ${message}`;
+  if (current?.source !== "feed") return skillCommandSeed(slug, message, itemId);
   const dataPath = current.schema.dataPath ?? `data/feeds/${slug}`;
   // A feed has no skill command — point the agent at a specific record by id
   // inside the same schema-driven seed.
@@ -2008,8 +1993,7 @@ function setCustomView(viewId: string): void {
  *  times against the in-memory set before giving up and using the last
  *  candidate (the server's overwrite guard is the final backstop). */
 function generateUniqueItemId(primaryKey: string): string {
-  const existing = new Set(items.value.map((item) => String(item[primaryKey] ?? "")));
-  return generateUniqueId(existing, shortHexId);
+  return nextUniqueItemId(items.value, primaryKey, shortHexId);
 }
 
 function openCreate(): void {
@@ -2294,12 +2278,6 @@ async function commitInlineEdit(item: CollectionItem, key: string, field: FieldS
     applyInlineValue(item, key, previous);
     inlineError.value = result.error;
   }
-}
-
-/** Whether a `toggle` field reads as checked: its projected enum field
- *  currently equals `onValue`. The toggle stores nothing itself. */
-function toggleChecked(item: CollectionItem, field: FieldSpec): boolean {
-  return field.type === "toggle" && String(item[field.field] ?? "") === field.onValue;
 }
 
 /** Flip a `toggle`: write the projected enum field to `offValue` when

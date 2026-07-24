@@ -1,10 +1,10 @@
-// Unit tests for the pure per-cell key + empty-enum snapshot helpers
-// (packages/core/src/collection/core/recordKeys.ts).
+// Unit tests for the pure row-identity + per-cell key + empty-enum snapshot
+// helpers (packages/core/src/collection/core/recordKeys.ts).
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { cellKey, snapshotEmptyEnums, type EnumSnapshotSchema, type CollectionItem } from "@mulmoclaude/core/collection";
+import { cellKey, rowIdOf, snapshotEmptyEnums, type EnumSnapshotSchema, type CollectionItem } from "@mulmoclaude/core/collection";
 
 describe("cellKey", () => {
   it("joins row id and field key with a colon", () => {
@@ -14,6 +14,26 @@ describe("cellKey", () => {
   it("keeps distinct rows/fields distinct", () => {
     assert.notEqual(cellKey("r-1", "a"), cellKey("r-1", "b"));
     assert.notEqual(cellKey("r-1", "a"), cellKey("r-2", "a"));
+  });
+});
+
+describe("rowIdOf", () => {
+  it("stringifies the primary-key value (the id behind collections-row-<id>)", () => {
+    assert.equal(rowIdOf("id", { id: "jane-doe" }), "jane-doe");
+    assert.equal(rowIdOf("n", { n: 7 }), "7");
+  });
+
+  it("is empty for a missing primary-key value, not the string 'undefined'", () => {
+    assert.equal(rowIdOf("id", {}), "");
+    assert.equal(rowIdOf("id", { id: null }), "");
+  });
+
+  it("is empty when the schema has no primary key", () => {
+    assert.equal(rowIdOf(undefined, { id: "x" }), "");
+  });
+
+  it("keeps the composed cell key consistent with rowIdOf", () => {
+    assert.equal(cellKey(rowIdOf("id", { id: "b" }), "status"), "b:status");
   });
 });
 

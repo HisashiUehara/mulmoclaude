@@ -1,7 +1,7 @@
 {
   "name": "@mulmobridge/line-works",
   "version": "0.1.1",
-  "description": "LINE Works bridge for MulmoBridge \u2014 enterprise LINE (separate API from the consumer product)",
+  "description": "LINE Works bridge for MulmoBridge — enterprise LINE (separate API from the consumer product)",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,7 +16,8 @@
     "build": "tsc",
     "prepack": "yarn build",
     "typecheck": "tsc --noEmit",
-    "test": "echo no tests yet"
+    "test": "echo no tests yet",
+    "lint": "eslint src"
   },
   "license": "MIT",
   "author": "Receptron Team",

@@ -199,7 +199,8 @@
   "scripts": {
     "build": "vite build && vite build -c vite.esm.config.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/**/test_*.ts"
+    "test": "tsx --test test/**/test_*.ts",
+    "lint": "eslint src test"
   },
   "dependencies": {
     "@duckdb/node-api": "^1.5.5-r.1",

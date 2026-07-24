@@ -55,8 +55,10 @@ These are verified or plausible but out of scope for a mechanical fix-plus-test 
   race on slow background load (C3 — needs the background-preload gate; narrow
   window, only when drawing during the initial load of an EXISTING drawing);
   ResizeObserver + debounced remount; height clamp in stack layout.
-- **photoLocations**: declared `locations-changed` pubsub channel wired nowhere
-  (stale list until remount).
+- ~~**photoLocations**: declared `locations-changed` pubsub channel wired nowhere
+  (stale list until remount).~~ **(shipped, fix/photolocations-pubsub — server
+  publisher fires on sidecar write, View subscribes + silent-refetches; unit +
+  write-path integration, mutation verified)**
 - ~~**scheduler TasksTab**: unsequenced refetch races; full-list remount on every
   mutation (scroll/expand reset); unconfirmed one-click delete; hardcoded English
   frequency-hint labels (8-locale change).~~ **Shipped (fix/scheduler-tasks-robustness).**
@@ -81,8 +83,13 @@ These are verified or plausible but out of scope for a mechanical fix-plus-test 
   imported without re-coupling).
 - **wiki**: ~~stale-response tokens for `callApi`/`loadPageEditData`; non-404
   snapshot failure rendered as "page deleted"~~ **(shipped, fix/wiki-stale-response)**;
-  renderer vs `WIKI_LINK_PATTERN` divergence (core); save-queue extraction
-  (`taskSaveQueue`).
+  ~~renderer vs `WIKI_LINK_PATTERN` divergence (core)~~ **(shipped,
+  fix/wiki-render-pattern-parity — shared `WIKI_LINK_MAX_LEN`, renderer now
+  rejects newline / over-length bodies, parity + mutation tests)**;
+  ~~save-queue extraction (`taskSaveQueue`)~~ **(shipped,
+  refactor/wiki-save-queue — pure `createTaskSaveQueue`, 9 node:test cases
+  incl. the #775 generation-invalidation invariant and a rejected-persist
+  regression)**.
 - ~~**textResponse / StackView**: speaker labels hardcoded English (×8);
   StackView duplicate capture-phase link handler (opens 2 tabs); StackView
   edit panel emits to nothing (silent edit loss); copy button copies rewritten

@@ -23,7 +23,8 @@
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/test_*.ts"
+    "test": "tsx --test test/test_*.ts",
+    "lint": "eslint src test"
   },
   "dependencies": {
     "@mulmoclaude/common": "^1.1.0"

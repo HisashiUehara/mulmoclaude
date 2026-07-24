@@ -24,7 +24,8 @@
   "scripts": {
     "build": "vite build && vue-tsc -p tsconfig.build.json --emitDeclarationOnly",
     "typecheck": "vue-tsc --noEmit",
-    "test": "echo 'no in-package tests; collection logic is covered by host tests test/utils/collections/*'"
+    "test": "echo 'no in-package tests; collection logic is covered by host tests test/utils/collections/*'",
+    "lint": "eslint src"
   },
   "dependencies": {
     "vuedraggable": "^4.1.0",
