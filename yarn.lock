@@ -6417,7 +6417,7 @@ groq-sdk@^0.30.0:
     formdata-node "^4.3.2"
     node-fetch "^2.6.7"
 
-gui-chat-protocol@1.2.0, gui-chat-protocol@^1.2.0:
+gui-chat-protocol@^1.2.0:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/gui-chat-protocol/-/gui-chat-protocol-1.2.0.tgz#8bc7f8d4e31a625aff94fa2c79951b5b80c30145"
   integrity sha512-5qKQCpXOrH5+QlOWujhYpsG469IB6nsSZ9TOoodsBQ+U5aAPGEEUbvmacyOmPsimHvsDLCxP0S/ZNycWEFHOww==

@@ -33,7 +33,7 @@
   "peerDependencies": {
     "@mulmoclaude/core": "^1.2.0",
     "echarts": "^6.0.0",
-    "gui-chat-protocol": "^1.1.0",
+    "gui-chat-protocol": "^1.2.0",
     "vue": "^3.5.0",
     "vue-i18n": "^11.4.4"
   },
