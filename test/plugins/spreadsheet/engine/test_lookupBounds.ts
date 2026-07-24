@@ -36,6 +36,13 @@ describe("resolveTableOffset", () => {
     assert.equal(resolveTableOffset(-1, 2), null);
   });
 
+  // INDEX reads a `0` position as "the whole line" and collapses it to the only
+  // cell when the line is one long. A lookup index has no such meaning — its
+  // columns are numbered from 1 — so `0` is out of range here too (Codex review).
+  it("rejects zero even for a single-line table, unlike INDEX", () => {
+    assert.equal(resolveTableOffset(0, 1), null);
+  });
+
   it("rejects a non-finite position", () => {
     assert.equal(resolveTableOffset(NaN, 2), null);
   });
@@ -62,6 +69,25 @@ describe("VLOOKUP column bounds", () => {
 
   it("still reports #N/A when the key is not found", () => {
     assert.equal(table('=VLOOKUP("zz",A1:B2,2,FALSE)'), "#N/A", "a missing key is not a #REF!");
+  });
+});
+
+describe("single-line tables still reject index 0", () => {
+  // A one-column table is where INDEX's whole-line `0` would have slipped through.
+  const oneColumn = (formula: string): unknown => {
+    const sheet: SheetData = {
+      name: "S",
+      data: [[{ v: "a" }, { v: formula }], [{ v: "b" }]],
+    };
+    return new SpreadsheetEngine().calculate(sheet).data[0][1];
+  };
+
+  it("is #REF! for VLOOKUP with index 0 on a single-column table", () => {
+    assert.equal(oneColumn('=VLOOKUP("a",A1:A2,0,FALSE)'), "#REF!");
+  });
+
+  it("still returns the key column for index 1", () => {
+    assert.equal(oneColumn('=VLOOKUP("b",A1:A2,1,FALSE)'), "b");
   });
 });
 
