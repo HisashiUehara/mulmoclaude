@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { SpreadsheetEngine } from "../../../../src/plugins/spreadsheet/engine/index.ts";
 
 /** Calculate `formula` in the cell just below a single column of `values`. */
-const evalOverColumn = (values: number[], formula: string): unknown => {
+const evalOverColumn = (values: (string | number)[], formula: string): unknown => {
   const data: { v: string | number }[][] = values.map((value) => [{ v: value }]);
   data.push([{ v: formula }]);
   const result = new SpreadsheetEngine().calculate({ name: "S", data });
@@ -41,5 +41,60 @@ describe("VAR — sample estimator (#2360)", () => {
 
   it("returns #DIV/0! for a single value", () => {
     assert.equal(evalOverColumn([42], "=VAR(A1:A1)"), "#DIV/0!");
+  });
+});
+
+// A range holding no numbers is not a range of zeros. AVERAGE and MEDIAN used
+// to answer 0 for it, which reads like a genuine result (#2360). MAX / MIN /
+// SUM / COUNT are NOT part of this: Excel really does answer 0 there.
+
+const BLANKS = ["", "", ""];
+const TEXTS = ["apple", "banana", "cherry"];
+
+describe("AVERAGE — no numbers to average is #DIV/0! (#2360)", () => {
+  it("returns #DIV/0! for an all-blank range", () => {
+    assert.equal(evalOverColumn(BLANKS, "=AVERAGE(A1:A3)"), "#DIV/0!");
+  });
+
+  it("returns #DIV/0! for a text-only range (Excel ignores text)", () => {
+    assert.equal(evalOverColumn(TEXTS, "=AVERAGE(A1:A3)"), "#DIV/0!");
+  });
+
+  it("still averages when at least one number is present", () => {
+    assert.equal(evalOverColumn(["", 10, 20], "=AVERAGE(A1:A3)"), 15);
+  });
+
+  it("is an error VALUE, so IFERROR catches it", () => {
+    assert.equal(evalOverColumn(BLANKS, "=IFERROR(AVERAGE(A1:A3), 99)"), 99);
+  });
+});
+
+describe("MEDIAN — no numbers has no middle, so #NUM! (#2360)", () => {
+  it("returns #NUM! for an all-blank range", () => {
+    assert.equal(evalOverColumn(BLANKS, "=MEDIAN(A1:A3)"), "#NUM!");
+  });
+
+  it("returns #NUM! for a text-only range", () => {
+    assert.equal(evalOverColumn(TEXTS, "=MEDIAN(A1:A3)"), "#NUM!");
+  });
+
+  it("still takes the median when numbers are present", () => {
+    assert.equal(evalOverColumn([3, 1, 2], "=MEDIAN(A1:A3)"), 2);
+    assert.equal(evalOverColumn(["", 1, 3], "=MEDIAN(A1:A3)"), 2, "blanks are ignored, not averaged in as 0");
+  });
+
+  it("is an error VALUE, so IFERROR catches it", () => {
+    assert.equal(evalOverColumn(BLANKS, "=IFERROR(MEDIAN(A1:A3), 99)"), 99);
+  });
+});
+
+// Excel's own boundary for these four is 0, so the engine's 0 is correct and
+// must NOT be "fixed" into an error.
+describe("MAX / MIN / SUM / COUNT over an empty range stay 0 (Excel agrees)", () => {
+  it("answers 0 rather than an error", () => {
+    assert.equal(evalOverColumn(BLANKS, "=MAX(A1:A3)"), 0);
+    assert.equal(evalOverColumn(BLANKS, "=MIN(A1:A3)"), 0);
+    assert.equal(evalOverColumn(BLANKS, "=SUM(A1:A3)"), 0);
+    assert.equal(evalOverColumn(BLANKS, "=COUNT(A1:A3)"), 0);
   });
 });
