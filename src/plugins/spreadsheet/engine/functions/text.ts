@@ -83,12 +83,24 @@ const rightHandler: FunctionHandler = (args, context) => {
   return takeRight(text, numChars);
 };
 
+/** Excel MID: 1-based start, count of characters. `substring` SWAPS its bounds
+ *  when they are reversed, so a negative count read backwards from `start` and
+ *  returned earlier characters — `MID("Hello",3,-1)` gave "e" instead of an
+ *  error. Both arguments are validated here instead. */
+export const takeMid = (text: string, start: number, count: number): string | SpreadsheetError => {
+  const chars = normalizeCharCount(count);
+  if (isSpreadsheetErrorValue(chars)) return chars;
+  if (!Number.isFinite(start) || start < 1) return VALUE_ERROR;
+  const from = Math.trunc(start) - 1;
+  return text.substring(from, from + chars);
+};
+
 const midHandler: FunctionHandler = (args, context) => {
   const text = toString(context.evaluateFormula(args[0]));
-  const start = Number(context.evaluateFormula(args[1])) - 1; // 1-indexed to 0-indexed
+  const start = Number(context.evaluateFormula(args[1]));
   const numChars = Number(context.evaluateFormula(args[2]));
 
-  return text.substring(start, start + numChars);
+  return takeMid(text, start, numChars);
 };
 
 const lenHandler: FunctionHandler = (args, context) => {
@@ -185,20 +197,31 @@ const textHandler: FunctionHandler = (args, context) => {
   return toString(value);
 };
 
-const valueHandler: FunctionHandler = (args, context) => {
-  const text = toString(context.evaluateFormula(args[0]));
+/** Read a numeric string in full, or null. `Number` rather than `parseFloat`:
+ *  `parseFloat` stops at the first character it cannot read, so `VALUE("12abc")`
+ *  came back 12 where Excel reports #VALUE!. An empty string is not a number
+ *  here even though `Number("")` is 0. */
+const wholeNumberOrNull = (text: string): number | null => {
+  if (text === "") return null;
+  const parsed = Number(text);
+  return Number.isNaN(parsed) ? null : parsed;
+};
 
-  // Remove currency symbols and commas
-  const cleaned = text.replace(/[$,]/g, "").trim();
-
-  // Handle percentages
-  if (cleaned.includes("%")) {
-    const num = parseFloat(cleaned.replace("%", ""));
-    return isNaN(num) ? VALUE_ERROR : num / 100;
+/** Excel VALUE: the WHOLE string must be a number once its currency symbols and
+ *  thousands separators are stripped; trailing text is an error, not a prefix to
+ *  salvage. */
+export const parseValueText = (raw: string): number | SpreadsheetError => {
+  const cleaned = raw.replace(/[$,]/g, "").trim();
+  if (cleaned.endsWith("%")) {
+    const percent = wholeNumberOrNull(cleaned.slice(0, -1).trim());
+    return percent === null ? VALUE_ERROR : percent / 100;
   }
+  const parsed = wholeNumberOrNull(cleaned);
+  return parsed === null ? VALUE_ERROR : parsed;
+};
 
-  const num = parseFloat(cleaned);
-  return isNaN(num) ? VALUE_ERROR : num;
+const valueHandler: FunctionHandler = (args, context) => {
+  return parseValueText(toString(context.evaluateFormula(args[0])));
 };
 
 const exactHandler: FunctionHandler = (args, context) => {
