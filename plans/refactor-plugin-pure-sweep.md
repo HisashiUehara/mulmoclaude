@@ -69,6 +69,10 @@ These are verified or plausible but out of scope for a mechanical fix-plus-test 
   StackView duplicate capture-phase link handler (opens 2 tabs); StackView
   edit panel emits to nothing (silent edit loss); copy button copies rewritten
   display text in Files-Explorer mode.
-- **generateImage**: stale-image cache watch; chart-plugin sparse `instances[]`.
-- **shared**: 3 near-duplicate `ImageToolData` interfaces; `saveBlob` missing
-  from `docs/shared-utils.md`.
+- ~~**generateImage**: stale-image cache watch; chart-plugin sparse
+  `instances[]`.~~ **(shipped, fix/chart-generateimage-cleanup — chart crash +
+  generateImage deep-watch)** — generateImage's caching-ref/StackView-key
+  interaction still open (needs live verification).
+- **shared**: 3 near-duplicate `ImageToolData` interfaces (deferred — low
+  value, high churn); ~~`saveBlob` missing from `docs/shared-utils.md`~~
+  **(shipped)**.
