@@ -34,7 +34,7 @@
   "author": "Receptron Team",
   "dependencies": {
     "@mulmoclaude/common": "^1.1.0",
-    "js-yaml": "^5.2.1",
+    "js-yaml": "^5.2.2",
     "marked": "^18.0.7"
   },
   "peerDependencies": {
