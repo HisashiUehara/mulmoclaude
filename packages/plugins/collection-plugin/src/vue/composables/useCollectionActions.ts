@@ -21,6 +21,7 @@ import {
   visibleActionsOf,
   runningActionIdsOf,
   type CollectionActionContext,
+  type CollectionActionState,
 } from "./collectionActionRunners";
 import type { CollectionUi } from "../uiContext";
 import type { useCollectionI18n } from "../lang";
@@ -42,13 +43,11 @@ interface UseCollectionActionsParams {
   t: Translate;
 }
 
-export interface UseCollectionActions {
-  actionPending: Ref<boolean>;
-  actionError: Ref<string | null>;
-  collectionActionPending: Ref<boolean>;
-  mutateModal: Ref<{ action: CollectionMutateAction; itemId: string } | null>;
-  mutatePending: Ref<boolean>;
-  mutateError: Ref<string | null>;
+export interface UseCollectionActions extends CollectionActionState {
+  /** The in-flight agent-action run keys — passed to CollectionHeader (and the
+   *  record panel) so they can render the matching buttons with a spinner. The
+   *  same reactive Set the generation guard mutates. */
+  runningActions: Ref<Set<string>>;
   collectionActions: ComputedRef<CollectionAction[]>;
   visibleActions: ComputedRef<CollectionAction[]>;
   viewingRunningActionIds: ComputedRef<string[]>;
@@ -96,6 +95,7 @@ export function useCollectionActions({ collection, viewing, dataIssues, inlineEr
   const viewingRunningActionIds = computed<string[]>(() => runningActionIdsOf(collection.value, viewing.value, guard));
 
   return {
+    runningActions: guard.runningActions,
     actionPending,
     actionError,
     collectionActionPending,

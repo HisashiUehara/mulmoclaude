@@ -22,17 +22,23 @@ import type { useCollectionI18n } from "../lang";
 
 type Translate = ReturnType<typeof useCollectionI18n>["t"];
 
-export interface CollectionActionContext {
-  collection: Ref<CollectionDetail | null>;
-  viewing: Ref<CollectionItem | null>;
-  dataIssues: Readonly<Ref<CollectionRecordIssue[]>>;
-  inlineError: Ref<string | null>;
+/** The action UI-state refs the composable owns and the runners mutate — shared
+ *  between the run context (below) and the composable's public surface, so the
+ *  field set is declared once. */
+export interface CollectionActionState {
   actionPending: Ref<boolean>;
   actionError: Ref<string | null>;
   collectionActionPending: Ref<boolean>;
   mutateModal: Ref<{ action: CollectionMutateAction; itemId: string } | null>;
   mutatePending: Ref<boolean>;
   mutateError: Ref<string | null>;
+}
+
+export interface CollectionActionContext extends CollectionActionState {
+  collection: Ref<CollectionDetail | null>;
+  viewing: Ref<CollectionItem | null>;
+  dataIssues: Readonly<Ref<CollectionRecordIssue[]>>;
+  inlineError: Ref<string | null>;
   guard: RunningActionsGuard;
   cui: CollectionUi;
   props: { sendTextMessage?: (text?: string) => void };

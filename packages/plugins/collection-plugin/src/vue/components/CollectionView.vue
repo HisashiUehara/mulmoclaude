@@ -1045,6 +1045,7 @@ function showRefreshNote(message: string): void {
 // `useCollectionActions`; the load path (`loadCollection` / `refreshItemsInPlace`)
 // drives the guard through `clearRunningActions` / `beginRunningActionsReconcile`.
 const {
+  runningActions,
   actionPending,
   actionError,
   collectionActionPending,
