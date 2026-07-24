@@ -2,7 +2,9 @@ import type { Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { WIKI_ACTION } from "@mulmoclaude/core/wiki";
 import { apiPost } from "../../../utils/api";
+import { errorMessage } from "../../../utils/errors";
 import { computeToggledContent } from "../helpers";
+import { createTaskSaveQueue, type SaveResult } from "../taskSaveQueue";
 
 interface WikiPageSaveDeps {
   action: Ref<string>;
@@ -21,52 +23,37 @@ function revert(target: HTMLInputElement): void {
   target.checked = !target.checked;
 }
 
-// Serialised POST chain for rapid task-checkbox clicks (#775): each click queues
-// onto the previous so a slower network can't reorder writes.
-// `saveQueueGeneration` invalidates older queued saves after a failure-triggered
-// refresh — their captured snapshots were computed against the now-discarded
-// optimistic state, so writing them would overwrite canonical server content.
+// Thin DOM/optimistic-update glue over the pure `createTaskSaveQueue`, which
+// owns the serialisation + generation-invalidation + page-switch rules
+// (#775). This composable only wires the wiki API, i18n, and the checkbox
+// event into that queue.
 export function useWikiPageSave(deps: WikiPageSaveDeps): WikiPageSave {
   const { t } = useI18n();
-  let taskPersistChain: Promise<unknown> = Promise.resolve();
-  let saveQueueGeneration = 0;
 
-  async function persistWikiPage(pageName: string, newContent: string, generation: number): Promise<void> {
-    // Stale queued save (a previous save failed + refresh discarded the
-    // optimistic state this snapshot was based on).
-    if (generation !== saveQueueGeneration) return;
-    // Navigation changed mid-flight — saving this snapshot to a different page
-    // would clobber unrelated state; the route/result watchers already load it.
-    if (deps.currentSlug() !== pageName) return;
-
-    const response = await apiPost<{ data?: { content?: string } }>(deps.endpointBase, {
-      action: WIKI_ACTION.save,
-      pageName,
-      content: newContent,
-    });
-
-    if (generation !== saveQueueGeneration) return;
-    if (deps.currentSlug() !== pageName) return;
-
-    if (!response.ok) {
-      deps.navError.value = response.status === 0 ? response.error : `Wiki save failed (${response.status}): ${response.error}`;
-      // The generation bump must come AFTER refresh: clicks arriving WHILE
-      // refresh is in flight capture the pre-bump generation, so bumping
-      // post-refresh invalidates them too.
-      await deps.refresh();
-      saveQueueGeneration += 1;
-      return;
-    }
-    deps.navError.value = null;
-  }
-
-  // `.catch` keeps the chain self-healing: an uncaught rejection would leave the
-  // chain permanently rejected and silently drop every later click. The error
-  // is already surfaced via navError inside persistWikiPage.
-  function queueSave(pageName: string, newContent: string): void {
-    const generation = saveQueueGeneration;
-    taskPersistChain = taskPersistChain.then(() => persistWikiPage(pageName, newContent, generation)).catch(() => undefined);
-  }
+  const queue = createTaskSaveQueue({
+    persist: async (pageName, content): Promise<SaveResult> => {
+      // apiPost already encodes network failures as { ok:false, status:0 },
+      // but guard the fetch call anyway (repo rule: handle throws too).
+      try {
+        const response = await apiPost<{ data?: { content?: string } }>(deps.endpointBase, {
+          action: WIKI_ACTION.save,
+          pageName,
+          content,
+        });
+        return { ok: response.ok, status: response.ok ? 200 : response.status, error: response.ok ? "" : response.error };
+      } catch (err) {
+        return { ok: false, status: 0, error: errorMessage(err) };
+      }
+    },
+    refresh: () => deps.refresh(),
+    getCurrentSlug: deps.currentSlug,
+    onError: (message) => {
+      deps.navError.value = message;
+    },
+    onSuccess: () => {
+      deps.navError.value = null;
+    },
+  });
 
   function onTaskCheckboxClick(event: MouseEvent, target: HTMLInputElement): void {
     const root = event.currentTarget;
@@ -89,7 +76,7 @@ export function useWikiPageSave(deps: WikiPageSaveDeps): WikiPageSave {
     // Optimistic local update — re-render is driven by content's watcher.
     deps.content.value = result.content;
     deps.navError.value = null;
-    queueSave(pageName, result.content);
+    queue.queueSave(pageName, result.content);
   }
 
   return { onTaskCheckboxClick };
