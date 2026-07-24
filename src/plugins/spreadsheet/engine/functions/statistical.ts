@@ -3,7 +3,7 @@
  */
 
 import { functionRegistry, toNumber, parseCriteria, type FunctionContext, type FunctionHandler } from "../registry";
-import { computeMode, sampleStdev, sampleVariance } from "./statistical-math";
+import { computeAverage, computeMedian, computeMode, sampleStdev, sampleVariance } from "./statistical-math";
 import { DIV_ZERO_ERROR } from "../spreadsheet-errors";
 
 const isLetter = (char: string): boolean => /[A-Z]/i.test(char);
@@ -60,12 +60,7 @@ const sumHandler: FunctionHandler = (args, context) => {
   return values.reduce((sum: number, val) => sum + toNumber(val), 0);
 };
 
-const averageHandler: FunctionHandler = (args, context) => {
-  const values = context.getRangeValues(args[0]);
-  if (values.length === 0) return 0;
-  const sum = values.reduce((acc: number, val) => acc + toNumber(val), 0);
-  return sum / values.length;
-};
+const averageHandler: FunctionHandler = (args, context) => computeAverage(context.getRangeValues(args[0]).map(toNumber));
 
 const maxHandler: FunctionHandler = (args, context) => {
   const values = collectNumericValues(args, context);
@@ -82,16 +77,7 @@ const countHandler: FunctionHandler = (args, context) => {
   return values.length;
 };
 
-const medianHandler: FunctionHandler = (args, context) => {
-  const values = context
-    .getRangeValues(args[0])
-    .map(toNumber)
-    .sort((a, b) => a - b);
-
-  if (values.length === 0) return 0;
-  const mid = Math.floor(values.length / 2);
-  return values.length % 2 === 0 ? (values[mid - 1] + values[mid]) / 2 : values[mid];
-};
+const medianHandler: FunctionHandler = (args, context) => computeMedian(context.getRangeValues(args[0]).map(toNumber));
 
 const modeHandler: FunctionHandler = (args, context) => {
   const values = context.getRangeValues(args[0]).map(toNumber);
@@ -160,8 +146,6 @@ const averageifHandler: FunctionHandler = (args, context) => {
     }
   }
 
-  // Excel returns #DIV/0! when no cell matches (the average of nothing is
-  // undefined), rather than a silent 0.
   // Excel returns #DIV/0! when no cell matches (the average of nothing is
   // undefined), rather than a silent 0.
   return count > 0 ? sum / count : DIV_ZERO_ERROR;
