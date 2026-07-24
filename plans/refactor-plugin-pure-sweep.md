@@ -44,12 +44,17 @@ Every regression test was mutation-checked (reverting the fix turns it red).
 
 These are verified or plausible but out of scope for a mechanical fix-plus-test PR:
 
-- **canvas** (leans on unmaintained `vue-drawing-canvas@1.0.14`): shared default
-  `canvas-id` cross-contaminates two mounted instances (C1); Clear round-trips
-  cleared content back to disk after remount (C2); white-snapshot race on slow
-  background load (C3); stroke lost on off-canvas release (C4); silent save
-  failures (C6); ResizeObserver + debounced remount; height clamp in stack layout.
-  The `coalescingSaver` extraction (E2) falls out of the C6/C9 fix.
+- **canvas** (leans on unmaintained `vue-drawing-canvas@1.0.14`):
+  ~~shared default `canvas-id` cross-contaminates two mounted instances (C1)~~
+  **(shipped, fix/canvas-save-pipeline — per-instance `canvasElementId`, live
+  e2e verified)**; ~~Clear round-trips cleared content back to disk after
+  remount (C2)~~ **(shipped — blank-PNG PUT + remount, live e2e verified)**;
+  ~~stroke lost on off-canvas release (C4)~~ **(shipped — `@mouseleave` /
+  `@touchcancel` save triggers)**; ~~silent save failures (C6)~~ **(shipped —
+  visible "Not saved" indicator, live e2e verified)**. Still open: white-snapshot
+  race on slow background load (C3 — needs the background-preload gate; narrow
+  window, only when drawing during the initial load of an EXISTING drawing);
+  ResizeObserver + debounced remount; height clamp in stack layout.
 - **photoLocations**: declared `locations-changed` pubsub channel wired nowhere
   (stale list until remount).
 - ~~**scheduler TasksTab**: unsequenced refetch races; full-list remount on every
