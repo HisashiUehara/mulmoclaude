@@ -14,6 +14,7 @@ import {
   effectiveBeat,
   getMissingCharacterKeys,
   isAllSlideDeck,
+  isBeatImageReference,
   isSameScript,
   isValidBeat,
   scriptSourceText,
@@ -171,6 +172,21 @@ describe("beatMayHaveMovie", () => {
   it("refuses an empty beat and an empty moviePrompt", () => {
     assert.equal(beatMayHaveMovie({}), false);
     assert.equal(beatMayHaveMovie({ moviePrompt: "" }), false);
+  });
+});
+
+describe("isBeatImageReference", () => {
+  it("accepts a beat whose image references another beat", () => {
+    assert.equal(isBeatImageReference({ image: { type: "beat", id: "intro" } }), true);
+  });
+
+  it("refuses beats that own their image", () => {
+    assert.equal(isBeatImageReference({ image: { type: "slide" } }), false);
+    assert.equal(isBeatImageReference({ image: { type: "imagePrompt" } }), false);
+  });
+
+  it("refuses a beat with no image", () => {
+    assert.equal(isBeatImageReference({}), false);
   });
 });
 

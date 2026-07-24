@@ -99,6 +99,15 @@
             @dragleave="onBeatDragLeave(index)"
             @drop="onBeatDrop($event, index)"
           >
+            <!-- Beat number badge (1-based). Sits above the drop-hint
+                 overlay and the inline video player so the index stays
+                 readable in every beat state. -->
+            <div
+              class="absolute top-1.5 left-1.5 z-10 px-1.5 py-0.5 rounded bg-black/55 text-white text-xs font-medium leading-none pointer-events-none"
+              :data-testid="`mulmo-script-beat-number-${index}`"
+            >
+              {{ index + 1 }}
+            </div>
             <!-- Inline player for the beat's generated video clip.
                  Replaces the thumbnail while open; the close button
                  returns to the still image. -->
@@ -183,7 +192,7 @@
                  text-only beats fall back to a prompt derived from
                  the narration text (mulmocast prompt.js). -->
             <button
-              v-if="!renderedImages[index] && renderState[index] !== 'rendering' && !movieGenerating"
+              v-if="!renderedImages[index] && renderState[index] !== 'rendering' && !movieGenerating && !isBeatImageReference(effectiveBeat(index))"
               class="absolute top-1.5 right-1.5 flex items-center gap-1 px-2 py-0.5 text-xs rounded border border-blue-400 text-blue-600 bg-white hover:bg-blue-50"
               @click="renderBeat(index)"
             >
@@ -342,6 +351,7 @@ import {
   beatMayHaveMovie,
   shouldAutoRenderBeat,
   effectiveBeat as effectiveBeatOf,
+  isBeatImageReference,
   isValidBeat as isValidBeatOf,
   staleSince as staleSinceOf,
   scriptSourceText as toScriptSourceText,

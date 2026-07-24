@@ -78,6 +78,17 @@ export function beatMayHaveMovie(beat: { moviePrompt?: string; image?: { type?: 
   return beat.image?.type === "html_tailwind" && Boolean(beat.image.animation);
 }
 
+/**
+ * True for a beat whose image merely REFERENCES another beat's image
+ * (`image: { type: "beat", id }` — mulmoBeatReferenceMediaSchema). Such a
+ * beat owns no asset of its own, so there is nothing to generate for it:
+ * the View hides the Generate button (offering it produced a render that
+ * could never succeed on its own terms).
+ */
+export function isBeatImageReference(beat: { image?: { type?: string; [key: string]: unknown } }): boolean {
+  return beat.image?.type === "beat";
+}
+
 /** Pure check: is every beat in the script a `slide`-typed beat?
  *  When true, the View mounts `@mulmocast/deck-web`'s
  *  `MulmoScriptDeckEditor` instead of the per-beat list UI (#1575).
