@@ -42,6 +42,16 @@ export function isDateLike(str: string): boolean {
 }
 
 /**
+ * Build the Excel serial number for a year/month/day triple, or null when the
+ * triple is not a valid calendar date. Every dated branch of `parseDate` ends in
+ * this same validate → Date.UTC → dateToSerial step.
+ */
+export function serialFromParts(year: number, month: number, day: number): number | null {
+  if (!isValidDate(year, month, day)) return null;
+  return dateToSerial(new Date(Date.UTC(year, month - 1, day)));
+}
+
+/**
  * Parse a month name to month number (1-12)
  */
 function parseMonthName(monthStr: string): number | null {
@@ -84,11 +94,7 @@ export function parseDate(dateStr: string, preferDDMMYYYY: boolean = false): num
     const month = parseInt(isoMatch[2]);
     const day = parseInt(isoMatch[3]);
 
-    if (isValidDate(year, month, day)) {
-      const date = new Date(Date.UTC(year, month - 1, day));
-      return dateToSerial(date);
-    }
-    return null;
+    return serialFromParts(year, month, day);
   }
 
   // Try DD-MMM-YYYY or D-MMM-YYYY
@@ -104,11 +110,8 @@ export function parseDate(dateStr: string, preferDDMMYYYY: boolean = false): num
     }
 
     const month = parseMonthName(monthName);
-    if (month && isValidDate(year, month, day)) {
-      const date = new Date(Date.UTC(year, month - 1, day));
-      return dateToSerial(date);
-    }
-    return null;
+    if (month === null) return null;
+    return serialFromParts(year, month, day);
   }
 
   // Try MMM D, YYYY or MMMM D, YYYY
@@ -119,11 +122,8 @@ export function parseDate(dateStr: string, preferDDMMYYYY: boolean = false): num
     const year = parseInt(mmmMatch[3]);
 
     const month = parseMonthName(monthName);
-    if (month && isValidDate(year, month, day)) {
-      const date = new Date(Date.UTC(year, month - 1, day));
-      return dateToSerial(date);
-    }
-    return null;
+    if (month === null) return null;
+    return serialFromParts(year, month, day);
   }
 
   // Try D MMM YYYY
@@ -134,11 +134,8 @@ export function parseDate(dateStr: string, preferDDMMYYYY: boolean = false): num
     const year = parseInt(dMmmMatch[3]);
 
     const month = parseMonthName(monthName);
-    if (month && isValidDate(year, month, day)) {
-      const date = new Date(Date.UTC(year, month - 1, day));
-      return dateToSerial(date);
-    }
-    return null;
+    if (month === null) return null;
+    return serialFromParts(year, month, day);
   }
 
   // Try MM/DD/YYYY or DD/MM/YYYY
@@ -160,11 +157,7 @@ export function parseDate(dateStr: string, preferDDMMYYYY: boolean = false): num
     const month = isDayFirst ? second : first;
     const day = isDayFirst ? first : second;
 
-    if (isValidDate(year, month, day)) {
-      const date = new Date(Date.UTC(year, month - 1, day));
-      return dateToSerial(date);
-    }
-    return null;
+    return serialFromParts(year, month, day);
   }
 
   return null;
