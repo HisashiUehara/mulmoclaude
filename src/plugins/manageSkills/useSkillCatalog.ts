@@ -46,27 +46,28 @@ export interface SkillCatalogDeps {
   clearActiveSelection: () => void;
 }
 
-interface CatalogState {
-  t: TranslateFn;
-  endpoints: SkillsEndpoints;
-  deps: SkillCatalogDeps;
+// Single source of truth for the reactive fields: the private state bundle
+// and the public surface both extend it, so a new Ref is declared once
+// (#2481) instead of being mirrored into two lists that can drift apart.
+interface CatalogRefs {
   catalogPresets: Ref<CatalogEntry[]>;
   catalogExternal: Ref<CatalogEntry[]>;
   catalogError: Ref<string | null>;
   selectedCatalog: Ref<CatalogEntry | null>;
   catalogDetail: Ref<CatalogDetail | null>;
   catalogDetailLoading: Ref<boolean>;
+  // Single in-flight gate covers Star on the selected entry so a slow
+  // request doesn't let the user fire a second action mid-flight.
   catalogActioningKey: Ref<string | null>;
 }
 
-export interface SkillCatalog {
-  catalogPresets: Ref<CatalogEntry[]>;
-  catalogExternal: Ref<CatalogEntry[]>;
-  catalogError: Ref<string | null>;
-  selectedCatalog: Ref<CatalogEntry | null>;
-  catalogDetail: Ref<CatalogDetail | null>;
-  catalogDetailLoading: Ref<boolean>;
-  catalogActioningKey: Ref<string | null>;
+interface CatalogState extends CatalogRefs {
+  t: TranslateFn;
+  endpoints: SkillsEndpoints;
+  deps: SkillCatalogDeps;
+}
+
+export interface SkillCatalog extends CatalogRefs {
   selectedCatalogKey: ComputedRef<string | null>;
   loadCatalog: () => Promise<void>;
   selectCatalogEntry: (entry: CatalogEntry) => Promise<void>;
@@ -177,39 +178,28 @@ function resetCatalog(state: CatalogState): void {
   state.catalogError.value = null;
 }
 
+function createCatalogRefs(): CatalogRefs {
+  return {
+    catalogPresets: ref<CatalogEntry[]>([]),
+    catalogExternal: ref<CatalogEntry[]>([]),
+    catalogError: ref<string | null>(null),
+    selectedCatalog: ref<CatalogEntry | null>(null),
+    catalogDetail: ref<CatalogDetail | null>(null),
+    catalogDetailLoading: ref(false),
+    catalogActioningKey: ref<string | null>(null),
+  };
+}
+
 export function useSkillCatalog(deps: SkillCatalogDeps): SkillCatalog {
   const { t } = useI18n();
   const endpoints = pluginEndpoints<SkillsEndpoints>("skills");
-  const catalogPresets = ref<CatalogEntry[]>([]);
-  const catalogExternal = ref<CatalogEntry[]>([]);
-  const catalogError = ref<string | null>(null);
-  const selectedCatalog = ref<CatalogEntry | null>(null);
-  const catalogDetail = ref<CatalogDetail | null>(null);
-  const catalogDetailLoading = ref(false);
-  // Single in-flight gate covers Star on the selected entry so a slow
-  // request doesn't let the user fire a second action mid-flight.
-  const catalogActioningKey = ref<string | null>(null);
-  const selectedCatalogKey = computed(() => (selectedCatalog.value ? entryKey(selectedCatalog.value) : null));
-  const state: CatalogState = {
-    t,
-    endpoints,
-    deps,
-    catalogPresets,
-    catalogExternal,
-    catalogError,
-    selectedCatalog,
-    catalogDetail,
-    catalogDetailLoading,
-    catalogActioningKey,
-  };
+  // The same Ref instances back both the private state bundle and the
+  // returned surface — spreading copies the Ref objects, not their values.
+  const refs = createCatalogRefs();
+  const selectedCatalogKey = computed(() => (refs.selectedCatalog.value ? entryKey(refs.selectedCatalog.value) : null));
+  const state: CatalogState = { t, endpoints, deps, ...refs };
   return {
-    catalogPresets,
-    catalogExternal,
-    catalogError,
-    selectedCatalog,
-    catalogDetail,
-    catalogDetailLoading,
-    catalogActioningKey,
+    ...refs,
     selectedCatalogKey,
     loadCatalog: () => loadCatalog(state),
     selectCatalogEntry: (entry) => selectCatalogEntry(state, entry),
