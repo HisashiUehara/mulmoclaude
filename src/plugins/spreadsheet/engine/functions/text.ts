@@ -203,12 +203,14 @@ const textHandler: FunctionHandler = (args, context) => {
  *  here even though `Number("")` is 0. */
 // Decimal or scientific notation only. `Number` alone also accepts JS-only
 // spellings a spreadsheet never should — `0x10` → 16, `0b10` → 2, `Infinity` —
-// so the shape is checked before converting (Codex review).
+// so the shape is checked before converting.
 const DECIMAL_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 
 const wholeNumberOrNull = (text: string): number | null => {
   if (!DECIMAL_NUMBER.test(text)) return null;
   const parsed = Number(text);
+  // The pattern admits an exponent that overflows to Infinity (`1e999`), which
+  // is no more a spreadsheet number than the literal spelling is.
   return Number.isFinite(parsed) ? parsed : null;
 };
 

@@ -74,13 +74,23 @@ describe("parseValueText — the whole string must be a number", () => {
     assert.equal(parseValueText("12abc%"), VALUE_ERROR, "still a whole-string match");
   });
 
-  // `Number` accepts JS-only spellings a spreadsheet never should (Codex review).
+  // `Number` accepts JS-only spellings a spreadsheet never should.
   it("rejects JS-only numeric syntaxes", () => {
     assert.equal(parseValueText("0x10"), VALUE_ERROR, "hex");
+    assert.equal(parseValueText("0X10"), VALUE_ERROR, "hex, upper case");
     assert.equal(parseValueText("0b10"), VALUE_ERROR, "binary");
     assert.equal(parseValueText("0o17"), VALUE_ERROR, "octal");
     assert.equal(parseValueText("Infinity"), VALUE_ERROR);
+    assert.equal(parseValueText("-Infinity"), VALUE_ERROR);
     assert.equal(parseValueText("1_000"), VALUE_ERROR, "numeric separator");
+  });
+
+  // The decimal pattern matches these, so only the finiteness check rejects
+  // them — without it the guard would be dead code and could be dropped unseen.
+  it("rejects an exponent that overflows to infinity", () => {
+    assert.equal(parseValueText("1e999"), VALUE_ERROR);
+    assert.equal(parseValueText("-1e999"), VALUE_ERROR);
+    assert.equal(parseValueText("1e999%"), VALUE_ERROR, "also through the percent path");
   });
 
   it("still reads decimal and scientific notation", () => {
