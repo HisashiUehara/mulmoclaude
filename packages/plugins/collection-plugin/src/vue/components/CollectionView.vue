@@ -347,19 +347,14 @@ import CollectionCustomView from "./CollectionCustomView.vue";
 import CollectionRemoteViewPreview from "./CollectionRemoteViewPreview.vue";
 import CollectionTable from "./CollectionTable.vue";
 import { useCollectionRendering } from "../useCollectionRendering";
-import {
-  readCollectionViewMode,
-  writeCollectionViewMode,
-  writeCollectionSort,
-  writeCollectionFlagFilters,
-  type CollectionViewMode,
-  type BuiltInViewMode,
-} from "../collectionViewMode";
+import { writeCollectionViewMode, writeCollectionSort, writeCollectionFlagFilters, type CollectionViewMode, type BuiltInViewMode } from "../collectionViewMode";
 import { collectionUi } from "../uiContext";
 import { useTableSort } from "../composables/useTableSort";
 import { useCollectionActions } from "../composables/useCollectionActions";
 import { useFlagFilters } from "../composables/useFlagFilters";
 import { useCollectionChat } from "../composables/useCollectionChat";
+import { useViewMode } from "../composables/useViewMode";
+import { useLiveCollectionRefresh } from "../composables/useLiveCollectionRefresh";
 import {
   dateOf,
   itemMatchesQuery,
@@ -884,17 +879,9 @@ const isFeedRoute = computed<boolean>(() => !embedded.value && cui.isFeedRoute()
 // `CollectionViewMode` ("table" | "calendar" | "kanban" | "dashboard" |
 // `custom:<id>`) is imported from the view-mode util.
 
-/** The view to open with: the embedded card's restored `initialView` if
- *  present (its own persisted state wins), else the slug's stored
- *  preference, else "table". Embedded cards READ the store but never WRITE
- *  it (the persist watch only emits `viewStateChange` for them), so a stale
- *  card re-rendering can't clobber the shared preference. */
-function initialViewMode(): CollectionViewMode {
-  if (props.initialView) return props.initialView;
-  const slug = activeSlug.value;
-  return (slug && readCollectionViewMode(slug)) || "table";
-}
-const view = ref<CollectionViewMode>(initialViewMode());
+// The raw `view` ref + its init/restore live in `useViewMode` (created below,
+// once the field lists it gates on — hasCalendar / hasKanban / customViews —
+// exist).
 
 /** `date` / `datetime` fields in declaration order — the calendar can anchor
  *  on any (a `datetime` anchor also carries the clock for the day view). */
@@ -921,10 +908,6 @@ const enumFields = computed<string[]>(() =>
 /** Whether the kanban toggle is offered (needs an `enum` field to group on). */
 const hasKanban = computed<boolean>(() => enumFields.value.length > 0);
 
-/** The effective view, collapsing any stale mode whose enabling field
- *  vanished (e.g. `view = "kanban"` after switching to an enum-less
- *  collection) back to "table". Single source of truth for the toggle and
- *  the body branches. */
 /** Custom (LLM-authored) HTML views declared on the schema. Mobile-target
  *  views need the host's `fetchRemoteView` binding (the phone-frame preview's
  *  data source) — on a host without it they're hidden from the selector. */
@@ -934,29 +917,20 @@ const customViews = computed<CustomViewSpec[]>(() => {
 });
 const hasCustomViews = computed<boolean>(() => customViews.value.length > 0);
 
-const activeView = computed<CollectionViewMode>(() => {
-  if (view.value === "calendar" && hasCalendar.value) return "calendar";
-  if (view.value === "kanban" && hasKanban.value) return "kanban";
-  if (view.value.startsWith("custom:")) {
-    const viewId = view.value.slice("custom:".length);
-    if (customViews.value.some((entry) => entry.id === viewId)) return view.value;
-  }
-  return "table";
-});
-
-/** The selected custom view's spec, or null when a built-in view is active. */
-const activeCustomView = computed<CustomViewSpec | null>(() => {
-  const mode = activeView.value;
-  if (!mode.startsWith("custom:")) return null;
-  const viewId = mode.slice("custom:".length);
-  return customViews.value.find((entry) => entry.id === viewId) ?? null;
-});
-
-/** Narrow a (possibly custom) mode to a built-in one, used where only the
- *  built-in views are representable (the embedded card's viewState). */
-function builtInViewOrTable(mode: CollectionViewMode): BuiltInViewMode {
-  return mode === "calendar" || mode === "kanban" ? mode : "table";
-}
+// View-mode state (raw `view` ref + `activeView` collapse + set/reset). The
+// localStorage WRITE stays in the parent's combined persist watch below (with
+// sort + flag filters + the embedded `viewStateChange` emit), same pattern as the
+// sort / flag composables — this owns the ref + read-on-init + `resetForSlug`.
+const {
+  activeView,
+  activeCustomView,
+  calendarActive,
+  kanbanActive,
+  setView,
+  setCustomView,
+  builtInViewOrTable,
+  resetForSlug: resetViewModeForSlug,
+} = useViewMode({ activeSlug, props, hasCalendar, hasKanban, customViews });
 
 /** Whether to offer the "+" (author a new custom view) button. Standalone
  *  page only (the seed starts a chat). Feeds qualify too — their views are
@@ -1005,12 +979,6 @@ async function onViewsChanged(): Promise<void> {
   if (current) await loadCollection(current.slug);
 }
 
-/** True when the calendar is the active body. */
-const calendarActive = computed<boolean>(() => activeView.value === "calendar");
-
-/** True when the kanban is the active body. */
-const kanbanActive = computed<boolean>(() => activeView.value === "kanban");
-
 // In-view override for which enum field groups the board; null ⇒ the schema
 // hint, else the first enum field.
 const kanbanOverride = ref<string | null>(props.initialGroupField ?? null);
@@ -1046,16 +1014,6 @@ const calendarTimeField = computed<string | undefined>(() => {
   if (!schema?.calendarTimeField) return undefined;
   return calendarAnchorField.value === schema.calendarField ? schema.calendarTimeField : undefined;
 });
-
-function setView(next: CollectionViewMode): void {
-  view.value = next;
-}
-
-/** Select a custom view by id (builds the `custom:<id>` mode key). */
-function setCustomView(viewId: string): void {
-  const mode: CollectionViewMode = `custom:${viewId}`;
-  view.value = mode;
-}
 
 /** A short, slug-safe id not already used by a loaded record. Collisions
  *  are astronomically unlikely (32 bits), but we still re-roll a few
@@ -1538,7 +1496,7 @@ watch(
     // restore the new collection's stored mode (else "table"); the axis
     // fields always reset to their schema defaults.
     if (prevSlug !== undefined && slug !== prevSlug) {
-      view.value = (slug && readCollectionViewMode(slug)) || "table";
+      resetViewModeForSlug(slug);
       anchorOverride.value = null;
       kanbanOverride.value = null;
       // The toolbar closes its own filter / add-view menus on this slug change
@@ -1579,56 +1537,9 @@ watch(
 // clobbers the user's draft. A change that lands mid-edit sets a pending flag
 // that the `editing` watch below flushes once the edit ends — whether it ends
 // by save or cancel — so a cancelled edit doesn't leave the view stale.
-const LIVE_REFRESH_DEBOUNCE_MS = 150;
-let changeUnsub: (() => void) | null = null;
-let liveRefreshTimer: ReturnType<typeof setTimeout> | undefined;
-let pendingRemoteRefresh = false;
-
-function clearLiveRefreshTimer(): void {
-  if (liveRefreshTimer !== undefined) {
-    clearTimeout(liveRefreshTimer);
-    liveRefreshTimer = undefined;
-  }
-}
-
-function onRemoteChange(slug: string): void {
-  clearLiveRefreshTimer();
-  liveRefreshTimer = setTimeout(() => {
-    liveRefreshTimer = undefined;
-    if (editing.value) {
-      pendingRemoteRefresh = true; // defer past the edit, don't drop it
-      return;
-    }
-    if (activeSlug.value === slug) void refreshItemsInPlace(slug);
-  }, LIVE_REFRESH_DEBOUNCE_MS);
-}
-
-// Flush a remote change that arrived mid-edit once the edit ends (save or
-// cancel). The save path refetches on its own, but cancel has no other refresh
-// path — without this, a cancelled edit would strand the deferred update.
-watch(editing, (current) => {
-  if (current || !pendingRemoteRefresh) return;
-  pendingRemoteRefresh = false;
-  if (activeSlug.value) void refreshItemsInPlace(activeSlug.value);
-});
-
-watch(
-  activeSlug,
-  (slug) => {
-    changeUnsub?.();
-    changeUnsub = null;
-    clearLiveRefreshTimer();
-    if (slug && cui.subscribeChanges) {
-      changeUnsub = cui.subscribeChanges(slug, () => onRemoteChange(slug));
-    }
-  },
-  { immediate: true },
-);
+useLiveCollectionRefresh({ activeSlug, editing, cui, refreshItemsInPlace });
 
 onUnmounted(() => {
-  changeUnsub?.();
-  changeUnsub = null;
-  clearLiveRefreshTimer();
   if (refreshNoteTimer !== undefined) clearTimeout(refreshNoteTimer);
 });
 
