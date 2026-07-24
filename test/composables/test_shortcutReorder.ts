@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { moveShortcut, isSamePermutation, isSameOrder, applyOrder } from "../../src/composables/shortcutReorder.js";
+import { moveShortcut, moveShortcutByIdentity, type MoveDirection } from "../../src/composables/shortcutReorder.js";
 import type { Shortcut } from "../../src/types/shortcuts.js";
 
 function makeShortcut(slug: string, kind: Shortcut["kind"] = "collection"): Shortcut {
@@ -48,88 +48,62 @@ describe("moveShortcut", () => {
     assert.equal(moveShortcut(list, 0, "up"), list);
     assert.equal(moveShortcut(list, 0, "down"), list);
   });
+});
 
-  it("distinguishes items of different kinds sharing a slug", () => {
+describe("moveShortcutByIdentity", () => {
+  it("locates the entry by (kind, slug) and moves it", () => {
+    const list = [makeShortcut("a"), makeShortcut("b"), makeShortcut("c")];
+    assert.deepEqual(slugs(moveShortcutByIdentity(list, "collection", "b", "up")), ["b", "a", "c"]);
+    assert.deepEqual(slugs(moveShortcutByIdentity(list, "collection", "b", "down")), ["a", "c", "b"]);
+  });
+
+  it("distinguishes entries of different kinds sharing a slug", () => {
     const list = [makeShortcut("x", "collection"), makeShortcut("x", "feed")];
-    const moved = moveShortcut(list, 1, "up");
+    const moved = moveShortcutByIdentity(list, "feed", "x", "up");
     assert.deepEqual(
       moved.map((entry) => entry.kind),
       ["feed", "collection"],
     );
   });
-});
 
-describe("isSamePermutation", () => {
-  it("is true for the same members in a different order", () => {
-    assert.equal(isSamePermutation([makeShortcut("a"), makeShortcut("b")], [makeShortcut("b"), makeShortcut("a")]), true);
+  it("returns the SAME reference when the slug isn't pinned (no-op)", () => {
+    const list = [makeShortcut("a"), makeShortcut("b")];
+    assert.equal(moveShortcutByIdentity(list, "collection", "ghost", "down"), list);
   });
 
-  it("is false when a member is dropped", () => {
-    assert.equal(isSamePermutation([makeShortcut("a"), makeShortcut("b")], [makeShortcut("a")]), false);
+  it("returns the SAME reference at an end (first up / last down)", () => {
+    const list = [makeShortcut("a"), makeShortcut("b")];
+    assert.equal(moveShortcutByIdentity(list, "collection", "a", "up"), list);
+    assert.equal(moveShortcutByIdentity(list, "collection", "b", "down"), list);
   });
 
-  it("is false when a foreign member is injected", () => {
-    assert.equal(isSamePermutation([makeShortcut("a"), makeShortcut("b")], [makeShortcut("a"), makeShortcut("c")]), false);
+  it("keeps each entry's current metadata (reorders source objects, not a snapshot)", () => {
+    const fresh = { kind: "collection" as const, slug: "a", title: "Fresh A", icon: "new_icon" };
+    const list = [fresh, makeShortcut("b")];
+    const moved = moveShortcutByIdentity(list, "collection", "a", "down");
+    const movedA = moved.find((entry) => entry.slug === "a");
+    assert.equal(movedA, fresh); // exact object, so title/icon are always current
   });
 
-  it("treats (kind, slug) as the identity — same slug, different kind is not the same member", () => {
-    assert.equal(isSamePermutation([makeShortcut("x", "collection")], [makeShortcut("x", "feed")]), false);
+  // Codex regression: two rapid clicks must compose. The store resolves
+  // each move against the list AT EXECUTION TIME, so threading the first
+  // result into the second (as the serialized queue does) moves the item
+  // two slots — not once. A snapshot-at-click-time design would drop the
+  // second move.
+  it("composes repeated moves of the same item (rapid double-click)", () => {
+    const start = [makeShortcut("a"), makeShortcut("b"), makeShortcut("c")];
+    const afterFirst = moveShortcutByIdentity(start, "collection", "a", "down");
+    const afterSecond = moveShortcutByIdentity(afterFirst, "collection", "a", "down");
+    assert.deepEqual(slugs(afterFirst), ["b", "a", "c"]);
+    assert.deepEqual(slugs(afterSecond), ["b", "c", "a"]);
   });
 
-  it("is true for two empty lists", () => {
-    assert.equal(isSamePermutation([], []), true);
-  });
-});
-
-describe("isSameOrder", () => {
-  it("is true only for the identical sequence", () => {
-    assert.equal(isSameOrder([makeShortcut("a"), makeShortcut("b")], [makeShortcut("a"), makeShortcut("b")]), true);
-    assert.equal(isSameOrder([makeShortcut("a"), makeShortcut("b")], [makeShortcut("b"), makeShortcut("a")]), false);
-  });
-
-  it("is false for differing lengths", () => {
-    assert.equal(isSameOrder([makeShortcut("a")], [makeShortcut("a"), makeShortcut("b")]), false);
-  });
-});
-
-describe("applyOrder", () => {
-  it("resequences source to match order's (kind, slug) sequence", () => {
-    const source = [makeShortcut("a"), makeShortcut("b"), makeShortcut("c")];
-    const order = [makeShortcut("c"), makeShortcut("a"), makeShortcut("b")];
-    assert.deepEqual(slugs(applyOrder(source, order)), ["c", "a", "b"]);
-  });
-
-  it("keeps source's title/icon, ignoring stale metadata in order (the reconcile race)", () => {
-    const source = [
-      { kind: "collection" as const, slug: "a", title: "Fresh A", icon: "new_icon" },
-      { kind: "collection" as const, slug: "b", title: "Fresh B", icon: "new_b" },
-    ];
-    // `order` carries STALE title/icon (an earlier snapshot) — must not win.
-    const order = [
-      { kind: "collection" as const, slug: "b", title: "Old B", icon: "old_b" },
-      { kind: "collection" as const, slug: "a", title: "Old A", icon: "old_icon" },
-    ];
-    const result = applyOrder(source, order);
-    assert.deepEqual(
-      result.map((entry) => [entry.slug, entry.title, entry.icon]),
-      [
-        ["b", "Fresh B", "new_b"],
-        ["a", "Fresh A", "new_icon"],
-      ],
-    );
-  });
-
-  it("returns the exact source object references (no copies)", () => {
-    const source = [makeShortcut("a"), makeShortcut("b")];
-    const order = [makeShortcut("b"), makeShortcut("a")];
-    const result = applyOrder(source, order);
-    assert.equal(result[0], source[1]);
-    assert.equal(result[1], source[0]);
-  });
-
-  it("skips an order entry absent from source", () => {
-    const source = [makeShortcut("a")];
-    const order = [makeShortcut("a"), makeShortcut("ghost")];
-    assert.deepEqual(slugs(applyOrder(source, order)), ["a"]);
+  it("composes a sequence applied left-to-right to move an item to the end", () => {
+    let list = [makeShortcut("a"), makeShortcut("b"), makeShortcut("c")];
+    const directions: MoveDirection[] = ["down", "down"];
+    for (const direction of directions) {
+      list = moveShortcutByIdentity(list, "collection", "a", direction);
+    }
+    assert.deepEqual(slugs(list), ["b", "c", "a"]);
   });
 });

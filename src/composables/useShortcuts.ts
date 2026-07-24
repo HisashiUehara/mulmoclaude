@@ -12,7 +12,7 @@ import { API_ROUTES } from "../config/apiRoutes";
 import { apiGet, apiPut } from "../utils/api";
 import { createMutationQueue } from "../utils/mutationQueue";
 import { sameShortcut, type Shortcut, type ShortcutKind } from "../types/shortcuts";
-import { applyOrder, isSameOrder, isSamePermutation } from "./shortcutReorder";
+import { moveShortcutByIdentity, type MoveDirection } from "./shortcutReorder";
 
 const shortcuts = ref<Shortcut[]>([]);
 const loadError = ref<string | null>(null);
@@ -101,22 +101,21 @@ function unpin(kind: ShortcutKind, slug: string): Promise<boolean> {
   });
 }
 
-/** Persist a reordered copy of the pinned list. `next` MUST be a
- *  permutation of the current shortcuts (same members) — a mismatch is
- *  rejected so a stale caller can't silently drop or inject an entry
- *  through the reorder path. A no-op (returns true) when the order is
- *  already what's on disk. Only the ORDER is taken from `next`; each
- *  entry's title/icon comes from the authoritative `previous` via
- *  `applyOrder`, so a reorder queued behind a `reconcile()` can't write
- *  that reconcile's freshly-refreshed metadata back to a stale value. */
-function reorder(next: Shortcut[]): Promise<boolean> {
+/** Move one pinned shortcut a single slot up/down, identified by
+ *  (kind, slug). The new order is resolved INSIDE the queue against the
+ *  authoritative list at execution time — never a snapshot the caller
+ *  captured earlier — so rapid clicks compose (two "down"s move it two
+ *  slots) even when the queue is busy behind a `reconcile()`, and each
+ *  entry keeps its current title/icon. No-op (returns true) at an end or
+ *  if the slug isn't pinned. */
+function movePinned(kind: ShortcutKind, slug: string, direction: MoveDirection): Promise<boolean> {
   return enqueue(async () => {
     await load();
     if (!loaded.value) return false; // never overwrite an unread list
     const previous = shortcuts.value;
-    if (!isSamePermutation(previous, next)) return false;
-    if (isSameOrder(previous, next)) return true;
-    return persist(applyOrder(previous, next), previous);
+    const next = moveShortcutByIdentity(previous, kind, slug, direction);
+    if (next === previous) return true; // at an end / not pinned — nothing to persist
+    return persist(next, previous);
   });
 }
 
@@ -155,7 +154,7 @@ export function useShortcuts(): {
   isPinned: (kind: ShortcutKind, slug: string) => boolean;
   pin: (shortcut: Shortcut) => Promise<boolean>;
   unpin: (kind: ShortcutKind, slug: string) => Promise<boolean>;
-  reorder: (next: Shortcut[]) => Promise<boolean>;
+  movePinned: (kind: ShortcutKind, slug: string, direction: MoveDirection) => Promise<boolean>;
   reconcile: (kind: ShortcutKind, live: { slug: string; title: string; icon: string }[]) => Promise<void>;
 } {
   void load();
@@ -166,7 +165,7 @@ export function useShortcuts(): {
     isPinned,
     pin,
     unpin,
-    reorder,
+    movePinned,
     reconcile,
   };
 }

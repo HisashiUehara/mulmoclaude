@@ -5,6 +5,13 @@
 // The persisted order IS the array order — `normalizeShortcuts`
 // (server) and `reconcile` (client) both preserve it — so reordering
 // only rewrites the same members in a new sequence; no schema field.
+//
+// Intent is expressed as (kind, slug, direction), NOT a precomputed
+// array: the store resolves it against the authoritative list at the
+// moment the mutation runs (inside the serialized queue). Passing a
+// snapshot captured at click time would go stale whenever the queue is
+// busy (a `reconcile()` PUT in flight), so two rapid clicks could
+// enqueue the same move and the second would no-op.
 
 import { sameShortcut, type Shortcut } from "../types/shortcuts";
 
@@ -24,33 +31,15 @@ export function moveShortcut(list: Shortcut[], index: number, direction: MoveDir
   return next;
 }
 
-/** True when `left` and `right` hold the same members (by kind+slug) regardless
- *  of order — the guard that a reorder neither added nor dropped an
- *  entry. Assumes both are dedup'd on (kind, slug) (the normalizer
- *  guarantees it), so equal length + full containment implies a
- *  bijection. */
-export function isSamePermutation(left: Shortcut[], right: Shortcut[]): boolean {
-  if (left.length !== right.length) return false;
-  return left.every((entry) => right.some((other) => sameShortcut(entry, other)));
-}
-
-/** True when `left` and `right` list the same members in the identical order. */
-export function isSameOrder(left: Shortcut[], right: Shortcut[]): boolean {
-  if (left.length !== right.length) return false;
-  return left.every((entry, index) => sameShortcut(entry, right[index]));
-}
-
-/** Resequence `source`'s members to match the (kind, slug) order of
- *  `order`, but keep each member's metadata (title/icon) from `source` —
- *  never from `order`. A reorder is queued behind other mutations, so an
- *  `order` snapshot the caller captured earlier may hold stale title/icon
- *  (e.g. a `reconcile()` refreshed them in between); pulling the body
- *  from the authoritative `source` makes reorder change ORDER only. An
- *  `order` entry absent from `source` is skipped — pair with
- *  `isSamePermutation` to guarantee there are none. */
-export function applyOrder(source: Shortcut[], order: Shortcut[]): Shortcut[] {
-  return order.flatMap((wanted) => {
-    const found = source.find((entry) => sameShortcut(entry, wanted));
-    return found ? [found] : [];
-  });
+/** Resolve a move intent against `list`: locate the entry by (kind, slug)
+ *  and move it one slot in `direction`. Returns the SAME reference when
+ *  the entry isn't present or is already at the relevant end (no-op).
+ *  Because it reorders `list`'s own objects, each entry's metadata comes
+ *  from `list` — pass the authoritative current list at execution time
+ *  and repeated calls compose (move the same item down twice → two
+ *  slots). Never mutates the input. */
+export function moveShortcutByIdentity(list: Shortcut[], kind: Shortcut["kind"], slug: string, direction: MoveDirection): Shortcut[] {
+  const index = list.findIndex((entry) => sameShortcut(entry, { kind, slug }));
+  if (index < 0) return list;
+  return moveShortcut(list, index, direction);
 }

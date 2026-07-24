@@ -47,7 +47,7 @@
             :aria-label="t('shortcuts.reorder.moveUp')"
             :disabled="index === 0"
             :data-testid="`shortcut-reorder-up-${shortcut.kind}-${shortcut.slug}`"
-            @click="move(index, 'up')"
+            @click="move(shortcut, 'up')"
           >
             <span class="material-icons text-base">arrow_upward</span>
           </button>
@@ -58,7 +58,7 @@
             :aria-label="t('shortcuts.reorder.moveDown')"
             :disabled="index === shortcuts.length - 1"
             :data-testid="`shortcut-reorder-down-${shortcut.kind}-${shortcut.slug}`"
-            @click="move(index, 'down')"
+            @click="move(shortcut, 'down')"
           >
             <span class="material-icons text-base">arrow_downward</span>
           </button>
@@ -73,24 +73,23 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useShortcuts } from "../composables/useShortcuts";
 import { useClickOutside } from "../composables/useClickOutside";
-import { moveShortcut, type MoveDirection } from "../composables/shortcutReorder";
+import type { MoveDirection } from "../composables/shortcutReorder";
+import type { Shortcut } from "../types/shortcuts";
 
 const { t } = useI18n();
-const { shortcuts, reorder } = useShortcuts();
+const { shortcuts, movePinned } = useShortcuts();
 
 const open = ref(false);
 const wrapper = ref<HTMLDivElement | null>(null);
 const trigger = ref<HTMLButtonElement | null>(null);
 const panel = ref<HTMLDivElement | null>(null);
 
-// Swap the item at `index` one slot in `direction` and persist. The
-// helper returns the same array reference for an at-the-end no-op (the
-// button is already disabled there, but guard anyway), so we skip a
-// pointless PUT.
-async function move(index: number, direction: MoveDirection): Promise<void> {
-  const next = moveShortcut(shortcuts.value, index, direction);
-  if (next === shortcuts.value) return;
-  await reorder(next);
+// Pass the move INTENT (identity + direction), not a precomputed array:
+// the store resolves the new order against the authoritative list when
+// the queued mutation runs, so rapid clicks compose even while the queue
+// is busy behind a reconcile.
+async function move(shortcut: Shortcut, direction: MoveDirection): Promise<void> {
+  await movePinned(shortcut.kind, shortcut.slug, direction);
 }
 
 const { handler } = useClickOutside({ isOpen: open, buttonRef: trigger, popupRef: panel });

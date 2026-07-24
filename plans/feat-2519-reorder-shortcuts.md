@@ -37,17 +37,22 @@ Chosen over direct pill drag-and-drop (e2e-fragile on a horizontal
 overflow-scroll pill) and hover arrows (cramped on 8×8 pills).
 
 - **`src/composables/shortcutReorder.ts`** (pure, unit-tested):
-  `moveShortcut(list, i, dir)` (returns same ref for an end no-op),
-  `isSamePermutation`, `isSameOrder`.
-- **`useShortcuts.reorder(next)`**: runs through the existing mutation
-  queue; rejects a `next` that isn't a permutation of the current list
-  (guards against a stale caller dropping/injecting an entry); no-op when
-  order is unchanged; optimistic with rollback via the shared `persist`.
+  `moveShortcut(list, i, dir)` (returns same ref for an end no-op) and
+  `moveShortcutByIdentity(list, kind, slug, dir)` (locate by identity,
+  then move).
+- **`useShortcuts.movePinned(kind, slug, direction)`**: expresses the
+  move as an INTENT, not a precomputed array. Runs through the existing
+  mutation queue and resolves the new order against the authoritative
+  list at execution time (inside the queued task), so rapid clicks
+  compose even while the queue is busy behind a `reconcile()` and each
+  entry keeps its current title/icon. Optimistic with rollback via the
+  shared `persist`; no-op at an end / if unpinned.
 - **`src/components/ShortcutReorderPopover.vue`**: an `edit` trigger +
   popover listing each shortcut with up/down arrows. Consumes
   `useShortcuts()` directly (singleton store) so `App.vue` is untouched.
-  Uses the host `useClickOutside`; Escape closes. Each arrow click applies
-  `moveShortcut` and persists immediately (queue serialises rapid clicks).
+  Uses the host `useClickOutside`; Escape closes. Each arrow click passes
+  the intent `(kind, slug, direction)` to `movePinned` — it captures NO
+  snapshot.
 - **`PluginLauncher.vue`**: renders `<ShortcutReorderPopover>` as a
   sibling **after** the Group 2 pill (that pill is `overflow-x-auto` and
   would clip an absolute popover). Shown only when `shortcuts.length > 1`.
@@ -56,10 +61,23 @@ overflow-scroll pill) and hover arrows (cramped on 8×8 pills).
 
 ## Tests
 
-- `test/composables/test_shortcutReorder.ts` — 15 cases (move up/down,
-  end/out-of-range no-ops returning same ref, immutability, single-element,
-  kind-vs-slug identity, permutation/order predicates). Mutation-checked
-  (flipping the direction turns 5 red).
+- `test/composables/test_shortcutReorder.ts` — move up/down, end/
+  out-of-range no-ops returning same ref, immutability, single-element,
+  identity lookup (incl. kind-vs-slug), current-metadata preservation, and
+  the **rapid double-click composition** regression (two moves of the same
+  item resolve against the evolving list → item moves two slots). All
+  mutation-checked.
+
+## Codex review (addressed)
+
+Two `CHANGES REQUESTED` verdicts, same root cause — a reorder snapshot
+captured before the serialized queue could go stale:
+1. metadata roll-back when a `reconcile()` ran first;
+2. rapid double-click collapsing to one move when the queue was busy.
+
+Both fixed by switching from "persist this precomputed array" to "apply
+this move intent against the authoritative list at execution time"
+(`movePinned(kind, slug, direction)` + `moveShortcutByIdentity`).
 
 ## Deferred
 
