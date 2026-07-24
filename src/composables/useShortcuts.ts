@@ -12,6 +12,7 @@ import { API_ROUTES } from "../config/apiRoutes";
 import { apiGet, apiPut } from "../utils/api";
 import { createMutationQueue } from "../utils/mutationQueue";
 import { sameShortcut, type Shortcut, type ShortcutKind } from "../types/shortcuts";
+import { isSameOrder, isSamePermutation } from "./shortcutReorder";
 
 const shortcuts = ref<Shortcut[]>([]);
 const loadError = ref<string | null>(null);
@@ -100,6 +101,22 @@ function unpin(kind: ShortcutKind, slug: string): Promise<boolean> {
   });
 }
 
+/** Persist a reordered copy of the pinned list. `next` MUST be a
+ *  permutation of the current shortcuts (same members) — a mismatch is
+ *  rejected so a stale caller can't silently drop or inject an entry
+ *  through the reorder path. A no-op (returns true) when the order is
+ *  already what's on disk. */
+function reorder(next: Shortcut[]): Promise<boolean> {
+  return enqueue(async () => {
+    await load();
+    if (!loaded.value) return false; // never overwrite an unread list
+    const previous = shortcuts.value;
+    if (!isSamePermutation(previous, next)) return false;
+    if (isSameOrder(previous, next)) return true;
+    return persist(next, previous);
+  });
+}
+
 /** Bulk reconcile one kind against the authoritative `{slug,title,icon}`
  *  list an index just fetched: prune dead slugs, refresh survivors'
  *  title/icon. If anything drifted, PUT the corrected list so the file
@@ -135,6 +152,7 @@ export function useShortcuts(): {
   isPinned: (kind: ShortcutKind, slug: string) => boolean;
   pin: (shortcut: Shortcut) => Promise<boolean>;
   unpin: (kind: ShortcutKind, slug: string) => Promise<boolean>;
+  reorder: (next: Shortcut[]) => Promise<boolean>;
   reconcile: (kind: ShortcutKind, live: { slug: string; title: string; icon: string }[]) => Promise<void>;
 } {
   void load();
@@ -145,6 +163,7 @@ export function useShortcuts(): {
     isPinned,
     pin,
     unpin,
+    reorder,
     reconcile,
   };
 }

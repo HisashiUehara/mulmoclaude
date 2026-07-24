@@ -452,6 +452,12 @@ const zhMessages = {
     pin: "固定到启动栏",
     unpin: "从启动栏取消固定",
     zoneAriaLabel: "已固定的快捷方式",
+    reorder: {
+      open: "重新排序快捷方式",
+      title: "重新排序",
+      moveUp: "上移",
+      moveDown: "下移",
+    },
   },
   fileContentHeader: {
     showRendered: "显示渲染后的 Markdown",

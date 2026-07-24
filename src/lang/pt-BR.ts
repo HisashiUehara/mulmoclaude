@@ -461,6 +461,12 @@ const ptBRMessages = {
     pin: "Fixar no iniciador",
     unpin: "Desafixar do iniciador",
     zoneAriaLabel: "Atalhos fixados",
+    reorder: {
+      open: "Reordenar atalhos",
+      title: "Reordenar",
+      moveUp: "Mover para cima",
+      moveDown: "Mover para baixo",
+    },
   },
   fileContentHeader: {
     showRendered: "Mostrar Markdown renderizado",

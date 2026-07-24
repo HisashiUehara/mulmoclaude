@@ -465,6 +465,12 @@ const jaMessages = {
     pin: "ランチャーに固定",
     unpin: "ランチャーから外す",
     zoneAriaLabel: "固定したショートカット",
+    reorder: {
+      open: "ショートカットを並び替え",
+      title: "並び替え",
+      moveUp: "上へ",
+      moveDown: "下へ",
+    },
   },
   fileContentHeader: {
     showRendered: "レンダリング表示",

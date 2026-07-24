@@ -70,6 +70,11 @@
         <span class="material-symbols-outlined text-base">{{ shortcut.icon }}</span>
       </button>
     </div>
+
+    <!-- Reorder control — sits just outside the (scrolling) shortcuts
+         pill so its popover isn't clipped by that pill's overflow. Shown
+         only once there are 2+ pins (nothing to reorder below that). -->
+    <ShortcutReorderPopover v-if="shortcuts.length > 1" />
   </div>
 </template>
 
@@ -80,6 +85,7 @@ import { useRoute } from "vue-router";
 import { PAGE_ROUTES } from "../router/pageRoutes";
 import type { Shortcut, ShortcutKind } from "../types/shortcuts";
 import SessionCountBadges from "./SessionCountBadges.vue";
+import ShortcutReorderPopover from "./ShortcutReorderPopover.vue";
 
 const { t } = useI18n();
 const route = useRoute();
