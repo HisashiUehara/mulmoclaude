@@ -126,3 +126,5 @@ const HTML_ESCAPES = new Map<string, string>([
 export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => HTML_ESCAPES.get(char) ?? char);
 }
+
+export { scanEnvOptions, snakeToLowerCamel, type ScanEnvOptionsConfig } from "./envScan.js";
