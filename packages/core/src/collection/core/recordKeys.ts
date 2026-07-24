@@ -17,6 +17,16 @@ export function cellKey(rowId: string, fieldKey: string): string {
   return `${rowId}:${fieldKey}`;
 }
 
+/** A row's stable identity: the primary-key value as text (`""` when the schema
+ *  has no primary key, or the value is absent). Every per-row / per-cell state
+ *  map keys off this, and it is the SAME derivation `snapshotEmptyEnums` uses
+ *  for its record ids (`fieldText`), so `cellKey(rowIdOf(...), field)` and the
+ *  empty-enum snapshot always agree. A real primary key is a scalar, so this
+ *  matches its plain string form. */
+export function rowIdOf(primaryKey: string | undefined, item: CollectionItem): string {
+  return primaryKey ? fieldText(item[primaryKey]) : "";
+}
+
 /** The set of enum cells that were empty in the freshly-fetched records — the
  *  only cells whose inline dropdown offers an empty option. */
 export function snapshotEmptyEnums(schema: EnumSnapshotSchema, records: CollectionItem[]): Set<string> {

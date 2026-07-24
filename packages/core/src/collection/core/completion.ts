@@ -17,8 +17,9 @@
 //    schema-level refine rejects a completion flag whose `where`
 //    references computed fields, so every condition reads stored data.
 
-import { fieldTextOrNull } from "./fieldText";
+import { fieldText, fieldTextOrNull } from "./fieldText";
 import { matchesWhere, type Where } from "./where";
+import type { CollectionFieldSpec, CollectionItem } from "./schema";
 
 /** The slice of a parsed schema the done predicate reads — minimal
  *  structural shape (like `DerivableSchema`) so the client and server
@@ -70,4 +71,55 @@ export function completionCoveredByFieldChip(schema: CompletionChipSchemaView): 
   const [doneValue] = completionDoneValues;
   if (schema.fields[completionField ?? ""]?.type === "boolean") return doneValue === "true";
   return Object.values(schema.fields).some((field) => field.type === "toggle" && field.field === completionField && field.onValue === doneValue);
+}
+
+/** Whether a `toggle` field reads as checked: its projected enum field currently
+ *  equals `onValue`. The toggle stores nothing of its own, so this reads the raw
+ *  projected value; a non-toggle field is never checked. */
+export function toggleChecked(item: CollectionItem, field: CollectionFieldSpec): boolean {
+  return field.type === "toggle" && fieldText(item[field.field]) === field.onValue;
+}
+
+/** A `flag` FIELD's boolean for one row, read off the already-enriched record
+ *  (so a flag computed from derived/rollup inputs is correct). Strict `=== true`
+ *  on purpose: a truthy non-boolean ("yes", 1) is NOT a set flag, so a stray
+ *  value can never render as an active flag. */
+export function flagFieldValue(record: Record<string, unknown>, key: string): boolean {
+  return record[key] === true;
+}
+
+/** One entry in the table's flag-filter menu: a real `flag` / `boolean` /
+ *  `toggle` field, or the synthesized legacy-completion chip (`synthetic`,
+ *  predicate = `itemIsDone`). */
+export interface FlagChip {
+  key: string;
+  label: string;
+  synthetic?: boolean;
+}
+
+/** The schema slice `chipMatches` reads: full field specs (it inspects the
+ *  `toggle` variant's `field` / `onValue`) plus the completion pair that
+ *  `itemIsDone` needs for the synthesized chip. */
+export interface ChipMatchSchema {
+  fields: Record<string, CollectionFieldSpec>;
+  completionField?: string;
+  completionDoneValues?: readonly string[];
+}
+
+/** Whether one row satisfies a chip's predicate: `itemIsDone` for the
+ *  synthesized completion chip, the projected value for a `toggle`, the stored
+ *  boolean for a `boolean`, else the computed flag value. The flag branch reads
+ *  the ENRICHED record via the injected `deriveRecord` (kept a parameter so this
+ *  stays pure and framework-free). */
+export function chipMatches(
+  chip: FlagChip,
+  schema: ChipMatchSchema,
+  item: CollectionItem,
+  deriveRecord: (item: CollectionItem) => Record<string, unknown>,
+): boolean {
+  if (chip.synthetic) return itemIsDone(schema, item);
+  const field = schema.fields[chip.key];
+  if (field?.type === "toggle") return toggleChecked(item, field);
+  if (field?.type === "boolean") return item[chip.key] === true;
+  return flagFieldValue(deriveRecord(item), chip.key);
 }

@@ -8,6 +8,9 @@
 // The ONE slug pattern — `server/workspace/skills/catalog.ts` imports it
 // for its own sanitiser, so there is no second copy to keep in sync.
 // Bounded character classes, no nested quantifiers; ReDoS-safe.
+import { fieldText } from "./fieldText";
+import type { CollectionItem } from "./schema";
+
 // eslint-disable-next-line security/detect-unsafe-regex -- non-overlapping character classes, no catastrophic backtracking
 export const SAFE_SLUG_PATTERN = /^[a-zA-Z0-9](?:[a-zA-Z0-9_-]*[a-zA-Z0-9])?$/;
 
@@ -52,4 +55,17 @@ export function generateUniqueId(existing: ReadonlySet<string>, generate: () => 
     candidate = generate();
   }
   return candidate;
+}
+
+/** An id not already used by any loaded record: collects the in-memory primary
+ *  keys and re-rolls `generate()` against them (see {@link generateUniqueId}).
+ *  The pure core of the view's create-form id prefill. */
+export function nextUniqueItemId(
+  items: readonly CollectionItem[],
+  primaryKey: string,
+  generate: () => string,
+  maxAttempts: number = DEFAULT_UNIQUE_ID_ATTEMPTS,
+): string {
+  const existing = new Set(items.map((item) => fieldText(item[primaryKey])));
+  return generateUniqueId(existing, generate, maxAttempts);
 }
