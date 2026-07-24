@@ -1,7 +1,7 @@
 {
   "name": "@mulmobridge/line",
   "version": "0.1.1",
-  "description": "LINE bridge for MulmoBridge \u2014 connect a LINE bot to MulmoClaude",
+  "description": "LINE bridge for MulmoBridge — connect a LINE bot to MulmoClaude",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,7 +16,8 @@
     "build": "tsc",
     "prepack": "yarn build",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/test_*.ts"
+    "test": "tsx --test test/test_*.ts",
+    "lint": "eslint src test"
   },
   "license": "MIT",
   "author": "Receptron Team",

@@ -16,7 +16,8 @@
     "build": "tsc",
     "prepack": "yarn build",
     "typecheck": "tsc --noEmit",
-    "test": "echo no tests yet"
+    "test": "echo no tests yet",
+    "lint": "eslint src"
   },
   "license": "MIT",
   "author": "Receptron Team",
