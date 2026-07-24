@@ -48,6 +48,7 @@ export {
   writeCollectionSort,
   readCollectionFlagFilters,
   writeCollectionFlagFilters,
+  flagFilterModeOf,
   customViewKey,
   applicableViewModes,
   type CollectionViewMode,

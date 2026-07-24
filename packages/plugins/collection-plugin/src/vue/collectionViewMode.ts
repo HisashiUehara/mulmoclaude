@@ -172,3 +172,12 @@ export function writeCollectionFlagFilters(slug: string, filters: FlagFilterStat
     // Best-effort, same as the view-mode store.
   }
 }
+
+/** Own-property read of a chip's active mode. Field names may shadow
+ *  `Object.prototype` members (`toString`, `valueOf`, …) — a plain
+ *  `filters[key]` on such a key reads the inherited function, which renders as
+ *  an "active" chip that can never cycle (Codex review on PR #2176). Every
+ *  chip-state read goes through here. */
+export function flagFilterModeOf(filters: FlagFilterState, key: string): FlagFilterMode | undefined {
+  return Object.hasOwn(filters, key) ? filters[key] : undefined;
+}
