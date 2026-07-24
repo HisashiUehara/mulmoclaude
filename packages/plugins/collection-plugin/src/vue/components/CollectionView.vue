@@ -360,7 +360,6 @@ import {
 } from "../collectionViewMode";
 import { collectionUi } from "../uiContext";
 import { useTableSort } from "../composables/useTableSort";
-import { activatePathLink } from "../refLink";
 import {
   dateOf,
   itemMatchesQuery,
