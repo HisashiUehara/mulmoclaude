@@ -39,3 +39,18 @@ export function isSameOrder(left: Shortcut[], right: Shortcut[]): boolean {
   if (left.length !== right.length) return false;
   return left.every((entry, index) => sameShortcut(entry, right[index]));
 }
+
+/** Resequence `source`'s members to match the (kind, slug) order of
+ *  `order`, but keep each member's metadata (title/icon) from `source` —
+ *  never from `order`. A reorder is queued behind other mutations, so an
+ *  `order` snapshot the caller captured earlier may hold stale title/icon
+ *  (e.g. a `reconcile()` refreshed them in between); pulling the body
+ *  from the authoritative `source` makes reorder change ORDER only. An
+ *  `order` entry absent from `source` is skipped — pair with
+ *  `isSamePermutation` to guarantee there are none. */
+export function applyOrder(source: Shortcut[], order: Shortcut[]): Shortcut[] {
+  return order.flatMap((wanted) => {
+    const found = source.find((entry) => sameShortcut(entry, wanted));
+    return found ? [found] : [];
+  });
+}

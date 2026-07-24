@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { moveShortcut, isSamePermutation, isSameOrder } from "../../src/composables/shortcutReorder.js";
+import { moveShortcut, isSamePermutation, isSameOrder, applyOrder } from "../../src/composables/shortcutReorder.js";
 import type { Shortcut } from "../../src/types/shortcuts.js";
 
 function makeShortcut(slug: string, kind: Shortcut["kind"] = "collection"): Shortcut {
@@ -89,5 +89,47 @@ describe("isSameOrder", () => {
 
   it("is false for differing lengths", () => {
     assert.equal(isSameOrder([makeShortcut("a")], [makeShortcut("a"), makeShortcut("b")]), false);
+  });
+});
+
+describe("applyOrder", () => {
+  it("resequences source to match order's (kind, slug) sequence", () => {
+    const source = [makeShortcut("a"), makeShortcut("b"), makeShortcut("c")];
+    const order = [makeShortcut("c"), makeShortcut("a"), makeShortcut("b")];
+    assert.deepEqual(slugs(applyOrder(source, order)), ["c", "a", "b"]);
+  });
+
+  it("keeps source's title/icon, ignoring stale metadata in order (the reconcile race)", () => {
+    const source = [
+      { kind: "collection" as const, slug: "a", title: "Fresh A", icon: "new_icon" },
+      { kind: "collection" as const, slug: "b", title: "Fresh B", icon: "new_b" },
+    ];
+    // `order` carries STALE title/icon (an earlier snapshot) — must not win.
+    const order = [
+      { kind: "collection" as const, slug: "b", title: "Old B", icon: "old_b" },
+      { kind: "collection" as const, slug: "a", title: "Old A", icon: "old_icon" },
+    ];
+    const result = applyOrder(source, order);
+    assert.deepEqual(
+      result.map((entry) => [entry.slug, entry.title, entry.icon]),
+      [
+        ["b", "Fresh B", "new_b"],
+        ["a", "Fresh A", "new_icon"],
+      ],
+    );
+  });
+
+  it("returns the exact source object references (no copies)", () => {
+    const source = [makeShortcut("a"), makeShortcut("b")];
+    const order = [makeShortcut("b"), makeShortcut("a")];
+    const result = applyOrder(source, order);
+    assert.equal(result[0], source[1]);
+    assert.equal(result[1], source[0]);
+  });
+
+  it("skips an order entry absent from source", () => {
+    const source = [makeShortcut("a")];
+    const order = [makeShortcut("a"), makeShortcut("ghost")];
+    assert.deepEqual(slugs(applyOrder(source, order)), ["a"]);
   });
 });

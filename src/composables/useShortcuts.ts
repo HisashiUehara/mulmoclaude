@@ -12,7 +12,7 @@ import { API_ROUTES } from "../config/apiRoutes";
 import { apiGet, apiPut } from "../utils/api";
 import { createMutationQueue } from "../utils/mutationQueue";
 import { sameShortcut, type Shortcut, type ShortcutKind } from "../types/shortcuts";
-import { isSameOrder, isSamePermutation } from "./shortcutReorder";
+import { applyOrder, isSameOrder, isSamePermutation } from "./shortcutReorder";
 
 const shortcuts = ref<Shortcut[]>([]);
 const loadError = ref<string | null>(null);
@@ -105,7 +105,10 @@ function unpin(kind: ShortcutKind, slug: string): Promise<boolean> {
  *  permutation of the current shortcuts (same members) — a mismatch is
  *  rejected so a stale caller can't silently drop or inject an entry
  *  through the reorder path. A no-op (returns true) when the order is
- *  already what's on disk. */
+ *  already what's on disk. Only the ORDER is taken from `next`; each
+ *  entry's title/icon comes from the authoritative `previous` via
+ *  `applyOrder`, so a reorder queued behind a `reconcile()` can't write
+ *  that reconcile's freshly-refreshed metadata back to a stale value. */
 function reorder(next: Shortcut[]): Promise<boolean> {
   return enqueue(async () => {
     await load();
@@ -113,7 +116,7 @@ function reorder(next: Shortcut[]): Promise<boolean> {
     const previous = shortcuts.value;
     if (!isSamePermutation(previous, next)) return false;
     if (isSameOrder(previous, next)) return true;
-    return persist(next, previous);
+    return persist(applyOrder(previous, next), previous);
   });
 }
 
