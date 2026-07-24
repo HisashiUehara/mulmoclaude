@@ -141,6 +141,26 @@ export function pickInitialSelection(skillList: readonly SkillIdentity[], collap
   return skillList[0].name;
 }
 
+/**
+ * After a delete completes, decide what stays selected. A DELETE can be
+ * slow, and the user may click a DIFFERENT skill while it is in flight —
+ * so only advance the selection when the currently-selected skill is the
+ * one that was deleted. Otherwise keep the user's newer choice (its detail
+ * fetch is already in flight and must not be clobbered).
+ *
+ * `remaining` is the post-delete list; `collapsed` gates the fallback the
+ * same way `pickInitialSelection` does.
+ */
+export function nextSelectionAfterDelete(
+  currentSelection: string | null,
+  deletedName: string,
+  remaining: readonly SkillIdentity[],
+  collapsed: ReadonlySet<SkillSectionKey>,
+): string | null {
+  if (currentSelection !== deletedName) return currentSelection;
+  return pickInitialSelection(remaining, collapsed);
+}
+
 // Catalog provenance for a browsable entry (#1335 preset / #1383
 // external). Distinct from SkillProvenance above — that classifies an
 // ACTIVE skill by badge; this classifies a CATALOG row by how it is

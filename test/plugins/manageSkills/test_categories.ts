@@ -17,6 +17,7 @@ import {
   loadCollapsedSections,
   persistCollapsedSections,
   pickInitialSelection,
+  nextSelectionAfterDelete,
   REPO_COLLAPSED_STORAGE_KEY,
   loadRepoCollapsed,
   persistRepoCollapsed,
@@ -285,6 +286,35 @@ describe("manageSkills pickInitialSelection", () => {
 
   it("returns the only skill's name for a single-entry list", () => {
     assert.equal(pickInitialSelection([{ name: "only-one", source: "user" as const }], new Set()), "only-one");
+  });
+});
+
+describe("manageSkills nextSelectionAfterDelete", () => {
+  const remaining = [
+    { name: "b-skill", source: "user" as const },
+    { name: "c-skill", source: "user" as const },
+  ];
+
+  // Regression: deleting skill A while the user has clicked skill B must NOT
+  // clobber B's selection (its detail fetch is already in flight).
+  it("keeps the current selection when a DIFFERENT skill was deleted", () => {
+    assert.equal(nextSelectionAfterDelete("b-skill", "a-skill", remaining, new Set()), "b-skill");
+  });
+
+  it("advances to the first remaining skill when the SELECTED skill was deleted", () => {
+    assert.equal(nextSelectionAfterDelete("a-skill", "a-skill", remaining, new Set()), "b-skill");
+  });
+
+  it("returns null when the selected skill was deleted and none remain", () => {
+    assert.equal(nextSelectionAfterDelete("a-skill", "a-skill", [], new Set()), null);
+  });
+
+  it("returns null when the selected skill was deleted and the active section is collapsed", () => {
+    assert.equal(nextSelectionAfterDelete("a-skill", "a-skill", remaining, new Set(["active"])), null);
+  });
+
+  it("keeps a null selection untouched when a different skill was deleted", () => {
+    assert.equal(nextSelectionAfterDelete(null, "a-skill", remaining, new Set()), null);
   });
 });
 
