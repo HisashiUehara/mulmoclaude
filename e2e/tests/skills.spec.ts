@@ -485,6 +485,30 @@ test.describe("manageSkills plugin — external catalog (#1383 PR-C2)", () => {
     await expect(page.getByTestId("skill-catalog-add-repo")).toBeVisible();
   });
 
+  // Regression: the installed-repo LIST load and the catalog load run
+  // concurrently. A repo-list failure used to write the shared
+  // `catalogError`, which the sibling catalog SUCCESS then nulled — the
+  // error vanished and the repo groups silently disappeared. The repo-list
+  // failure now has its own channel that the catalog success can't clobber.
+  test("a repo-list load failure surfaces its own error, not clobbered by catalog success", async ({ page }) => {
+    const calls = { star: [] as StarCall[], install: [] as InstallCall[], deleted: [] as string[] };
+    await setupExternalCatalog(page, calls);
+    // Override the repo-list GET to fail; catalog GET still succeeds.
+    await page.route(urlEndsWith("/api/skills/external/repos"), (route) => {
+      if (route.request().method() === "POST") return route.fallback();
+      return route.fulfill({ status: 500, json: { error: "repo registry corrupt" } });
+    });
+    await page.goto("/chat/skills-session");
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+    await page.getByText("2 skills").first().click();
+
+    // The catalog load resolving (presets render) is the very event that
+    // used to null the shared error — assert it happened, then that the
+    // repo-list error survived it in its own channel.
+    await expect(page.getByTestId("skill-catalog-item-mc-foo")).toBeVisible();
+    await expect(page.getByTestId("skill-catalog-repo-list-error")).toBeVisible();
+  });
+
   test("selecting an external entry loads detail and Star sends external params", async ({ page }) => {
     const calls = { star: [] as StarCall[], install: [] as InstallCall[], deleted: [] as string[] };
     await setupExternalCatalog(page, calls);
