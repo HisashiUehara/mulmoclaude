@@ -59,10 +59,14 @@ These are verified or plausible but out of scope for a mechanical fix-plus-test 
   four loaders sharing one `catalogError` channel (still open — needs a UX call
   on where the repo-list error surfaces); post-delete selection clobber;
   ~~`actionLock` extraction (release-if-owner)~~ **(shipped, fix/manageskills-loader-races)**.
-- **manageRoles**: IME-Enter commits half-typed names (use `useImeAwareEnter`);
-  no re-entrancy guard on Enter; unconfirmed delete (needs new i18n key ×8);
-  `alwaysActive` MCP tools shown as toggleable; refresh-failure swallowed;
-  `RolesView.vue` is a ~561-line near-verbatim fork (every fix lands twice).
+- **manageRoles** ~~IME-Enter commits half-typed names; no re-entrancy guard
+  on Enter; unconfirmed delete; refresh-failure swallowed~~ **(shipped,
+  fix/manageroles-form-robustness — applied to BOTH the plugin View and the
+  `RolesView.vue` fork, incl. the fork's `icon:""` bug)**. Still open:
+  `alwaysActive` MCP tools shown as toggleable (needs a UX call); the
+  `RolesView.vue` ~570-line fork itself (full consolidation deferred — it is
+  deliberately decoupled from the plugin module, so shared helpers can't be
+  imported without re-coupling).
 - **wiki**: ~~stale-response tokens for `callApi`/`loadPageEditData`; non-404
   snapshot failure rendered as "page deleted"~~ **(shipped, fix/wiki-stale-response)**;
   renderer vs `WIKI_LINK_PATTERN` divergence (core); save-queue extraction
@@ -71,6 +75,10 @@ These are verified or plausible but out of scope for a mechanical fix-plus-test 
   StackView duplicate capture-phase link handler (opens 2 tabs); StackView
   edit panel emits to nothing (silent edit loss); copy button copies rewritten
   display text in Files-Explorer mode.~~ **Shipped (fix/textresponse-stackview).**
-- **generateImage**: stale-image cache watch; chart-plugin sparse `instances[]`.
-- **shared**: 3 near-duplicate `ImageToolData` interfaces; `saveBlob` missing
-  from `docs/shared-utils.md`.
+- ~~**generateImage**: stale-image cache watch; chart-plugin sparse
+  `instances[]`.~~ **(shipped, fix/chart-generateimage-cleanup — chart crash +
+  generateImage deep-watch)** — generateImage's caching-ref/StackView-key
+  interaction still open (needs live verification).
+- **shared**: 3 near-duplicate `ImageToolData` interfaces (deferred — low
+  value, high churn); ~~`saveBlob` missing from `docs/shared-utils.md`~~
+  **(shipped)**.

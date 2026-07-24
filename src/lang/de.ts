@@ -979,6 +979,8 @@ const deMessages = {
     errDeleteFailed: "Löschen fehlgeschlagen",
     errNetworkError: "Netzwerkfehler",
     errServerError: "Serverfehler: {status}",
+    errRefreshFailed: "Gespeichert, aber die Liste konnte nicht aktualisiert werden.",
+    confirmDelete: "Rolle {name} löschen? Dies kann nicht rückgängig gemacht werden.",
   },
   pluginUiImage: {
     promptLabel: "{label}:",

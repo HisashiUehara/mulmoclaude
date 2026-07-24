@@ -964,6 +964,8 @@ const jaMessages = {
     errDeleteFailed: "削除失敗",
     errNetworkError: "ネットワークエラー",
     errServerError: "サーバエラー: {status}",
+    errRefreshFailed: "保存しましたが、一覧の更新に失敗しました。",
+    confirmDelete: "ロール「{name}」を削除しますか？この操作は取り消せません。",
   },
   pluginUiImage: {
     promptLabel: "{label}:",

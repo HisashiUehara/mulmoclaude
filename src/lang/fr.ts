@@ -968,6 +968,8 @@ const frMessages = {
     errDeleteFailed: "Échec de la suppression",
     errNetworkError: "Erreur réseau",
     errServerError: "Erreur du serveur : {status}",
+    errRefreshFailed: "Enregistré, mais l'actualisation de la liste a échoué.",
+    confirmDelete: "Supprimer le rôle « {name} » ? Cette action est irréversible.",
   },
   pluginUiImage: {
     promptLabel: "{label} :",
