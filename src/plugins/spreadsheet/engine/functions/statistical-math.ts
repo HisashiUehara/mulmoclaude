@@ -3,7 +3,36 @@
  * be unit-tested directly.
  */
 
-import { DIV_ZERO_ERROR, NA_ERROR, type SpreadsheetError } from "../spreadsheet-errors";
+import { DIV_ZERO_ERROR, NA_ERROR, NUM_ERROR, type SpreadsheetError } from "../spreadsheet-errors";
+
+const arithmeticMean = (values: number[]): number => values.reduce((sum, value) => sum + value, 0) / values.length;
+
+/**
+ * The arithmetic mean, or `#DIV/0!` when there is nothing to average.
+ *
+ * Excel divides by the count of NUMBERS, so a range of blanks or text leaves a
+ * zero denominator and reports the division rather than a 0 that reads like a
+ * genuine average of zeros.
+ */
+export function computeAverage(values: number[]): number | SpreadsheetError {
+  if (values.length === 0) return DIV_ZERO_ERROR;
+  return arithmeticMean(values);
+}
+
+/**
+ * The middle value (the mean of the middle two when the count is even), or
+ * `#NUM!` when there is no value to sit in the middle.
+ *
+ * Excel's code here is `#NUM!`, not AVERAGE's `#DIV/0!` — nothing is divided by
+ * zero, the median of an empty set simply does not exist. Sorts a copy so the
+ * caller's array keeps its order.
+ */
+export function computeMedian(values: number[]): number | SpreadsheetError {
+  if (values.length === 0) return NUM_ERROR;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
+}
 
 /**
  * The most frequently occurring value, or `#N/A` when no value repeats.
@@ -34,8 +63,6 @@ export function computeMode(values: number[]): number | SpreadsheetError {
 
 /** Sample size below which a sample variance/stdev is undefined. */
 const MIN_SAMPLE_SIZE = 2;
-
-const arithmeticMean = (values: number[]): number => values.reduce((sum, value) => sum + value, 0) / values.length;
 
 /**
  * Sample variance (Excel VAR): the mean squared deviation divided by `n - 1`,

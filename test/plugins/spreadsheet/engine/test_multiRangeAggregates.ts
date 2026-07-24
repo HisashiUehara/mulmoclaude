@@ -51,6 +51,33 @@ describe("aggregates mix ranges with plain values", () => {
   });
 });
 
+describe("a single cell reference is read as a range, not a scalar", () => {
+  // The scalar path coerces a blank or text cell to 0, so COUNT(A999) counted an
+  // empty cell as a value once multi-argument collection was introduced (Codex
+  // review). A bare cell ref goes through the range path instead.
+  const countSheet = (formula: string): unknown => {
+    const sheet: SheetData = {
+      name: "S",
+      data: [[{ v: 5 }, { v: formula }], [{ v: "txt" }]],
+    };
+    return new SpreadsheetEngine().calculate(sheet).data[0][1];
+  };
+
+  it("does not count an out-of-bounds cell", () => {
+    assert.equal(countSheet("=COUNT(A999)"), 0);
+    assert.equal(countSheet("=COUNTA(A999)"), 0);
+  });
+
+  it("does not count a text cell as a number", () => {
+    assert.equal(countSheet("=COUNT(A2)"), 0);
+    assert.equal(countSheet("=COUNTA(A2)"), 1, "COUNTA does count text");
+  });
+
+  it("counts a single numeric cell", () => {
+    assert.equal(countSheet("=COUNT(A1)"), 1);
+  });
+});
+
 describe("the single-range behaviour is unchanged", () => {
   it("sums, averages and counts one range as before", () => {
     assert.equal(evaluate("=SUM(A1:A2)"), 3);

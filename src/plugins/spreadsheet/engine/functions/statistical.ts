@@ -3,7 +3,7 @@
  */
 
 import { functionRegistry, toNumber, parseCriteria, type FunctionContext, type FunctionHandler } from "../registry";
-import { computeMode, sampleStdev, sampleVariance } from "./statistical-math";
+import { computeAverage, computeMedian, computeMode, sampleStdev, sampleVariance } from "./statistical-math";
 import { DIV_ZERO_ERROR } from "../spreadsheet-errors";
 import type { CellValue } from "../types";
 
@@ -40,6 +40,17 @@ const isRangeReference = (value: string): boolean => {
   return isCellReference(start) && isCellReference(end);
 };
 
+// A bare cell reference (`A1`, `Sheet1!B2`) is read through the RANGE path, not
+// evaluated as a scalar: the scalar path coerces a blank or text cell to 0, so
+// COUNT(A999) counted an empty cell as a value. The range path yields nothing
+// for a cell that holds nothing, which is what the count functions need.
+const argumentValues = (arg: string, context: FunctionContext): CellValue[] | null => {
+  if (isRangeReference(arg) || isCellReference(arg.includes("!") ? arg.split("!").slice(-1)[0] : arg)) {
+    return context.getRangeValues(arg);
+  }
+  return null;
+};
+
 const collectNumericValues = (args: string[], context: FunctionContext): number[] => {
   const values: number[] = [];
 
@@ -47,12 +58,11 @@ const collectNumericValues = (args: string[], context: FunctionContext): number[
     const arg = rawArg?.trim();
     if (!arg) continue;
 
-    if (isRangeReference(arg)) {
-      const rangeValues = context.getRangeValues(arg).map(toNumber);
-      values.push(...rangeValues);
+    const fromRange = argumentValues(arg, context);
+    if (fromRange !== null) {
+      values.push(...fromRange.map(toNumber));
     } else {
-      const evaluated = context.evaluateFormula(arg);
-      values.push(toNumber(evaluated));
+      values.push(toNumber(context.evaluateFormula(arg)));
     }
   }
 
@@ -68,7 +78,7 @@ const collectRawValues = (args: string[], context: FunctionContext): CellValue[]
     const arg = rawArg?.trim();
     if (!arg) continue;
 
-    if (isRangeReference(arg)) {
+    if (isRangeReference(arg) || isCellReference(arg.includes("!") ? arg.split("!").slice(-1)[0] : arg)) {
       values.push(...(context.getRangeValuesRaw?.(arg) ?? context.getRangeValues(arg)));
     } else {
       values.push(context.evaluateFormula(arg));
@@ -83,11 +93,8 @@ const sumHandler: FunctionHandler = (args, context) => {
   return values.reduce((sum: number, value) => sum + value, 0);
 };
 
-const averageHandler: FunctionHandler = (args, context) => {
-  const values = collectNumericValues(args, context);
-  if (values.length === 0) return 0;
-  return values.reduce((acc: number, value) => acc + value, 0) / values.length;
-};
+// Multi-argument collection (#2360) feeding the empty-range error rule (#2501).
+const averageHandler: FunctionHandler = (args, context) => computeAverage(collectNumericValues(args, context));
 
 const maxHandler: FunctionHandler = (args, context) => {
   const values = collectNumericValues(args, context);
@@ -103,13 +110,7 @@ const countHandler: FunctionHandler = (args, context) => {
   return collectNumericValues(args, context).length;
 };
 
-const medianHandler: FunctionHandler = (args, context) => {
-  const values = collectNumericValues(args, context).sort((a, b) => a - b);
-
-  if (values.length === 0) return 0;
-  const mid = Math.floor(values.length / 2);
-  return values.length % 2 === 0 ? (values[mid - 1] + values[mid]) / 2 : values[mid];
-};
+const medianHandler: FunctionHandler = (args, context) => computeMedian(collectNumericValues(args, context));
 
 const modeHandler: FunctionHandler = (args, context) => {
   return computeMode(collectNumericValues(args, context));
@@ -175,8 +176,6 @@ const averageifHandler: FunctionHandler = (args, context) => {
     }
   }
 
-  // Excel returns #DIV/0! when no cell matches (the average of nothing is
-  // undefined), rather than a silent 0.
   // Excel returns #DIV/0! when no cell matches (the average of nothing is
   // undefined), rather than a silent 0.
   return count > 0 ? sum / count : DIV_ZERO_ERROR;

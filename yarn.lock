@@ -298,10 +298,10 @@
   resolved "https://registry.yarnpkg.com/@cloudflare/workerd-windows-64/-/workerd-windows-64-1.20260721.1.tgz#8cf15b5adc2d7ca52ea6186bf45c1bf88361c570"
   integrity sha512-9paFG5cMTKz/CRixnEEnZbe5uvFPBFSDthxJHANfCWhUtBj49GSL1FPIokIg+Q+H8DGJEExU0lL92LtxD0lTxQ==
 
-"@cloudflare/workers-types@^5.20260722.1":
-  version "5.20260722.1"
-  resolved "https://registry.yarnpkg.com/@cloudflare/workers-types/-/workers-types-5.20260722.1.tgz#dfded345dbff764354d923bf2b20760db498e776"
-  integrity sha512-8+kivCgFGzwrAfNOWgSpzy/VDvmT/i5KWBgQhnygv3d1kajNn6mCYTbLKpouG0aY8mXjhv+IQm1a8r2K/H4pqQ==
+"@cloudflare/workers-types@^5.20260723.1":
+  version "5.20260723.1"
+  resolved "https://registry.yarnpkg.com/@cloudflare/workers-types/-/workers-types-5.20260723.1.tgz#2c40db37d458577fef87800a1c2f6ef55fe85ca9"
+  integrity sha512-+P5tDo+ZjW5nmWq/zagLVIyV8U/mSk7n8n0mLUHjn3pOdY7kdEDmURUxvhwwYqLJ/VPnyMJPAYtZjHbqAnIpDg==
 
 "@codemirror/autocomplete@^6.0.0":
   version "6.20.2"
@@ -1339,39 +1339,39 @@
     protobufjs "^7.5.3"
     yargs "^17.7.2"
 
-"@gui-chat-plugin/browse@^1.0.0":
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/browse/-/browse-1.0.0.tgz#6cc9bb3ae770b4a56cc95cfb1691fdd81b2e306b"
-  integrity sha512-g6yOgr6hdjhQNtF+a1quAnO1SUP7MNXmcgccqn6fUbfmvD8qE41kYdvAwc5MT9TuK0I0sqDvb+Srith40p2o3Q==
+"@gui-chat-plugin/browse@^1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/browse/-/browse-1.1.0.tgz#178afd50e1786c942676d702c7baf538048080a4"
+  integrity sha512-nRo5Y07/LoxHgKcSs29vyo2wTXcOPfPeUn4RizarEbvYIIkp7SHEsOq3Kpqg2NoDJXwiRegTAED2PJgGrNWnjA==
   dependencies:
-    gui-chat-protocol "^1.1.0"
+    gui-chat-protocol "^1.2.0"
 
-"@gui-chat-plugin/camera@^1.0.0":
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/camera/-/camera-1.0.0.tgz#7833534cd3f48a7c8f3894e6133e3e829ca477e4"
-  integrity sha512-2dGfb2JluGAaWl6XIvjqLxasEdjpJ+fBdZu2FCB7xa2QnwSwykg40hqhibyJd4QPuPMNwvQS2ZT95kVY9fwviA==
+"@gui-chat-plugin/camera@^1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/camera/-/camera-1.1.0.tgz#8a1d48e123a80152a1734c59bc9aa64e68a9756f"
+  integrity sha512-YflpZFS7r1y+5xo046n/bSGAosSr3QbgMpdmTJ06OLUEdNkPdpZblKecEzwC+wHx9AHwyxuDEIY4o2r8JK+DQg==
 
-"@gui-chat-plugin/google-map@^1.0.0":
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/google-map/-/google-map-1.0.0.tgz#a7b4c7b0970370b49fd8bea9c0f663ace4245b36"
-  integrity sha512-oznOQa1c6Pj9yrfjE+gffYj5Hmeyw8N0cfet9DCDS+iv/Bqib+YuFb3mQO7jAWACiOXCHbmw5kbSS3sNXgMsWA==
+"@gui-chat-plugin/google-map@^1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/google-map/-/google-map-1.1.0.tgz#0202de10c4ed868f054e756696713068e4d7f4fd"
+  integrity sha512-A/TcYT/VH25p6wXB93UGvCS/7dBPLOVzoRhW4VKg7fnudX8XEkj1k3ixLKs+VrY08IQ+yEwLH/V/fosNiHPlPA==
   dependencies:
-    gui-chat-protocol "^1.1.0"
+    gui-chat-protocol "^1.2.0"
 
-"@gui-chat-plugin/mindmap@^1.0.0":
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/mindmap/-/mindmap-1.0.0.tgz#bad6427a1fad0033a8383b27471c20d3f93faa81"
-  integrity sha512-+pnd2K+jHMOnyQq7hUGdt0ZMKaHwq63tmUWiw+tK24KrP6EIXsgIa1rA3d/pz3JqDD7vTEXNZejQBzqO9TK2bg==
+"@gui-chat-plugin/mindmap@^1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/mindmap/-/mindmap-1.1.0.tgz#5f3cc8ed41c5bf64cffa138af80915e770b31d77"
+  integrity sha512-eiAqwASpkdy+n2Mr2bYU/jSqsjHxT+C4T3CNda5y5FhnH0dzdhwqBGlqiGZfYt/d32HKcuEH4AM2/PFDgXfJvw==
   dependencies:
-    gui-chat-protocol "^1.1.0"
+    gui-chat-protocol "^1.2.0"
     jspdf "^4.0.0"
 
-"@gui-chat-plugin/present3d@^1.0.0":
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/present3d/-/present3d-1.0.0.tgz#0dc8a5c9b35a552180109bc48408fafa1d5ab7bc"
-  integrity sha512-wbh64LRL7hDcn5HFAOpng8S+/ILtPcTcf+TPML23rChW2wH64sSUb2In/aBD2Vwh+tnQVsljjeGlb7+rEMOHsw==
+"@gui-chat-plugin/present3d@^1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/present3d/-/present3d-1.1.0.tgz#25f4ed0cdbde94bee56b7ca56cc3425d2bafed63"
+  integrity sha512-XyMPiijGLzZVEWo2gRbsfqPM4sxS9tODJnnoy/IypH+UrEVBEqBKz8eAbQQWK2I/WDxf+H0USYkidsUq1/5HoA==
   dependencies:
-    gui-chat-protocol "^1.1.0"
+    gui-chat-protocol "^1.2.0"
     three "^0.185.1"
     three-bvh-csg "^0.0.18"
     three-mesh-bvh "0.9.13"
@@ -2068,12 +2068,12 @@
     "@mulmocast/deck" "^0.7.0"
     zod "^4.4.3"
 
-"@mulmochat-plugin/quiz@1.0.0":
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/@mulmochat-plugin/quiz/-/quiz-1.0.0.tgz#667be1301f9658efea9a14d5c50c6f98efa550ec"
-  integrity sha512-6E036EbHBR6OLscKlmMnjwnSyRpIYlHVI10ey2cIG6wJITFawpOruuN8NougVNBawnENx0iQGNvRnMqXt14zrg==
+"@mulmochat-plugin/quiz@1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@mulmochat-plugin/quiz/-/quiz-1.1.0.tgz#a09d4a992eec860a3691e79e6140532435aaa673"
+  integrity sha512-iKL5rtbAD1YuU3Oxex3iL3KK6V5Dt3OacEo+06M1asWEuo2o/9fCoRZfgOYWbZxTTW3HwfTCl/4wP2rzV1ftow==
   dependencies:
-    gui-chat-protocol "^1.1.0"
+    gui-chat-protocol "^1.2.0"
 
 "@mulmochat-plugin/ui-image@^0.4.1":
   version "0.4.1"
@@ -6350,10 +6350,10 @@ globalthis@^1.0.4:
     define-properties "^1.2.1"
     gopd "^1.0.1"
 
-google-auth-library@^10.1.0, google-auth-library@^10.3.0, google-auth-library@^10.9.0:
-  version "10.9.0"
-  resolved "https://registry.yarnpkg.com/google-auth-library/-/google-auth-library-10.9.0.tgz#61e742af957818f572c3a5bce634c68355241d64"
-  integrity sha512-xtvUqvINPhTaBm7nXqlYPcrMHJPm1lCNdSovxnKKhTm+4JsvQ+KGVYJViLoH9Yxu8w+T0Qv5HubzYT9BLrppJg==
+google-auth-library@^10.1.0, google-auth-library@^10.3.0, google-auth-library@^10.9.1:
+  version "10.9.1"
+  resolved "https://registry.yarnpkg.com/google-auth-library/-/google-auth-library-10.9.1.tgz#af9852a328a6077e8ffbe776681b4ca9420a1714"
+  integrity sha512-i1ydyHrqcIxXkWh/uBmVkzCvIuq5yiK2ATndIe5XxKholrG/MTYP9xGYka4sQhrbIAgGjL2B6NOE7rFaiF3fXw==
   dependencies:
     base64-js "^1.3.0"
     ecdsa-sig-formatter "^1.0.11"
@@ -6417,10 +6417,10 @@ groq-sdk@^0.30.0:
     formdata-node "^4.3.2"
     node-fetch "^2.6.7"
 
-gui-chat-protocol@1.1.0, gui-chat-protocol@^1.1.0:
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/gui-chat-protocol/-/gui-chat-protocol-1.1.0.tgz#b8d4aebe0e64231fedb9a4aa88641ccf216e77db"
-  integrity sha512-Ej+r7e+cGJ8byc71BaSyDsj9WEfkptaHujdJfagsg6iKtWT8c1fKlhgk6RhRic1kh5VunMYw15DRcdEzSmbpcA==
+gui-chat-protocol@1.2.0, gui-chat-protocol@^1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/gui-chat-protocol/-/gui-chat-protocol-1.2.0.tgz#8bc7f8d4e31a625aff94fa2c79951b5b80c30145"
+  integrity sha512-5qKQCpXOrH5+QlOWujhYpsG469IB6nsSZ9TOoodsBQ+U5aAPGEEUbvmacyOmPsimHvsDLCxP0S/ZNycWEFHOww==
 
 hachure-fill@^0.5.2:
   version "0.5.2"
@@ -6643,10 +6643,10 @@ ignore@^7.0.0, ignore@^7.0.5, ignore@^7.0.6:
   resolved "https://registry.yarnpkg.com/ignore/-/ignore-7.0.6.tgz#6a57aaef4c90df27ac3590875d29e8f11988c88e"
   integrity sha512-BAg6QkE8W+TuQLrrw0Ugr7HegXduRuuj8/ti2kSOc+jz1dmx8/WNcjr6XGnq5YpDWxFwwaavqD0+jIUOKelTsw==
 
-imapflow@^1.4.9:
-  version "1.4.9"
-  resolved "https://registry.yarnpkg.com/imapflow/-/imapflow-1.4.9.tgz#06e855bfb572b6397158ac83c094c932fc34f0b1"
-  integrity sha512-gdm0JEFQ59s85mhLe8jYOHFLIhW3xQxgk48HNtD4PYQquVXIX/ZfaoVMa4JmlG1Rs14tqCdOnP3RyaG8+RYAwg==
+imapflow@^1.5.0:
+  version "1.5.0"
+  resolved "https://registry.yarnpkg.com/imapflow/-/imapflow-1.5.0.tgz#e6a368411e677f559bb4f1eadb5685be1eabd3c7"
+  integrity sha512-ayj2xIpRpXT9nXlAQQDhfm694faQxEmfAzRYL881q3YGRR5ofyIWsG3l3Lf7oSThxgLwZ/EQ5kh/nLnKBud3LQ==
   dependencies:
     "@zone-eu/mailsplit" "5.4.14"
     encoding-japanese "2.2.0"
@@ -7082,10 +7082,10 @@ js-yaml@^4.1.0, js-yaml@^4.1.1, js-yaml@^4.3.0:
   dependencies:
     argparse "^2.0.1"
 
-js-yaml@^5.2.1:
-  version "5.2.1"
-  resolved "https://registry.yarnpkg.com/js-yaml/-/js-yaml-5.2.1.tgz#bb3f2e87295ebfe6ef0a75e17c62834daeff9ce2"
-  integrity sha512-zfLtNfQqxVqq3uaTqSkh4x4hZw3KHobGUA0fJUj4wawW8bsQLTVqpHdXSIzidh7o+4lEW36tANuAGdaFx6Zgnw==
+js-yaml@^5.2.2:
+  version "5.2.2"
+  resolved "https://registry.yarnpkg.com/js-yaml/-/js-yaml-5.2.2.tgz#497bfe63f0b0db11c7bbc5ce8bc568e836c8b08c"
+  integrity sha512-dayzUzKkJ1MkuUtZglSebU43utNXH0OWQByK9rKOOuYIO8M5TV1y+n8ALMdG0rdzBnfNkOmZEqrURepb0ejqBw==
   dependencies:
     argparse "^2.0.1"
 
