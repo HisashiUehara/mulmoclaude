@@ -59,4 +59,33 @@ describe("renderWikiLinks — parity with WIKI_LINK_PATTERN", () => {
     assert.equal(patternMatches("a]b"), false);
     assert.equal(hasLink(renderWikiLinks("[[a]b]]")), false);
   });
+
+  // Regression: a `[` inside the brackets used to render clickable but the
+  // pattern's `[^\][\r\n]` body class rejects `[`, so the link was invisible
+  // to the pattern-based graph/backlinks/lint.
+  it("does NOT render a link whose body contains a [", () => {
+    assert.equal(patternMatches("a[b"), false);
+    assert.equal(hasLink(renderWikiLinks("[[a[b]]")), false);
+  });
+
+  // renderer-accepts iff pattern-matches, across the tricky boundary bodies.
+  it("agrees with WIKI_LINK_PATTERN on every body (accept iff match)", () => {
+    const bodies = [
+      "Home", // normal
+      "home|Home Page", // piped
+      "", // empty
+      "a[b", // inner [
+      "[", // lone [
+      "a[b[c", // multiple [
+      "a]b", // inner ]
+      "foo\nbar", // newline
+      "a\rb", // carriage return
+      "foo\r\nbar", // CRLF
+      "a".repeat(WIKI_LINK_MAX_LEN), // at cap
+      "a".repeat(WIKI_LINK_MAX_LEN + 1), // over cap
+    ];
+    for (const body of bodies) {
+      assert.equal(hasLink(renderWikiLinks(`[[${body}]]`)), patternMatches(body), `renderer/pattern parity broke on ${JSON.stringify(body)}`);
+    }
+  });
 });

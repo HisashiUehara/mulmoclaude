@@ -19,9 +19,9 @@ export { escapeHtml };
 /**
  * Replace every `[[page name]]` occurrence in `content` with a
  * `<span class="wiki-link" data-page="…">…</span>` element. The
- * page name may not contain `]`; an opening `[[` that is not
- * followed later by `]]` (with no bare `]` in between) is left
- * untouched so malformed text renders as-is — matching the
+ * page name may not contain `[` or `]`; an opening `[[` that is
+ * not followed later by `]]` (with no bare `[` or `]` in between)
+ * is left untouched so malformed text renders as-is — matching the
  * previous regex's non-match behaviour.
  *
  * `[[target|display]]` is split via the shared `parseWikiLink`
@@ -55,8 +55,11 @@ export function renderWikiLinks(content: string): string {
  * the index of the first `]` of that pair, or -1 if the span isn't
  * a valid wiki-link body — mirroring `WIKI_LINK_PATTERN` exactly so
  * the renderer can't accept a link the graph / backlinks / lint
- * would reject. Bails (-1) on:
+ * would reject. The pattern's body class is `[^\][\r\n]`, so it
+ * rejects `[` as well as `]`. Bails (-1) on:
  *   - a bare `]` (regex `[^\]]`),
+ *   - a `[` inside the body (regex `[^\[]` — a nested `[[` opener
+ *     never belongs in a page name, and the pattern would not match),
  *   - a `\r` or `\n` (regex `[^\r\n]` — a newline-bearing link must
  *     not render clickable, and its slug must not reach the URL),
  *   - a body longer than WIKI_LINK_MAX_LEN (regex `{1,200}`),
@@ -72,9 +75,9 @@ function findNextCloseBrackets(str: string, from: number): number {
       // Bare `]` inside the page-name span — regex would not match.
       return -1;
     }
-    // Newline inside the span, or the span grew past the cap: neither
-    // matches the pattern, so bail and let the caller emit `[[` literally.
-    if (char === "\n" || char === "\r" || j - from >= WIKI_LINK_MAX_LEN) return -1;
+    // A `[`, a newline, or a span past the cap: none match the pattern's
+    // `[^\][\r\n]{1,200}` body, so bail and let the caller emit `[[` literally.
+    if (char === "[" || char === "\n" || char === "\r" || j - from >= WIKI_LINK_MAX_LEN) return -1;
     j++;
   }
   return -1;
