@@ -7,6 +7,11 @@
 // Redirects are followed MANUALLY so a public URL can't 302 to an internal
 // one and bypass the guard. It does NOT do robots.txt / rate limiting (the
 // engine fetches feeds sequentially to stay gentle).
+//
+// Residual risk (same as the mastodon urlGuard): the DNS answer we validate is
+// not necessarily the one the subsequent fetch() uses — it re-resolves — so a
+// rebinding attacker with a very short TTL can still slip through. Pinning the
+// resolved address into the connection would need a custom agent.
 
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";

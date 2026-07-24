@@ -12,7 +12,7 @@
 // `node:fs` / `node:path` / `console` / direct `fetch` are unused —
 // the gui-chat-protocol eslint preset bans them at lint time.
 
-import { definePlugin } from "gui-chat-protocol";
+import { createSerialLock, definePlugin } from "gui-chat-protocol";
 import { z } from "zod";
 import { TOOL_DEFINITION } from "./definition";
 
@@ -182,15 +182,9 @@ function validateWritableArgs(args: { slug: string; title: string }): WritableAr
 }
 
 export default definePlugin(({ pubsub, files, log }) => {
-  // Serialise read-modify-write through a per-plugin promise chain so
-  // two parallel save / update / delete calls can't race the on-disk
-  // state. Same pattern as bookmarks-plugin (#1124 review).
-  let writeLock: Promise<unknown> = Promise.resolve();
-  function withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
-    const next = writeLock.catch(() => undefined).then(fn);
-    writeLock = next.catch(() => undefined);
-    return next;
-  }
+  // Serialise read-modify-write so two parallel save / update / delete
+  // calls can't race the on-disk state.
+  const withWriteLock = createSerialLock();
 
   async function readRecipe(slug: string): Promise<Recipe | null> {
     if (!isValidSlug(slug)) return null;

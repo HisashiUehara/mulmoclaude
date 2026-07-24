@@ -17,6 +17,7 @@ import {
   logWithBase,
 } from "../math-ops";
 import { toScalarNumber } from "../numericCoercion";
+import { isSpreadsheetErrorValue } from "../spreadsheet-errors";
 
 const roundHandler: FunctionHandler = (args, context) => {
   const number = toNumber(context.evaluateFormula(args[0]));
@@ -50,7 +51,7 @@ const ceilingHandler: FunctionHandler = (args, context) => {
 
 const absHandler: FunctionHandler = (args, context) => {
   const number = toScalarNumber(context.evaluateFormula(args[0]));
-  return typeof number === "string" ? number : Math.abs(number);
+  return isSpreadsheetErrorValue(number) ? number : Math.abs(number);
 };
 
 const powerHandler: FunctionHandler = (args, context) => {
@@ -84,7 +85,7 @@ const truncHandler: FunctionHandler = (args, context) => {
 
 const signHandler: FunctionHandler = (args, context) => {
   const number = toScalarNumber(context.evaluateFormula(args[0]));
-  return typeof number === "string" ? number : Math.sign(number);
+  return isSpreadsheetErrorValue(number) ? number : Math.sign(number);
 };
 
 const piHandler: FunctionHandler = () => Math.PI;

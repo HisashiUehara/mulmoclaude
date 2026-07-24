@@ -21,7 +21,7 @@
     "test": "tsx --test test/test_*.ts"
   },
   "peerDependencies": {
-    "gui-chat-protocol": "^1.1.0",
+    "gui-chat-protocol": "^1.2.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -36,7 +36,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "imapflow": "^1.4.9",
+    "imapflow": "^1.5.0",
     "mailparser": "^3.9.14",
     "nodemailer": "^9.0.3"
   }

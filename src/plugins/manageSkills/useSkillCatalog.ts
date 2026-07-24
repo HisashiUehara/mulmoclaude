@@ -14,7 +14,7 @@ import { apiGet, apiPost } from "../../utils/api";
 import { pluginEndpoints } from "../api";
 import type { SkillsEndpoints } from "./definition";
 import { entryKey, catalogActionParams, type CatalogSource } from "./categories";
-import { useSkillMarkdown } from "./useSkillMarkdown";
+import { acquireActionKey, releaseActionKey } from "./actionLock";
 
 type TranslateFn = ReturnType<typeof useI18n>["t"];
 
@@ -46,30 +46,29 @@ export interface SkillCatalogDeps {
   clearActiveSelection: () => void;
 }
 
-interface CatalogState {
-  t: TranslateFn;
-  endpoints: SkillsEndpoints;
-  deps: SkillCatalogDeps;
+// Single source of truth for the reactive fields: the private state bundle
+// and the public surface both extend it, so a new Ref is declared once
+// (#2481) instead of being mirrored into two lists that can drift apart.
+interface CatalogRefs {
   catalogPresets: Ref<CatalogEntry[]>;
   catalogExternal: Ref<CatalogEntry[]>;
   catalogError: Ref<string | null>;
   selectedCatalog: Ref<CatalogEntry | null>;
   catalogDetail: Ref<CatalogDetail | null>;
   catalogDetailLoading: Ref<boolean>;
+  // Single in-flight gate covers Star on the selected entry so a slow
+  // request doesn't let the user fire a second action mid-flight.
   catalogActioningKey: Ref<string | null>;
 }
 
-export interface SkillCatalog {
-  catalogPresets: Ref<CatalogEntry[]>;
-  catalogExternal: Ref<CatalogEntry[]>;
-  catalogError: Ref<string | null>;
-  selectedCatalog: Ref<CatalogEntry | null>;
-  catalogDetail: Ref<CatalogDetail | null>;
-  catalogDetailLoading: Ref<boolean>;
-  catalogActioningKey: Ref<string | null>;
+interface CatalogState extends CatalogRefs {
+  t: TranslateFn;
+  endpoints: SkillsEndpoints;
+  deps: SkillCatalogDeps;
+}
+
+export interface SkillCatalog extends CatalogRefs {
   selectedCatalogKey: ComputedRef<string | null>;
-  catalogRenderedBody: ComputedRef<string>;
-  catalogMarkdownRef: Ref<HTMLElement | null>;
   loadCatalog: () => Promise<void>;
   selectCatalogEntry: (entry: CatalogEntry) => Promise<void>;
   starCatalogEntry: (entry: CatalogEntry) => Promise<void>;
@@ -115,18 +114,29 @@ function reconcileSelectionAfterStar(state: CatalogState, entry: CatalogEntry): 
 
 async function starCatalogEntry(state: CatalogState, entry: CatalogEntry): Promise<void> {
   if (entry.alreadyActive) return;
-  state.catalogActioningKey.value = entryKey(entry);
-  const response = await apiPost<{ starred: true; slug: string }>(state.endpoints.catalogStar.url, catalogActionParams(entry));
-  state.catalogActioningKey.value = null;
-  if (!response.ok) {
-    state.catalogError.value = state.t("pluginManageSkills.errCatalogStarFailed", { error: response.error });
-    return;
+  const key = entryKey(entry);
+  // Acquire only when idle: selecting another entry mid-flight and clicking
+  // its Star would otherwise fire a second request whose completion clears
+  // the lock while the first is still running.
+  const { acquired, key: heldKey } = acquireActionKey(state.catalogActioningKey.value, key);
+  if (!acquired) return;
+  state.catalogActioningKey.value = heldKey;
+  try {
+    const response = await apiPost<{ starred: true; slug: string }>(state.endpoints.catalogStar.url, catalogActionParams(entry));
+    if (!response.ok) {
+      state.catalogError.value = state.t("pluginManageSkills.errCatalogStarFailed", { error: response.error });
+      return;
+    }
+    state.catalogError.value = null;
+    // Hold the lock through the refresh so the button can't be re-clicked
+    // before `alreadyActive` flips.
+    await Promise.all([loadCatalog(state), state.deps.refreshActiveList()]);
+    reconcileSelectionAfterStar(state, entry);
+  } finally {
+    // Release only if we still own it (defensive; the idle-guard already
+    // prevents a takeover).
+    state.catalogActioningKey.value = releaseActionKey(state.catalogActioningKey.value, key);
   }
-  state.catalogError.value = null;
-  // Refresh both lists so the row flips to "Starred" and the new active
-  // entry shows up in the left column.
-  await Promise.all([loadCatalog(state), state.deps.refreshActiveList()]);
-  reconcileSelectionAfterStar(state, entry);
 }
 
 async function selectCatalogEntry(state: CatalogState, entry: CatalogEntry): Promise<void> {
@@ -168,43 +178,29 @@ function resetCatalog(state: CatalogState): void {
   state.catalogError.value = null;
 }
 
+function createCatalogRefs(): CatalogRefs {
+  return {
+    catalogPresets: ref<CatalogEntry[]>([]),
+    catalogExternal: ref<CatalogEntry[]>([]),
+    catalogError: ref<string | null>(null),
+    selectedCatalog: ref<CatalogEntry | null>(null),
+    catalogDetail: ref<CatalogDetail | null>(null),
+    catalogDetailLoading: ref(false),
+    catalogActioningKey: ref<string | null>(null),
+  };
+}
+
 export function useSkillCatalog(deps: SkillCatalogDeps): SkillCatalog {
   const { t } = useI18n();
   const endpoints = pluginEndpoints<SkillsEndpoints>("skills");
-  const catalogPresets = ref<CatalogEntry[]>([]);
-  const catalogExternal = ref<CatalogEntry[]>([]);
-  const catalogError = ref<string | null>(null);
-  const selectedCatalog = ref<CatalogEntry | null>(null);
-  const catalogDetail = ref<CatalogDetail | null>(null);
-  const catalogDetailLoading = ref(false);
-  // Single in-flight gate covers Star on the selected entry so a slow
-  // request doesn't let the user fire a second action mid-flight.
-  const catalogActioningKey = ref<string | null>(null);
-  const selectedCatalogKey = computed(() => (selectedCatalog.value ? entryKey(selectedCatalog.value) : null));
-  const { markdownRef: catalogMarkdownRef, renderedBody: catalogRenderedBody } = useSkillMarkdown(() => catalogDetail.value?.body);
-  const state: CatalogState = {
-    t,
-    endpoints,
-    deps,
-    catalogPresets,
-    catalogExternal,
-    catalogError,
-    selectedCatalog,
-    catalogDetail,
-    catalogDetailLoading,
-    catalogActioningKey,
-  };
+  // The same Ref instances back both the private state bundle and the
+  // returned surface — spreading copies the Ref objects, not their values.
+  const refs = createCatalogRefs();
+  const selectedCatalogKey = computed(() => (refs.selectedCatalog.value ? entryKey(refs.selectedCatalog.value) : null));
+  const state: CatalogState = { t, endpoints, deps, ...refs };
   return {
-    catalogPresets,
-    catalogExternal,
-    catalogError,
-    selectedCatalog,
-    catalogDetail,
-    catalogDetailLoading,
-    catalogActioningKey,
+    ...refs,
     selectedCatalogKey,
-    catalogRenderedBody,
-    catalogMarkdownRef,
     loadCatalog: () => loadCatalog(state),
     selectCatalogEntry: (entry) => selectCatalogEntry(state, entry),
     starCatalogEntry: (entry) => starCatalogEntry(state, entry),

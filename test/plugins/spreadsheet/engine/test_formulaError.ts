@@ -12,7 +12,6 @@ import {
   invalidRefError,
   nameError,
   unknownError,
-  isErrorValue,
   propagatedError,
   classifyThrownError,
 } from "../../../../src/plugins/spreadsheet/engine/formulaError.ts";
@@ -63,23 +62,6 @@ describe("isFormulaError", () => {
     assert.equal(isFormulaError(new Error("plain")), false);
     assert.equal(isFormulaError("#DIV/0!"), false);
     assert.equal(isFormulaError(null), false);
-  });
-});
-
-describe("isErrorValue", () => {
-  it("recognizes every engine error literal, including function-returned ones", () => {
-    for (const value of ["#DIV/0!", "#REF!", "#NAME?", "#ERROR!", "#N/A", "#NUM!", "#VALUE!", "#NULL!"]) {
-      assert.equal(isErrorValue(value), true, value);
-    }
-  });
-
-  it("rejects ordinary values and near-misses", () => {
-    assert.equal(isErrorValue("hello"), false);
-    assert.equal(isErrorValue("#OOPS!"), false);
-    assert.equal(isErrorValue("100"), false);
-    assert.equal(isErrorValue(0), false);
-    assert.equal(isErrorValue(true), false);
-    assert.equal(isErrorValue(undefined), false);
   });
 });
 

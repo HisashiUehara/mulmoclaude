@@ -1,13 +1,14 @@
 /**
  * DATEDIF — complete elapsed time between two dates, in a chosen unit.
  *
- * Pure: two Excel serials and a unit in, a number (or an Excel error string)
+ * Pure: two Excel serials and a unit in, a number (or a formula error value)
  * out. The unit branches each have their own boundary handling (month-end
  * borrowing, year wraparound), which is exactly what makes them worth testing
  * apart from the handler that reads the arguments.
  */
 
 import { serialToDate } from "./date-utils";
+import { NUM_ERROR, type SpreadsheetError } from "./spreadsheet-errors";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const MONTHS_PER_YEAR = 12;
@@ -24,11 +25,11 @@ function addMonthsClamped(date: Date, months: number): Date {
   return new Date(Date.UTC(year, month, day));
 }
 
-/** Complete `unit`s between two dates, or `"#NUM!"` when start is after end or
+/** Complete `unit`s between two dates, or `#NUM!` when start is after end or
  *  the unit is not one of Y / M / D / MD / YM / YD. `unit` is matched
  *  case-insensitively. */
-export function computeDatedif(startSerial: number, endSerial: number, unit: string): number | string {
-  if (startSerial > endSerial) return "#NUM!";
+export function computeDatedif(startSerial: number, endSerial: number, unit: string): number | SpreadsheetError {
+  if (startSerial > endSerial) return NUM_ERROR;
 
   const startDate = serialToDate(startSerial);
   const endDate = serialToDate(endSerial);
@@ -87,6 +88,6 @@ export function computeDatedif(startSerial: number, endSerial: number, unit: str
     }
 
     default:
-      return "#NUM!";
+      return NUM_ERROR;
   }
 }

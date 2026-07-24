@@ -38,18 +38,7 @@
     </div>
 
     <!-- Graph: force-directed map of the [[wiki-link]] network -->
-    <div v-else-if="action === 'graph'" class="flex-1 flex flex-col overflow-hidden" data-testid="wiki-graph">
-      <div v-if="graphError" class="mx-6 mt-4 rounded border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
-        {{ graphError }}
-      </div>
-      <div v-else-if="!graphData || graphData.nodes.length === 0" class="flex-1 flex items-center justify-center text-gray-400 text-sm">
-        <div class="text-center space-y-2">
-          <span class="material-icons text-4xl text-gray-300">hub</span>
-          <p>{{ t("pluginWiki.graphEmpty") }}</p>
-        </div>
-      </div>
-      <WikiGraphView v-else :graph="graphData" class="flex-1" @navigate="navigatePage" />
-    </div>
+    <WikiGraphTab v-else-if="action === 'graph'" :graph-data="graphData" :graph-error="graphError" @navigate="navigatePage" />
 
     <!-- Index: tag filter + page card list -->
     <div v-else-if="action === 'index' && pageEntries && pageEntries.length > 0" class="flex-1 flex flex-col overflow-hidden">
@@ -118,47 +107,12 @@
            pages) so history outlives the live page (codex iter-2
            #946). Log / lint reports keep the legacy single-pane
            layout — they have no per-page history concept. -->
-      <div
+      <WikiPageTabs
         v-if="action === 'page' && currentSlugReactive !== null"
-        data-testid="wiki-page-tabs"
-        class="shrink-0 border-b border-gray-100 px-3 py-2 flex items-center gap-2"
-      >
-        <div class="flex border border-gray-300 rounded overflow-hidden">
-          <button
-            type="button"
-            :class="[
-              'h-8 px-2.5 flex items-center gap-1 transition-colors',
-              pageTab === PAGE_TAB.content ? 'bg-blue-50 text-blue-600 font-medium' : 'bg-white text-gray-600 hover:bg-gray-50',
-            ]"
-            data-testid="wiki-page-tab-content"
-            @click="pageTab = PAGE_TAB.content"
-          >
-            <span class="material-icons text-sm">article</span>
-            <span>{{ t("pluginWiki.history.tabContent") }}</span>
-          </button>
-          <button
-            type="button"
-            :class="[
-              'h-8 px-2.5 flex items-center gap-1 border-l border-gray-200 transition-colors',
-              pageTab === PAGE_TAB.history ? 'bg-blue-50 text-blue-600 font-medium' : 'bg-white text-gray-600 hover:bg-gray-50',
-            ]"
-            data-testid="wiki-page-tab-history"
-            @click="pageTab = PAGE_TAB.history"
-          >
-            <span class="material-icons text-sm">history</span>
-            <span>{{ t("pluginWiki.history.tabHistory") }}</span>
-          </button>
-        </div>
-        <!-- Restore success toast — transient banner emitted on the
-             Content tab after a successful history restore (Q7=B). -->
-        <span
-          v-if="restoreToastVisible"
-          data-testid="wiki-history-restore-toast"
-          class="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1"
-        >
-          {{ t("pluginWiki.history.restoreSuccessToast") }}
-        </span>
-      </div>
+        :page-tab="pageTab"
+        :restore-toast-visible="restoreToastVisible"
+        @select="pageTab = $event"
+      />
 
       <!-- Content tab body. For pages, includes the empty-state
            fallbacks (deleted page / page with no body) so the
@@ -242,7 +196,13 @@
         >
           {{ pageEditBanner }}
         </div>
-        <div v-if="pageEditDeleted" class="flex items-center justify-center text-gray-400 text-sm py-12" data-testid="wiki-page-edit-deleted">
+        <div v-if="pageEditError" class="flex items-center justify-center text-gray-400 text-sm py-12" data-testid="wiki-page-edit-error">
+          <div class="text-center space-y-2">
+            <span class="material-icons text-4xl text-gray-300">cloud_off</span>
+            <p>{{ pageEditError }}</p>
+          </div>
+        </div>
+        <div v-else-if="pageEditDeleted" class="flex items-center justify-center text-gray-400 text-sm py-12" data-testid="wiki-page-edit-deleted">
           <div class="text-center space-y-2">
             <span class="material-icons text-4xl text-gray-300">delete</span>
             <p>{{ t("pluginWiki.pageDeleted") }}</p>
@@ -319,9 +279,11 @@ import { WIKI_ACTION, readWikiRouteTarget, wikiActionFor } from "@mulmoclaude/co
 import FilterChip from "../../components/FilterChip.vue";
 import HistoryTab from "./history/HistoryTab.vue";
 import WikiPageBody from "./components/WikiPageBody.vue";
-import WikiGraphView from "./components/WikiGraphView.vue";
+import WikiGraphTab from "./components/WikiGraphTab.vue";
 import WikiHeader from "./components/WikiHeader.vue";
 import WikiMetadataBar from "./components/WikiMetadataBar.vue";
+import WikiPageTabs from "./components/WikiPageTabs.vue";
+import { PAGE_TAB, type PageTab } from "./pageTab";
 import { useWikiNavigation } from "./composables/useWikiNavigation";
 import { useTagFilter } from "./composables/useTagFilter";
 import { useWikiGraph } from "./composables/useWikiGraph";
@@ -373,11 +335,6 @@ const navError = ref<string | null>(null);
 // the same slug the History tab keeps its own selection state
 // across toggles (Q15=B) because both tabs are kept mounted via
 // v-show.
-const PAGE_TAB = {
-  content: "content",
-  history: "history",
-} as const;
-type PageTab = (typeof PAGE_TAB)[keyof typeof PAGE_TAB];
 const pageTab = ref<PageTab>(PAGE_TAB.content);
 const restoreToastVisible = ref(false);
 const RESTORE_TOAST_MS = 4000;
@@ -397,7 +354,7 @@ const { graphData, graphError, loadGraph, syncGraphFromResult, linkedReferences 
   endpointBase: wikiEndpoints.base,
 });
 
-const { pageEditTs, pageEditBanner, pageEditDeleted, loadPageEditData, resetPageEdit } = useWikiPageEdit({ content });
+const { pageEditTs, pageEditBanner, pageEditDeleted, pageEditError, loadPageEditData, resetPageEdit } = useWikiPageEdit({ content });
 
 watch(currentSlugReactive, (next, prev) => {
   if (next === prev) return;
@@ -473,9 +430,17 @@ function applyWikiResult(data: Partial<WikiData> | undefined): void {
   syncGraphFromResult(data);
 }
 
+// Monotonic token so a slow POST for one navigation can't apply after the
+// user has already navigated somewhere else (rapid page ↔ tab switching):
+// the older response would otherwise render a body that disagrees with the
+// URL until the next navigation.
+let callApiSeq = 0;
+
 async function callApi(body: Record<string, unknown>) {
+  const seq = ++callApiSeq;
   navError.value = null;
   const response = await apiPost<{ data?: Partial<WikiData> }>(wikiEndpoints.base, body);
+  if (seq !== callApiSeq) return;
   if (!response.ok) {
     navError.value = response.status === 0 ? response.error : `Wiki API error ${response.status}: ${response.error}`;
     return;
