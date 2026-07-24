@@ -50,8 +50,10 @@ These are verified or plausible but out of scope for a mechanical fix-plus-test 
   background load (C3); stroke lost on off-canvas release (C4); silent save
   failures (C6); ResizeObserver + debounced remount; height clamp in stack layout.
   The `coalescingSaver` extraction (E2) falls out of the C6/C9 fix.
-- **photoLocations**: declared `locations-changed` pubsub channel wired nowhere
-  (stale list until remount).
+- ~~**photoLocations**: declared `locations-changed` pubsub channel wired nowhere
+  (stale list until remount).~~ **(shipped, fix/photolocations-pubsub — server
+  publisher fires on sidecar write, View subscribes + silent-refetches; unit +
+  write-path integration, mutation verified)**
 - ~~**scheduler TasksTab**: unsequenced refetch races; full-list remount on every
   mutation (scroll/expand reset); unconfirmed one-click delete; hardcoded English
   frequency-hint labels (8-locale change).~~ **Shipped (fix/scheduler-tasks-robustness).**

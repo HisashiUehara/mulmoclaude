@@ -20,6 +20,7 @@ import { WORKSPACE_PATHS, WORKSPACE_DIRS } from "../paths.js";
 import { isPhotoExifAutoCaptureEnabled, loadSettings } from "../../system/config.js";
 import { isExifSupportedMime, readPhotoExif, type ExifParser, type PhotoExif } from "../../utils/exif.js";
 import { log } from "../../system/logger/index.js";
+import { publishPhotoLocationsChanged } from "../../events/photo-locations-change.js";
 
 /** Persisted sidecar shape. */
 export interface PhotoLocationSidecar {
@@ -111,6 +112,8 @@ async function writeSidecarSafe(sidecarPath: string, payload: PhotoLocationSidec
       attachment: payload.photo.relativePath,
       hasGps: payload.exif.lat !== undefined && payload.exif.lng !== undefined,
     });
+    // Nudge an open photoLocations View to refetch without polling.
+    publishPhotoLocationsChanged();
   } catch (err) {
     log.warn("photo-locations", "sidecar write failed", { attachmentRelativePath: payload.photo.relativePath, error: String(err) });
   }
