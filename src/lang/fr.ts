@@ -470,6 +470,12 @@ const frMessages = {
     pin: "Épingler au lanceur",
     unpin: "Détacher du lanceur",
     zoneAriaLabel: "Raccourcis épinglés",
+    reorder: {
+      open: "Réorganiser les raccourcis",
+      title: "Réorganiser",
+      moveUp: "Monter",
+      moveDown: "Descendre",
+    },
   },
   fileContentHeader: {
     showRendered: "Afficher le Markdown rendu",

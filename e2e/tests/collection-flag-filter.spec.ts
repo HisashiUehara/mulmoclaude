@@ -155,6 +155,21 @@ test("flag chip cycles all → hide → only, filters the table, and persists", 
   await expectRows(page, ["t1", "t2", "t3"]);
 });
 
+test("the filter menu closes on outside click", async ({ page }) => {
+  await mockAllApis(page);
+  await mockCollection(page, "tasks", TASKS);
+
+  await page.goto("/collections/tasks");
+  await expectRows(page, ["t1", "t2", "t3"]);
+
+  // Open the dropdown, then click a control OUTSIDE its wrapper. The
+  // useClickOutside listener lives with the menu's ref (in the toolbar), so
+  // it must still dismiss the panel after the component extraction.
+  await openFilterMenu(page);
+  await page.getByTestId("collection-view-toggle-table").click();
+  await expect(page.getByTestId("collections-filter-menu-panel")).toHaveCount(0);
+});
+
 test("boolean and toggle fields get filter chips too", async ({ page }) => {
   await mockAllApis(page);
   await mockCollection(page, "tasks", TASKS);

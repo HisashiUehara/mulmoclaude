@@ -474,6 +474,12 @@ const deMessages = {
     pin: "An Launcher anheften",
     unpin: "Vom Launcher lösen",
     zoneAriaLabel: "Angeheftete Verknüpfungen",
+    reorder: {
+      open: "Verknüpfungen neu anordnen",
+      title: "Neu anordnen",
+      moveUp: "Nach oben",
+      moveDown: "Nach unten",
+    },
   },
   fileContentHeader: {
     showRendered: "Gerendertes Markdown anzeigen",

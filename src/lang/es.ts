@@ -475,6 +475,12 @@ const esMessages = {
     pin: "Fijar en el lanzador",
     unpin: "Quitar del lanzador",
     zoneAriaLabel: "Accesos directos fijados",
+    reorder: {
+      open: "Reordenar accesos directos",
+      title: "Reordenar",
+      moveUp: "Subir",
+      moveDown: "Bajar",
+    },
   },
   fileContentHeader: {
     showRendered: "Mostrar Markdown renderizado",
