@@ -790,6 +790,12 @@ const enMessages = {
     detailsToggle: "Show details",
     promptLabel: "Prompt",
     roleLabel: "Role",
+    confirmDelete: 'Delete the task "{name}"? This cannot be undone.',
+    hintNewsRss: "News / RSS fetch",
+    hintJournal: "Journal daily pass",
+    hintWiki: "Wiki maintenance",
+    hintMemory: "Memory extraction",
+    hintCalendar: "Calendar / contact sync",
   },
   pluginCanvas: {
     undo: "Undo",
@@ -825,6 +831,7 @@ const enMessages = {
     metadataEditor: "Editor",
     pageEditHeader: "Wiki edit",
     snapshotExpired: "Snapshot expired — showing current page",
+    snapshotLoadError: "Couldn't load the snapshot — the page may still exist. Try refreshing.",
     pageDeleted: "Page deleted",
     history: {
       tabContent: "Content",

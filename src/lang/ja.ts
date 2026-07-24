@@ -764,6 +764,12 @@ const jaMessages = {
     detailsToggle: "詳細を表示",
     promptLabel: "プロンプト",
     roleLabel: "ロール",
+    confirmDelete: "タスク「{name}」を削除しますか？この操作は取り消せません。",
+    hintNewsRss: "ニュース / RSS 取得",
+    hintJournal: "日次ジャーナル処理",
+    hintWiki: "Wiki メンテナンス",
+    hintMemory: "メモリー抽出",
+    hintCalendar: "カレンダー / 連絡先の同期",
   },
   pluginCanvas: {
     undo: "元に戻す",
@@ -799,6 +805,7 @@ const jaMessages = {
     metadataEditor: "編集者",
     pageEditHeader: "Wiki編集",
     snapshotExpired: "スナップショットが期限切れ — 現在のページを表示中",
+    snapshotLoadError: "スナップショットを読み込めませんでした — ページは存在する可能性があります。再読み込みしてください。",
     pageDeleted: "ページが削除されました",
     history: {
       tabContent: "本文",

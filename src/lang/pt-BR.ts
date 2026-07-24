@@ -767,6 +767,12 @@ const ptBRMessages = {
     detailsToggle: "Mostrar detalhes",
     promptLabel: "Prompt",
     roleLabel: "Função",
+    confirmDelete: "Excluir a tarefa « {name} »? Esta ação não pode ser desfeita.",
+    hintNewsRss: "Busca de notícias / RSS",
+    hintJournal: "Passagem diária do diário",
+    hintWiki: "Manutenção do wiki",
+    hintMemory: "Extração de memória",
+    hintCalendar: "Sincronização de calendário / contatos",
   },
   pluginCanvas: {
     undo: "Desfazer",
@@ -802,6 +808,7 @@ const ptBRMessages = {
     metadataEditor: "Editor",
     pageEditHeader: "Edição do wiki",
     snapshotExpired: "Snapshot expirado — exibindo a página atual",
+    snapshotLoadError: "Não foi possível carregar o snapshot — a página pode ainda existir. Tente atualizar.",
     pageDeleted: "Página excluída",
     history: {
       tabContent: "Conteúdo",

@@ -13,6 +13,16 @@ export interface ImageEntry {
   [key: string]: unknown;
 }
 
+/** Open-lightbox state. `index` is the beat index for a beat image and `-1`
+ *  for a character image, which `isCharacter` marks so the beat-strip and
+ *  prev/next arrows stay hidden for characters. */
+export interface LightboxState {
+  src: string;
+  text?: string;
+  index: number;
+  isCharacter?: boolean;
+}
+
 export interface MulmoScript {
   title?: string;
   description?: string;

@@ -248,6 +248,16 @@ export function skillBadgeMeta(skill: SkillIdentity): SkillBadgeMeta {
   return { icon: "folder", colour: "text-green-600", titleKey: "pluginManageSkills.sourceProjectTitle" };
 }
 
+// Resolved provenance badge the template consumes: the i18n title is
+// already resolved to a string, unlike the pure SkillBadgeMeta which
+// carries the unresolved titleKey. Shared so View.vue and the extracted
+// panes agree on the badge prop shape.
+export interface SourceMeta {
+  icon: string;
+  title: string;
+  colour: string;
+}
+
 // Catalog preset rows share one provenance badge (the launcher-managed
 // "library" glyph). Static — the view resolves titleKey through vue-i18n.
 export const PRESET_SOURCE_META: SkillBadgeMeta = {

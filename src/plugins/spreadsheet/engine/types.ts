@@ -2,10 +2,17 @@
  * Spreadsheet Engine Type Definitions
  */
 
-export type CellValue = number | string | boolean;
+import type { SpreadsheetError } from "./spreadsheet-errors";
+
+/** A value as it is STORED in a cell and serialized to the workbook JSON. A
+ *  formula error is never stored — it only exists as a computed result. */
+export type StoredCellValue = number | string | boolean;
+
+/** A value as the engine COMPUTES it: a stored value, or a formula error. */
+export type CellValue = StoredCellValue | SpreadsheetError;
 
 export interface SpreadsheetCell {
-  v: CellValue; // Value or formula (formulas start with "=")
+  v: StoredCellValue; // Value or formula (formulas start with "=")
   f?: string; // Format code (e.g., "$#,##0.00")
 }
 

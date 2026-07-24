@@ -750,6 +750,12 @@ const zhMessages = {
     detailsToggle: "显示详情",
     promptLabel: "提示词",
     roleLabel: "角色",
+    confirmDelete: "删除任务「{name}」？此操作无法撤销。",
+    hintNewsRss: "新闻 / RSS 抓取",
+    hintJournal: "每日日志处理",
+    hintWiki: "Wiki 维护",
+    hintMemory: "记忆提取",
+    hintCalendar: "日历 / 联系人同步",
   },
   pluginCanvas: {
     undo: "撤销",
@@ -785,6 +791,7 @@ const zhMessages = {
     metadataEditor: "编辑者",
     pageEditHeader: "Wiki 编辑",
     snapshotExpired: "快照已过期 — 显示当前页面",
+    snapshotLoadError: "无法加载快照 — 页面可能仍然存在。请尝试刷新。",
     pageDeleted: "页面已删除",
     history: {
       tabContent: "正文",

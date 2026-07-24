@@ -9,7 +9,8 @@
 
 import { formatNumber } from "./formatter";
 import { isRecord } from "../../../utils/types";
-import type { CellValue, SpreadsheetCell } from "./types";
+import { isSpreadsheetErrorValue } from "./spreadsheet-errors";
+import type { CellValue, SpreadsheetCell, StoredCellValue } from "./types";
 
 // Integer serials the engine is willing to auto-format as dates without an
 // explicit format code: ~Jul 1998 (36000) through ~Dec 2073 (63499). Narrow on
@@ -28,11 +29,18 @@ export const isLikelyDateSerial = (value: CellValue): boolean =>
  * Resolve the display value of one cell from its original definition and its
  * calculated value.
  *
+ * - A formula error renders as its code, so the cell still reads `#NUM!`.
  * - Explicit format code wins (currency, percentage, date, ...).
  * - A formula that produced a date serial auto-formats as a date.
  * - Everything else (text, plain numbers, empty) passes through unchanged.
+ *
+ * The result is always a STORED value: this is the boundary where a computed
+ * error becomes the text a cell shows and a workbook serializes.
  */
-export const formatCellForDisplay = (originalCell: unknown, calculatedValue: CellValue, preferDDMMYYYY: boolean): CellValue => {
+export const formatCellForDisplay = (originalCell: unknown, calculatedValue: CellValue, preferDDMMYYYY: boolean): StoredCellValue => {
+  if (isSpreadsheetErrorValue(calculatedValue)) {
+    return calculatedValue.code;
+  }
   if (!isSpreadsheetCell(originalCell) || typeof calculatedValue !== "number") {
     return calculatedValue;
   }
