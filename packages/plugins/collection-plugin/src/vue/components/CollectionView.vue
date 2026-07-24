@@ -41,225 +41,38 @@
          toggle is available — the toggle must reach an empty date-bearing
          collection (empty-day create) and a collection whose only views are
          custom ones (so its buttons + the "+" stay reachable). -->
-    <div
+    <CollectionToolbar
       v-if="collection && ((!hideSearch && items.length > 0) || (!hideViewToggle && (hasCalendar || hasKanban || hasCustomViews || canAddCustomView)))"
-      class="px-6 py-3 bg-white border-b border-slate-100 flex items-center justify-between gap-4"
-    >
-      <div v-if="!hideSearch && items.length > 0" class="relative flex-1 max-w-md">
-        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
-          <span class="material-icons text-lg">search</span>
-        </span>
-        <input
-          v-model="searchQuery"
-          type="text"
-          :placeholder="t('collectionsView.searchPlaceholder')"
-          :aria-label="t('collectionsView.searchPlaceholder')"
-          class="w-full bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-8 py-1.5 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all font-medium"
-        />
-        <button
-          v-if="searchQuery"
-          type="button"
-          :aria-label="t('collectionsView.clearSearch')"
-          class="absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400 hover:text-slate-600"
-          @click="searchQuery = ''"
-        >
-          <span class="material-icons text-sm">close</span>
-        </button>
-      </div>
-      <div class="flex items-center gap-2">
-        <!-- Filter menu (table view only): one tri-state entry (all → hide
-             → only) per predicate-shaped field — `flag`, `boolean`,
-             `toggle` — plus a synthesized "done" entry for legacy
-             completion-pair schemas. Collapsed behind a single trigger so
-             a chip-heavy schema can't flood the chrome row, and styled as
-             a dashed pill (soft-tinted when active) so it never reads as
-             another view-toggle button. State is a shared per-collection
-             localStorage preference, like the table sort. -->
-        <div v-if="activeView === 'table' && flagChips.length > 0 && items.length > 0" ref="filterMenuRef" class="relative">
-          <button
-            type="button"
-            class="h-8 px-2.5 flex items-center gap-1 rounded-full text-xs font-medium transition-colors"
-            :class="
-              activeFlagFilterCount > 0
-                ? 'bg-indigo-50 text-indigo-700 border border-indigo-300'
-                : 'bg-transparent text-slate-500 border border-dashed border-slate-300 hover:bg-slate-50'
-            "
-            :aria-label="t('collectionsView.flagFilterButton')"
-            :aria-expanded="filterMenuOpen"
-            data-testid="collections-filter-menu"
-            @click="filterMenuOpen = !filterMenuOpen"
-          >
-            <span class="material-icons text-sm" aria-hidden="true">filter_alt</span>
-            <span>{{ t("collectionsView.flagFilterButton") }}</span>
-            <span
-              v-if="activeFlagFilterCount > 0"
-              class="min-w-4 h-4 px-1 flex items-center justify-center rounded-full bg-indigo-600 text-white text-[10px] font-bold"
-              >{{ activeFlagFilterCount }}</span
-            >
-          </button>
-          <div
-            v-if="filterMenuOpen"
-            class="absolute left-0 top-full mt-1 z-20 min-w-max rounded border border-slate-200 bg-white shadow-lg py-1"
-            role="group"
-            :aria-label="t('collectionsView.flagFilterButton')"
-            data-testid="collections-filter-menu-panel"
-          >
-            <button
-              v-for="chip in flagChips"
-              :key="chip.key"
-              type="button"
-              class="w-full h-8 px-3 flex items-center gap-2 text-xs font-medium transition-colors hover:bg-slate-50"
-              :class="flagChipClass(chip.key)"
-              :title="flagChipTitle(chip)"
-              :aria-label="flagChipTitle(chip)"
-              :aria-pressed="flagFilterMode(chip.key) !== undefined"
-              :data-testid="`collections-flag-chip-${chip.key}`"
-              @click="cycleFlagFilter(chip.key)"
-            >
-              <span class="material-icons text-sm" :class="flagChipIconClass(chip.key)" aria-hidden="true">{{ flagChipIcon(chip.key) }}</span>
-              <span class="flex-1 text-left">{{ chip.label }}</span>
-            </button>
-          </div>
-        </div>
-        <!-- View toggle: table ↔ calendar ↔ kanban. Calendar shows only when
-             the schema has a `date` field, kanban only with an `enum` field;
-             local UI state, never persisted. -->
-        <div
-          v-if="!hideViewToggle && (hasCalendar || hasKanban || hasCustomViews || canAddCustomView)"
-          class="flex gap-0.5"
-          role="group"
-          :aria-label="t('collectionsView.viewToggle')"
-        >
-          <button
-            type="button"
-            class="h-8 px-2.5 flex items-center gap-1 rounded text-xs font-bold transition-colors"
-            :class="activeView === 'table' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'"
-            :aria-pressed="activeView === 'table'"
-            data-testid="collection-view-toggle-table"
-            @click="setView('table')"
-          >
-            <span class="material-icons text-sm">table_rows</span>
-            <span>{{ t("collectionsView.viewTable") }}</span>
-          </button>
-          <button
-            v-if="hasCalendar"
-            type="button"
-            class="h-8 px-2.5 flex items-center gap-1 rounded text-xs font-bold transition-colors"
-            :class="activeView === 'calendar' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'"
-            :aria-pressed="activeView === 'calendar'"
-            data-testid="collection-view-toggle-calendar"
-            @click="setView('calendar')"
-          >
-            <span class="material-icons text-sm">calendar_month</span>
-            <span>{{ t("collectionsView.viewCalendar") }}</span>
-          </button>
-          <button
-            v-if="hasKanban"
-            type="button"
-            class="h-8 px-2.5 flex items-center gap-1 rounded text-xs font-bold transition-colors"
-            :class="activeView === 'kanban' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'"
-            :aria-pressed="activeView === 'kanban'"
-            data-testid="collection-view-toggle-kanban"
-            @click="setView('kanban')"
-          >
-            <span class="material-icons text-sm">view_kanban</span>
-            <span>{{ t("collectionsView.viewKanban") }}</span>
-          </button>
-          <!-- Custom (LLM-authored) views declared on the schema. -->
-          <button
-            v-for="cv in customViews"
-            :key="cv.id"
-            type="button"
-            class="h-8 px-2.5 flex items-center gap-1 rounded text-xs font-bold transition-colors"
-            :class="activeView === customViewKey(cv.id) ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'"
-            :aria-pressed="activeView === customViewKey(cv.id)"
-            :data-testid="`collection-view-custom-${cv.id}`"
-            @click="setCustomView(cv.id)"
-          >
-            <span class="material-icons text-sm">{{ cv.icon || (cv.target === "mobile" ? "smartphone" : "dashboard_customize") }}</span>
-            <span>{{ cv.label }}</span>
-          </button>
-          <!-- "+" — ask Claude to author a new custom view for this collection.
-               Opens a chooser (desktop vs phone target) when the host supports
-               remote views; otherwise seeds the desktop prompt directly. -->
-          <div v-if="canAddCustomView" ref="addMenuRef" class="relative">
-            <button
-              type="button"
-              class="h-8 w-8 flex items-center justify-center rounded bg-white text-slate-500 border border-slate-200 hover:bg-slate-50"
-              :title="t('collectionsView.addView')"
-              :aria-label="t('collectionsView.addView')"
-              :aria-expanded="addMenuOpen"
-              data-testid="collection-view-add"
-              @click="onAddViewClick"
-            >
-              <span class="material-icons text-sm">add</span>
-            </button>
-            <div
-              v-if="addMenuOpen"
-              class="absolute left-0 top-full mt-1 z-20 min-w-max rounded border border-slate-200 bg-white shadow-lg py-1"
-              data-testid="collection-view-add-menu"
-            >
-              <button
-                type="button"
-                class="w-full h-8 px-3 flex items-center gap-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
-                data-testid="collection-view-add-desktop"
-                @click="addCustomView('desktop')"
-              >
-                <span class="material-icons text-sm">dashboard_customize</span>
-                <span>{{ t("collectionsView.addViewDesktop") }}</span>
-              </button>
-              <button
-                type="button"
-                class="w-full h-8 px-3 flex items-center gap-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
-                data-testid="collection-view-add-mobile"
-                @click="addCustomView('mobile')"
-              >
-                <span class="material-icons text-sm">smartphone</span>
-                <span>{{ t("collectionsView.addViewMobile") }}</span>
-              </button>
-            </div>
-          </div>
-          <!-- Gear — per-collection config (currently: manage/delete custom
-               views). Standalone only, and only when there's a view to manage. -->
-          <button
-            v-if="canConfigureViews"
-            type="button"
-            class="h-8 w-8 flex items-center justify-center rounded bg-white text-slate-500 border border-slate-200 hover:bg-slate-50"
-            :title="t('collectionsView.config.open')"
-            :aria-label="t('collectionsView.config.open')"
-            data-testid="collection-config-open"
-            @click="configOpen = true"
-          >
-            <span class="material-icons text-sm">settings</span>
-          </button>
-        </div>
-        <!-- Which date field anchors the grid (only when >1 date field). -->
-        <select
-          v-if="calendarActive && dateFields.length > 1"
-          :value="calendarAnchorField"
-          class="h-8 px-2 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 focus:outline-none focus:border-indigo-500 cursor-pointer"
-          :aria-label="t('collectionsView.calendarFieldLabel')"
-          data-testid="collection-calendar-field"
-          @change="anchorOverride = ($event.target as HTMLSelectElement).value"
-        >
-          <option v-for="key in dateFields" :key="key" :value="key">{{ collection?.schema.fields[key]?.label ?? key }}</option>
-        </select>
-        <!-- Which enum field groups the board (only when >1 enum field). -->
-        <select
-          v-if="kanbanActive && enumFields.length > 1"
-          :value="kanbanGroupField"
-          class="h-8 px-2 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 focus:outline-none focus:border-indigo-500 cursor-pointer"
-          :aria-label="t('collectionsView.kanbanFieldLabel')"
-          data-testid="collection-kanban-field"
-          @change="kanbanOverride = ($event.target as HTMLSelectElement).value"
-        >
-          <option v-for="key in enumFields" :key="key" :value="key">{{ collection?.schema.fields[key]?.label ?? key }}</option>
-        </select>
-        <div v-if="items.length > 0" class="text-[10px] text-slate-400 font-bold uppercase tracking-wider select-none">
-          {{ t("collectionsView.searchSummary", { shown: activeView === "table" ? tableFilteredItems.length : filteredItems.length, total: items.length }) }}
-        </div>
-      </div>
-    </div>
+      v-model:search-query="searchQuery"
+      v-model:flag-filters="flagFilters"
+      :collection="collection"
+      :items="items"
+      :hide-search="hideSearch"
+      :hide-view-toggle="hideViewToggle"
+      :active-view="activeView"
+      :flag-chips="flagChips"
+      :custom-views="customViews"
+      :can-add-custom-view="canAddCustomView"
+      :can-configure-views="canConfigureViews"
+      :can-add-mobile-view="canAddMobileView"
+      :has-calendar="hasCalendar"
+      :has-kanban="hasKanban"
+      :has-custom-views="hasCustomViews"
+      :calendar-active="calendarActive"
+      :kanban-active="kanbanActive"
+      :date-fields="dateFields"
+      :enum-fields="enumFields"
+      :calendar-anchor-field="calendarAnchorField"
+      :kanban-group-field="kanbanGroupField"
+      :table-filtered-count="tableFilteredItems.length"
+      :filtered-count="filteredItems.length"
+      @set-view="setView"
+      @set-custom-view="setCustomView"
+      @add-view="addCustomView"
+      @open-config="configOpen = true"
+      @update:anchor-field="anchorOverride = $event"
+      @update:group-field="kanbanOverride = $event"
+    />
 
     <CollectionRepairBanner v-if="collection && dataIssues.length > 0" :count="dataIssues.length" @repair="repairCollection" />
 
@@ -524,6 +337,7 @@ import CollectionMutateParamsModal from "./CollectionMutateParamsModal.vue";
 import CollectionRecordModal from "./CollectionRecordModal.vue";
 import CollectionChatModal from "./CollectionChatModal.vue";
 import CollectionRepairBanner from "./CollectionRepairBanner.vue";
+import CollectionToolbar from "./CollectionToolbar.vue";
 import CollectionCalendarView from "./CollectionCalendarView.vue";
 import CollectionDayView from "./CollectionDayView.vue";
 import CollectionKanbanView from "./CollectionKanbanView.vue";
@@ -538,12 +352,10 @@ import {
   writeCollectionViewMode,
   writeCollectionSort,
   writeCollectionFlagFilters,
-  customViewKey,
   type CollectionViewMode,
   type BuiltInViewMode,
 } from "../collectionViewMode";
 import { collectionUi } from "../uiContext";
-import { useClickOutside } from "../composables/useClickOutside";
 import { useTableSort } from "../composables/useTableSort";
 import { useCollectionActions } from "../composables/useCollectionActions";
 import { useFlagFilters } from "../composables/useFlagFilters";
@@ -728,20 +540,16 @@ const filteredItems = computed<CollectionItem[]>(() => {
 // in `useFlagFilters`; the tri-state transition / own-property read / colour
 // mappings in `../flagFilterDisplay`. `tableFilteredItems` + `flagValueOf` feed
 // the sort below.
+// The filter-menu open/close + click-outside and the chip display/cycle helpers
+// now live in CollectionToolbar (its `menuRef` must bind the wrapper the toolbar
+// renders); the parent keeps only the filtering DATA — `flagFilters` (v-model to
+// the toolbar + persist watch + empty-state clear), `flagChips` (toolbar prop),
+// `tableFilteredItems` (table / sort / count), and `flagValueOf` (sort).
 const {
   flagFilters,
   flagChips,
   tableFilteredItems,
-  activeFlagFilterCount,
-  filterMenuOpen,
-  filterMenuRef,
   flagValueOf,
-  flagFilterMode,
-  cycleFlagFilter,
-  flagChipIcon,
-  flagChipIconClass,
-  flagChipClass,
-  flagChipTitle,
   resetForSlug: resetFlagFiltersForSlug,
 } = useFlagFilters({ collection, filteredItems, activeSlug, deriveRecord: render.deriveRecord, t });
 
@@ -1155,23 +963,11 @@ function builtInViewOrTable(mode: CollectionViewMode): BuiltInViewMode {
  *  authored under feeds/<slug>/ and the seed prompt points there. */
 const canAddCustomView = computed<boolean>(() => Boolean(collection.value) && !embedded.value);
 
-// ── "+" add-view chooser (desktop vs phone target) ───────────────────
-const { open: addMenuOpen, menuRef: addMenuRef } = useClickOutside();
-
 /** Whether authoring a phone (remote app) view is worth offering — mirrors
- *  the selector filter above: without the host's `fetchRemoteView` binding a
- *  mobile view could be authored but never shown here. */
+ *  the selector filter: without the host's `fetchRemoteView` binding a mobile
+ *  view could be authored but never shown. Passed to the toolbar, which owns
+ *  the "+" chooser (open/close + click-outside) and only signals the target. */
 const canAddMobileView = computed<boolean>(() => Boolean(cui.fetchRemoteView));
-
-/** "+" click: open the target chooser, or skip the one-item menu and seed
- *  the desktop prompt directly when mobile views aren't available. */
-function onAddViewClick(): void {
-  if (!canAddMobileView.value) {
-    addCustomView("desktop");
-    return;
-  }
-  addMenuOpen.value = !addMenuOpen.value;
-}
 
 /** Seed a chat asking Claude to author a new custom view for this collection.
  *  Reuses the same chat-seed path as collection actions — the host injects a
@@ -1181,7 +977,6 @@ function onAddViewClick(): void {
  *  is target-aware: phone views follow the custom-view-remote contract and
  *  register with `target: "mobile"`. */
 function addCustomView(target: "desktop" | "mobile"): void {
-  addMenuOpen.value = false;
   const current = collection.value;
   if (!current) return;
   const base = current.source === "feed" ? `feeds/${current.slug}` : `data/skills/${current.slug}`;
@@ -1746,8 +1541,8 @@ watch(
       view.value = (slug && readCollectionViewMode(slug)) || "table";
       anchorOverride.value = null;
       kanbanOverride.value = null;
-      addMenuOpen.value = false;
-      filterMenuOpen.value = false;
+      // The toolbar closes its own filter / add-view menus on this slug change
+      // (it owns their open state now).
       // Drop the previous collection's cached neighbors so the next open
       // re-derives them for the new slug (also clears any in-flight spinner).
       collectionHeaderRef.value?.resetForSlugChange();

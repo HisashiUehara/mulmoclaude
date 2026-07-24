@@ -4,22 +4,17 @@
 // SHARED per-collection localStorage preference (like the table sort) — read here
 // and reset on collection switch; the write lives in the parent's persist watch.
 //
-// The reactive shell, extracted from CollectionView; the tri-state transition,
-// own-property read, and icon/colour mappings live in `../flagFilterDisplay`, and
-// the per-row predicate (`chipMatches` / `flagFieldValue`) in core.
+// This owns the filtering DATA only. The filter MENU (open/close + click-outside)
+// and the chip display/cycle helpers live in `CollectionToolbar` — the menu's
+// `useClickOutside` ref must bind the wrapper the toolbar renders, so it can't be
+// owned here. The pure tri-state / own-property / colour mappings are in
+// `../flagFilterDisplay`; the per-row predicate (`chipMatches` / `flagFieldValue`)
+// in core.
 
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { chipMatches, flagFieldValue, type FlagChip, type CollectionDetail, type CollectionItem } from "@mulmoclaude/core/collection";
 import { readCollectionFlagFilters, type FlagFilterMode, type FlagFilterState } from "../collectionViewMode";
-import {
-  buildFlagChips,
-  cycleFlagFilterState,
-  flagChipClassForMode,
-  flagChipIconClassForMode,
-  flagChipIconForMode,
-  flagFilterModeOf,
-} from "../flagFilterDisplay";
-import { useClickOutside } from "./useClickOutside";
+import { buildFlagChips, flagFilterModeOf } from "../flagFilterDisplay";
 import type { useCollectionI18n } from "../lang";
 
 type Translate = ReturnType<typeof useCollectionI18n>["t"];
@@ -38,17 +33,8 @@ export interface UseFlagFilters {
   flagFilters: Ref<FlagFilterState>;
   flagChips: ComputedRef<FlagChip[]>;
   tableFilteredItems: ComputedRef<CollectionItem[]>;
-  activeFlagFilterCount: ComputedRef<number>;
-  filterMenuOpen: Ref<boolean>;
-  filterMenuRef: Ref<HTMLElement | null>;
   /** A flag FIELD's computed boolean for one row (list cells + sort). */
   flagValueOf: (key: string, item: CollectionItem) => boolean;
-  flagFilterMode: (key: string) => FlagFilterMode | undefined;
-  cycleFlagFilter: (key: string) => void;
-  flagChipIcon: (key: string) => string;
-  flagChipIconClass: (key: string) => string;
-  flagChipClass: (key: string) => string;
-  flagChipTitle: (chip: FlagChip) => string;
   /** Restore the given collection's stored (shared) chip states — the
    *  switch-collection reset; chip state belongs to a schema, never carried across. */
   resetForSlug: (slug: string | undefined) => void;
@@ -60,7 +46,6 @@ function storedFlagFiltersFor(slug: string | undefined): FlagFilterState {
 
 export function useFlagFilters({ collection, filteredItems, activeSlug, deriveRecord, t }: UseFlagFiltersParams): UseFlagFilters {
   const flagFilters = ref<FlagFilterState>(storedFlagFiltersFor(activeSlug.value));
-  const { open: filterMenuOpen, menuRef: filterMenuRef } = useClickOutside();
 
   const flagChips = computed<FlagChip[]>(() => {
     const schema = collection.value?.schema;
@@ -82,25 +67,6 @@ export function useFlagFilters({ collection, filteredItems, activeSlug, deriveRe
     );
   });
 
-  /** Cycle a chip all → hide → only → all. */
-  function cycleFlagFilter(key: string): void {
-    flagFilters.value = cycleFlagFilterState(flagFilters.value, key);
-  }
-
-  const flagChipIcon = (key: string): string => flagChipIconForMode(flagFilterMode(key));
-  const flagChipIconClass = (key: string): string => flagChipIconClassForMode(flagFilterMode(key));
-  const flagChipClass = (key: string): string => flagChipClassForMode(flagFilterMode(key));
-
-  /** How many chips currently filter (badge on the menu trigger). */
-  const activeFlagFilterCount = computed<number>(() => flagChips.value.filter((chip) => flagFilterMode(chip.key) !== undefined).length);
-
-  function flagChipTitle(chip: FlagChip): string {
-    const mode = flagFilterMode(chip.key);
-    if (mode === "hide") return t("collectionsView.flagFilterHide", { label: chip.label });
-    if (mode === "only") return t("collectionsView.flagFilterOnly", { label: chip.label });
-    return t("collectionsView.flagFilterAll", { label: chip.label });
-  }
-
   function resetForSlug(slug: string | undefined): void {
     flagFilters.value = storedFlagFiltersFor(slug);
   }
@@ -109,16 +75,7 @@ export function useFlagFilters({ collection, filteredItems, activeSlug, deriveRe
     flagFilters,
     flagChips,
     tableFilteredItems,
-    activeFlagFilterCount,
-    filterMenuOpen,
-    filterMenuRef,
     flagValueOf,
-    flagFilterMode,
-    cycleFlagFilter,
-    flagChipIcon,
-    flagChipIconClass,
-    flagChipClass,
-    flagChipTitle,
     resetForSlug,
   };
 }
