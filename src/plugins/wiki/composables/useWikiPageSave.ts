@@ -2,6 +2,7 @@ import type { Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { WIKI_ACTION } from "@mulmoclaude/core/wiki";
 import { apiPost } from "../../../utils/api";
+import { errorMessage } from "../../../utils/errors";
 import { computeToggledContent } from "../helpers";
 import { createTaskSaveQueue, type SaveResult } from "../taskSaveQueue";
 
@@ -31,12 +32,18 @@ export function useWikiPageSave(deps: WikiPageSaveDeps): WikiPageSave {
 
   const queue = createTaskSaveQueue({
     persist: async (pageName, content): Promise<SaveResult> => {
-      const response = await apiPost<{ data?: { content?: string } }>(deps.endpointBase, {
-        action: WIKI_ACTION.save,
-        pageName,
-        content,
-      });
-      return { ok: response.ok, status: response.ok ? 200 : response.status, error: response.ok ? "" : response.error };
+      // apiPost already encodes network failures as { ok:false, status:0 },
+      // but guard the fetch call anyway (repo rule: handle throws too).
+      try {
+        const response = await apiPost<{ data?: { content?: string } }>(deps.endpointBase, {
+          action: WIKI_ACTION.save,
+          pageName,
+          content,
+        });
+        return { ok: response.ok, status: response.ok ? 200 : response.status, error: response.ok ? "" : response.error };
+      } catch (err) {
+        return { ok: false, status: 0, error: errorMessage(err) };
+      }
     },
     refresh: () => deps.refresh(),
     getCurrentSlug: deps.currentSlug,

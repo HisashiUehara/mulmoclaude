@@ -19,6 +19,11 @@
 //   - The chain is self-healing: a rejected persist must not leave the
 //     chain permanently rejected (which would silently drop every later
 //     click).
+//   - A persist that THROWS (rather than returning `{ ok: false }`) is
+//     converted to a network-level failure so it still reaches onError,
+//     instead of being swallowed silently by the self-healing `.catch`.
+
+import { errorMessage } from "../../utils/errors";
 
 export interface SaveResult {
   ok: boolean;
@@ -57,7 +62,7 @@ export function createTaskSaveQueue(deps: TaskSaveQueueDeps): TaskSaveQueue {
     // already load the right page; saving this snapshot would clobber it.
     if (deps.getCurrentSlug() !== pageName) return;
 
-    const result = await deps.persist(pageName, content);
+    const result = await runPersist(pageName, content);
 
     // Re-check both invariants after the await: either could have changed
     // while the request was in flight.
@@ -74,6 +79,16 @@ export function createTaskSaveQueue(deps: TaskSaveQueueDeps): TaskSaveQueue {
       return;
     }
     deps.onSuccess();
+  }
+
+  // Never rejects: a throw from the injected persist becomes a status-0
+  // failure so persistOne's failure path (onError + refresh) handles it.
+  async function runPersist(pageName: string, content: string): Promise<SaveResult> {
+    try {
+      return await deps.persist(pageName, content);
+    } catch (err) {
+      return { ok: false, status: 0, error: errorMessage(err) };
+    }
   }
 
   function queueSave(pageName: string, content: string): void {
