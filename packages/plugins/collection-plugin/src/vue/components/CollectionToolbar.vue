@@ -221,7 +221,8 @@
 import { computed, watch } from "vue";
 import { useCollectionI18n } from "../lang";
 import { useClickOutside } from "../composables/useClickOutside";
-import { customViewKey, flagFilterModeOf, type CollectionViewMode, type FlagFilterMode, type FlagFilterState } from "../collectionViewMode";
+import { customViewKey, type CollectionViewMode, type FlagFilterMode, type FlagFilterState } from "../collectionViewMode";
+import { cycleFlagFilterState, flagChipClassForMode, flagChipIconClassForMode, flagChipIconForMode, flagFilterModeOf } from "../flagFilterDisplay";
 import type { CollectionDetail, CollectionItem, CollectionCustomView as CustomViewSpec, FlagChip } from "@mulmoclaude/core/collection";
 
 const props = defineProps<{
@@ -287,45 +288,21 @@ watch(
   },
 );
 
-/** Own-property-safe read of a chip's active mode (shared with the parent's
- *  `tableFilteredItems`, so the `Object.prototype`-shadowing guard lives in
- *  one place). */
+// The chip tri-state / own-property read / icon + colour mappings are the pure
+// helpers in `../flagFilterDisplay` (shared with `useFlagFilters`); the toolbar
+// only wraps them against the live `flagFilters` v-model.
 function flagFilterMode(key: string): FlagFilterMode | undefined {
   return flagFilterModeOf(flagFilters.value, key);
 }
 
 /** Cycle a chip all → hide → only → all. */
 function cycleFlagFilter(key: string): void {
-  const current = flagFilterMode(key);
-  const next: FlagFilterMode | undefined = current === undefined ? "hide" : current === "hide" ? "only" : undefined;
-  const rest = Object.fromEntries(Object.entries(flagFilters.value).filter(([entry]) => entry !== key));
-  flagFilters.value = next ? { ...rest, [key]: next } : rest;
+  flagFilters.value = cycleFlagFilterState(flagFilters.value, key);
 }
 
-// Checkbox metaphor for the tri-state: checked = only the ON rows,
-// unchecked = only the OFF rows, faint unchecked = not filtering. The
-// icon glyph alone can't show the third state (Material Icons has no
-// dotted box), so `flagChipIconClass` greys it out instead.
-function flagChipIcon(key: string): string {
-  return flagFilterMode(key) === "only" ? "check_box" : "check_box_outline_blank";
-}
-
-function flagChipIconClass(key: string): string {
-  const mode = flagFilterMode(key);
-  if (mode === "hide") return "text-slate-600";
-  if (mode === "only") return "text-indigo-600";
-  return "text-slate-300";
-}
-
-// Menu-entry state tints (the distinct-from-view-toggle treatment lives
-// on the trigger pill): slate for "hide" (rows removed), indigo for
-// "only" (rows isolated), neutral when inactive.
-function flagChipClass(key: string): string {
-  const mode = flagFilterMode(key);
-  if (mode === "hide") return "bg-slate-100 text-slate-700";
-  if (mode === "only") return "bg-indigo-50 text-indigo-700";
-  return "text-slate-500";
-}
+const flagChipIcon = (key: string): string => flagChipIconForMode(flagFilterMode(key));
+const flagChipIconClass = (key: string): string => flagChipIconClassForMode(flagFilterMode(key));
+const flagChipClass = (key: string): string => flagChipClassForMode(flagFilterMode(key));
 
 /** How many chips currently filter (badge on the menu trigger). */
 const activeFlagFilterCount = computed<number>(() => props.flagChips.filter((chip) => flagFilterMode(chip.key) !== undefined).length);

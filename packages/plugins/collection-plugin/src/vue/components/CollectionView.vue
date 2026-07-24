@@ -351,30 +351,23 @@ import {
   readCollectionViewMode,
   writeCollectionViewMode,
   writeCollectionSort,
-  readCollectionFlagFilters,
   writeCollectionFlagFilters,
-  flagFilterModeOf,
   type CollectionViewMode,
   type BuiltInViewMode,
-  type FlagFilterState,
 } from "../collectionViewMode";
 import { collectionUi } from "../uiContext";
 import { useTableSort } from "../composables/useTableSort";
+import { useCollectionActions } from "../composables/useCollectionActions";
+import { useFlagFilters } from "../composables/useFlagFilters";
+import { useCollectionChat } from "../composables/useCollectionChat";
 import {
   dateOf,
   itemMatchesQuery,
-  completionCoveredByFieldChip,
   snapshotEmptyEnums,
   rowIdOf,
-  flagFieldValue,
   toggleChecked,
-  chipMatches,
   nextUniqueItemId,
-  skillCommandSeed,
   shortHexId,
-  defangForPrompt,
-  actionVisible,
-  agentActionRunKey,
   COMPUTED_TYPES,
   buildUpdatedRecord,
   coerceInlineValue,
@@ -382,10 +375,7 @@ import {
   firstMissingRequiredField,
   rowFromItem,
   type Ymd,
-  type FlagChip,
   type SortValueDeps,
-  type CollectionAction,
-  type CollectionMutateAction,
   type CollectionCustomView as CustomViewSpec,
   type CollectionDetail,
   type CollectionItem,
@@ -527,37 +517,6 @@ const enumOriginallyEmpty = ref<Set<string>>(new Set());
  *  otherwise clobber the newer field on disk while the UI shows the
  *  newer optimistic value (Codex PR #1599 P2). */
 const inlineSavingRows = ref<Set<string>>(new Set());
-const actionPending = ref(false);
-const actionError = ref<string | null>(null);
-const collectionActionPending = ref(false);
-
-// In-flight `kind: "agent"` action run keys. The server's detail response
-// is the source of truth (its dispatch guard); a dispatch adds the key
-// optimistically BEFORE the POST, and the worker's completion ping
-// (publishCollectionChange) triggers the refetch that reconciles it.
-const runningActions = ref<Set<string>>(new Set());
-
-// Generation guard: bumped on every LOCAL runningActions mutation so a
-// detail response that started BEFORE the mutation can't clobber it — a
-// pre-dispatch snapshot would erase the optimistic key and strand the
-// button enabled while the worker runs (Codex + CodeRabbit on PR #2104).
-let runningActionsGen = 0;
-
-function mutateRunningActions(mutate: (next: Set<string>) => void): void {
-  runningActionsGen += 1;
-  const next = new Set(runningActions.value);
-  mutate(next);
-  runningActions.value = next;
-}
-
-/** Adopt a detail response's `runningActions` — only when no local
- *  mutation happened while the response was in flight (stale snapshots
- *  are dropped; the completion ping's refetch reconciles soon after). */
-function applyServerRunningActions(keys: string[] | undefined, genAtFetch: number): void {
-  if (runningActionsGen !== genAtFetch) return;
-  runningActions.value = new Set(keys ?? []);
-}
-const chatOpen = ref(false);
 
 // Shared rendering + linked-data layer: owns the ref/embed caches and
 // every value-formatting helper, reused by the extracted table / cell / record
@@ -576,77 +535,23 @@ const filteredItems = computed<CollectionItem[]>(() => {
 });
 
 // ── Flag filter chips (table view only) ───────────────────────────
-// One tri-state chip per `flag` field (all → hide → only), ANDed with the
-// text search. Schemas with only the legacy completion pair (no flag) get
-// a synthesized "done" chip driven by the shared `itemIsDone`, so #2174's
-// hide-completed works without a schema edit. Calendar / kanban / custom
-// views deliberately see the UNfiltered list (plan scope —
-// plans/done/feat-collection-flag-fields.md). Chip state is a SHARED
-// per-collection localStorage preference, exactly like the table sort.
-
-/** Chip key (state/testid/localStorage) for the synthesized
- *  legacy-completion chip. Field names are unrestricted strings, so a
- *  schema COULD declare a field with this exact name — the chip list
- *  below skips synthesizing in that case, and the predicate dispatch
- *  keys off the structural `synthetic` marker, never this string. */
-const COMPLETION_CHIP_KEY = "__completion";
-
-function storedFlagFiltersFor(slug: string | undefined): FlagFilterState {
-  return slug ? readCollectionFlagFilters(slug) : {};
-}
-const flagFilters = ref<FlagFilterState>(storedFlagFiltersFor(activeSlug.value));
-
-/** The field types that earn a filter-menu entry: declared predicates
- *  (`flag`) plus the fields that ARE a predicate already — a stored
- *  `boolean` and a `toggle`'s projected on/off state. Enums stay out:
- *  they need a value picker, and kanban already slices by enum. */
-const CHIP_FIELD_TYPES = new Set(["flag", "boolean", "toggle"]);
-
-const flagChips = computed<FlagChip[]>(() => {
-  const schema = collection.value?.schema;
-  if (!schema) return [];
-  const chips: FlagChip[] = Object.entries(schema.fields)
-    .filter(([, field]) => CHIP_FIELD_TYPES.has(field.type))
-    .map(([key, field]) => ({ key, label: field.label ?? key }));
-  // Legacy completion pair (completionField NOT naming a flag) → one
-  // synthesized done chip; a flag-form completion is already covered by
-  // that flag's own chip, and a pair a boolean/toggle chip expresses
-  // exactly is covered by THAT chip (else e.g. the todos schema shows
-  // two "Done" filters). Skipped when a field happens to be named
-  // `__completion`, so the chip key (filter state / testid / Vue :key)
-  // can never collide with a real field's.
-  if (
-    schema.completionField &&
-    schema.completionDoneValues &&
-    schema.fields[schema.completionField]?.type !== "flag" &&
-    !completionCoveredByFieldChip(schema) &&
-    schema.fields[COMPLETION_CHIP_KEY] === undefined
-  ) {
-    chips.push({ key: COMPLETION_CHIP_KEY, label: t("collectionsView.flagDoneChip"), synthetic: true });
-  }
-  return chips;
-});
-
-/** A flag FIELD's computed boolean for one row (list cells + sort): reads the
- *  enriched record so a flag over derived/rollup inputs is correct. */
-function flagValueOf(key: string, item: CollectionItem): boolean {
-  return flagFieldValue(render.deriveRecord(item), key);
-}
-
-/** `filteredItems` further narrowed by every ACTIVE chip (AND). Consumed
- *  only by the table (sortedItems / count summary / empty state). */
-const tableFilteredItems = computed<CollectionItem[]>(() => {
-  const schema = collection.value?.schema;
-  const active = flagChips.value.filter((chip) => flagFilterModeOf(flagFilters.value, chip.key) !== undefined);
-  if (!schema || active.length === 0) return filteredItems.value;
-  return filteredItems.value.filter((item) =>
-    active.every((chip) => chipMatches(chip, schema, item, render.deriveRecord) === (flagFilterModeOf(flagFilters.value, chip.key) === "only")),
-  );
-});
-
-// The chip trigger/panel (open/close + click-outside) and the tri-state cycle
-// live in the toolbar now; the parent keeps `flagFilters` (v-model) because
-// `tableFilteredItems` above and the persist watch below consume it.
+// One tri-state chip per predicate-shaped field (all → hide → only), ANDed with
+// the text search. The reactive shell + per-collection localStorage state live
+// in `useFlagFilters`; the tri-state transition / own-property read / colour
+// mappings in `../flagFilterDisplay`. `tableFilteredItems` + `flagValueOf` feed
+// the sort below.
+// The filter-menu open/close + click-outside and the chip display/cycle helpers
+// now live in CollectionToolbar (its `menuRef` must bind the wrapper the toolbar
+// renders); the parent keeps only the filtering DATA — `flagFilters` (v-model to
+// the toolbar + persist watch + empty-state clear), `flagChips` (toolbar prop),
+// `tableFilteredItems` (table / sort / count), and `flagValueOf` (sort).
+const {
+  flagFilters,
+  flagChips,
+  tableFilteredItems,
+  flagValueOf,
+  resetForSlug: resetFlagFiltersForSlug,
+} = useFlagFilters({ collection, filteredItems, activeSlug, deriveRecord: render.deriveRecord, t });
 
 // ── List-table sort (single active column, header toggle) ─────────
 // Row readers the pure `sortValueOf` can't get from the raw cell: toggle /
@@ -747,187 +652,33 @@ function showRefreshNote(message: string): void {
   }, 6000);
 }
 
-/** Collection-level header actions. No `when` predicate (no record). */
-const collectionActions = computed<CollectionAction[]>(() => collection.value?.schema.collectionActions ?? []);
+// ── Schema-declared actions (collection-level, per-record, mutate) ──
+// The reactive shell + the `runningActions` generation guard live in
+// `useCollectionActions`; the load path (`loadCollection` / `refreshItemsInPlace`)
+// drives the guard through `clearRunningActions` / `beginRunningActionsReconcile`.
+const {
+  runningActions,
+  actionPending,
+  actionError,
+  collectionActionPending,
+  mutateModal,
+  mutatePending,
+  mutateError,
+  collectionActions,
+  visibleActions,
+  viewingRunningActionIds,
+  runCollectionAction,
+  runAction,
+  submitMutateParams,
+  repairCollection,
+  clearRunningActions,
+  beginRunningActionsReconcile,
+} = useCollectionActions({ collection, viewing, dataIssues, inlineError, cui, props, t });
 
-/** True when a `kind: "agent"` action's hidden worker is in flight —
- *  drives the button spinner + disable. Keys mirror the server's
- *  dispatch guard via `agentActionRunKey`. */
-function isActionRunning(actionId: string, itemId?: string): boolean {
-  return runningActions.value.has(agentActionRunKey(actionId, itemId));
-}
-
-/** Run a collection-level action: ask the server to assemble the seed
- *  prompt (a progress summary of all records + the template). `kind:
- *  "chat"` gets the seed back and starts a new chat; `kind: "agent"` is
- *  dispatched server-side as a hidden worker — mark it running and let
- *  the completion ping's refetch reconcile. Generic — no domain knowledge. */
-async function runCollectionAction(action: CollectionAction): Promise<void> {
-  const current = collection.value;
-  if (!current || collectionActionPending.value || isActionRunning(action.id)) return;
-  // Optimistic key BEFORE the POST: a fast worker's completion ping can
-  // beat the POST's resolution, and adding the key afterwards would
-  // strand the spinner past the only refetch that could clear it.
-  const runKey = action.kind === "agent" ? agentActionRunKey(action.id) : null;
-  if (runKey) mutateRunningActions((next) => next.add(runKey));
-  collectionActionPending.value = true;
-  inlineError.value = null;
-  const result = await cui.runCollectionAction(current.slug, action.id);
-  collectionActionPending.value = false;
-  if (!result.ok) {
-    // 409 = the server's dispatch guard CONFIRMED a worker is in flight
-    // (e.g. dispatched from another tab) — keep the key so the button
-    // stays disabled; drop it only for real launch failures.
-    if (runKey && result.status !== 409) mutateRunningActions((next) => next.delete(runKey));
-    inlineError.value = result.error;
-    return;
-  }
-  if (result.data.dispatched) return; // key already set; the completion ping's refetch reconciles
-  if (result.data.written) return; // mutate never reaches this handler branch; narrows the union
-  if (props.sendTextMessage) {
-    props.sendTextMessage(result.data.prompt);
-    return;
-  }
-  appApi.startNewChat(result.data.prompt, result.data.role);
-}
-
-/** Report the server-detected record data problems back to the LLM so it
- *  fixes the offending files. Mirrors the `presentCollection` validation
- *  path (`dispatchPresentCollection`), but user-initiated via the Repair
- *  button instead of fired automatically after a write. Dispatches into
- *  the current chat when embedded, else seeds a new General chat. */
-function repairCollection(): void {
-  const current = collection.value;
-  if (!current || dataIssues.value.length === 0) return;
-  // Issue text carries record-controlled values (ids, enum values), so defang
-  // structural injection vectors before it rides into the LLM prompt. Shared
-  // with the server's presentCollection path via `defangForPrompt` so the two
-  // can't drift (it also collapses whitespace, closing a newline-injection gap).
-  const lines = dataIssues.value.map((issue) => `- ${defangForPrompt(issue.file)}: ${defangForPrompt(issue.problem)}`).join("\n");
-  const prompt = t("collectionsView.repairPrompt", { title: current.title, count: dataIssues.value.length, issues: lines });
-  if (props.sendTextMessage) {
-    props.sendTextMessage(prompt);
-    return;
-  }
-  appApi.startNewChat(prompt, cui.generalRoleId);
-}
-
-/** Actions whose optional `when` predicate matches the open record.
- *  Status-driven buttons (e.g. invoice "Record payment") stay hidden
- *  until the record reaches the matching state. */
-const visibleActions = computed<CollectionAction[]>(() => {
-  const record = viewing.value;
-  if (!record) return [];
-  return (collection.value?.schema.actions ?? []).filter((action) => actionVisible(action, record));
-});
-
-// `kind: "mutate"` mini-form state: the open modal (which action, which
-// record), its in-flight flag, and the server's `problem` text on a
-// rejected write (rendered inline so the user fixes and retries).
-const mutateModal = ref<{ action: CollectionMutateAction; itemId: string } | null>(null);
-const mutatePending = ref(false);
-const mutateError = ref<string | null>(null);
-
-/** POST one mutate action and, on success, adopt the written record for
- *  the open panel (the write's change ping refreshes the table rows).
- *  Errors land in the modal when one is open, else on the panel. */
-async function executeMutate(action: CollectionMutateAction, itemId: string, params: Record<string, unknown>): Promise<boolean> {
-  // Re-entrancy guard: Enter-key repeats / double-clicks can outrun the
-  // buttons' :disabled state — one write in flight at a time.
-  if (!collection.value || mutatePending.value) return false;
-  mutatePending.value = true;
-  const result = await cui.runItemAction(collection.value.slug, itemId, action.id, params);
-  mutatePending.value = false;
-  if (!result.ok) {
-    if (mutateModal.value) mutateError.value = result.error;
-    else actionError.value = result.error;
-    return false;
-  }
-  if (result.data.written && viewing.value && String(viewing.value[collection.value.schema.primaryKey] ?? "") === itemId) {
-    viewing.value = result.data.item;
-  }
-  return true;
-}
-
-async function submitMutateParams(params: Record<string, unknown>): Promise<void> {
-  const open = mutateModal.value;
-  if (!open) return;
-  mutateError.value = null;
-  if (await executeMutate(open.action, open.itemId, params)) mutateModal.value = null;
-}
-
-/** Mutate kind: open the params mini-form when the action declares one,
- *  else apply the declarative write immediately. */
-async function runMutateAction(action: CollectionMutateAction, itemId: string): Promise<void> {
-  actionError.value = null;
-  if (action.params && Object.keys(action.params).length > 0) {
-    mutateError.value = null;
-    mutateModal.value = { action, itemId };
-    return;
-  }
-  await executeMutate(action, itemId, {});
-}
-
-/** Run a schema-declared action on the open record. `kind: "mutate"`
- *  never leaves the host: with `params` it opens the mini-form, else it
- *  applies immediately. `kind: "chat"` gets the seed back and starts a
- *  new chat; `kind: "agent"` is dispatched server-side as a hidden
- *  worker — mark it running and let the completion ping's refetch
- *  reconcile. Generic — no knowledge of what the action does. */
-async function runAction(action: CollectionAction): Promise<void> {
-  if (!collection.value || !viewing.value) return;
-  const itemId = String(viewing.value[collection.value.schema.primaryKey] ?? "");
-  if (!itemId || isActionRunning(action.id, itemId)) return;
-  if (action.kind === "mutate") {
-    await runMutateAction(action, itemId);
-    return;
-  }
-  // Optimistic key BEFORE the POST — see runCollectionAction.
-  const runKey = action.kind === "agent" ? agentActionRunKey(action.id, itemId) : null;
-  if (runKey) mutateRunningActions((next) => next.add(runKey));
-  actionPending.value = true;
-  actionError.value = null;
-  const result = await cui.runItemAction(collection.value.slug, itemId, action.id);
-  actionPending.value = false;
-  if (!result.ok) {
-    // 409 = already running server-side — keep the key; see runCollectionAction.
-    if (runKey && result.status !== 409) mutateRunningActions((next) => next.delete(runKey));
-    actionError.value = result.error;
-    return;
-  }
-  if (result.data.dispatched) return; // key already set; the completion ping's refetch reconciles
-  if (result.data.written) return; // mutate never reaches this handler branch; narrows the union
-  // In a chat card we have a channel into the current session — send
-  // the seed prompt there rather than spawning a new chat. Standalone
-  // route mode has no such channel, so start a fresh chat in the
-  // action's role (which carries the tools the action needs).
-  if (props.sendTextMessage) {
-    props.sendTextMessage(result.data.prompt);
-    return;
-  }
-  appApi.startNewChat(result.data.prompt, result.data.role);
-}
-
-/** Ids of the open record's actions whose hidden worker is running — the
- *  record panel renders those buttons with a spinner, disabled. */
-const viewingRunningActionIds = computed<string[]>(() => {
-  const current = collection.value;
-  const record = viewing.value;
-  if (!current || !record) return [];
-  const itemId = String(record[current.schema.primaryKey] ?? "");
-  if (!itemId) return [];
-  return (current.schema.actions ?? []).filter((action) => isActionRunning(action.id, itemId)).map((action) => action.id);
-});
-
-/** Open the chat modal. The modal owns its draft + focus: it remounts on
- *  every open (parent `v-if`), so it starts blank and self-focuses. */
-function openChat(): void {
-  chatOpen.value = true;
-}
-
-function closeChat(): void {
-  chatOpen.value = false;
-}
+// ── Chat entry points (header "chat about collection" + per-record chat box) ──
+// The modal open/close + the skill/feed chat-seed builder live in
+// `useCollectionChat`; the seed shape is core's `skillCommandSeed`.
+const { chatOpen, openChat, closeChat, submitChat, onItemChat } = useCollectionChat({ collection, viewing, cui, props, t });
 
 // ── Related-collections pulldown ──────────────────────────────────────
 // Its whole markup AND its `useRelatedMenu` (open-state, click-outside ref,
@@ -937,64 +688,6 @@ function closeChat(): void {
 // watcher below) through the child's exposed `resetForSlugChange`, at the same
 // point it always did.
 const collectionHeaderRef = ref<InstanceType<typeof CollectionHeader> | null>(null);
-
-/** Build the chat seed text for the current view.
- *
- *  A collection IS a skill, so its slug doubles as a slash command:
- *  "I want to create an item" on `mc_worklog` becomes
- *  `/mc_worklog I want to create an item`.
- *
- *  A feed is data-only — it has NO skill, so `/<slug>` would resolve to
- *  nothing. Instead, point the agent at the feed's schema + records
- *  (`feeds/<slug>/schema.json` and `<dataPath>/`) and let it act on the
- *  request directly. */
-function buildChatSeed(slug: string, message: string, itemId?: string): string {
-  const current = collection.value;
-  // Only an actual Feed (source `feed`) is skill-less + data-only. A
-  // skill-backed collection — even one carrying an agent-ingest block — DOES
-  // have a `/<slug>` skill command, so seed that. (Checked via `source`
-  // directly, not the `isFeed` computed defined further down, to keep this
-  // helper self-contained and avoid a use-before-define.)
-  if (current?.source !== "feed") return skillCommandSeed(slug, message, itemId);
-  const dataPath = current.schema.dataPath ?? `data/feeds/${slug}`;
-  // A feed has no skill command — point the agent at a specific record by id
-  // inside the same schema-driven seed.
-  const scoped = itemId ? `(for record \`${itemId}\`) ${message}` : message;
-  return t("collectionsView.feedChatSeed", { slug, dataPath, message: scoped });
-}
-
-/** Start a new general-role chat seeded from the current view. `raw` is
- *  the modal's untrimmed textarea text. */
-function submitChat(raw: string): void {
-  if (!collection.value) return;
-  const message = raw.trim();
-  if (!message) return;
-  closeChat();
-  const text = buildChatSeed(collection.value.slug, message);
-  // Chat card → send into the current session; standalone → new chat.
-  if (props.sendTextMessage) {
-    props.sendTextMessage(text);
-    return;
-  }
-  appApi.startNewChat(text, cui.generalRoleId);
-}
-
-/** The open record's chat box: start a chat scoped to that one record. Seeds
- *  the collection's skill command with an `id=<itemId>` selector
- *  (`/<slug> id=<itemId> <message>`) so the agent acts on this record. */
-function onItemChat(message: string): void {
-  if (!collection.value || !viewing.value) return;
-  const text = message.trim();
-  if (!text) return;
-  const itemId = String(viewing.value[collection.value.schema.primaryKey] ?? "");
-  const seed = buildChatSeed(collection.value.slug, text, itemId || undefined);
-  // Chat card → send into the current session; standalone → new chat.
-  if (props.sendTextMessage) {
-    props.sendTextMessage(seed);
-    return;
-  }
-  appApi.startNewChat(seed, cui.generalRoleId);
-}
 
 async function loadCollection(slug: string): Promise<void> {
   // Snapshot the shortcut kind BEFORE the await — if the user navigates
@@ -1007,7 +700,7 @@ async function loadCollection(slug: string): Promise<void> {
   collection.value = null;
   items.value = [];
   dataIssues.value = []; // never carry a previous collection's issues over
-  mutateRunningActions((next) => next.clear()); // ditto for another collection's spinners
+  clearRunningActions(); // ditto for another collection's spinners
   searchQuery.value = ""; // Reset search query on collection load
   // NOTE: the active column sort is NOT reset here — it's part of the view
   // state, so it must survive a refresh / edit reload and an embedded card
@@ -1015,7 +708,7 @@ async function loadCollection(slug: string): Promise<void> {
   render.resetLinkedCaches();
   viewing.value = null;
   openDay.value = null; // never carry a previous collection's open day over
-  const runningGen = runningActionsGen;
+  const reconcileRunningActions = beginRunningActionsReconcile();
   const result = await cui.fetchCollectionDetail(slug);
   loading.value = false;
   if (!result.ok) {
@@ -1033,7 +726,7 @@ async function loadCollection(slug: string): Promise<void> {
   collection.value = result.data.collection;
   items.value = result.data.items;
   dataIssues.value = result.data.issues ?? [];
-  applyServerRunningActions(result.data.runningActions, runningGen);
+  reconcileRunningActions(result.data.runningActions);
   enumOriginallyEmpty.value = snapshotEmptyEnums(result.data.collection.schema, result.data.items);
   // Fan out to fetch each unique target collection so the table can
   // render ref values as display names (not slugs) and the form
@@ -1068,14 +761,14 @@ async function loadCollection(slug: string): Promise<void> {
  *  fetch is a no-op (keep the current data) — a transient blip shouldn't blank a
  *  view the user is reading. */
 async function refreshItemsInPlace(slug: string): Promise<void> {
-  const runningGen = runningActionsGen;
+  const reconcileRunningActions = beginRunningActionsReconcile();
   const result = await cui.fetchCollectionDetail(slug);
   // Bail if the fetch failed or the user switched collections mid-flight.
   if (!result.ok || activeSlug.value !== slug) return;
   collection.value = result.data.collection;
   items.value = result.data.items;
   dataIssues.value = result.data.issues ?? [];
-  applyServerRunningActions(result.data.runningActions, runningGen);
+  reconcileRunningActions(result.data.runningActions);
   enumOriginallyEmpty.value = snapshotEmptyEnums(result.data.collection.schema, result.data.items);
   await render.loadLinkedCollections(result.data.collection.schema, slug);
   if (activeSlug.value !== slug) return; // re-check after the await
@@ -1857,7 +1550,7 @@ watch(
       // restore the new collection's stored (shared) sort instead. Same for
       // the flag filter chips.
       resetSortForSlug(slug);
-      flagFilters.value = storedFlagFiltersFor(slug);
+      resetFlagFiltersForSlug(slug);
     }
     if (slug) {
       loadCollection(slug);
