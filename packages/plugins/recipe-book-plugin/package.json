@@ -24,7 +24,8 @@
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'no in-package tests; covered by host integration test test/plugins/test_recipe_book_integration.ts'"
+    "test": "echo 'no in-package tests; covered by host integration test test/plugins/test_recipe_book_integration.ts'",
+    "lint": "eslint src"
   },
   "peerDependencies": {
     "gui-chat-protocol": "^1.2.0",

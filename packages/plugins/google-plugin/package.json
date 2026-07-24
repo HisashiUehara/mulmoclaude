@@ -18,7 +18,8 @@
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/test_*.ts"
+    "test": "tsx --test test/test_*.ts",
+    "lint": "eslint src test"
   },
   "dependencies": {
     "@mulmoclaude/core": "^1.2.0"

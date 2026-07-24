@@ -1,7 +1,7 @@
 {
   "name": "@mulmobridge/viber",
   "version": "0.1.1",
-  "description": "Viber bridge for MulmoBridge \u2014 Public Account chatbot via webhook + REST",
+  "description": "Viber bridge for MulmoBridge — Public Account chatbot via webhook + REST",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,7 +16,8 @@
     "build": "tsc",
     "prepack": "yarn build",
     "typecheck": "tsc --noEmit",
-    "test": "echo no tests yet"
+    "test": "echo no tests yet",
+    "lint": "eslint src"
   },
   "license": "MIT",
   "author": "Receptron Team",
