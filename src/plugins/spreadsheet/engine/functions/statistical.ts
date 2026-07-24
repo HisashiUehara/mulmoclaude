@@ -2,9 +2,10 @@
  * Statistical Functions
  */
 
-import { functionRegistry, toNumber, parseCriteria, type FunctionContext, type FunctionHandler } from "../registry";
+import { functionRegistry, toNumber, parseCriteria, type FunctionContext, type FunctionHandler, type RangeGetter } from "../registry";
 import { computeAverage, computeMedian, computeMode, sampleStdev, sampleVariance } from "./statistical-math";
 import { DIV_ZERO_ERROR } from "../spreadsheet-errors";
+import { holdsNumber } from "../numericCoercion";
 import type { CellValue } from "../types";
 
 // Excel accepts up to 255 arguments for its aggregate functions.
@@ -44,49 +45,39 @@ const isRangeReference = (value: string): boolean => {
 // evaluated as a scalar: the scalar path coerces a blank or text cell to 0, so
 // COUNT(A999) counted an empty cell as a value. The range path yields nothing
 // for a cell that holds nothing, which is what the count functions need.
-const argumentValues = (arg: string, context: FunctionContext): CellValue[] | null => {
-  if (isRangeReference(arg) || isCellReference(arg.includes("!") ? arg.split("!").slice(-1)[0] : arg)) {
-    return context.getRangeValues(arg);
-  }
-  return null;
-};
+const isReference = (arg: string): boolean => isRangeReference(arg) || isCellReference(arg.includes("!") ? arg.split("!").slice(-1)[0] : arg);
 
-const collectNumericValues = (args: string[], context: FunctionContext): number[] => {
-  const values: number[] = [];
+/** One value an argument contributed, tagged by where it came from. A range cell
+ *  was already filtered by the range getter; a scalar is whatever the argument
+ *  evaluated to and may hold no number at all. */
+type ArgumentValue = { value: CellValue; isScalar: boolean };
+
+const collectArgumentValues = (args: string[], context: FunctionContext, readRange: RangeGetter): ArgumentValue[] => {
+  const collected: ArgumentValue[] = [];
 
   for (const rawArg of args) {
     const arg = rawArg?.trim();
     if (!arg) continue;
 
-    const fromRange = argumentValues(arg, context);
-    if (fromRange !== null) {
-      values.push(...fromRange.map(toNumber));
+    if (isReference(arg)) {
+      readRange(arg).forEach((value) => collected.push({ value, isScalar: false }));
     } else {
-      values.push(toNumber(context.evaluateFormula(arg)));
+      collected.push({ value: context.evaluateFormula(arg), isScalar: true });
     }
   }
 
-  return values;
+  return collected;
 };
+
+const rawRangeReader = (context: FunctionContext): RangeGetter => context.getRangeValuesRaw ?? context.getRangeValues;
+
+const collectNumericValues = (args: string[], context: FunctionContext): number[] =>
+  collectArgumentValues(args, context, context.getRangeValues).map(({ value }) => toNumber(value));
 
 // Same walk as `collectNumericValues`, but keeping each cell as it is: COUNTA
 // counts non-empty cells, so text must survive the trip.
-const collectRawValues = (args: string[], context: FunctionContext): CellValue[] => {
-  const values: CellValue[] = [];
-
-  for (const rawArg of args) {
-    const arg = rawArg?.trim();
-    if (!arg) continue;
-
-    if (isRangeReference(arg) || isCellReference(arg.includes("!") ? arg.split("!").slice(-1)[0] : arg)) {
-      values.push(...(context.getRangeValuesRaw?.(arg) ?? context.getRangeValues(arg)));
-    } else {
-      values.push(context.evaluateFormula(arg));
-    }
-  }
-
-  return values;
-};
+const collectRawValues = (args: string[], context: FunctionContext): CellValue[] =>
+  collectArgumentValues(args, context, rawRangeReader(context)).map(({ value }) => value);
 
 const sumHandler: FunctionHandler = (args, context) => {
   const values = collectNumericValues(args, context);
@@ -106,9 +97,13 @@ const minHandler: FunctionHandler = (args, context) => {
   return values.length > 0 ? Math.min(...values) : 0;
 };
 
-const countHandler: FunctionHandler = (args, context) => {
-  return collectNumericValues(args, context).length;
-};
+// COUNT counts NUMBERS, so it cannot go through the lenient numeric collection
+// the other aggregates share: `toNumber("text")` is 0, which made COUNT("text")
+// answer 1 where Excel answers 0 (Codex review). A range cell reached the list
+// only by being numeric already; a scalar has to be asked.
+const countsAsNumber = ({ value, isScalar }: ArgumentValue): boolean => !isScalar || holdsNumber(value);
+
+const countHandler: FunctionHandler = (args, context) => collectArgumentValues(args, context, context.getRangeValues).filter(countsAsNumber).length;
 
 const medianHandler: FunctionHandler = (args, context) => computeMedian(collectNumericValues(args, context));
 

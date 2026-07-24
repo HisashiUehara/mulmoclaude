@@ -78,6 +78,52 @@ describe("a single cell reference is read as a range, not a scalar", () => {
   });
 });
 
+describe("COUNT counts only the arguments that hold a number", () => {
+  // Multi-argument collection reads a non-reference argument as a scalar, and the
+  // lenient `toNumber` turns anything unreadable into 0 — so every scalar looked
+  // like a value and COUNT("text") answered 1 (Codex review). Excel and the
+  // pre-change engine both answer 0.
+  it("does not count a text literal", () => {
+    assert.equal(evaluate('=COUNT("text")'), 0);
+  });
+
+  it("counts the numbers and skips the text when both are given", () => {
+    assert.equal(evaluate('=COUNT(1,"text")'), 1);
+    assert.equal(evaluate('=COUNT(A1:A2,"text")'), 2);
+  });
+
+  it("counts a number typed directly, quoted, or computed", () => {
+    assert.equal(evaluate("=COUNT(1)"), 1);
+    assert.equal(evaluate('=COUNT("1")'), 1, "Excel counts a quoted number typed as an argument");
+    assert.equal(evaluate("=COUNT(1+1)"), 1);
+  });
+
+  // Excel counts a logical typed directly as an argument; this engine has PINNED
+  // booleans as non-numbers throughout (`toNumber(true)` is 0, see #2391), so
+  // COUNT follows the engine rather than splitting the difference.
+  it("does not count a logical literal", () => {
+    assert.equal(evaluate("=COUNT(TRUE)"), 0);
+    assert.equal(evaluate("=COUNT(FALSE)"), 0);
+  });
+
+  // Excel reads "12abc" as text and answers 0. The engine's shared numeric parser
+  // reads the leading number everywhere (SUM(1,"12abc") is 13), so COUNT stays
+  // consistent with the engine instead.
+  it("counts a leading-number string, as the rest of the engine reads it", () => {
+    assert.equal(evaluate('=COUNT("12abc")'), 1);
+  });
+
+  it("leaves the lenient aggregates coercing as before", () => {
+    assert.equal(evaluate('=SUM(1,"text")'), 1);
+    assert.equal(evaluate('=AVERAGE(1,"text")'), 0.5);
+  });
+
+  it("still lets COUNTA count a text literal", () => {
+    assert.equal(evaluate('=COUNTA(1,"text")'), 2);
+    assert.equal(evaluate('=COUNTA("")'), 0);
+  });
+});
+
 describe("the single-range behaviour is unchanged", () => {
   it("sums, averages and counts one range as before", () => {
     assert.equal(evaluate("=SUM(A1:A2)"), 3);
