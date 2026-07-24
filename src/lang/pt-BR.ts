@@ -127,6 +127,11 @@ const ptBRMessages = {
     hideDetails: "Ocultar detalhes",
     retry: "Tentar novamente",
   },
+  remoteHostOffline: {
+    title: "Host remoto desconectado",
+    body: "Seu telefone não conseguirá enviar para este dispositivo até você reconectar.",
+    reconnect: "Reconectar",
+  },
   remoteHost: {
     title: "Host remoto",
     online: "Host remoto on-line",

@@ -4,6 +4,10 @@
          it's the first thing the user sees when the server isn't
          reachable. Self-hiding when fetchHealth succeeds. -->
     <BackendOfflineBanner :on-retry="fetchHealth" />
+    <!-- Remote-host disconnect notice (#2535) — shown when the host was meant to
+         be connected (a session is parked) but dropped and a silent reconnect
+         couldn't restore it. Offers a one-click re-login. -->
+    <RemoteHostOfflineBanner />
     <!-- CSP-blocked-resource notice (#1989) — a sandboxed view tried to load a
          host not allowed by config/csp.json. Tells the user the exact host +
          directive so they can extend the policy (if they trust it). -->
@@ -340,6 +344,7 @@ import { useI18n } from "vue-i18n";
 import { getPlugin } from "./tools";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import BackendOfflineBanner from "./components/BackendOfflineBanner.vue";
+import RemoteHostOfflineBanner from "./components/RemoteHostOfflineBanner.vue";
 import RightSidebar from "./components/RightSidebar.vue";
 import SidebarHeader from "./components/SidebarHeader.vue";
 import SessionHeaderControls from "./components/SessionHeaderControls.vue";

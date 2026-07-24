@@ -127,6 +127,11 @@ const frMessages = {
     hideDetails: "Masquer les détails",
     retry: "Réessayer",
   },
+  remoteHostOffline: {
+    title: "Hôte distant déconnecté",
+    body: "Votre téléphone ne pourra pas envoyer vers cet appareil tant que vous n'êtes pas reconnecté.",
+    reconnect: "Se reconnecter",
+  },
   remoteHost: {
     title: "Hôte distant",
     online: "Hôte distant en ligne",

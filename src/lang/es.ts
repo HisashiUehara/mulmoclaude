@@ -132,6 +132,11 @@ const esMessages = {
     hideDetails: "Ocultar detalles",
     retry: "Reintentar",
   },
+  remoteHostOffline: {
+    title: "Host remoto desconectado",
+    body: "Tu teléfono no podrá enviar a este dispositivo hasta que vuelvas a conectar.",
+    reconnect: "Reconectar",
+  },
   remoteHost: {
     title: "Host remoto",
     online: "Host remoto en línea",
