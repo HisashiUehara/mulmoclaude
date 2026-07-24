@@ -87,37 +87,37 @@ const rateHandler: FunctionHandler = (args, context) => {
   return computeRate(nper, pmt, pv, fv, type, guess);
 };
 
+// IPMT and PPMT take the SAME six operands — (rate, per, nper, pv, [fv], [type])
+// — and differ only in which annuity component they compute. One factory parses
+// the shared shape so the two handlers can't drift in their optional-arg defaults.
+type PeriodicComponent = (rate: number, per: number, nper: number, pv: number, fv: number, type: number) => number;
+
+const makePeriodicComponentHandler =
+  (compute: PeriodicComponent): FunctionHandler =>
+  (args, context) => {
+    const rate = toNumber(context.evaluateFormula(args[0]));
+    const per = toNumber(context.evaluateFormula(args[1]));
+    const nper = toNumber(context.evaluateFormula(args[2]));
+    const pv = toNumber(context.evaluateFormula(args[3]));
+    const fv = args.length >= 5 ? toNumber(context.evaluateFormula(args[4])) : 0;
+    const type = args.length >= 6 ? toNumber(context.evaluateFormula(args[5])) : 0;
+
+    return compute(rate, per, nper, pv, fv, type);
+  };
+
 /**
  * IPMT - Interest Payment
  * Calculates the interest payment for a given period for an investment based on periodic, constant payments and a constant interest rate.
  * IPMT(rate, per, nper, pv, [fv], [type])
  */
-const ipmtHandler: FunctionHandler = (args, context) => {
-  const rate = toNumber(context.evaluateFormula(args[0]));
-  const per = toNumber(context.evaluateFormula(args[1]));
-  const nper = toNumber(context.evaluateFormula(args[2]));
-  const pv = toNumber(context.evaluateFormula(args[3]));
-  const fv = args.length >= 5 ? toNumber(context.evaluateFormula(args[4])) : 0;
-  const type = args.length >= 6 ? toNumber(context.evaluateFormula(args[5])) : 0;
-
-  return computeIpmt(rate, per, nper, pv, fv, type);
-};
+const ipmtHandler: FunctionHandler = makePeriodicComponentHandler(computeIpmt);
 
 /**
  * PPMT - Principal Payment
  * Calculates the payment on the principal for a given period for an investment based on periodic, constant payments and a constant interest rate.
  * PPMT(rate, per, nper, pv, [fv], [type])
  */
-const ppmtHandler: FunctionHandler = (args, context) => {
-  const rate = toNumber(context.evaluateFormula(args[0]));
-  const per = toNumber(context.evaluateFormula(args[1]));
-  const nper = toNumber(context.evaluateFormula(args[2]));
-  const pv = toNumber(context.evaluateFormula(args[3]));
-  const fv = args.length >= 5 ? toNumber(context.evaluateFormula(args[4])) : 0;
-  const type = args.length >= 6 ? toNumber(context.evaluateFormula(args[5])) : 0;
-
-  return computePpmt(rate, per, nper, pv, fv, type);
-};
+const ppmtHandler: FunctionHandler = makePeriodicComponentHandler(computePpmt);
 
 /**
  * NPV - Net Present Value

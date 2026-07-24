@@ -62,3 +62,43 @@ describe("cross-sheet range aggregation stays numeric", () => {
     assert.deepEqual(calcRow(sum, [data, sum]), [60]);
   });
 });
+
+// resolveSheetData (#2482) folds the sheet-ref match -> cache check -> two-stage
+// cache seed -> calculateSheet block that getCellValue and collectRangeValues
+// shared. The two-stage seed is the cross-sheet infinite-loop guard: a cyclic
+// reference must terminate with an error, not hang. If it hung, these tests would
+// never return and the whole suite would time out.
+describe("cyclic cross-sheet references terminate instead of hanging", () => {
+  it("a 2-sheet cycle (A!A1=B!A1, B!A1=A!A1) resolves to an error", () => {
+    const sheetA: SheetData = { name: "A", data: [[{ v: "=B!A1" }]] };
+    const sheetB: SheetData = { name: "B", data: [[{ v: "=A!A1" }]] };
+    assert.equal(String(calcRow(sheetA, [sheetA, sheetB])[0]), "#ERROR!");
+  });
+
+  it("a 3-sheet cycle (A->B->C->A) also terminates with an error", () => {
+    const sheetA: SheetData = { name: "A", data: [[{ v: "=B!A1" }]] };
+    const sheetB: SheetData = { name: "B", data: [[{ v: "=C!A1" }]] };
+    const sheetC: SheetData = { name: "C", data: [[{ v: "=A!A1" }]] };
+    assert.equal(String(calcRow(sheetA, [sheetA, sheetB, sheetC])[0]), "#ERROR!");
+  });
+
+  it("a valid cross-sheet reference next to the cycle still resolves", () => {
+    const data: SheetData = { name: "D", data: [[{ v: 10 }, { v: 20 }]] };
+    const main: SheetData = { name: "S", data: [[{ v: "=D!A1" }, { v: "=SUM(D!A1:B1)" }]] };
+    assert.deepEqual(calcRow(main, [data, main]), [10, 30]);
+  });
+});
+
+// A reference to a sheet that does not exist keeps each caller's terminal action
+// after the fold: #REF! for a single cell, an empty range for an aggregate.
+describe("missing-sheet reference keeps its per-caller terminal behaviour", () => {
+  it("a single cross-sheet cell to a missing sheet is #REF!", () => {
+    const main: SheetData = { name: "S", data: [[{ v: "=Ghost!A1" }]] };
+    assert.equal(String(calcRow(main, [main])[0]), "#REF!");
+  });
+
+  it("SUM over a range on a missing sheet contributes nothing (empty range)", () => {
+    const main: SheetData = { name: "S", data: [[{ v: "=SUM(Ghost!A1:B1)" }]] };
+    assert.equal(calcRow(main, [main])[0], 0);
+  });
+});
