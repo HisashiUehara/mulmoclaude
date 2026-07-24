@@ -12,7 +12,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { resolveCommandHandler } from "../../src/remote-host/server/hostRunner.js";
+import { backoffDelayMs, classifyListenerError, MAX_LISTEN_RETRIES, resolveCommandHandler } from "../../src/remote-host/server/hostRunner.js";
 import type { CommandHandlers } from "../../src/remote-host/index.js";
 
 const handlers: CommandHandlers = {
@@ -40,5 +40,45 @@ describe("resolveCommandHandler", () => {
     const ownToString: CommandHandlers["toString"] = () => "real";
     const withOwn: CommandHandlers = { ...handlers, toString: ownToString };
     assert.equal(resolveCommandHandler(withOwn, "toString"), ownToString);
+  });
+});
+
+describe("classifyListenerError", () => {
+  for (const code of ["unavailable", "deadline-exceeded", "internal", "cancelled", "aborted", "resource-exhausted"]) {
+    it(`treats "${code}" as transient (re-subscribe worthwhile)`, () => {
+      assert.equal(classifyListenerError({ code }), "transient");
+    });
+  }
+
+  // Auth failures can't be fixed by re-listening; treating them as transient
+  // would spin the runner in a doomed retry loop.
+  for (const code of ["permission-denied", "unauthenticated"]) {
+    it(`treats "${code}" as fatal`, () => {
+      assert.equal(classifyListenerError({ code }), "fatal");
+    });
+  }
+
+  it("treats an unrecognized code as fatal (never loop forever on the unknown)", () => {
+    assert.equal(classifyListenerError({ code: "not-a-real-code" }), "fatal");
+  });
+
+  it("treats a non-Firestore error (no string code) as fatal", () => {
+    assert.equal(classifyListenerError(new Error("boom")), "fatal");
+    assert.equal(classifyListenerError(null), "fatal");
+    assert.equal(classifyListenerError({ code: 42 }), "fatal");
+  });
+});
+
+describe("backoffDelayMs", () => {
+  it("grows exponentially from the base delay", () => {
+    assert.equal(backoffDelayMs(0), 1_000);
+    assert.equal(backoffDelayMs(1), 2_000);
+    assert.equal(backoffDelayMs(2), 4_000);
+    assert.equal(backoffDelayMs(3), 8_000);
+  });
+
+  it("saturates at the cap for large attempts", () => {
+    assert.equal(backoffDelayMs(10), 30_000);
+    assert.equal(backoffDelayMs(MAX_LISTEN_RETRIES), 30_000);
   });
 });
