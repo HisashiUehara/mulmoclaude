@@ -4,6 +4,7 @@
 
 import { functionRegistry, toString, type FunctionHandler } from "../registry";
 import { VALUE_ERROR, isSpreadsheetErrorValue, type SpreadsheetError } from "../spreadsheet-errors";
+import { formatWithPattern } from "../textFormat";
 
 // A letter or a combining mark. A decomposed accented letter (e + U+0301) is two
 // code points; counting the mark as part of the word stops PROPER from treating
@@ -157,32 +158,15 @@ const searchHandler: FunctionHandler = (args, context) => {
   return index === -1 ? VALUE_ERROR : index + 1; // Return 1-indexed position
 };
 
+// A format code written as a literal still carries its quotes when it reaches
+// the handler.
+const stripSurroundingQuotes = (text: string): string => text.replace(/^["']/, "").replace(/["']$/, "");
+
 const textHandler: FunctionHandler = (args, context) => {
   const value = context.evaluateFormula(args[0]);
-  const format = toString(context.evaluateFormula(args[1])).replace(
-    // eslint-disable -- sonarjs/anchor-precedence
-    /^["']|["']$/g,
-    "",
-  );
-
-  // Simple format code handling
-  if (typeof value === "number") {
-    // Handle common format codes
-    if (format.includes("$")) {
-      const decimals = (format.match(/\.0+/) || [""])[0].length - 1;
-      return "$" + value.toFixed(decimals >= 0 ? decimals : 2);
-    }
-    if (format.includes("%")) {
-      const decimals = (format.match(/\.0+/) || [""])[0].length - 1;
-      return (value * 100).toFixed(decimals >= 0 ? decimals : 2) + "%";
-    }
-    if (format.includes("0")) {
-      const decimals = (format.match(/\.0+/) || [""])[0].length - 1;
-      return value.toFixed(decimals >= 0 ? decimals : 0);
-    }
-  }
-
-  return toString(value);
+  const format = stripSurroundingQuotes(toString(context.evaluateFormula(args[1])));
+  if (typeof value !== "number") return toString(value);
+  return formatWithPattern(value, format) ?? toString(value);
 };
 
 const valueHandler: FunctionHandler = (args, context) => {
