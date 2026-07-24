@@ -54,11 +54,12 @@ export interface ExternalReposGroup {
   entries: CatalogEntry[];
 }
 
-interface ReposState {
-  t: TranslateFn;
-  endpoints: SkillsEndpoints;
-  deps: ExternalReposDeps;
+// Single source of truth for the reactive fields: the private state bundle
+// and the public surface both extend it, so a new Ref is declared once
+// (#2481) instead of being mirrored into two lists that can drift apart.
+interface ReposRefs {
   catalogRepos: Ref<ExternalRepo[]>;
+  /** Per-repo collapse set (repoId ∈ set ⇒ collapsed). */
   repoCollapsed: Ref<Set<string>>;
   addRepoOpen: Ref<boolean>;
   addRepoUrl: Ref<string>;
@@ -66,26 +67,23 @@ interface ReposState {
   addRepoError: Ref<string | null>;
   addRepoBusy: Ref<boolean>;
   suggestions: Ref<ExternalSuggestion[]>;
+  /** Which suggestion the user picked: drives the form prefill + the
+   *  highlight. Selecting never installs — install stays explicit. */
   selectedSuggestionUrl: Ref<string | null>;
   uninstallingRepoId: Ref<string | null>;
   updatingRepoId: Ref<string | null>;
 }
 
-export interface ExternalRepos {
-  catalogRepos: Ref<ExternalRepo[]>;
+interface ReposState extends ReposRefs {
+  t: TranslateFn;
+  endpoints: SkillsEndpoints;
+  deps: ExternalReposDeps;
+}
+
+export interface ExternalRepos extends ReposRefs {
   externalGroups: ComputedRef<ExternalReposGroup[]>;
-  repoCollapsed: Ref<Set<string>>;
   isRepoOpen: (repoId: string) => boolean;
   toggleRepo: (repoId: string) => void;
-  addRepoOpen: Ref<boolean>;
-  addRepoUrl: Ref<string>;
-  addRepoSubpath: Ref<string>;
-  addRepoError: Ref<string | null>;
-  addRepoBusy: Ref<boolean>;
-  suggestions: Ref<ExternalSuggestion[]>;
-  selectedSuggestionUrl: Ref<string | null>;
-  uninstallingRepoId: Ref<string | null>;
-  updatingRepoId: Ref<string | null>;
   loadExternalRepos: () => Promise<void>;
   openAddRepo: () => void;
   selectSuggestion: (suggestion: ExternalSuggestion) => void;
@@ -212,15 +210,11 @@ function resetModalState(state: ReposState): void {
   state.updatingRepoId.value = null;
 }
 
-function createReposState(translate: TranslateFn, endpoints: SkillsEndpoints, deps: ExternalReposDeps): ReposState {
+function createReposRefs(): ReposRefs {
   return {
-    t: translate,
-    endpoints,
-    deps,
     catalogRepos: ref<ExternalRepo[]>([]),
-    // Per-repo collapse set (repoId ∈ set ⇒ collapsed). shallowRef: the Set
-    // is replaced wholesale on toggle, so the deep proxy ref() would build
-    // is wasted.
+    // shallowRef: the Set is replaced wholesale on toggle, so the deep
+    // proxy ref() would build is wasted.
     repoCollapsed: shallowRef<Set<string>>(loadRepoCollapsed()),
     addRepoOpen: ref(false),
     addRepoUrl: ref(""),
@@ -228,8 +222,6 @@ function createReposState(translate: TranslateFn, endpoints: SkillsEndpoints, de
     addRepoError: ref<string | null>(null),
     addRepoBusy: ref(false),
     suggestions: ref<ExternalSuggestion[]>([]),
-    // Which suggestion the user picked: drives the form prefill + the
-    // highlight. Selecting never installs — install stays explicit.
     selectedSuggestionUrl: ref<string | null>(null),
     uninstallingRepoId: ref<string | null>(null),
     updatingRepoId: ref<string | null>(null),
@@ -239,26 +231,19 @@ function createReposState(translate: TranslateFn, endpoints: SkillsEndpoints, de
 export function useExternalRepos(deps: ExternalReposDeps): ExternalRepos {
   const { t } = useI18n();
   const endpoints = pluginEndpoints<SkillsEndpoints>("skills");
-  const state = createReposState(t, endpoints, deps);
+  // The same Ref instances back both the private state bundle and the
+  // returned surface — spreading copies the Ref objects, not their values.
+  const refs = createReposRefs();
+  const state: ReposState = { t, endpoints, deps, ...refs };
   // External catalog entries grouped under their repo, in the repo order
   // returned by `/external/repos`. Repos with zero discoverable entries
   // still render so an install that found nothing is visible.
-  const externalGroups = computed(() => groupEntriesByRepo(deps.catalogExternal.value, state.catalogRepos.value));
+  const externalGroups = computed(() => groupEntriesByRepo(deps.catalogExternal.value, refs.catalogRepos.value));
   return {
-    catalogRepos: state.catalogRepos,
+    ...refs,
     externalGroups,
-    repoCollapsed: state.repoCollapsed,
     isRepoOpen: (repoId) => isRepoOpen(state, repoId),
     toggleRepo: (repoId) => toggleRepo(state, repoId),
-    addRepoOpen: state.addRepoOpen,
-    addRepoUrl: state.addRepoUrl,
-    addRepoSubpath: state.addRepoSubpath,
-    addRepoError: state.addRepoError,
-    addRepoBusy: state.addRepoBusy,
-    suggestions: state.suggestions,
-    selectedSuggestionUrl: state.selectedSuggestionUrl,
-    uninstallingRepoId: state.uninstallingRepoId,
-    updatingRepoId: state.updatingRepoId,
     loadExternalRepos: () => loadExternalRepos(state),
     openAddRepo: () => openAddRepo(state),
     selectSuggestion: (suggestion) => selectSuggestion(state, suggestion),
