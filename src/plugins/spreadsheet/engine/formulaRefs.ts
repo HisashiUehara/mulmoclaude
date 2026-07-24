@@ -150,6 +150,14 @@ export function resolveIndexTarget(bounds: RangeBounds, rowNum: number, colNum: 
   return { colIndex: bounds.startCol + colOffset, row: bounds.startRow + rowOffset };
 }
 
+// VLOOKUP's col_index_num / HLOOKUP's row_index_num as a 0-based offset inside
+// the table, or null (→ #REF!) when it points outside. Excel rejects an index
+// past the table's width; without the check the handler addressed a cell beyond
+// the range and returned whatever lived there — usually a silent 0 (#2360).
+export function resolveTableOffset(position: number, size: number): number | null {
+  return lineOffset(position, size);
+}
+
 // Top-level: scan the formula, expand any ranges, then pick up
 // remaining single-cell refs, deduplicating as we go. Kept short
 // (~15 lines) so the cognitive-complexity signal lands on the

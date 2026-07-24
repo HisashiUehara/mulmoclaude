@@ -4,7 +4,7 @@
 
 import { functionRegistry, toNumber, parseCriteria, type FunctionHandler, type FunctionContext } from "../registry";
 import { indexToColumn } from "../parser";
-import { parseRangeBounds, resolveIndexTarget } from "../formulaRefs";
+import { parseRangeBounds, resolveIndexTarget, resolveTableOffset } from "../formulaRefs";
 import { isApproximateMatch } from "./lookup-math";
 import type { CellValue } from "../types";
 import { NA_ERROR, REF_ERROR } from "../spreadsheet-errors";
@@ -107,7 +107,12 @@ const vlookupHandler: FunctionHandler = (args, context) => {
   const matchIdx = findMatchIndex(lookupValue, lookupArray, matchType);
   if (matchIdx === -1) return NA_ERROR;
 
-  const resultColStr = indexToColumn(bounds.startCol + colIndexNum - 1);
+  // Excel rejects a col_index_num past the table's width; reading on regardless
+  // addressed a cell outside the range and usually returned a silent 0 (#2360).
+  const colOffset = resolveTableOffset(colIndexNum, bounds.endCol - bounds.startCol + 1);
+  if (colOffset === null) return REF_ERROR;
+
+  const resultColStr = indexToColumn(bounds.startCol + colOffset);
   const resultRow = bounds.startRow + matchIdx;
   return context.getCellValue(`${bounds.sheetPrefix}${resultColStr}${resultRow}`);
 };
@@ -124,8 +129,11 @@ const hlookupHandler: FunctionHandler = (args, context) => {
   const matchIdx = findMatchIndex(lookupValue, lookupArray, matchType);
   if (matchIdx === -1) return NA_ERROR;
 
+  const rowOffset = resolveTableOffset(rowIndexNum, bounds.endRow - bounds.startRow + 1);
+  if (rowOffset === null) return REF_ERROR;
+
   const resultColStr = indexToColumn(bounds.startCol + matchIdx);
-  const resultRow = bounds.startRow + rowIndexNum - 1;
+  const resultRow = bounds.startRow + rowOffset;
   return context.getCellValue(`${bounds.sheetPrefix}${resultColStr}${resultRow}`);
 };
 
