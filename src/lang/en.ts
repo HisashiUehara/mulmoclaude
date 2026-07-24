@@ -482,6 +482,12 @@ const enMessages = {
     pin: "Pin to launcher",
     unpin: "Unpin from launcher",
     zoneAriaLabel: "Pinned shortcuts",
+    reorder: {
+      open: "Reorder shortcuts",
+      title: "Reorder",
+      moveUp: "Move up",
+      moveDown: "Move down",
+    },
   },
   fileContentHeader: {
     showRendered: "Show rendered Markdown",

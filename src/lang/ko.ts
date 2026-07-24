@@ -463,6 +463,12 @@ const koMessages = {
     pin: "런처에 고정",
     unpin: "런처에서 고정 해제",
     zoneAriaLabel: "고정된 바로가기",
+    reorder: {
+      open: "바로가기 순서 변경",
+      title: "순서 변경",
+      moveUp: "위로",
+      moveDown: "아래로",
+    },
   },
   fileContentHeader: {
     showRendered: "렌더링된 Markdown 표시",
