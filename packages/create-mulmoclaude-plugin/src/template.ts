@@ -526,19 +526,19 @@ npm publish
 
 This plugin uses the \`gui-chat-protocol\` v1.2 runtime API:
 
-- \`definePlugin(({ runtime }) => ({ TOOL_DEFINITION, [toolName]: handler }))\` —
-  factory that returns the handler bound to the runtime's destructured
-  pieces.
+- \`definePlugin(({ pubsub, files, log }) => ({ TOOL_DEFINITION, [toolName]: handler }))\` —
+  factory that receives the runtime itself, so handlers close over the
+  destructured pieces and call them bare (no \`runtime.\` prefix).
 - \`createSerialLock()\` — returns a \`withWriteLock(fn)\` that runs
   read-modify-write handlers one at a time, so parallel tool calls
   can't overwrite each other's snapshot.
-- \`runtime.files.data\` — persistent JSON / text under
+- \`files.data\` — persistent JSON / text under
   \`~/mulmoclaude/data/plugins/<encoded-pkg>/\`. Backup target.
-- \`runtime.files.config\` — per-machine UI prefs.
-- \`runtime.pubsub.publish(channel, payload)\` — broadcast to every
+- \`files.config\` — per-machine UI prefs.
+- \`pubsub.publish(channel, payload)\` — broadcast to every
   open tab of mulmoclaude. The View calls \`pubsub.subscribe\` to
   refresh when mutations land.
-- \`runtime.log\` — structured logging that lands in the host's log
+- \`log\` — structured logging that lands in the host's log
   file.
 - Browser side: \`useRuntime()\` (from \`gui-chat-protocol/vue\`)
   exposes \`pubsub\`, \`dispatch\` (calls back into the server
