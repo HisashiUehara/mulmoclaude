@@ -23,7 +23,9 @@ const EXTERNAL_LINK_HANDLER = "handleExternalLinkClick";
 const EXTERNAL_LINK_MODULE = "@mulmoclaude/markdown-utils/dom/externalLink";
 
 const CATALOG_DETAIL_PANE = path.join("src", "plugins", "manageSkills", "CatalogDetailPane.vue");
-const MANAGE_SKILLS_VIEW = path.join("src", "plugins", "manageSkills", "View.vue");
+// The active-skill markdown body moved out of View.vue into its own SFC
+// when #2301 extracted SkillDetailPane; the guard follows the body.
+const SKILL_DETAIL_PANE = path.join("src", "plugins", "manageSkills", "SkillDetailPane.vue");
 
 // A component could satisfy the AST check below with a same-named local
 // stub, so the import is pinned too — the handler has to be the shared one.
@@ -58,11 +60,11 @@ describe("manageSkills catalog detail pane — external link wiring", () => {
 
 describe("manageSkills active skill body — external link wiring", () => {
   it("binds handleExternalLinkClick on the v-html markdown body element", () => {
-    assert.ok(markdownBodyCount(MANAGE_SKILLS_VIEW) > 0, movedMessage(MANAGE_SKILLS_VIEW));
-    assert.deepEqual(markdownBodiesMissingHandler(MANAGE_SKILLS_VIEW), [], wiringMessage(MANAGE_SKILLS_VIEW));
+    assert.ok(markdownBodyCount(SKILL_DETAIL_PANE) > 0, movedMessage(SKILL_DETAIL_PANE));
+    assert.deepEqual(markdownBodiesMissingHandler(SKILL_DETAIL_PANE), [], wiringMessage(SKILL_DETAIL_PANE));
   });
 
   it("imports the shared handler from markdown-utils", () => {
-    assert.match(readComponent(MANAGE_SKILLS_VIEW), SHARED_IMPORT, `${MANAGE_SKILLS_VIEW} must import ${EXTERNAL_LINK_HANDLER} from ${EXTERNAL_LINK_MODULE}`);
+    assert.match(readComponent(SKILL_DETAIL_PANE), SHARED_IMPORT, `${SKILL_DETAIL_PANE} must import ${EXTERNAL_LINK_HANDLER} from ${EXTERNAL_LINK_MODULE}`);
   });
 });
