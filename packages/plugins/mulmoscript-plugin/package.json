@@ -48,7 +48,7 @@
     "@mulmocast/deck-web": "^1.1.1",
     "@mulmocast/types": "^2.9.0",
     "graphai": "^2.0.18",
-    "gui-chat-protocol": "^1.1.0",
+    "gui-chat-protocol": "^1.2.0",
     "mulmocast": "^2.9.0",
     "vue": "^3.5.0"
   },
