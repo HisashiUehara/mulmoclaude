@@ -148,13 +148,21 @@ const replaceHandler: FunctionHandler = (args, context) => {
   return oldText.substring(0, startPos) + newText + oldText.substring(startPos + numChars);
 };
 
+// FIND and SEARCH share everything but case sensitivity: same 0-based start,
+// same #VALUE! on no match, same 1-based result. SEARCH folds case first.
+export const locateSubstring = (find: string, within: string, start: number, options: { caseInsensitive: boolean }): number | SpreadsheetError => {
+  const needle = options.caseInsensitive ? find.toLowerCase() : find;
+  const haystack = options.caseInsensitive ? within.toLowerCase() : within;
+  const index = haystack.indexOf(needle, start);
+  return index === -1 ? VALUE_ERROR : index + 1; // 1-indexed position
+};
+
 const findHandler: FunctionHandler = (args, context) => {
   const findText = toString(context.evaluateFormula(args[0]));
   const withinText = toString(context.evaluateFormula(args[1]));
   const startPos = args.length === 3 ? Number(context.evaluateFormula(args[2])) - 1 : 0;
 
-  const index = withinText.indexOf(findText, startPos);
-  return index === -1 ? VALUE_ERROR : index + 1; // Return 1-indexed position
+  return locateSubstring(findText, withinText, startPos, { caseInsensitive: false });
 };
 
 const searchHandler: FunctionHandler = (args, context) => {
@@ -162,12 +170,7 @@ const searchHandler: FunctionHandler = (args, context) => {
   const withinText = toString(context.evaluateFormula(args[1]));
   const startPos = args.length === 3 ? Number(context.evaluateFormula(args[2])) - 1 : 0;
 
-  // SEARCH is case-insensitive
-  const lowerFind = findText.toLowerCase();
-  const lowerWithin = withinText.toLowerCase();
-
-  const index = lowerWithin.indexOf(lowerFind, startPos);
-  return index === -1 ? VALUE_ERROR : index + 1; // Return 1-indexed position
+  return locateSubstring(findText, withinText, startPos, { caseInsensitive: true });
 };
 
 // A format code written as a literal still carries its quotes when it reaches
