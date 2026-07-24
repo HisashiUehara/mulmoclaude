@@ -784,6 +784,7 @@ const frMessages = {
     styleLabel: "Style :",
     stylePromptWithPath: "Transforme l'image en `{path}` en une image de style {style}.",
     stylePromptNoPath: "Transforme mon dessin sur le canevas en une image de style {style}.",
+    saveFailed: "Non enregistré",
   },
   pluginWiki: {
     backToIndex: "Retour à l'index",

@@ -778,6 +778,7 @@ const jaMessages = {
     styleLabel: "スタイル:",
     stylePromptWithPath: "`{path}` の画像を {style} スタイルの画像に変換してください。",
     stylePromptNoPath: "キャンバスに描いた絵を {style} スタイルの画像に変換してください。",
+    saveFailed: "未保存",
   },
   pluginWiki: {
     backToIndex: "インデックスに戻る",

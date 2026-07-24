@@ -776,6 +776,7 @@ const koMessages = {
     styleLabel: "스타일:",
     stylePromptWithPath: "`{path}`의 이미지를 {style} 스타일 이미지로 변환해 주세요.",
     stylePromptNoPath: "캔버스에 그린 그림을 {style} 스타일 이미지로 변환해 주세요.",
+    saveFailed: "저장 안 됨",
   },
   pluginWiki: {
     backToIndex: "목차로 돌아가기",

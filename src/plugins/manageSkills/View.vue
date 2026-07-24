@@ -146,6 +146,11 @@
             </p>
             <div v-if="catalogError" class="px-4 py-2 text-xs text-red-600">{{ catalogError }}</div>
 
+            <!-- Installed-repo LIST load failure — surfaced here next to the
+                 repo groups, not in the shared catalogError (which a
+                 concurrent catalog load would clobber). -->
+            <div v-if="repoListError" class="px-4 py-2 text-xs text-red-600" data-testid="skill-catalog-repo-list-error">{{ repoListError }}</div>
+
             <!-- External repos (#1383 PR-C2): one collapsible subgroup
                  per installed repo. Rows behave exactly like preset
                  rows (select → right pane with ★ Star / ▶ Run once). -->
@@ -519,6 +524,7 @@ const repos = useExternalRepos({
 });
 const {
   externalGroups,
+  repoListError,
   isRepoOpen,
   toggleRepo,
   addRepoOpen,

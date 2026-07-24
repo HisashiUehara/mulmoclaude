@@ -6,13 +6,15 @@
 // small + always-loadable regardless of whether the user has a
 // Google Maps API key set.
 
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { apiPost } from "../../utils/api";
 import { pluginEndpoints } from "../api";
 import type { ResolvedRoute } from "../meta-types";
 import { errorMessage as toErrorMessage } from "../../utils/errors";
 import { fmtCoord, fmtAltitude, fmtTakenAt, hasValidCoords } from "./format";
+import { usePubSub } from "../../composables/usePubSub";
+import { META } from "./meta";
 
 interface Sidecar {
   version: 1;
@@ -51,8 +53,11 @@ const locations = ref<ListedSidecar[]>([]);
 const loading = ref(true);
 const errorMessage = ref<string>("");
 
-async function refresh(): Promise<void> {
-  loading.value = true;
+// `silent` skips the loading flag so a pubsub-driven background refresh
+// doesn't replace the list with the spinner (and reset scroll) on every
+// captured photo — only the initial mount load shows the spinner.
+async function refresh(silent = false): Promise<void> {
+  if (!silent) loading.value = true;
   errorMessage.value = "";
   try {
     const result = await apiPost<ListResult>(endpoints.dispatch.url, { kind: "list" });
@@ -67,8 +72,18 @@ async function refresh(): Promise<void> {
 
 const withGps = computed(() => locations.value.filter((row) => hasValidCoords(row.sidecar.exif)));
 
+// Refetch when the server publishes a sidecar change (a new geotagged photo
+// was saved) so the list stays live without polling.
+const { subscribe } = usePubSub();
+let unsubscribe: (() => void) | null = null;
+
 onMounted(() => {
   void refresh();
+  unsubscribe = subscribe(META.staticChannels.locationsChanged, () => void refresh(true));
+});
+
+onUnmounted(() => {
+  unsubscribe?.();
 });
 </script>
 

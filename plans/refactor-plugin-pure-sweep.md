@@ -44,21 +44,30 @@ Every regression test was mutation-checked (reverting the fix turns it red).
 
 These are verified or plausible but out of scope for a mechanical fix-plus-test PR:
 
-- **canvas** (leans on unmaintained `vue-drawing-canvas@1.0.14`): shared default
-  `canvas-id` cross-contaminates two mounted instances (C1); Clear round-trips
-  cleared content back to disk after remount (C2); white-snapshot race on slow
-  background load (C3); stroke lost on off-canvas release (C4); silent save
-  failures (C6); ResizeObserver + debounced remount; height clamp in stack layout.
-  The `coalescingSaver` extraction (E2) falls out of the C6/C9 fix.
-- **photoLocations**: declared `locations-changed` pubsub channel wired nowhere
-  (stale list until remount).
+- **canvas** (leans on unmaintained `vue-drawing-canvas@1.0.14`):
+  ~~shared default `canvas-id` cross-contaminates two mounted instances (C1)~~
+  **(shipped, fix/canvas-save-pipeline — per-instance `canvasElementId`, live
+  e2e verified)**; ~~Clear round-trips cleared content back to disk after
+  remount (C2)~~ **(shipped — blank-PNG PUT + remount, live e2e verified)**;
+  ~~stroke lost on off-canvas release (C4)~~ **(shipped — `@mouseleave` /
+  `@touchcancel` save triggers)**; ~~silent save failures (C6)~~ **(shipped —
+  visible "Not saved" indicator, live e2e verified)**. Still open: white-snapshot
+  race on slow background load (C3 — needs the background-preload gate; narrow
+  window, only when drawing during the initial load of an EXISTING drawing);
+  ResizeObserver + debounced remount; height clamp in stack layout.
+- ~~**photoLocations**: declared `locations-changed` pubsub channel wired nowhere
+  (stale list until remount).~~ **(shipped, fix/photolocations-pubsub — server
+  publisher fires on sidecar write, View subscribes + silent-refetches; unit +
+  write-path integration, mutation verified)**
 - ~~**scheduler TasksTab**: unsequenced refetch races; full-list remount on every
   mutation (scroll/expand reset); unconfirmed one-click delete; hardcoded English
   frequency-hint labels (8-locale change).~~ **Shipped (fix/scheduler-tasks-robustness).**
 - **manageSkills**: ~~same-repo update/uninstall overlap~~ **(shipped)**;
-  four loaders sharing one `catalogError` channel (still open — needs a UX call
-  on where the repo-list error surfaces); post-delete selection clobber;
-  ~~`actionLock` extraction (release-if-owner)~~ **(shipped, fix/manageskills-loader-races)**.
+  ~~repo-list load failure sharing the `catalogError` channel (clobbered by a
+  concurrent catalog success)~~ **(shipped, fix/manageskills-repo-error-channel
+  — own `repoListError` ref, live e2e + mutation verified)**; post-delete
+  selection clobber; ~~`actionLock` extraction (release-if-owner)~~ **(shipped,
+  fix/manageskills-loader-races)**.
 - **manageRoles** ~~IME-Enter commits half-typed names; no re-entrancy guard
   on Enter; unconfirmed delete; refresh-failure swallowed~~ **(shipped,
   fix/manageroles-form-robustness — applied to BOTH the plugin View and the
