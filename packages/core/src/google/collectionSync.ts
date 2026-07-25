@@ -413,18 +413,37 @@ export async function syncNewCalendarCollections(workspaceRoot: string): Promise
  *  quietly returns "0 written" reads as an empty calendar, not as a setup gap. */
 export type ManualCalendarSyncOutcome = { kind: "synced"; results: CalendarCollectionSyncResult[] } | { kind: "not-a-calendar" } | { kind: "not-linked" };
 
+/** The I/O a manual sync crosses, injectable so the three outcomes can be
+ *  exercised with fakes instead of a workspace on disk and a live Google grant
+ *  (CodeRabbit review #2566). */
+export interface ManualCalendarSyncDeps {
+  loadGroups: (workspaceRoot: string) => Promise<Map<string, LoadedCollection[]>>;
+  isLinked: () => Promise<boolean>;
+  runGroups: (groups: Map<string, LoadedCollection[]>, workspaceRoot: string) => Promise<CalendarCollectionSyncResult[]>;
+}
+
+const liveManualSyncDeps: ManualCalendarSyncDeps = { loadGroups: declaringGroups, isLinked: isGoogleLinked, runGroups: runCalendarGroups };
+
 /** Sync the calendar ONE collection reads, on demand (the Refresh button).
  *
  *  Deliberately syncs the whole group, not just `slug`: the sync token is keyed
  *  by calendar, so consuming a window for one collection would leave the others
  *  on that calendar reading an already-consumed one. Returns every result of the
- *  group so the caller can report the requested slug's own counts. */
-export async function syncCalendarForCollection(slug: string, workspaceRoot: string): Promise<ManualCalendarSyncOutcome> {
-  const groups = await declaringGroups(workspaceRoot);
+ *  group so the caller can report the requested slug's own counts.
+ *
+ *  "Does this collection sync at all" is answered BEFORE "is Google linked":
+ *  telling someone to link their account for a collection that never declared a
+ *  calendar sends them fixing the wrong thing. */
+export async function syncCalendarForCollection(
+  slug: string,
+  workspaceRoot: string,
+  deps: ManualCalendarSyncDeps = liveManualSyncDeps,
+): Promise<ManualCalendarSyncOutcome> {
+  const groups = await deps.loadGroups(workspaceRoot);
   const owning = [...groups].filter(([, collections]) => collections.some((collection) => collection.slug === slug));
   if (owning.length === 0) return { kind: "not-a-calendar" };
-  if (!(await isGoogleLinked())) return { kind: "not-linked" };
-  return { kind: "synced", results: await runCalendarGroups(new Map(owning), workspaceRoot) };
+  if (!(await deps.isLinked())) return { kind: "not-linked" };
+  return { kind: "synced", results: await deps.runGroups(new Map(owning), workspaceRoot) };
 }
 
 /** Scheduler registration, shaped like `feedRefreshTaskDef` so hosts wire it

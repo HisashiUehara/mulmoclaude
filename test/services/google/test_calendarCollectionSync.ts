@@ -13,10 +13,11 @@ import {
   groupByCalendar,
   orphanedCalendarId,
   toCollectionRecord,
+  syncCalendarForCollection,
   unsyncedGroups,
   withKeyedLock,
 } from "@mulmoclaude/core/google";
-import type { CalendarDeclaring, CalendarEventSummary } from "@mulmoclaude/core/google";
+import type { CalendarCollectionSyncResult, CalendarDeclaring, CalendarEventSummary, ManualCalendarSyncDeps } from "@mulmoclaude/core/google";
 import { parseIsoDateTime } from "@mulmoclaude/core/collection";
 import type { CollectionFieldSpec } from "@mulmoclaude/core/collection";
 import type { LoadedCollection } from "@mulmoclaude/core/collection/server";
@@ -431,5 +432,67 @@ describe("withKeyedLock (#2566 per-calendar queuing)", () => {
       withKeyedLock(locks, "work", () => Promise.resolve("second")),
     ]);
     assert.deepEqual(results, ["first", "second"]);
+  });
+});
+
+// The Refresh button's three answers. Two of them are "could not run", and a
+// wrong one sends the user fixing the wrong thing — link an account for a
+// collection that never declared a calendar, or hunt for missing events that a
+// missing grant explains. Exercised through injected fakes, so no workspace on
+// disk and no Google grant (CodeRabbit review #2566).
+describe("syncCalendarForCollection (#2427 manual refresh)", () => {
+  const syncedResult = (slug: string): CalendarCollectionSyncResult => ({ slug, written: 2, removed: 0, unwritable: [], errors: [] });
+
+  const deps = (overrides: Partial<ManualCalendarSyncDeps> = {}): ManualCalendarSyncDeps & { ranWith: Map<string, LoadedCollection[]>[] } => {
+    const ranWith: Map<string, LoadedCollection[]>[] = [];
+    return {
+      ranWith,
+      loadGroups: () => Promise.resolve(groupByCalendar([collectionOn("my-schedule", "work")])),
+      isLinked: () => Promise.resolve(true),
+      runGroups: (groups) => {
+        ranWith.push(groups);
+        return Promise.resolve([...groups].flatMap(([, collections]) => collections.map((entry) => syncedResult(entry.slug))));
+      },
+      ...overrides,
+    };
+  };
+
+  it("syncs the calendar the collection reads", async () => {
+    const fake = deps();
+    const outcome = await syncCalendarForCollection("my-schedule", "/ws", fake);
+    assert.equal(outcome.kind, "synced");
+    assert.deepEqual(outcome.kind === "synced" ? outcome.results.map((entry) => entry.slug) : [], ["my-schedule"]);
+  });
+
+  it("reports a collection that declares no calendar rather than syncing nothing", async () => {
+    const fake = deps();
+    const outcome = await syncCalendarForCollection("plain-collection", "/ws", fake);
+    assert.equal(outcome.kind, "not-a-calendar");
+    assert.equal(fake.ranWith.length, 0, "nothing may be fetched for a collection that never asked for a sync");
+  });
+
+  it("reports an unlinked Google account rather than a successful empty sync", async () => {
+    const fake = deps({ isLinked: () => Promise.resolve(false) });
+    const outcome = await syncCalendarForCollection("my-schedule", "/ws", fake);
+    assert.equal(outcome.kind, "not-linked");
+    assert.equal(fake.ranWith.length, 0);
+  });
+
+  // Order matters: answering "link your account" for a collection that has no
+  // googleCalendar block points the user at the wrong fix.
+  it("answers not-a-calendar before not-linked", async () => {
+    const outcome = await syncCalendarForCollection("plain-collection", "/ws", deps({ isLinked: () => Promise.resolve(false) }));
+    assert.equal(outcome.kind, "not-a-calendar");
+  });
+
+  // The whole group syncs (one shared token), but ONLY the group this
+  // collection belongs to — a calendar it does not read must not be walked.
+  it("runs the owning calendar's group and leaves other calendars alone", async () => {
+    const fake = deps({
+      loadGroups: () => Promise.resolve(groupByCalendar([collectionOn("my-schedule", "work"), collectionOn("team", "work"), collectionOn("private", "home")])),
+    });
+    const outcome = await syncCalendarForCollection("my-schedule", "/ws", fake);
+    assert.deepEqual([...fake.ranWith[0].keys()], ["work"]);
+    assert.deepEqual(outcome.kind === "synced" ? outcome.results.map((entry) => entry.slug).sort() : [], ["my-schedule", "team"]);
   });
 });

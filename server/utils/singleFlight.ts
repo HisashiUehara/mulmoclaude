@@ -10,6 +10,28 @@ interface Slot {
   pending: boolean;
 }
 
+/** Run `pass` until no trigger arrived during the last run, RETURNING the first
+ *  failure instead of throwing it.
+ *
+ *  Returning is what lets the queue keep draining after a failed pass: the
+ *  trigger that arrived while it ran stands for state that pass never looked
+ *  at, so dropping it would strand that state until something else fires
+ *  (CodeRabbit review #2566). */
+async function drain(pass: () => Promise<void>, slot: Slot): Promise<{ error: unknown } | null> {
+  let failure: { error: unknown } | null = null;
+  let keepGoing = true;
+  while (keepGoing) {
+    slot.pending = false;
+    try {
+      await pass();
+    } catch (error) {
+      failure ??= { error };
+    }
+    keepGoing = slot.pending;
+  }
+  return failure;
+}
+
 /** Wrap `pass` so concurrent calls share one run, with a queued re-run for
  *  triggers that arrived while it was in flight. The returned promise resolves
  *  when the run covering the caller finishes, and rejects with whatever `pass`
@@ -17,26 +39,12 @@ interface Slot {
 export function makeSingleFlight(pass: () => Promise<void>): () => Promise<void> {
   const slot: Slot = { running: null, pending: false };
   const loop = async (): Promise<void> => {
-    // A failed pass must not swallow a trigger that arrived while it ran: that
-    // trigger stands for state the failed pass never looked at, and dropping it
-    // strands that state until something else fires (CodeRabbit review #2566).
-    // The failure is still reported, after the queue has drained.
-    let failure: { error: unknown } | null = null;
     try {
-      let keepGoing = true;
-      while (keepGoing) {
-        slot.pending = false;
-        try {
-          await pass();
-        } catch (error) {
-          failure ??= { error };
-        }
-        keepGoing = slot.pending;
-      }
+      const failure = await drain(pass, slot);
+      if (failure) throw failure.error;
     } finally {
       slot.running = null;
     }
-    if (failure) throw failure.error;
   };
   return () => {
     if (slot.running) {
