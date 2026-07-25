@@ -112,6 +112,48 @@ export interface AppSettings {
 
 const DEFAULT_SETTINGS: AppSettings = { extraAllowedTools: [] };
 
+// `AppSettings` is an interface, so its keys don't exist at runtime — but two
+// consumers need them: the bug-report FAQ's `configKey:` pointers are verified
+// against this list in CI, and the diagnostics report decides what it may print
+// from it. The two `satisfies` below make the compiler reject a drifted list:
+// a new field in `AppSettings` that isn't added here fails to build.
+export const APP_SETTINGS_KEYS = [
+  "extraAllowedTools",
+  "googleMapsApiKey",
+  "photoExif",
+  "effortLevel",
+  "voiceInput",
+  "chatIndex",
+  "journal",
+  "pushEnabled",
+] as const satisfies readonly (keyof AppSettings)[];
+
+export type AppSettingsKey = (typeof APP_SETTINGS_KEYS)[number];
+
+// Keys the diagnostics report may print VERBATIM. Deliberately an allow list:
+// a setting added later is redacted until someone judges it safe, so the
+// default on drift is "withhold" rather than "leak". `googleMapsApiKey` is the
+// one secret stored in plaintext today and is absent by construction.
+export const SAFE_SETTINGS_KEYS = [
+  "extraAllowedTools",
+  "photoExif",
+  "effortLevel",
+  "voiceInput",
+  "chatIndex",
+  "journal",
+  "pushEnabled",
+] as const satisfies readonly AppSettingsKey[];
+
+export type SafeSettingsKey = (typeof SAFE_SETTINGS_KEYS)[number];
+
+// `satisfies` above catches a typo'd or removed key, but not a MISSING one —
+// a field added to `AppSettings` and forgotten here would still compile, and
+// would then be invisible to both the FAQ check and the redactor. This turns
+// that omission into a build error: the `extends never` bound only holds while
+// nothing is left over.
+type AssertNoUncovered<T extends never> = T;
+export type UncoveredAppSettingsKey = AssertNoUncovered<Exclude<keyof AppSettings, AppSettingsKey>>;
+
 export const SETTINGS_FILE_NAME = "settings.json";
 export const MCP_FILE_NAME = "mcp.json";
 

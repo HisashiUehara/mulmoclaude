@@ -1,0 +1,151 @@
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import {
+  redactSettings,
+  shortenHome,
+  buildDiagnosticsReport,
+  REDACTED_PRESENT,
+  REDACTED_ABSENT,
+  type DiagnosticsInput,
+} from "../../../server/utils/diagnostics/report.js";
+import { APP_SETTINGS_KEYS, SAFE_SETTINGS_KEYS } from "../../../server/system/config.js";
+
+// The bug-report flow pastes this report into a public issue, so a leak here is
+// a leak to the internet. The rules are an allow list on purpose: a setting
+// added later must be withheld until someone judges it safe. These tests pin
+// that direction of failure — the interesting case is not "does it print
+// `chatIndex`" but "does an unrecognised key stay unprinted".
+
+const SECRET = "AIzaSyD-not-a-real-key-0123456789";
+
+describe("redactSettings", () => {
+  it("prints allow-listed values verbatim", () => {
+    const [entry] = redactSettings({ chatIndex: "haiku" }, ["chatIndex"]);
+    assert.deepEqual(entry, { key: "chatIndex", value: "haiku", redacted: false });
+  });
+
+  it("withholds the plaintext Google Maps key", () => {
+    const [entry] = redactSettings({ googleMapsApiKey: SECRET }, ["googleMapsApiKey"]);
+    assert.equal(entry.value, REDACTED_PRESENT);
+    assert.equal(entry.redacted, true);
+    assert.ok(!entry.value.includes(SECRET));
+  });
+
+  it("withholds a key nobody has classified yet", () => {
+    // The regression that matters most: a future `AppSettings` field reaches
+    // this function before anyone adds it to SAFE_SETTINGS_KEYS.
+    const [entry] = redactSettings({ someFutureToken: SECRET }, ["someFutureToken"]);
+    assert.equal(entry.value, REDACTED_PRESENT);
+    assert.equal(entry.redacted, true);
+  });
+
+  it("reports an absent key as not set rather than dropping it", () => {
+    // "not set" IS the answer to most FAQ entries (the feature ships off), so
+    // this line is the useful one, not noise.
+    const [entry] = redactSettings({}, ["voiceInput"]);
+    assert.deepEqual(entry, { key: "voiceInput", value: REDACTED_ABSENT, redacted: false });
+  });
+
+  it("does not mistake an inherited property for a present setting", () => {
+    // A settings object parsed from JSON still inherits `constructor`; `in`
+    // would report it present and the report would gain a phantom line.
+    const [entry] = redactSettings({}, ["constructor"]);
+    assert.equal(entry.value, REDACTED_ABSENT);
+  });
+
+  it("renders non-string values as JSON", () => {
+    const rendered = redactSettings({ extraAllowedTools: ["mcp__claude_ai_Gmail"], pushEnabled: false }, ["extraAllowedTools", "pushEnabled"]);
+    assert.equal(rendered[0].value, '["mcp__claude_ai_Gmail"]');
+    assert.equal(rendered[1].value, "false");
+  });
+
+  it("keeps the allow list a strict subset of the known keys", () => {
+    const known = new Set<string>(APP_SETTINGS_KEYS);
+    const strays = SAFE_SETTINGS_KEYS.filter((key) => !known.has(key));
+    assert.deepEqual(strays, [], "a safe key that isn't an AppSettings key would never be read");
+  });
+
+  it("never allow-lists a key whose name looks secret", () => {
+    const secretish = SAFE_SETTINGS_KEYS.filter((key) => /key|token|secret|password|credential/i.test(key));
+    assert.deepEqual(secretish, [], "a key with a secret-shaped name must not be printed verbatim");
+  });
+});
+
+describe("shortenHome", () => {
+  it("replaces the home prefix everywhere it appears", () => {
+    assert.equal(shortenHome("/Users/alice/mulmoclaude and /Users/alice/x", "/Users/alice"), "~/mulmoclaude and ~/x");
+  });
+
+  it("tolerates a trailing separator on the home path", () => {
+    assert.equal(shortenHome("/Users/alice/ws", "/Users/alice/"), "~/ws");
+    assert.equal(shortenHome("C:\\Users\\alice\\ws", "C:\\Users\\alice\\"), "~\\ws");
+  });
+
+  it("leaves text alone when home is empty or absent from it", () => {
+    assert.equal(shortenHome("/opt/app", ""), "/opt/app");
+    assert.equal(shortenHome("/opt/app", "/"), "/opt/app");
+    assert.equal(shortenHome("/opt/app", "/Users/alice"), "/opt/app");
+  });
+});
+
+const input = (overrides: Partial<DiagnosticsInput> = {}): DiagnosticsInput => ({
+  appVersion: "1.5.0",
+  nodeVersion: "v22.0.0",
+  platform: "darwin",
+  arch: "arm64",
+  home: "/Users/alice",
+  sandboxEnabled: true,
+  sandboxMounts: ["gh"],
+  sshAgentForwarded: true,
+  settings: { chatIndex: "haiku", googleMapsApiKey: SECRET },
+  mcpServerNames: ["my-server"],
+  pluginDiagnostics: [],
+  workspacePath: "/Users/alice/mulmoclaude",
+  ...overrides,
+});
+
+describe("buildDiagnosticsReport", () => {
+  it("produces the same bytes for the same input", () => {
+    assert.equal(buildDiagnosticsReport(input()), buildDiagnosticsReport(input()));
+  });
+
+  it("never contains a secret value", () => {
+    assert.ok(!buildDiagnosticsReport(input()).includes(SECRET));
+  });
+
+  it("shortens the home directory out of every path", () => {
+    const report = buildDiagnosticsReport(input());
+    assert.ok(!report.includes("/Users/alice"), "an absolute path leaks the account name");
+    assert.ok(report.includes("~/mulmoclaude"));
+  });
+
+  it("lists every known setting so a reader can see what wasn't set", () => {
+    const report = buildDiagnosticsReport(input({ settings: {} }));
+    APP_SETTINGS_KEYS.forEach((key) => assert.ok(report.includes(`\`${key}\``), `${key} missing from the report`));
+  });
+
+  it("names MCP servers without their specs", () => {
+    // `env` / `headers` on a stdio server hold provider tokens; only the id is
+    // safe to publish, and the input type is what enforces it.
+    const report = buildDiagnosticsReport(input({ mcpServerNames: ["notion", "linear"] }));
+    assert.ok(report.includes("`notion`") && report.includes("`linear`"));
+  });
+
+  it("says so explicitly when a list is empty", () => {
+    const report = buildDiagnosticsReport(input({ sandboxMounts: [], mcpServerNames: [], pluginDiagnostics: [] }));
+    assert.ok(report.includes("no config mounts"));
+    assert.ok(report.includes("none registered"));
+    assert.ok(report.includes("no collisions reported"));
+  });
+
+  it("reports a disabled sandbox as such", () => {
+    const report = buildDiagnosticsReport(input({ sandboxEnabled: false, sandboxMounts: [], sshAgentForwarded: false }));
+    assert.ok(report.includes("- enabled: no"));
+  });
+
+  it("ends with a single trailing newline", () => {
+    const report = buildDiagnosticsReport(input());
+    assert.ok(report.endsWith("\n"));
+    assert.ok(!report.endsWith("\n\n"));
+  });
+});

@@ -100,6 +100,8 @@ A collection custom view is an HTML file under the skill's `views/`, registered 
 - **Desktop** (default): `config/helps/custom-view.md` — the view fetches records itself via the injected token + `dataUrl`.
 - **Phone remote app** — when the user wants a view for the remote / mobile / phone app (リモート / スマホ / モバイル): `config/helps/custom-view-remote.md`. Register it with `target: "mobile"`; records arrive via `await __MC_VIEW.getItems(...)` over a postMessage bridge, and `fetch` is blocked entirely. Do NOT satisfy such a request by baking records into a standalone HTML artifact — author a `target: "mobile"` view (it auto-previews on the desktop in a phone-sized frame).
 
-## When a tool call fails
+## When a tool call fails, or the user says something is broken
 
 Read `config/helps/error-recovery.md` BEFORE asking the user a clarifying question or giving up — it indexes the documented fix for the common failure areas (gh / git / SSH in the sandbox, Marp PDF, registry import, build/workspace, plugin runtime, etc.) and points at the per-area helps for anything else.
+
+Read it in the other direction too: when the **user** reports that MulmoClaude is broken / weird / not working, or asks whether something is a bug, start at its § "The user says MulmoClaude is broken" — a four-step triage that decides whether the behaviour is configuration or by design before anything gets filed. Most such reports are settings that ship off, so do NOT accept the premise that it's a bug and do NOT collect environment details until that section tells you to.

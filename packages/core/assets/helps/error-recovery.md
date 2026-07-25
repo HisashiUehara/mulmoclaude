@@ -1,9 +1,14 @@
-# Error recovery — when a tool call fails
+# Error recovery — when a tool call fails, or the user says something is broken
 
 This is the lookup the agent reads BEFORE asking the user a clarifying
 question or giving up on a failing tool call. Each section is keyed by
 the error message you'd see in tool output, with the cause and the
 documented fix.
+
+It has a second entry point. When the **user** reports that MulmoClaude is
+broken / weird / not working — nothing has failed in tool output, they are
+just describing a symptom — start at **§ The user says MulmoClaude is
+broken** below instead of scanning the error-keyed sections.
 
 Cite the section you used in your reply so the user can follow up
 (e.g. "Per `config/helps/error-recovery.md` § gh-auth / SSH …").
@@ -12,6 +17,114 @@ If no section here matches, list the workspace's other help files
 (`ls config/helps/`) and Read whichever name best matches the failing
 area (`sandbox.md`, `github.md`, `collection-skills.md`, etc.) before
 falling back to asking the user.
+
+## The user says MulmoClaude is broken
+
+**The goal is that the user ends up unblocked, not that an issue gets filed.**
+An issue is what's left after the first three steps fail to explain the
+behaviour. Work them in order and stop the moment the user is unblocked.
+
+Rules that hold in every step:
+
+- **Never assert "that's by design" from memory.** Say it only with a reason
+  attached: a config key, a help page, an implementation file.
+  `bug-report-faq.md` is an index of where to look — it deliberately contains
+  no values.
+- **Read the real thing.** Current values come from the workspace's
+  `config/settings.json` or `GET /api/health`, never from recollection.
+- **"I don't know" is an allowed answer.** If a step can't decide, say so and
+  go to the next one. Never close the conversation by guessing.
+- **Nothing leaves the machine before the user has seen it in full** and agreed.
+- Reply in the language the user writes in.
+
+### Step 1 — Hear the symptom (collect nothing yet)
+
+Call `presentForm` once with the questions below rather than asking in prose —
+a user who is already frustrated should be clicking, not composing.
+
+- **What kind** — display looks wrong / input doesn't work / the agent won't
+  answer / a tool keeps failing / phone or remote features / something else
+- **Where** — chat / a collection / the wiki / files / settings / the phone app
+- **How often** — every time / sometimes / once
+- **Since when** — after an update / it always did this / not sure
+- **What did you expect, and what happened instead?** (free text, required —
+  these two sentences are what the next step is judged against)
+
+### Step 2 — Is it configuration, or by design? (this is the actual job)
+
+1. Read `config/helps/bug-report-faq.md` and find the entry closest to the
+   symptom.
+2. Follow its pointers to the **real values** — `config/settings.json` for a
+   `configKey`, the named help page for a `help`. A setting absent from the file
+   is at its default, which is the answer to most entries there.
+3. If that explains the gap between expected and actual, **say why, show the
+   fix, and stop.** Cite what you checked.
+4. If nothing explains it, go to Step 3. Do not stretch a FAQ entry to cover a
+   symptom it doesn't cover.
+
+### Step 3 — Is it already known?
+
+Search the existing issues before opening anything:
+
+```bash
+gh issue list --repo receptron/mulmoclaude --state all --limit 20 --search "<symptom keywords>"
+```
+
+`gh` is **not available by default** — the agent runs in a credential-free
+sandbox (see § gh / git / SSH errors inside the sandbox). Don't spend turns
+fighting it: hand the user the search URL instead.
+
+`https://github.com/receptron/mulmoclaude/issues?q=<keywords>`
+
+- **Closed and fixed** → compare their version against the release that fixed
+  it. If they're simply behind, tell them to update and stop.
+- **Open** → do not open a second one. Offer to add this user's environment and
+  repro steps as a comment; a second reproduction is worth more than a duplicate.
+- **Nothing found** → Step 4.
+
+### Step 4 — File it
+
+Only now collect details. Fetch the environment report from the server:
+
+```bash
+curl -s http://localhost:<port>/api/diagnostics/report
+```
+
+**The server does the redaction, not you.** It prints values only for
+allow-listed settings and withholds everything else, including the plaintext
+Google Maps key and every MCP server's `env` / `headers`. Paste what it returns
+verbatim — do not "help" by adding values you read elsewhere, and do not
+re-type a secret you happened to see in a file.
+
+Ask the user for what the host cannot see: the browser and its version, any red
+errors in the browser console, and a screenshot if the symptom is visual. Say
+before they attach one that a screenshot can carry file paths and chat text.
+
+Report body:
+
+```markdown
+## What happened
+## What I expected
+## Steps to reproduce
+1.
+## Environment
+(paste the diagnostics report here)
+## Attachments
+```
+
+Show the whole thing, get an explicit yes, then post it — `gh issue create
+--repo receptron/mulmoclaude --title "<title>" --body-file <file>` when `gh`
+works, otherwise print the markdown for copy-paste plus
+`https://github.com/receptron/mulmoclaude/issues/new`.
+
+### When Step 2 resolved it
+
+A question that took an agent to answer is a signal about the product: the UI
+failed to say something. Offer to post it as an issue titled with the question
+as the user asked it, noting what the answer turned out to be and **where it was
+checked**. Open the body with a line saying the answer came from this lookup and
+is awaiting maintainer review — it is a draft, not documentation. Never edit
+`bug-report-faq.md` yourself.
 
 ## gh / git / SSH errors inside the sandbox
 

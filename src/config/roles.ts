@@ -73,6 +73,11 @@ export const ROLES: Role[] = [
       "Tell me about the sandbox feature of this app.",
       "What is the role of the Gemini API key in this app?",
       "How do I use the Telegram bridge to talk to MulmoClaude from my phone?",
+      // The visible entry point for the bug triage in
+      // `config/helps/error-recovery.md` § "The user says MulmoClaude is
+      // broken" (#2571). A user whose app misbehaves looks for an affordance,
+      // not for the phrasing that trips a system-prompt rule.
+      "Something about MulmoClaude is behaving oddly. Help me work out whether it's a bug or a setting.",
     ],
   },
   {
