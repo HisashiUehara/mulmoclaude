@@ -885,7 +885,7 @@ async function initBootDiagnostics(): Promise<void> {
   // Probes docker / ffmpeg / … once, warns (log + bell) for any
   // missing one so a feature degrading is visible instead of a
   // later opaque crash. Never throws.
-  await announceOptionalDeps();
+  await announceOptionalDeps(loadSettings());
 
   // --- Gemini key presence (#2081) ---
   announceGeminiKey();

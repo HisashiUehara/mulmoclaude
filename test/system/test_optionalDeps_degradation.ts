@@ -21,11 +21,18 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Request, Response, Router } from "express";
 import mulmoScriptRouter from "../../server/api/routes/mulmo-script.js";
-import { announceOptionalDeps, buildOptionalDepNotification } from "../../server/system/announceOptionalDeps.js";
+import { announceOptionalDeps, buildOptionalDepNotification, shouldAnnounceDep } from "../../server/system/announceOptionalDeps.js";
 import { _resetOptionalDepsCacheForTest, _setOptionalDepsCacheForTest, type DepStatus, type OptionalDep } from "../../server/system/optionalDeps.js";
+import type { AppSettings } from "../../server/system/config.js";
 import { initNotifier, _setFilePathsForTesting } from "../../server/notifier/engine.js";
 import { log } from "../../server/system/logger/index.js";
 import { API_ROUTES } from "../../src/config/apiRoutes.js";
+
+const VOICE_OFF: AppSettings = { extraAllowedTools: [] };
+const VOICE_ON: AppSettings = { extraAllowedTools: [], voiceInput: { enabled: true } };
+const WHISPER_ABSENT: Record<string, DepStatus> = {
+  whisper: { id: "whisper", available: false, reason: "not-on-path" },
+};
 
 interface RouterInternals {
   stack: { route?: { path: string; stack: { handle: (req: Request, res: Response) => unknown }[] } }[];
@@ -141,7 +148,7 @@ describe("optional-deps: boot announcement", () => {
 
   it("warns under the 'deps' namespace and attributes presentMulmoScript when ffmpeg is absent", async () => {
     _setOptionalDepsCacheForTest(FFMPEG_ABSENT);
-    await announceOptionalDeps();
+    await announceOptionalDeps(VOICE_OFF);
     const depWarn = captured.find((entry) => entry.namespace === "deps");
     assert.ok(depWarn, "a 'deps' warn must be emitted for the missing dependency");
     const data = depWarn.data as { depId?: string; affectedPlugins?: string[] };
@@ -151,12 +158,43 @@ describe("optional-deps: boot announcement", () => {
 
   it("does not warn for ffmpeg when it is present", async () => {
     _setOptionalDepsCacheForTest(FFMPEG_PRESENT);
-    await announceOptionalDeps();
+    await announceOptionalDeps(VOICE_OFF);
     assert.equal(
       captured.find((entry) => entry.namespace === "deps"),
       undefined,
       "no 'deps' warn when the dependency is available",
     );
+  });
+
+  it("does NOT warn for a missing whisper-server when voice input is disabled", async () => {
+    _setOptionalDepsCacheForTest(WHISPER_ABSENT);
+    await announceOptionalDeps(VOICE_OFF);
+    assert.equal(
+      captured.find((entry) => entry.namespace === "deps"),
+      undefined,
+      "whisper is opt-in and off — a missing binary must stay silent",
+    );
+  });
+
+  it("DOES warn for a missing whisper-server once voice input is enabled", async () => {
+    _setOptionalDepsCacheForTest(WHISPER_ABSENT);
+    await announceOptionalDeps(VOICE_ON);
+    const depWarn = captured.find((entry) => entry.namespace === "deps");
+    assert.ok(depWarn, "with voice input on, a missing whisper-server must warn");
+    assert.equal((depWarn.data as { depId?: string }).depId, "whisper");
+  });
+});
+
+describe("shouldAnnounceDep (opt-in gate)", () => {
+  it("gates whisper on voiceInput.enabled", () => {
+    assert.equal(shouldAnnounceDep("whisper", VOICE_ON), true);
+    assert.equal(shouldAnnounceDep("whisper", VOICE_OFF), false);
+    assert.equal(shouldAnnounceDep("whisper", { extraAllowedTools: [], voiceInput: { enabled: false } }), false);
+  });
+
+  it("always announces non-opt-in deps (docker, ffmpeg)", () => {
+    assert.equal(shouldAnnounceDep("docker", VOICE_OFF), true);
+    assert.equal(shouldAnnounceDep("ffmpeg", VOICE_OFF), true);
   });
 });
 
