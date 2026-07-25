@@ -55,11 +55,14 @@ export {
   classifyDelete,
   classifyWrite,
   groupByCalendar,
+  orphanedCalendarId,
+  releaseOrphanedCalendarToken,
   syncCalendarGroup,
   syncDueCalendarCollections,
   toCollectionRecord,
   GOOGLE_CALENDAR_SYNC_TASK_ID,
   type CalendarCollectionSyncResult,
+  type CalendarDeclaring,
 } from "./collectionSync.js";
 export {
   completeTask,

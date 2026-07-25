@@ -212,6 +212,54 @@ export function groupByCalendar(collections: readonly LoadedCollection[]): Map<s
   return groups;
 }
 
+/** The minimum a value needs for the orphan check: just the calendar it reads.
+ *  Structural so the rule can be exercised without building a LoadedCollection. */
+export interface CalendarDeclaring {
+  googleCalendar?: { calendarId?: string };
+}
+
+/** The canonical calendar whose sync token nothing needs any more, or null.
+ *
+ *  Sync tokens are keyed by calendar, NOT by collection, so a deleted
+ *  collection's token outlives it. Recreating a collection on the same calendar
+ *  then resumes from that token and receives only the delta — the new
+ *  collection never gets the history (#2428).
+ *
+ *  Returns null while ANY remaining collection still reads that calendar:
+ *  clearing a live calendar's token costs a full re-walk on the next sync. The
+ *  comparison is on the CANONICAL id for the same reason `groupByCalendar` is —
+ *  an omitted `calendarId` and an explicit `"primary"` are one calendar. */
+export function orphanedCalendarId(deleted: CalendarDeclaring, remaining: readonly CalendarDeclaring[]): string | null {
+  if (!deleted.googleCalendar) return null;
+  const key = canonicalCalendarId(deleted.googleCalendar.calendarId);
+  const stillRead = remaining.some((other) => other.googleCalendar && canonicalCalendarId(other.googleCalendar.calendarId) === key);
+  return stillRead ? null : key;
+}
+
+/** Drop the sync token of a just-deleted collection's calendar, unless another
+ *  collection still reads it. Call AFTER the delete lands — the check reads the
+ *  collections that survive it.
+ *
+ *  Returns the cleared calendar id, or null when nothing was cleared. Never
+ *  throws: a failed cleanup must not fail the delete it follows. */
+export async function releaseOrphanedCalendarToken(deleted: CalendarDeclaring, workspaceRoot: string): Promise<string | null> {
+  try {
+    if (!deleted.googleCalendar) return null;
+    const remaining = await discoverCollections({ workspaceRoot });
+    const orphaned = orphanedCalendarId(
+      deleted,
+      remaining.map((collection) => collection.schema),
+    );
+    if (orphaned === null) return null;
+    await clearCalendarSyncToken(orphaned, workspaceRoot);
+    log.info("google", "cleared the sync token of a calendar no collection reads any more", { calendarId: orphaned });
+    return orphaned;
+  } catch (error) {
+    log.warn("google", "could not release the deleted collection's calendar sync token", { error: String(error) });
+    return null;
+  }
+}
+
 /** Sync every collection that declares `googleCalendar`. Failures are isolated
  *  per calendar — one unreachable calendar (or a revoked grant) must not stop
  *  the others. */

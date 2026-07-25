@@ -6,8 +6,8 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { classifyDelete, classifyWrite, groupByCalendar, toCollectionRecord } from "@mulmoclaude/core/google";
-import type { CalendarEventSummary } from "@mulmoclaude/core/google";
+import { classifyDelete, classifyWrite, groupByCalendar, orphanedCalendarId, toCollectionRecord } from "@mulmoclaude/core/google";
+import type { CalendarDeclaring, CalendarEventSummary } from "@mulmoclaude/core/google";
 import { parseIsoDateTime } from "@mulmoclaude/core/collection";
 import type { CollectionFieldSpec } from "@mulmoclaude/core/collection";
 import type { LoadedCollection } from "@mulmoclaude/core/collection/server";
@@ -213,5 +213,52 @@ describe("apply-failure classification (#2184)", () => {
   it("names the event in every failure message so the log is actionable", () => {
     const outcome = classifyWrite("ev-42", "path-escape");
     assert.ok(outcome.kind === "error" && outcome.message.includes("ev-42"));
+  });
+});
+
+// #2428. Sync tokens are keyed by calendar, not by collection, so a deleted
+// collection's token outlives it — and a collection recreated on the same
+// calendar then resumes from it and receives only the delta, never the history.
+// This is the rule that decides whether the token may go.
+describe("orphanedCalendarId (#2428)", () => {
+  // Only the calendar matters here — `CalendarDeclaring` is deliberately the
+  // minimum the rule reads, so the field map a real schema carries is absent.
+  const reading = (calendarId?: string): CalendarDeclaring => ({ googleCalendar: { calendarId } });
+
+  it("names the calendar when nothing else reads it", () => {
+    assert.equal(orphanedCalendarId(reading("work"), []), "work");
+  });
+
+  // The expensive mistake in the other direction: clearing a token another
+  // collection is still using forces it into a full re-walk on the next sync.
+  it("holds the token while another collection still reads the calendar", () => {
+    assert.equal(orphanedCalendarId(reading("work"), [reading("work")]), null);
+  });
+
+  it("clears when the survivors read OTHER calendars", () => {
+    assert.equal(orphanedCalendarId(reading("work"), [reading("home"), reading("family")]), "work");
+  });
+
+  it("ignores survivors that declare no calendar at all", () => {
+    assert.equal(orphanedCalendarId(reading("work"), [{}, {}]), "work");
+  });
+
+  it("returns null for a collection that never read a calendar", () => {
+    assert.equal(orphanedCalendarId({}, []), null);
+  });
+
+  // Same canonicalisation as `groupByCalendar`: an omitted id and an explicit
+  // "primary" address ONE calendar and share ONE token, so treating them as
+  // different keys here would clear a token that is still in use.
+  it("treats an omitted calendarId as the primary calendar", () => {
+    assert.equal(orphanedCalendarId(reading(), []), "primary");
+  });
+
+  it("does not clear `primary` while a collection with an omitted id survives", () => {
+    assert.equal(orphanedCalendarId(reading("primary"), [reading()]), null);
+  });
+
+  it("does not clear an omitted id while an explicit `primary` survives", () => {
+    assert.equal(orphanedCalendarId(reading(), [reading("primary")]), null);
   });
 });

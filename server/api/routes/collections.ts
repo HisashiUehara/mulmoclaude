@@ -68,6 +68,7 @@ import { errorMessage } from "../../utils/errors.js";
 import { log } from "../../system/logger/index.js";
 import { workspacePath } from "../../workspace/workspace.js";
 import { refreshOne } from "@mulmoclaude/core/feeds/server";
+import { releaseOrphanedCalendarToken } from "@mulmoclaude/core/google";
 import { manageCollection } from "../../agent/mcp-tools/manageCollection.js";
 import { dispatchAgentAction, runningAgentActions } from "./collectionAgentActions.js";
 import { clampCapabilities, mintViewToken, requireViewToken } from "../auth/viewToken.js";
@@ -322,6 +323,11 @@ router.delete(API_ROUTES.collections.detail, async (req: Request<{ slug: string 
       forbidden(res, deleteCollectionRefusalMessage(result));
       return;
     }
+    // After the delete, so the "does anything still read this calendar?" check
+    // sees the collections that survive it. Best-effort by contract — the
+    // collection is already gone, and a stale token costs a delta-only sync,
+    // not data (#2428).
+    await releaseOrphanedCalendarToken(collection.schema, workspacePath);
     log.info("collections", "collection deleted", { slug: result.slug, archivePath: result.archivePath });
     res.json({ deleted: true, slug: result.slug, archivePath: result.archivePath });
   } catch (err) {
