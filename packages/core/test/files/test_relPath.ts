@@ -25,6 +25,13 @@ describe("toPosixRelPath", () => {
     assert.equal(toPosixRelPath("sub/dir\\photo.png", WIN32_SEP), "sub/dir/photo.png");
   });
 
+  // The other Windows fixtures are hand-written literals — our belief about what
+  // `node:path` emits there. This one runs the real thing from a POSIX runner,
+  // so the contract is pinned against node's actual output, not against a guess.
+  it("converts what node:path itself produces on Windows", () => {
+    assert.equal(toPosixRelPath(path.win32.join("sub", "dir", "photo.png"), path.win32.sep), "sub/dir/photo.png");
+  });
+
   it("is a no-op on POSIX", () => {
     assert.equal(toPosixRelPath("sub/dir/photo.png", POSIX_SEP), "sub/dir/photo.png");
   });

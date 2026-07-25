@@ -21,7 +21,11 @@ import path from "node:path";
  *
  *  `sep` is a parameter so the Windows rule is assertable from a POSIX runner:
  *  bound to the host's own separator, the whole rule is invisible outside
- *  Windows CI, which is how the backslash form reached main twice (#2540). */
+ *  Windows CI, which is how the backslash form reached main twice (#2540).
+ *
+ *  Separator shape only — it neither validates nor contains. A traversal or a
+ *  drive-absolute input survives as one, deliberately, so `resolveWithinRoot`
+ *  downstream can still see the escape it has to refuse. */
 export function toPosixRelPath(hostRelPath: string, sep: string = path.sep): string {
   return hostRelPath.split(sep).join("/");
 }

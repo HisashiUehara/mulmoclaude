@@ -130,6 +130,12 @@ describe("uploadRelPath", () => {
     assert.equal(uploadRelPath("data\\sub", "photo.png", POSIX_SEP), "data\\sub/photo.png");
   });
 
+  // Only `dirRel` crosses to POSIX; the filename is appended as one segment and
+  // is never rewritten. Host-independent because `sep` never reaches it.
+  it("keeps a literal backslash in the filename on every host", () => {
+    expectOnEveryHost("data", "we\\ird.txt", "data/we\\ird.txt");
+  });
+
   it("returns the bare filename at the workspace root", () => {
     expectOnEveryHost("", "photo.png", "photo.png");
   });
