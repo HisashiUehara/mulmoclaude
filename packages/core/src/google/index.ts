@@ -54,6 +54,7 @@ export {
   googleCalendarSyncTaskDef,
   classifyDelete,
   classifyWrite,
+  anySyncedCollectionSurvives,
   groupByCalendar,
   orphanedCalendarId,
   releaseOrphanedCalendarToken,

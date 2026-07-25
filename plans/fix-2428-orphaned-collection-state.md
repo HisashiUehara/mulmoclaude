@@ -71,14 +71,24 @@ is exactly one delete path today (`collections.ts` → `deleteCollection`; the M
   re-walk on the next sync. No data is lost either way — a sync token is a
   bookmark, not content.
 
-## Known limitation (unfixed, deliberate)
+## The mid-sync delete race (closed — CodeRabbit on PR #2551)
 
-`syncDueCalendarCollections` opens with a `discoverCollections()` snapshot. A
-delete that lands *after* that snapshot but *before* the sync writes its token
-will have its cleanup overwritten by the in-flight run, leaving the token
-orphaned again. The window is narrow (syncs are hourly and short) and the
-existing 410 path recovers, so closing it would need locking that neither store
-has today. Recorded rather than papered over.
+`syncDueCalendarCollections` opens with a `discoverCollections()` snapshot, so a
+delete landing after that snapshot has already cleared the calendar's token by
+the time the sync writes one. Saving it anyway resurrects exactly the orphan the
+delete removed.
+
+The first draft recorded this as a known limitation needing locking. That was too
+pessimistic: the token write can simply re-check liveness first.
+`anySyncedCollectionSurvives` tests the skill dirs `deleteCollection` removes,
+and `advanceToken` skips the save when every collection that consumed the window
+is gone. One survivor is enough — it still needs the incremental position.
+
+`exists` is injected so the rule is testable without a filesystem.
+
+Failure direction: a `stat` that fails for an unrelated reason reads as "gone",
+so the token is not advanced and the next run does a full re-walk. No data is
+lost either way.
 
 ## Verification
 

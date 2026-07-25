@@ -6,7 +6,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { classifyDelete, classifyWrite, groupByCalendar, orphanedCalendarId, toCollectionRecord } from "@mulmoclaude/core/google";
+import { anySyncedCollectionSurvives, classifyDelete, classifyWrite, groupByCalendar, orphanedCalendarId, toCollectionRecord } from "@mulmoclaude/core/google";
 import type { CalendarDeclaring, CalendarEventSummary } from "@mulmoclaude/core/google";
 import { parseIsoDateTime } from "@mulmoclaude/core/collection";
 import type { CollectionFieldSpec } from "@mulmoclaude/core/collection";
@@ -260,5 +260,43 @@ describe("orphanedCalendarId (#2428)", () => {
 
   it("does not clear an omitted id while an explicit `primary` survives", () => {
     assert.equal(orphanedCalendarId(reading(), [reading("primary")]), null);
+  });
+});
+
+// #2428 follow-up (CodeRabbit on PR #2551). The sync opens with a
+// `discoverCollections()` snapshot, so a delete landing mid-run has already
+// cleared this calendar's token by the time the token write happens. Saving
+// anyway resurrects exactly the orphan the delete removed.
+describe("anySyncedCollectionSurvives (#2428 mid-sync delete)", () => {
+  const collectionIn = (skillDir: string) => ({ skillDir });
+  const existing =
+    (...alive: string[]) =>
+    (absPath: string) =>
+      Promise.resolve(alive.includes(absPath));
+
+  it("lets the token advance while the collection still exists", async () => {
+    assert.equal(await anySyncedCollectionSurvives([collectionIn("/ws/.claude/skills/cal")], existing("/ws/.claude/skills/cal")), true);
+  });
+
+  it("holds the token back when the only collection was deleted mid-sync", async () => {
+    assert.equal(await anySyncedCollectionSurvives([collectionIn("/ws/.claude/skills/cal")], existing()), false);
+  });
+
+  // One survivor still needs the incremental position, so the token must
+  // advance even though a sibling on the same calendar was deleted.
+  it("advances when at least one of several survives", async () => {
+    const group = [collectionIn("/ws/.claude/skills/gone"), collectionIn("/ws/.claude/skills/kept")];
+    assert.equal(await anySyncedCollectionSurvives(group, existing("/ws/.claude/skills/kept")), true);
+  });
+
+  it("holds the token back when every collection in the group is gone", async () => {
+    const group = [collectionIn("/ws/.claude/skills/gone-a"), collectionIn("/ws/.claude/skills/gone-b")];
+    assert.equal(await anySyncedCollectionSurvives(group, existing()), false);
+  });
+
+  // Defensive: `groupByCalendar` never yields an empty group, but "nothing
+  // consumed the window" must never advance the token either.
+  it("treats an empty group as no survivor", async () => {
+    assert.equal(await anySyncedCollectionSurvives([], existing("/ws/.claude/skills/cal")), false);
   });
 });
