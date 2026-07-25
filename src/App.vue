@@ -930,28 +930,30 @@ function handleSessionFinished(sessionId: string): void {
 // upgrades toolResults when the server view is strictly larger, so it's
 // already idempotent against interleaving. Both guards stay — they cover
 // interleaving with LIVE events, which the share does not touch.
+// The transcript half is keyed by session, not shared globally: a pass
+// can take seconds on a large workspace, and `loadSession` reuses an
+// already-visited session WITHOUT re-fetching. A trigger arriving after
+// the user moved on must refresh the session they are now looking at,
+// not join the pass still fetching the previous one.
 const catchUpShare = createInFlightShare();
-
-async function runCatchUp(): Promise<void> {
-  const states = refreshSessionStates().catch((err: unknown) => {
-    console.warn("[chat-ui] refreshSessionStates failed:", err);
-  });
-  const currentId = currentSessionId.value;
-  const transcript = currentId
-    ? refreshSessionTranscript(currentId).catch((err: unknown) => {
-        console.warn("[chat-ui] refreshSessionTranscript failed:", err);
-      })
-    : Promise.resolve();
-  await Promise.all([states, transcript]);
-}
+const SESSION_LIST_KEY = "sessions";
 
 function catchUpMissedEvents(reason: "reconnect" | "visibility"): void {
-  if (catchUpShare.isRunning()) {
-    console.info(`[chat-ui] catch-up after ${reason} joined the pass already running`);
-  } else {
-    console.info(`[chat-ui] catching up after ${reason}`);
-  }
-  void catchUpShare.run(runCatchUp);
+  const currentId = currentSessionId.value;
+  const joining = catchUpShare.isRunning(SESSION_LIST_KEY);
+  console.info(joining ? `[chat-ui] catch-up after ${reason} joined the pass already running` : `[chat-ui] catching up after ${reason}`);
+
+  void catchUpShare.run(SESSION_LIST_KEY, () =>
+    refreshSessionStates().catch((err: unknown) => {
+      console.warn("[chat-ui] refreshSessionStates failed:", err);
+    }),
+  );
+  if (!currentId) return;
+  void catchUpShare.run(`transcript:${currentId}`, () =>
+    refreshSessionTranscript(currentId).catch((err: unknown) => {
+      console.warn("[chat-ui] refreshSessionTranscript failed:", err);
+    }),
+  );
 }
 
 // Capture the unsubscribe so remount / HMR doesn't accumulate stale

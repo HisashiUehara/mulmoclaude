@@ -4,7 +4,7 @@
 
 `catchUpMissedEvents` fires from two surfaces with nothing between them:
 
-```
+```text
 socket reconnect  → pubsubOnReconnect   → catchUpMissedEvents("reconnect")
 tab becomes visible → visibilitychange  → catchUpMissedEvents("visibility")
 ```
@@ -45,7 +45,23 @@ So they are **coalesced**, not deduplicated by removal.
 ## Change
 
 `src/utils/inFlightShare.ts` (new) — `createInFlightShare()` returns
-`{ run, isRunning }`. A call made while a pass runs joins it.
+`{ run, isRunning }`, both **keyed**. A call made while a pass runs for that
+key joins it.
+
+### Why keyed (a regression the first revision introduced)
+
+Sharing one global pass was wrong. `loadSession` reuses an already-visited
+session **without re-fetching** (`useSessionLifecycle.ts:113-116`), and a pass
+can take seconds on a large workspace. So:
+
+1. Catch-up starts, capturing the displayed session A.
+2. The user switches to B — already in `sessionMap`, so no fetch.
+3. Another trigger fires, joins the pass still fetching **A**.
+4. B keeps a stale transcript with nothing left to refresh it.
+
+The session list is shared under one key (`"sessions"` — it is global state
+and the expensive part), the transcript under `transcript:<id>`, so a trigger
+for a different session always runs.
 
 **No trailing re-run**, and that is the whole distinction from
 `makeSingleFlight` (`server/utils/singleFlight.ts`): there, a trigger arriving
@@ -69,8 +85,16 @@ same promise, a trigger after settling starts a new pass, a rejected pass does
 not wedge the slot, the failure reaches every joiner, and a burst collapses to
 one.
 
-Mutation-checked: replacing `??=` with `=` (every trigger starts its own pass)
-turns 4 of the 7 red.
+Mutation-checked twice, once per rule:
+
+- never join (every trigger starts its own pass) → 4 red
+- join any running pass regardless of key → 1 red, the session-switch case
+
+A synchronously throwing task is converted to a rejected shared promise rather
+than escaping `run` (CodeRabbit). The conversion uses `try` around the call, not
+`Promise.resolve().then(task)`: the latter defers the task to a microtask, which
+lets a caller observe `isRunning` before the work has begun — and made the
+deferred-task fixtures hang.
 
 ## Verification in the browser
 

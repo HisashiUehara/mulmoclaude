@@ -1,14 +1,19 @@
 // Unit tests for the catch-up coalescer (#2584).
 //
-// The behaviour under test is the ABSENCE of a second run: two triggers
-// that describe one event must produce one pass. The failure mode is
-// invisible in manual testing — both runs succeed, the UI looks right,
-// and the only symptom is that the work happened twice.
+// The behaviour under test is mostly the ABSENCE of a second run: two
+// triggers that describe one event must produce one pass. That failure
+// mode is invisible in manual testing — both runs succeed, the UI looks
+// right, and the only symptom is that the work happened twice.
+//
+// The keying is the other half, and it fails the opposite way: too much
+// sharing silently skips a refresh the user needed.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { createInFlightShare } from "../../src/utils/inFlightShare.js";
+
+const KEY = "sessions";
 
 /** A task whose settling this test controls. */
 function deferredTask(): { task: () => Promise<void>; resolve: () => void; reject: (err: Error) => void; runs: () => number } {
@@ -27,13 +32,13 @@ function deferredTask(): { task: () => Promise<void>; resolve: () => void; rejec
   };
 }
 
-describe("createInFlightShare", () => {
+describe("createInFlightShare — collapsing", () => {
   it("runs the task once when a second trigger arrives mid-pass", async () => {
     const share = createInFlightShare();
     const { task, resolve, runs } = deferredTask();
 
-    const first = share.run(task);
-    const second = share.run(task);
+    const first = share.run(KEY, task);
+    const second = share.run(KEY, task);
 
     assert.equal(runs(), 1, "the second trigger must join, not start a second pass");
     resolve();
@@ -44,9 +49,7 @@ describe("createInFlightShare", () => {
   it("hands both callers the same promise", () => {
     const share = createInFlightShare();
     const { task, resolve } = deferredTask();
-    const first = share.run(task);
-    const second = share.run(task);
-    assert.equal(first, second);
+    assert.equal(share.run(KEY, task), share.run(KEY, task));
     resolve();
   });
 
@@ -54,26 +57,82 @@ describe("createInFlightShare", () => {
     const share = createInFlightShare();
     const { task, resolve, runs } = deferredTask();
 
-    const first = share.run(task);
+    const first = share.run(KEY, task);
     resolve();
     await first;
 
-    const second = share.run(task);
+    const second = share.run(KEY, task);
     assert.equal(runs(), 2, "a trigger after the pass finished must start a new one");
     resolve();
     await second;
   });
 
-  it("does not wedge the slot when a pass rejects", async () => {
+  it("collapses a burst of triggers into one pass", async () => {
+    const share = createInFlightShare();
+    const { task, resolve, runs } = deferredTask();
+
+    const passes = [share.run(KEY, task), share.run(KEY, task), share.run(KEY, task), share.run(KEY, task)];
+    assert.equal(runs(), 1);
+    resolve();
+    await Promise.all(passes);
+    assert.equal(runs(), 1);
+  });
+});
+
+describe("createInFlightShare — keying", () => {
+  // The regression this guards: `loadSession` reuses an already-visited
+  // session WITHOUT re-fetching, so a trigger that joined the previous
+  // session's pass would leave the newly-displayed one stale with
+  // nothing left to refresh it.
+  it("does not let a different key join an unrelated pass", async () => {
+    const share = createInFlightShare();
+    const sessionA = deferredTask();
+    const sessionB = deferredTask();
+
+    const passA = share.run("transcript:A", sessionA.task);
+    const passB = share.run("transcript:B", sessionB.task);
+
+    assert.equal(sessionA.runs(), 1);
+    assert.equal(sessionB.runs(), 1, "a trigger for another session must run, not join session A");
+    assert.notEqual(passA, passB);
+    sessionA.resolve();
+    sessionB.resolve();
+    await Promise.all([passA, passB]);
+  });
+
+  it("tracks each key independently", async () => {
+    const share = createInFlightShare();
+    const { task, resolve } = deferredTask();
+
+    const pass = share.run("transcript:A", task);
+    assert.equal(share.isRunning("transcript:A"), true);
+    assert.equal(share.isRunning("transcript:B"), false);
+    resolve();
+    await pass;
+  });
+
+  it("forgets a key once its pass settles, so the map can't grow per visited session", async () => {
+    const share = createInFlightShare();
+    const { task, resolve } = deferredTask();
+
+    const pass = share.run("transcript:A", task);
+    resolve();
+    await pass;
+    assert.equal(share.isRunning("transcript:A"), false);
+  });
+});
+
+describe("createInFlightShare — failures", () => {
+  it("does not wedge the key when a pass rejects", async () => {
     const share = createInFlightShare();
     const failing = deferredTask();
 
-    const first = share.run(failing.task);
+    const first = share.run(KEY, failing.task);
     failing.reject(new Error("network"));
     await assert.rejects(first, /network/);
 
     const healthy = deferredTask();
-    const second = share.run(healthy.task);
+    const second = share.run(KEY, healthy.task);
     assert.equal(healthy.runs(), 1, "the next trigger must run despite the previous failure");
     healthy.resolve();
     await second;
@@ -83,34 +142,28 @@ describe("createInFlightShare", () => {
     const share = createInFlightShare();
     const { task, reject } = deferredTask();
 
-    const first = share.run(task);
-    const second = share.run(task);
+    const first = share.run(KEY, task);
+    const second = share.run(KEY, task);
     reject(new Error("boom"));
 
     await assert.rejects(first, /boom/);
     await assert.rejects(second, /boom/);
   });
 
-  it("reports whether a pass is running", async () => {
+  // Called bare, a synchronous throw would escape `run` before the entry
+  // is registered — the caller gets an exception instead of a promise and
+  // joiners have nothing to await (CodeRabbit, PR #2585).
+  it("turns a synchronously throwing task into a rejected shared promise", async () => {
     const share = createInFlightShare();
-    const { task, resolve } = deferredTask();
+    const throwing = (): Promise<void> => {
+      throw new Error("sync");
+    };
 
-    assert.equal(share.isRunning(), false);
-    const pass = share.run(task);
-    assert.equal(share.isRunning(), true, "isRunning is what lets the caller log the collapse");
-    resolve();
-    await pass;
-    assert.equal(share.isRunning(), false);
-  });
+    // Before the fix this line THREW rather than returning, so the
+    // regression shows up as the test failing right here with "sync".
+    const pass = share.run(KEY, throwing);
 
-  it("collapses a burst of triggers into one pass", async () => {
-    const share = createInFlightShare();
-    const { task, resolve, runs } = deferredTask();
-
-    const passes = [share.run(task), share.run(task), share.run(task), share.run(task)];
-    assert.equal(runs(), 1);
-    resolve();
-    await Promise.all(passes);
-    assert.equal(runs(), 1);
+    await assert.rejects(pass, /sync/);
+    assert.equal(share.isRunning(KEY), false, "the key must be released after a synchronous failure too");
   });
 });
