@@ -77,20 +77,37 @@ const PATH_DELIMITER_RE = /[\s,;:"'`)\]}<>|]/;
 
 const endsHomePath = (following: string): boolean => following === "" || isSeparator(following) || PATH_DELIMITER_RE.test(following);
 
-/** Replace the home directory with `~`, but only where it ends a path.
+// Where a path may BEGIN. Checking only the character after a match let
+// `/tmp/home/alice/ws` — a different directory that merely ends with the home
+// path — become `/tmp~/ws`. A separator is deliberately absent: `x//home/alice`
+// is not the home directory either. Opening brackets appear here but not in the
+// end-delimiters above, because prose wraps a path as `(/home/alice/x)` while a
+// directory may genuinely be named `alice(backup)`.
+const PATH_START_RE = /[\s,;:"'`([{<=|]/;
+
+const startsHomePath = (preceding: string): boolean => preceding === "" || PATH_START_RE.test(preceding);
+
+/** Replace the home directory with `~`, but only where it is the whole path —
+ *  bounded on BOTH sides.
  *
  *  A report is read by strangers, and an absolute path leaks the account name
- *  on every line that carries one — so this errs toward replacing: it skips a
- *  match only when the text proves the path continues into a different name. */
+ *  on every line that carries one, so this errs toward replacing: it skips a
+ *  match only when the surrounding text proves the path is a different one. */
 export function shortenHome(text: string, home: string): string {
   const trimmed = isSeparator(home.slice(-1)) ? home.slice(0, -1) : home;
   // An empty home, or a home of `/`, would otherwise match at every separator
   // and shred every path in the report.
   if (!trimmed) return text;
-  return text.split(trimmed).reduce((joined, segment, index) => {
-    if (index === 0) return segment;
-    return joined + (endsHomePath(segment.slice(0, 1)) ? "~" : trimmed) + segment;
-  }, "");
+  const out: string[] = [];
+  let cursor = 0;
+  for (let found = text.indexOf(trimmed); found >= 0; found = text.indexOf(trimmed, cursor)) {
+    const before = found === 0 ? "" : text.charAt(found - 1);
+    const after = text.charAt(found + trimmed.length);
+    out.push(text.slice(cursor, found), startsHomePath(before) && endsHomePath(after) ? "~" : trimmed);
+    cursor = found + trimmed.length;
+  }
+  out.push(text.slice(cursor));
+  return out.join("");
 }
 
 export interface DiagnosticsInput {

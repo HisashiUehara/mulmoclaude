@@ -102,6 +102,21 @@ describe("shortenHome", () => {
     assert.equal(shortenHome("/home/alicia/x", "/home/alice"), "/home/alicia/x");
   });
 
+  it("does not shorten a different path that merely ends with the home path", () => {
+    // Checking only the character AFTER a match rewrote `/tmp/home/alice/ws`
+    // to `/tmp~/ws`: the match has to be bounded on the left too.
+    assert.equal(shortenHome("/tmp/home/alice/ws", "/home/alice"), "/tmp/home/alice/ws");
+    assert.equal(shortenHome("foo/home/alice bar", "/home/alice"), "foo/home/alice bar");
+    assert.equal(shortenHome("/mnt/backup/home/alice", "/home/alice"), "/mnt/backup/home/alice");
+  });
+
+  it("shortens home when prose opens the path", () => {
+    // The left boundary must not be so strict that a wrapped path leaks.
+    assert.equal(shortenHome("(/home/alice/x)", "/home/alice"), "(~/x)");
+    assert.equal(shortenHome('"/home/alice"', "/home/alice"), '"~"');
+    assert.equal(shortenHome("Workspace: /home/alice/ws", "/home/alice"), "Workspace: ~/ws");
+  });
+
   it("does not shorten siblings using punctuation that is legal in a directory name", () => {
     // The first fix classified path characters as `[\w.-]`, which mangled every
     // sibling built with anything else. Almost any byte is legal in a directory
