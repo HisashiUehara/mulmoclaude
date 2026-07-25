@@ -8,12 +8,14 @@
 import {
   createCalendarEvent,
   DEFAULT_LIST_MAX_RESULTS,
+  deleteCalendarEvent,
   getCalendarColors,
   getGoogleAccessToken,
   isIsoDateTimeWithOffset,
   listCalendarEvents,
   listCalendars,
   MAX_LIST_RESULTS,
+  updateCalendarEvent,
   type CalendarColorEntry,
 } from "@mulmoclaude/core/google";
 import type { CommandHandler, JsonObject, JsonValue } from "../commandChannel.js";
@@ -21,6 +23,8 @@ import type { CommandHandler, JsonObject, JsonValue } from "../commandChannel.js
 export interface GoogleCalendarDeps {
   getAccessToken: typeof getGoogleAccessToken;
   createEvent: typeof createCalendarEvent;
+  updateEvent: typeof updateCalendarEvent;
+  deleteEvent: typeof deleteCalendarEvent;
   listEvents: typeof listCalendarEvents;
   listCalendars: typeof listCalendars;
   getColors: typeof getCalendarColors;
@@ -87,6 +91,52 @@ export const createGoogleCalendarCreateEvent =
     return { event: { ...event } };
   };
 
+// Fields an edit may change. Named so the "at least one" guard and its error
+// message can't drift apart, and kept in step with the google plugin's
+// EDITABLE_EVENT_FIELDS — the two validate the same Calendar operation.
+const EDITABLE_EVENT_FIELDS = ["summary", "start", "end", "description", "colorId"] as const;
+
+// `description` alone accepts "": the patch builder treats `undefined` as
+// "leave as is" and "" as "clear it", so routing it through optionalString
+// (which rejects empty) would make clearing the body text impossible.
+const clearableString = (params: JsonObject, key: string): string | undefined => {
+  const value = params[key];
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string") throw new Error(`${key} must be a string`);
+  return value;
+};
+
+export const createGoogleCalendarUpdateEvent =
+  (deps: GoogleCalendarDeps): CommandHandler =>
+  async (params: JsonObject) => {
+    const input = {
+      eventId: requiredString(params, "eventId"),
+      summary: optionalString(params, "summary"),
+      startDateTime: optionalDateTime(params, "start"),
+      endDateTime: optionalDateTime(params, "end"),
+      description: clearableString(params, "description"),
+      calendarId: optionalString(params, "calendarId"),
+      colorId: optionalString(params, "colorId"),
+    };
+    // An edit with no edited field PATCHes an empty body — Google answers 200,
+    // so the remote would report success for a no-op.
+    if (EDITABLE_EVENT_FIELDS.every((field) => params[field] === undefined || params[field] === null)) {
+      throw new Error(`pass at least one field to change (${EDITABLE_EVENT_FIELDS.join(", ")})`);
+    }
+    const event = await deps.updateEvent(await deps.getAccessToken(), input);
+    return { event: { ...event } };
+  };
+
+export const createGoogleCalendarDeleteEvent =
+  (deps: GoogleCalendarDeps): CommandHandler =>
+  async (params: JsonObject) => {
+    const eventId = requiredString(params, "eventId");
+    await deps.deleteEvent(await deps.getAccessToken(), { eventId, calendarId: optionalString(params, "calendarId") });
+    // Google answers 204 with no body; echo the id so the remote can confirm
+    // which event went without having to correlate against its own request.
+    return { deleted: true, eventId };
+  };
+
 export const createGoogleCalendarListEvents =
   (deps: GoogleCalendarDeps): CommandHandler =>
   async (params: JsonObject) => {
@@ -114,11 +164,15 @@ export const createGoogleCalendarColors =
 const deps: GoogleCalendarDeps = {
   getAccessToken: getGoogleAccessToken,
   createEvent: createCalendarEvent,
+  updateEvent: updateCalendarEvent,
+  deleteEvent: deleteCalendarEvent,
   listEvents: listCalendarEvents,
   listCalendars,
   getColors: getCalendarColors,
 };
 export const googleCalendarCreateEvent = createGoogleCalendarCreateEvent(deps);
+export const googleCalendarUpdateEvent = createGoogleCalendarUpdateEvent(deps);
+export const googleCalendarDeleteEvent = createGoogleCalendarDeleteEvent(deps);
 export const googleCalendarListEvents = createGoogleCalendarListEvents(deps);
 export const googleCalendarListCalendars = createGoogleCalendarListCalendars(deps);
 export const googleCalendarColors = createGoogleCalendarColors(deps);
