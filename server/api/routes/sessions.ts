@@ -18,6 +18,7 @@ import { readManifest, removeSessionFromIndex } from "../../workspace/chat-index
 import type { ChatIndexEntry } from "../../workspace/chat-index/types.js";
 import { markRead, getSession, evictSession, publishSessionsChanged } from "../../events/session-store/index.js";
 import { notFound } from "../../utils/httpError.js";
+import { createStampedCache } from "../../utils/stampedCache.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
 import { SESSION_ORIGINS, type SessionOrigin, type SessionSummary } from "../../../src/types/session.js";
@@ -152,13 +153,48 @@ function buildSessionSummary(
 // (cutoff window, missing meta, any I/O error). The `metaMtimeMs`
 // fallback lets a brand-new session contribute 0 to its changeMs
 // instead of crashing the whole listing.
+// Cached per session, keyed by the mtimes the scan stats anyway — a hit
+// skips the meta read + JSON parse, and cannot serve a value the
+// filesystem has changed underneath. Only the FILE-derived part is
+// cached: `live` state and the chat-index entry move independently of
+// those mtimes and are re-applied on every scan (#2588).
+const metaCache = createStampedCache<SessionMeta>();
+
+const metaStamp = (jsonlMtimeMs: number, metaMtimeMs: number): string => `${jsonlMtimeMs}:${metaMtimeMs}`;
+
+/** The meta for one session, read only when its stamp has moved.
+ *
+ *  Both mtimes are in the stamp because `readSessionMeta` has two
+ *  sources: the `.json` sidecar, and — when that is missing or corrupt —
+ *  the first line of the `.jsonl`, which costs a read of the WHOLE
+ *  transcript. Keying on the sidecar alone would leave that fallback
+ *  paying full price on every request. */
+async function cachedSessionMeta(sessionId: string, ctx: SessionRowContext, stamp: string): Promise<SessionMeta | null> {
+  const hit = metaCache.get(sessionId, stamp);
+  if (hit !== undefined) return hit;
+  const meta = await readSessionMeta(ctx.chatDir, sessionId);
+  // A null result is NOT cached: it means the sidecar is missing or
+  // corrupt, and the mtimes that produced it may never move again, so a
+  // negative entry could outlive a repair that rewrote neither file.
+  if (meta) metaCache.set(sessionId, stamp, meta);
+  return meta;
+}
+
 async function loadSessionRow(sessionId: string, ctx: SessionRowContext): Promise<SessionRow | null> {
   try {
     // stat only — no readFile on .jsonl content
     const fileStat = await stat(sessionJsonlAbsPath(sessionId));
     if (ctx.cutoff > 0 && fileStat.mtimeMs < ctx.cutoff) return null;
 
-    const meta = await readSessionMeta(ctx.chatDir, sessionId);
+    // The meta sidecar bumps its mtime on hasUnread / origin writes —
+    // feed it into changeMs so cursor-based refetches pick up drains
+    // of background generations (which only touch meta, not the
+    // jsonl). Stat'ed BEFORE the read so it can key the cache.
+    const metaMtimeMs = await stat(sessionMetaAbsPath(sessionId))
+      .then((stats) => stats.mtimeMs)
+      .catch(() => 0);
+
+    const meta = await cachedSessionMeta(sessionId, ctx, metaStamp(fileStat.mtimeMs, metaMtimeMs));
     if (!meta) return null;
 
     // Hidden worker sessions (spawnBackgroundChat `hidden: true`) are
@@ -166,14 +202,6 @@ async function loadSessionRow(sessionId: string, ctx: SessionRowContext): Promis
     // listing. This is the single choke point feeding both the list
     // route and the cursor diff (`loadAllSessions`).
     if (meta.origin === SESSION_ORIGINS.system) return null;
-
-    // The meta sidecar bumps its mtime on hasUnread / origin writes —
-    // feed it into changeMs so cursor-based refetches pick up drains
-    // of background generations (which only touch meta, not the
-    // jsonl).
-    const metaMtimeMs = await stat(sessionMetaAbsPath(sessionId))
-      .then((stats) => stats.mtimeMs)
-      .catch(() => 0);
 
     const indexEntry = ctx.indexById.get(sessionId);
     const live = getSession(sessionId);
@@ -198,7 +226,11 @@ export async function loadAllSessions(): Promise<SessionRow[]> {
   const ctx: SessionRowContext = { chatDir, cutoff, indexById };
 
   const files = (await readdir(chatDir)).filter((fileName) => fileName.endsWith(".jsonl"));
-  const rows = await Promise.all(files.map((file) => loadSessionRow(file.replace(".jsonl", ""), ctx)));
+  const ids = files.map((file) => file.replace(".jsonl", ""));
+  const rows = await Promise.all(ids.map((sessionId) => loadSessionRow(sessionId, ctx)));
+  // Bound the cache by what is actually on disk, so a long-lived server
+  // doesn't retain an entry per session ever deleted.
+  metaCache.retainOnly(ids);
   return rows.filter((row): row is SessionRow => row !== null);
 }
 

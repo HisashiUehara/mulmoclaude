@@ -378,3 +378,58 @@ describe("GET /api/sessions — corrupt meta rows are skipped", () => {
     assert.ok(ids.includes("good-meta"), `well-formed session missing: ${ids.join(", ")}`);
   });
 });
+
+// The scan caches each session's file-derived meta, keyed by the mtimes it
+// stats anyway (#2588). The dangerous failure is a HIT that should have been a
+// miss: the sidebar would then keep showing a title the file no longer has,
+// and nothing would ever correct it. These drive the real handler twice with a
+// mutation in between, which is the only way that shows up.
+describe("GET /api/sessions — the meta cache cannot serve a changed file", () => {
+  const previewOf = (body: { sessions: { id: string; preview: string }[] } | undefined, sessionId: string): string | undefined =>
+    body?.sessions.find((session) => session.id === sessionId)?.preview;
+
+  it("serves the new title after the meta is rewritten", async () => {
+    await writeSession("renamed", { mtimeMs: BASE_MS, firstUserMessage: "before" });
+
+    const first = mockRes();
+    await getHandler({ query: {} } as unknown as Request, first.res);
+    assert.equal(previewOf(first.state.body, "renamed"), "before");
+
+    // Rewrite with a LATER mtime, as any real write would.
+    const metaPath = path.join(chatDir, "renamed.json");
+    await writeFile(metaPath, JSON.stringify({ roleId: "general", startedAt: new Date(BASE_MS).toISOString(), firstUserMessage: "after" }));
+    const laterSecs = (BASE_MS + 60_000) / 1000;
+    await utimes(metaPath, laterSecs, laterSecs);
+
+    const second = mockRes();
+    await getHandler({ query: {} } as unknown as Request, second.res);
+    assert.equal(previewOf(second.state.body, "renamed"), "after", "the cache served a meta the file no longer holds");
+  });
+
+  it("drops a session from the list once its files are gone", async () => {
+    await writeSession("vanishing", { mtimeMs: BASE_MS });
+
+    const first = mockRes();
+    await getHandler({ query: {} } as unknown as Request, first.res);
+    assert.ok(previewOf(first.state.body, "vanishing"), "precondition: the session was listed");
+
+    await rm(path.join(chatDir, "vanishing.jsonl"));
+    await rm(path.join(chatDir, "vanishing.json"));
+
+    const second = mockRes();
+    await getHandler({ query: {} } as unknown as Request, second.res);
+    assert.equal(previewOf(second.state.body, "vanishing"), undefined, "a deleted session must not survive in the cache");
+  });
+
+  it("keeps serving the other sessions across scans", async () => {
+    await writeSession("stable-a", { mtimeMs: BASE_MS, firstUserMessage: "A" });
+    await writeSession("stable-b", { mtimeMs: BASE_MS, firstUserMessage: "B" });
+
+    for (const pass of [1, 2]) {
+      const { state, res } = mockRes();
+      await getHandler({ query: {} } as unknown as Request, res);
+      assert.equal(previewOf(state.body, "stable-a"), "A", `pass ${pass}`);
+      assert.equal(previewOf(state.body, "stable-b"), "B", `pass ${pass}`);
+    }
+  });
+});
