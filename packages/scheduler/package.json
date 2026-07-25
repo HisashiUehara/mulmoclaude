@@ -29,5 +29,22 @@
   "devDependencies": {
     "@types/node": "^26.1.1",
     "typescript": "^6.0.3"
+  },
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/scheduler#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/scheduler"
+  },
+  "keywords": [
+    "scheduler",
+    "task-scheduler",
+    "cron",
+    "recurring-tasks",
+    "catch-up",
+    "zero-dependency"
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
   }
 }

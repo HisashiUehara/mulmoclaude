@@ -2,6 +2,15 @@
   "name": "@mulmoclaude/core",
   "version": "1.5.0",
   "description": "Shared server-side core for MulmoClaude and MulmoTerminal — the always-shipped-together subsystems consolidated behind subpath exports so the two hosts can't drift. Server-only except the browser-safe ./artifacts, ./whisper/client, ./workspace-setup/slug, ./translation/client, ./remote-view, ./remote-host and ./plugin-vue entries. All host specifics are injected.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://receptron.github.io/mulmoterminal/",
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
+  },
   "type": "module",
   "exports": {
     "./utils": {
@@ -241,5 +250,13 @@
     "vue": "^3.5.40",
     "vue-i18n": "^11.4.7"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "mulmoclaude",
+    "mulmoterminal",
+    "claude-code",
+    "ai-agent",
+    "collections",
+    "scheduler"
+  ]
 }

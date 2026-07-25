@@ -276,6 +276,37 @@ translatable, the opt-in is not being honoured and the approach needs revisiting
 
 ---
 
+## 10. Google Tasks — reopening a completed task (`tasksUncomplete`, #2574)
+
+**Why manual**: the unit tests stub `fetch`, so they pin what we *send*
+(`{ status: "needsAction" }`) but say nothing about what Google *does* with it.
+Asserting the real round-trip needs a live OAuth token and a real task list.
+
+Background: `uncompleteTask` PATCHes `status` alone, mirroring `completeTask`.
+Google is expected to clear the `completed` timestamp on its own when status
+leaves `completed` — **this is unverified**. `TaskSummary` doesn't carry
+`completed`, so a stale one would never show in MulmoClaude; it would only be
+visible in Google's own UI.
+
+### What to check
+
+1. Ask the agent to create a task, then to complete it.
+2. In Google ToDo (or Calendar's task pane), confirm it shows as done.
+3. Ask the agent: "put that task back on my list" → `tasksUncomplete`.
+4. In Google's UI, confirm the task is back on the list **and does not show a
+   completion date**.
+
+If a completion date lingers, add `completed: null` to the patch body in
+`packages/core/src/google/tasks.ts` — the comment on `uncompleteTask` marks the
+spot.
+
+Also worth one pass: ask to reopen a task *without* listing first. The tool
+description tells the model to list with `showCompleted: true` (completed tasks
+are hidden by default), so the failure to watch for is the agent reporting "no
+such task" instead of finding it.
+
+---
+
 ## Updating this document
 
 When you land a PR:

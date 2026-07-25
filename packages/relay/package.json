@@ -35,5 +35,22 @@
   "dependencies": {
     "@mulmobridge/client": "^1.0.0",
     "@mulmoclaude/common": "^1.1.0"
+  },
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/relay#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/relay"
+  },
+  "keywords": [
+    "mulmobridge",
+    "cloudflare-workers",
+    "relay",
+    "webhook",
+    "websocket",
+    "offline-queue"
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
   }
 }

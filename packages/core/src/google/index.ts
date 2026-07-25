@@ -86,6 +86,7 @@ export {
   listTasks,
   toTaskListSummary,
   toTaskSummary,
+  uncompleteTask,
   updateTask,
   type CompleteTaskInput,
   type CreateTaskInput,

@@ -33,5 +33,23 @@
     "vite-plugin-dts": "^5.0.3",
     "zod": "^4.4.3"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/plugins/edgar-plugin#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/plugins/edgar-plugin"
+  },
+  "keywords": [
+    "sec",
+    "edgar",
+    "filings",
+    "mulmoclaude",
+    "mulmoclaude-plugin",
+    "gui-chat-protocol",
+    "claude-code"
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
+  }
 }

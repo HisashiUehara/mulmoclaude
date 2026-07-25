@@ -7,8 +7,10 @@ import type { JsonObject } from "../../server/remoteHost/commandChannel.js";
 import {
   createGoogleCalendarColors,
   createGoogleCalendarCreateEvent,
+  createGoogleCalendarDeleteEvent,
   createGoogleCalendarListCalendars,
   createGoogleCalendarListEvents,
+  createGoogleCalendarUpdateEvent,
   type GoogleCalendarDeps,
 } from "../../server/remoteHost/handlers/googleCalendar.js";
 import {
@@ -18,7 +20,9 @@ import {
   type CalendarEventInput,
   type CalendarEventSummary,
   type CalendarSummary,
+  type DeleteCalendarEventInput,
   type ListEventsInput,
+  type UpdateCalendarEventInput,
 } from "@mulmoclaude/core/google";
 
 const sampleEvent: CalendarEventSummary = {
@@ -49,12 +53,14 @@ const sampleColors: CalendarColors = {
 
 interface StubCalls {
   createInputs: CalendarEventInput[];
+  updateInputs: UpdateCalendarEventInput[];
+  deleteInputs: DeleteCalendarEventInput[];
   listInputs: ListEventsInput[];
   tokenRequests: number;
 }
 
 const stubDeps = (): { deps: GoogleCalendarDeps; calls: StubCalls } => {
-  const calls: StubCalls = { createInputs: [], listInputs: [], tokenRequests: 0 };
+  const calls: StubCalls = { createInputs: [], updateInputs: [], deleteInputs: [], listInputs: [], tokenRequests: 0 };
   const deps: GoogleCalendarDeps = {
     getAccessToken: async () => {
       calls.tokenRequests += 1;
@@ -63,6 +69,13 @@ const stubDeps = (): { deps: GoogleCalendarDeps; calls: StubCalls } => {
     createEvent: async (_token, input) => {
       calls.createInputs.push(input);
       return sampleEvent;
+    },
+    updateEvent: async (_token, input) => {
+      calls.updateInputs.push(input);
+      return sampleEvent;
+    },
+    deleteEvent: async (_token, input) => {
+      calls.deleteInputs.push(input);
     },
     listEvents: async (_token, input = {}) => {
       calls.listInputs.push(input);
@@ -153,6 +166,104 @@ describe("createGoogleCalendarCreateEvent", () => {
     const { deps, calls } = stubDeps();
     await assert.rejects(Promise.resolve(createGoogleCalendarCreateEvent(deps)({})));
     assert.equal(calls.tokenRequests, 0);
+  });
+});
+
+describe("createGoogleCalendarUpdateEvent", () => {
+  it("patches only the supplied fields and returns the event", async () => {
+    const { deps, calls } = stubDeps();
+    const result = await createGoogleCalendarUpdateEvent(deps)({ eventId: "ev1", summary: "Renamed" });
+    assert.deepEqual(result, { event: sampleEvent });
+    assert.equal(calls.tokenRequests, 1);
+    assert.deepEqual(calls.updateInputs, [
+      {
+        eventId: "ev1",
+        summary: "Renamed",
+        startDateTime: undefined,
+        endDateTime: undefined,
+        description: undefined,
+        calendarId: undefined,
+        colorId: undefined,
+      },
+    ]);
+  });
+
+  // The whole point of the clearable helper: "" reaches the patch builder as a
+  // clear, while omitting the key leaves the description untouched.
+  it('forwards description "" as a clear, not as a missing field', async () => {
+    const { deps, calls } = stubDeps();
+    await createGoogleCalendarUpdateEvent(deps)({ eventId: "ev1", description: "" });
+    assert.equal(calls.updateInputs[0]?.description, "");
+  });
+
+  it("leaves description undefined when the key is absent", async () => {
+    const { deps, calls } = stubDeps();
+    await createGoogleCalendarUpdateEvent(deps)({ eventId: "ev1", summary: "Renamed" });
+    assert.equal(calls.updateInputs[0]?.description, undefined);
+  });
+
+  it("rejects an edit with no edited field, without calling the engine", async () => {
+    const { deps, calls } = stubDeps();
+    await assert.rejects(
+      Promise.resolve(createGoogleCalendarUpdateEvent(deps)({ eventId: "ev1" })),
+      /pass at least one field to change \(summary, start, end, description, colorId\)/,
+    );
+    assert.equal(calls.updateInputs.length, 0);
+  });
+
+  it("counts an empty-string description as an edit", async () => {
+    const { deps, calls } = stubDeps();
+    await createGoogleCalendarUpdateEvent(deps)({ eventId: "ev1", description: "" });
+    assert.equal(calls.updateInputs.length, 1);
+  });
+
+  it("rejects a missing eventId", async () => {
+    const { deps } = stubDeps();
+    await assert.rejects(Promise.resolve(createGoogleCalendarUpdateEvent(deps)({ summary: "Renamed" })), /eventId must be a non-empty string/);
+  });
+
+  it("threads calendarId and colorId through to the engine", async () => {
+    const { deps, calls } = stubDeps();
+    await createGoogleCalendarUpdateEvent(deps)({ eventId: "ev1", colorId: "7", calendarId: "team@group.calendar.google.com" });
+    assert.equal(calls.updateInputs[0]?.colorId, "7");
+    assert.equal(calls.updateInputs[0]?.calendarId, "team@group.calendar.google.com");
+  });
+
+  for (const key of ["start", "end"] as const) {
+    it(`rejects a ${key} without a timezone offset`, async () => {
+      const { deps } = stubDeps();
+      await assert.rejects(
+        Promise.resolve(createGoogleCalendarUpdateEvent(deps)({ eventId: "ev1", [key]: "2026-07-17T09:00:00" })),
+        new RegExp(`${key} must be an ISO 8601 date-time`),
+      );
+    });
+  }
+});
+
+describe("createGoogleCalendarDeleteEvent", () => {
+  it("deletes the event and echoes the id", async () => {
+    const { deps, calls } = stubDeps();
+    const result = await createGoogleCalendarDeleteEvent(deps)({ eventId: "ev1" });
+    assert.deepEqual(result, { deleted: true, eventId: "ev1" });
+    assert.equal(calls.tokenRequests, 1);
+    assert.deepEqual(calls.deleteInputs, [{ eventId: "ev1", calendarId: undefined }]);
+  });
+
+  it("threads calendarId through to the engine", async () => {
+    const { deps, calls } = stubDeps();
+    await createGoogleCalendarDeleteEvent(deps)({ eventId: "ev1", calendarId: "team@group.calendar.google.com" });
+    assert.equal(calls.deleteInputs[0]?.calendarId, "team@group.calendar.google.com");
+  });
+
+  it("rejects a missing eventId without calling the engine", async () => {
+    const { deps, calls } = stubDeps();
+    await assert.rejects(Promise.resolve(createGoogleCalendarDeleteEvent(deps)({})), /eventId must be a non-empty string/);
+    assert.equal(calls.deleteInputs.length, 0);
+  });
+
+  it("rejects an empty calendarId", async () => {
+    const { deps } = stubDeps();
+    await assert.rejects(Promise.resolve(createGoogleCalendarDeleteEvent(deps)({ eventId: "ev1", calendarId: "  " })), /calendarId must be a non-empty string/);
   });
 });
 

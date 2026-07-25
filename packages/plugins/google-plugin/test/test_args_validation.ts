@@ -158,6 +158,7 @@ describe("GoogleArgs — tasks", () => {
     { kind: "tasksCreate", title: "x" },
     { kind: "tasksUpdate", taskId: "t1", title: "x" },
     { kind: "tasksComplete", taskId: "t1" },
+    { kind: "tasksUncomplete", taskId: "t1" },
     { kind: "tasksDelete", taskId: "t1" },
   ];
   for (const base of listBearing) {
@@ -233,6 +234,23 @@ describe("GoogleArgs — tasks update / delete (#2569)", () => {
 
   it("rejects a date-only due on update, same as create", () => {
     assert.throws(() => GoogleArgs.parse({ kind: "tasksUpdate", taskId: "t1", due: "2026-07-18" }));
+  });
+
+  it("parses tasksUncomplete", () => {
+    assert.deepEqual(GoogleArgs.parse({ kind: "tasksUncomplete", taskId: "t1" }), { kind: "tasksUncomplete", taskId: "t1" });
+  });
+
+  it("rejects tasksUncomplete without a taskId", () => {
+    assert.throws(() => GoogleArgs.parse({ kind: "tasksUncomplete" }));
+  });
+
+  // The un-complete path must not become a second way to edit fields — that is
+  // the "two routes set the same state" drift #2572 deliberately avoided. The
+  // schema is non-strict throughout (no `.strict()` anywhere in args.ts), so
+  // the guarantee is that an edit field is STRIPPED, not that it throws: it
+  // never reaches the engine either way. `tasksComplete` behaves identically.
+  it("strips an edit field off tasksUncomplete so it cannot reach the engine", () => {
+    assert.deepEqual(GoogleArgs.parse({ kind: "tasksUncomplete", taskId: "t1", title: "Renamed" }), { kind: "tasksUncomplete", taskId: "t1" });
   });
 
   it("parses a delete", () => {

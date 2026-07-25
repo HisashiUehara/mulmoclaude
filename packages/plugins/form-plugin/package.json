@@ -56,5 +56,23 @@
     "vue-eslint-parser": "^10.4.0",
     "vue-tsc": "^3.3.8"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/plugins/form-plugin#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/plugins/form-plugin"
+  },
+  "keywords": [
+    "form",
+    "structured-input",
+    "mulmoclaude",
+    "mulmoclaude-plugin",
+    "gui-chat-protocol",
+    "claude-code",
+    "mulmoterminal"
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
+  }
 }

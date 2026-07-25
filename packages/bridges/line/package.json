@@ -34,5 +34,23 @@
     "@types/node": "^26.1.1",
     "tsx": "^4.23.1",
     "typescript": "^6.0.3"
+  },
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/line#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/bridges/line"
+  },
+  "keywords": [
+    "line",
+    "line-messaging-api",
+    "mulmobridge",
+    "chatbot",
+    "bridge",
+    "ai-agent",
+    "mulmoclaude"
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
   }
 }

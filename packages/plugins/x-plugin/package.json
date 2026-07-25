@@ -36,5 +36,23 @@
     "vite": "^8.1.5",
     "vite-plugin-dts": "^5.0.3"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/plugins/x-plugin#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/plugins/x-plugin"
+  },
+  "keywords": [
+    "x",
+    "twitter",
+    "mulmoclaude",
+    "mulmoclaude-plugin",
+    "gui-chat-protocol",
+    "claude-code",
+    "mulmoterminal"
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
+  }
 }
