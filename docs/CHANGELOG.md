@@ -42,6 +42,10 @@ Pinned shortcuts on the launcher are draggable, with the order persisted. The re
 
 Dragging files onto a folder row in the File Explorer saves them directly into that workspace folder, instead of forcing a drop into the current directory and a follow-up move.
 
+#### Browser page translation no longer breaks the UI (#2558, #2561, #2563)
+
+Material Icons draw their glyphs from **ligatures**, so an icon element's text content _is_ the icon name (`<span class="material-icons">send</span>`). Chrome's page translation rewrites those text nodes, the ligature stops matching, and every icon-only control renders its name as a literal word — inflating each button to the width of that word. Combined with the translator's overlay spans on the nav, the result reads as "the CSS never loaded", which is exactly how it kept getting reported. The app chrome now carries `translate="no"` — it already ships in 8 locales, so translating it was never the wanted behaviour — and agent / user content opts back in with `translate="yes"`. Body teleports render outside `#app` and so carry their own attribute, with a guard test to stop the next one silently reintroducing the bug. Setup problems of this shape also gained a home: `docs/troubleshooting.md` (#2562, #2565).
+
 #### Collections — related-collections pulldown, agent-sized schema docs, and clean deletion (#2249, #2251, #2428, #2550)
 
 The view header gains a pulldown to jump between collections that reference each other (#2251). `schemaDocs` is now sectioned so it fits inside the agent's result limit instead of being truncated mid-schema (#2249). Deleting a collection now also clears the state that outlived it: the Google Calendar sync token (keyed by `calendarId`, so a collection recreated on the same calendar used to resume from the deleted one's token and receive only the delta) and the feeds ingest cursor at `data/ingest-state/<slug>.json` (which lives in a shared directory outside every per-collection location, so a recreated collection inherited `lastFetchedAt` and sat waiting for an interval instead of fetching). Both presented identically to the user: recreate a collection, it stays empty.
