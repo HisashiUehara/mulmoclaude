@@ -20,11 +20,13 @@ Google Translate extension) rewrites those text nodes, the ligature no longer ma
 name renders as literal text — which also inflates the width of every icon-only control. The
 translator additionally overlays translated spans on the original text, producing the doubled nav.
 
-**Fix** — address-bar translate icon → **Show original** / **Never translate this site**, or open the
-app in a window with the extension disabled.
+**Fix** — update. The app chrome now carries `translate="no"` (#2561), so translation leaves the
+icons alone; only agent / user content (chat replies, wiki pages, skill bodies) stays translatable.
+On an older build, turn translation off instead: address-bar translate icon → **Show original** /
+**Never translate this site**, or open the app in a window with the extension disabled.
 
-MulmoClaude ships its own UI in 8 locales, so page translation is never needed: set `VITE_LOCALE=ja`
-(or `zh` / `ko` / `es` / `pt-BR` / `fr` / `de`) in `.env` and restart `yarn dev`.
+MulmoClaude ships its own UI in 8 locales, so page translation is never needed for the chrome: set
+`VITE_LOCALE=ja` (or `zh` / `ko` / `es` / `pt-BR` / `fr` / `de`) in `.env` and restart `yarn dev`.
 
 ---
 
