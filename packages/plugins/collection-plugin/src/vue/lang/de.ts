@@ -94,6 +94,7 @@ const deMessages: CollectionMessages = {
     relatedIn: "Verweist auf diese Sammlung",
     relatedBoth: "In beide Richtungen verknüpft",
     refreshFeed: "Aktualisieren",
+    syncCalendar: "Synchronisieren",
     refreshFailed: "Aktualisierung fehlgeschlagen: {error}",
     refreshDispatched: "Aktualisierung im Hintergrund gestartet.",
     feedChatSeed:

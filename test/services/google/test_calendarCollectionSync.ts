@@ -6,8 +6,18 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { anySyncedCollectionSurvives, classifyDelete, classifyWrite, groupByCalendar, orphanedCalendarId, toCollectionRecord } from "@mulmoclaude/core/google";
-import type { CalendarDeclaring, CalendarEventSummary } from "@mulmoclaude/core/google";
+import {
+  anySyncedCollectionSurvives,
+  classifyDelete,
+  classifyWrite,
+  groupByCalendar,
+  orphanedCalendarId,
+  toCollectionRecord,
+  syncCalendarForCollection,
+  unsyncedGroups,
+  withKeyedLock,
+} from "@mulmoclaude/core/google";
+import type { CalendarCollectionSyncResult, CalendarDeclaring, CalendarEventSummary, ManualCalendarSyncDeps } from "@mulmoclaude/core/google";
 import { parseIsoDateTime } from "@mulmoclaude/core/collection";
 import type { CollectionFieldSpec } from "@mulmoclaude/core/collection";
 import type { LoadedCollection } from "@mulmoclaude/core/collection/server";
@@ -298,5 +308,191 @@ describe("anySyncedCollectionSurvives (#2428 mid-sync delete)", () => {
   // consumed the window" must never advance the token either.
   it("treats an empty group as no survivor", async () => {
     assert.equal(await anySyncedCollectionSurvives([], existing("/ws/.claude/skills/cal")), false);
+  });
+});
+
+// The trigger behind "the collection shows up already populated" (#2427): a
+// calendar with no stored token has never synced, which is exactly the state a
+// just-created collection is in. The rule fires on every config write, so what
+// keeps it from re-walking calendars forever is that the first sync stores a
+// token and the calendar stops matching.
+describe("unsyncedGroups (#2427 first sync)", () => {
+  const tokens =
+    (stored: Record<string, string>) =>
+    (calendarId: string): Promise<string | null> =>
+      Promise.resolve(stored[calendarId] ?? null);
+
+  const groups = (...calendarIds: string[]) => new Map(calendarIds.map((calendarId) => [calendarId, [`${calendarId}-collection`]]));
+
+  it("keeps a calendar that has never synced", async () => {
+    const pending = await unsyncedGroups(groups("work"), tokens({}));
+    assert.deepEqual([...pending.keys()], ["work"]);
+  });
+
+  it("drops a calendar that already holds a sync token", async () => {
+    const pending = await unsyncedGroups(groups("work"), tokens({ work: "tok-1" }));
+    assert.equal(pending.size, 0);
+  });
+
+  it("keeps only the never-synced calendars in a mixed set", async () => {
+    const pending = await unsyncedGroups(groups("work", "home", "family"), tokens({ home: "tok-1" }));
+    assert.deepEqual([...pending.keys()].sort(), ["family", "work"]);
+  });
+
+  it("carries each kept calendar's collections through untouched", async () => {
+    const pending = await unsyncedGroups(groups("work"), tokens({}));
+    assert.deepEqual(pending.get("work"), ["work-collection"]);
+  });
+
+  it("returns an empty map when nothing declares a calendar", async () => {
+    assert.equal((await unsyncedGroups(new Map(), tokens({}))).size, 0);
+  });
+
+  // An empty string is a stored token, not a missing one — treating it as
+  // missing would re-walk the whole calendar on every config write.
+  it("treats an empty-string token as synced", async () => {
+    const pending = await unsyncedGroups(groups("work"), tokens({ work: "" }));
+    assert.equal(pending.size, 0);
+  });
+});
+
+/** Runs whose completion the test controls, recording the order they started
+ *  in — "did the second one start early?" is the question the lock answers. */
+function trackedRuns() {
+  const started: string[] = [];
+  const releases = new Map<string, (value: string) => void>();
+  const run = (label: string) => (): Promise<string> => {
+    started.push(label);
+    return new Promise<string>((resolve) => releases.set(label, resolve));
+  };
+  const release = (label: string): void => releases.get(label)?.(label);
+  return { run, started, release };
+}
+
+/** Let every pending microtask settle before asserting on start order. */
+const settle = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+
+// Three doors lead into one calendar — the scheduler, the create trigger and
+// the Refresh button — and the sync token is keyed by calendar, not by caller.
+// Two passes running at once would both load the SAME token and walk the same
+// window (idempotent, but a wasted full walk), so they queue instead
+// (CodeRabbit review #2566).
+describe("withKeyedLock (#2566 per-calendar queuing)", () => {
+  it("holds the second run on a key until the first settles", async () => {
+    const locks = new Map<string, Promise<unknown>>();
+    const { run, started, release } = trackedRuns();
+    const first = withKeyedLock(locks, "work", run("a"));
+    const second = withKeyedLock(locks, "work", run("b"));
+    await settle();
+    assert.deepEqual(started, ["a"], "the second pass must not read the token the first is still advancing");
+
+    release("a");
+    await first;
+    await settle();
+    assert.deepEqual(started, ["a", "b"]);
+    release("b");
+    assert.equal(await second, "b");
+  });
+
+  it("runs different calendars concurrently — the token is per calendar", async () => {
+    const locks = new Map<string, Promise<unknown>>();
+    const { run, started, release } = trackedRuns();
+    const work = withKeyedLock(locks, "work", run("a"));
+    const home = withKeyedLock(locks, "home", run("b"));
+    await settle();
+    assert.deepEqual(started.sort(), ["a", "b"]);
+    release("a");
+    release("b");
+    assert.deepEqual(await Promise.all([work, home]), ["a", "b"]);
+  });
+
+  it("lets the queue advance after a failed run", async () => {
+    const locks = new Map<string, Promise<unknown>>();
+    const { run, started, release } = trackedRuns();
+    const failing = withKeyedLock(locks, "work", () => Promise.reject(new Error("boom")));
+    const next = withKeyedLock(locks, "work", run("b"));
+    await assert.rejects(failing, /boom/);
+    await settle();
+    assert.deepEqual(started, ["b"], "one calendar's failure must not wedge that calendar forever");
+    release("b");
+    assert.equal(await next, "b");
+  });
+
+  it("releases the key once nothing is queued behind it", async () => {
+    const locks = new Map<string, Promise<unknown>>();
+    await withKeyedLock(locks, "work", () => Promise.resolve(1));
+    await settle();
+    assert.equal(locks.size, 0, "the map must not grow one entry per calendar forever");
+  });
+
+  it("returns each caller its own run's value", async () => {
+    const locks = new Map<string, Promise<unknown>>();
+    const results = await Promise.all([
+      withKeyedLock(locks, "work", () => Promise.resolve("first")),
+      withKeyedLock(locks, "work", () => Promise.resolve("second")),
+    ]);
+    assert.deepEqual(results, ["first", "second"]);
+  });
+});
+
+// The Refresh button's three answers. Two of them are "could not run", and a
+// wrong one sends the user fixing the wrong thing — link an account for a
+// collection that never declared a calendar, or hunt for missing events that a
+// missing grant explains. Exercised through injected fakes, so no workspace on
+// disk and no Google grant (CodeRabbit review #2566).
+describe("syncCalendarForCollection (#2427 manual refresh)", () => {
+  const syncedResult = (slug: string): CalendarCollectionSyncResult => ({ slug, written: 2, removed: 0, unwritable: [], errors: [] });
+
+  const deps = (overrides: Partial<ManualCalendarSyncDeps> = {}): ManualCalendarSyncDeps & { ranWith: Map<string, LoadedCollection[]>[] } => {
+    const ranWith: Map<string, LoadedCollection[]>[] = [];
+    return {
+      ranWith,
+      loadGroups: () => Promise.resolve(groupByCalendar([collectionOn("my-schedule", "work")])),
+      isLinked: () => Promise.resolve(true),
+      runGroups: (groups) => {
+        ranWith.push(groups);
+        return Promise.resolve([...groups].flatMap(([, collections]) => collections.map((entry) => syncedResult(entry.slug))));
+      },
+      ...overrides,
+    };
+  };
+
+  it("syncs the calendar the collection reads", async () => {
+    const fake = deps();
+    const outcome = await syncCalendarForCollection("my-schedule", "/ws", fake);
+    assert.equal(outcome.kind, "synced");
+    assert.deepEqual(outcome.kind === "synced" ? outcome.results.map((entry) => entry.slug) : [], ["my-schedule"]);
+  });
+
+  it("reports a collection that declares no calendar rather than syncing nothing", async () => {
+    const fake = deps();
+    const outcome = await syncCalendarForCollection("plain-collection", "/ws", fake);
+    assert.equal(outcome.kind, "not-a-calendar");
+    assert.equal(fake.ranWith.length, 0, "nothing may be fetched for a collection that never asked for a sync");
+  });
+
+  it("reports an unlinked Google account rather than a successful empty sync", async () => {
+    const fake = deps({ isLinked: () => Promise.resolve(false) });
+    const outcome = await syncCalendarForCollection("my-schedule", "/ws", fake);
+    assert.equal(outcome.kind, "not-linked");
+    assert.equal(fake.ranWith.length, 0);
+  });
+
+  // Order matters: answering "link your account" for a collection that has no
+  // googleCalendar block points the user at the wrong fix.
+  it("answers not-a-calendar before not-linked", async () => {
+    const outcome = await syncCalendarForCollection("plain-collection", "/ws", deps({ isLinked: () => Promise.resolve(false) }));
+    assert.equal(outcome.kind, "not-a-calendar");
+  });
+
+  // The whole group syncs (one shared token), but ONLY the group this
+  // collection belongs to — a calendar it does not read must not be walked.
+  it("runs the owning calendar's group and leaves other calendars alone", async () => {
+    const fake = deps({
+      loadGroups: () => Promise.resolve(groupByCalendar([collectionOn("my-schedule", "work"), collectionOn("team", "work"), collectionOn("private", "home")])),
+    });
+    const outcome = await syncCalendarForCollection("my-schedule", "/ws", fake);
+    assert.deepEqual([...fake.ranWith[0].keys()], ["work"]);
+    assert.deepEqual(outcome.kind === "synced" ? outcome.results.map((entry) => entry.slug).sort() : [], ["my-schedule", "team"]);
   });
 });

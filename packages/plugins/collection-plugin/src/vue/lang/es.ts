@@ -94,6 +94,7 @@ const esMessages: CollectionMessages = {
     relatedIn: "Enlaza con esta colección",
     relatedBoth: "Enlazadas en ambos sentidos",
     refreshFeed: "Actualizar",
+    syncCalendar: "Sincronizar",
     refreshFailed: "Error al actualizar: {error}",
     refreshDispatched: "Actualización iniciada en segundo plano.",
     feedChatSeed:

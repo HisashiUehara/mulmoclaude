@@ -57,6 +57,15 @@ Declaring it in `map` is a schema error.
 Use `datetime` (not `date`) for start/end when events have real clock times —
 the calendar day view then draws each record as a proportional time block.
 
+## When sync runs
+
+- **On creation** — the first sync starts as soon as the schema lands, so the
+  collection is not empty while the user waits for the schedule. The same
+  applies when you add a `googleCalendar` block to an existing collection.
+- **Hourly** after that, in the background.
+- **On demand** — the collection view has a Sync button. Tell the user about it
+  if they want the calendar refreshed right now.
+
 ## What sync does
 
 - New or edited events are written, keyed by event id (existing records are

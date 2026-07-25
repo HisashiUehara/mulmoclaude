@@ -58,12 +58,18 @@ export {
   groupByCalendar,
   orphanedCalendarId,
   releaseOrphanedCalendarToken,
+  syncCalendarForCollection,
   syncCalendarGroup,
   syncDueCalendarCollections,
+  syncNewCalendarCollections,
   toCollectionRecord,
+  unsyncedGroups,
+  withKeyedLock,
   GOOGLE_CALENDAR_SYNC_TASK_ID,
   type CalendarCollectionSyncResult,
   type CalendarDeclaring,
+  type ManualCalendarSyncDeps,
+  type ManualCalendarSyncOutcome,
 } from "./collectionSync.js";
 export {
   completeTask,

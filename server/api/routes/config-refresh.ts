@@ -13,6 +13,7 @@ import { Router, Request, Response } from "express";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { log } from "../../system/logger/index.js";
 import { errorMessage } from "../../utils/errors.js";
+import { startInitialCalendarSync } from "../../services/google/initialCalendarSync.js";
 import { refreshScheduledSkills } from "../../workspace/skills/scheduler.js";
 import { refreshUserTasks } from "../../workspace/skills/user-tasks.js";
 
@@ -41,6 +42,10 @@ async function safeRefresh(label: string, refresher: () => Promise<number>): Pro
 }
 
 router.post(API_ROUTES.config.refresh, async (_req: Request, res: Response<RefreshResponse>) => {
+  // Not awaited and not part of the response: a first calendar sync walks the
+  // whole calendar, while this endpoint runs inside the agent's tool turn
+  // (#2427). It no-ops unless some calendar has never synced.
+  startInitialCalendarSync();
   const [skills, userTasks] = await Promise.all([safeRefresh("skills", refreshScheduledSkills), safeRefresh("userTasks", refreshUserTasks)]);
   log.debug("config-refresh", "refresh complete", { skills, userTasks });
   res.json({ skills, userTasks });
