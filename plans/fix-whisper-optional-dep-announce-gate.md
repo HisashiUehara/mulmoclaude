@@ -6,8 +6,8 @@ Issue: https://github.com/receptron/mulmoclaude/issues/2553
 
 `announceOptionalDeps` warns (log + bell) for every missing optional binary at boot,
 including `whisper-server`. Voice input ships OFF (`settings.voiceInput.enabled`
-defaults false), so users who never use it still get a "whisper-server unavailable —
-voiceInput degraded" warn + bell every start. No API key is involved (local whisper.cpp).
+defaults to false), so users who never use it still get a "whisper-server unavailable —
+voiceInput degraded" warn + bell on every start. No API key is involved (local whisper.cpp).
 
 ## Fix
 

@@ -27,7 +27,8 @@ const ANNOUNCE_GATE: Record<string, (settings: AppSettings) => boolean> = {
 
 /** Whether a missing optional dep should be surfaced at boot. Pure — the gate for
  *  an opt-in dep reads the settings flag for its feature; non-gated deps always
- *  announce. */
+ *  announce. The single gate entry is guarded by a unit test, so a typo'd key
+ *  can't silently slip in. */
 export function shouldAnnounceDep(depId: string, settings: AppSettings): boolean {
   const gate = ANNOUNCE_GATE[depId];
   return gate ? gate(settings) : true;
