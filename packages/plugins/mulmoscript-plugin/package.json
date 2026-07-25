@@ -69,5 +69,21 @@
     "vue-eslint-parser": "^10.4.0",
     "vue-tsc": "^3.3.8"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/plugins/mulmoscript-plugin#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/plugins/mulmoscript-plugin"
+  },
+  "keywords": [
+    "mulmoscript",
+    "storyboard",
+    "mulmocast",
+    "mulmoclaude",
+    "mulmoclaude-plugin",
+    "gui-chat-protocol",
+    "claude-code",
+    "mulmoterminal"
+  ]
 }

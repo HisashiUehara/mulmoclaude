@@ -40,5 +40,17 @@
   "author": "Receptron Team",
   "devDependencies": {
     "typescript": "^6.0.3"
-  }
+  },
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/common#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/common"
+  },
+  "keywords": [
+    "mulmoclaude",
+    "utilities",
+    "type-guards",
+    "isomorphic"
+  ]
 }

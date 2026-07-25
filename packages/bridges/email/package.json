@@ -35,5 +35,21 @@
     "@types/node": "^26.1.1",
     "@types/nodemailer": "^8",
     "typescript": "^6.0.3"
-  }
+  },
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/email#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/bridges/email"
+  },
+  "keywords": [
+    "email",
+    "imap",
+    "smtp",
+    "mulmobridge",
+    "chatbot",
+    "bridge",
+    "ai-agent",
+    "mulmoclaude"
+  ]
 }

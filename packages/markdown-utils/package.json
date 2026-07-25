@@ -45,5 +45,17 @@
     "mermaid": "^11.16.0",
     "typescript": "^6.0.3",
     "vue": "^3.5.40"
-  }
+  },
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/markdown-utils#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/markdown-utils"
+  },
+  "keywords": [
+    "mulmoclaude",
+    "markdown",
+    "rendering",
+    "browser-safe"
+  ]
 }

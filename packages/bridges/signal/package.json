@@ -32,5 +32,20 @@
     "@types/node": "^26.1.1",
     "@types/ws": "^8.18.1",
     "typescript": "^6.0.3"
-  }
+  },
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/signal#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/bridges/signal"
+  },
+  "keywords": [
+    "signal",
+    "signal-cli",
+    "mulmobridge",
+    "chatbot",
+    "bridge",
+    "ai-agent",
+    "mulmoclaude"
+  ]
 }

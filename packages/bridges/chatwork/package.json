@@ -30,5 +30,19 @@
   "devDependencies": {
     "@types/node": "^26.1.1",
     "typescript": "^6.0.3"
-  }
+  },
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/chatwork#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/bridges/chatwork"
+  },
+  "keywords": [
+    "chatwork",
+    "mulmobridge",
+    "chatbot",
+    "bridge",
+    "ai-agent",
+    "mulmoclaude"
+  ]
 }

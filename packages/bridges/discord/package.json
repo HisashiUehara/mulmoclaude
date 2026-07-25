@@ -31,5 +31,19 @@
   "devDependencies": {
     "@types/node": "^26.1.1",
     "typescript": "^6.0.3"
-  }
+  },
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/discord#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/bridges/discord"
+  },
+  "keywords": [
+    "discord",
+    "mulmobridge",
+    "chatbot",
+    "bridge",
+    "ai-agent",
+    "mulmoclaude"
+  ]
 }

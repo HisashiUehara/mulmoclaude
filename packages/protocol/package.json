@@ -28,5 +28,19 @@
   "author": "Receptron Team",
   "devDependencies": {
     "typescript": "^6.0.3"
-  }
+  },
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/protocol#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/protocol"
+  },
+  "keywords": [
+    "mulmobridge",
+    "protocol",
+    "socket.io",
+    "chat",
+    "ai-agent",
+    "types"
+  ]
 }

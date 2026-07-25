@@ -32,5 +32,20 @@
     "@types/matrix-js-sdk": "^11.1.0",
     "@types/node": "^26.1.1",
     "typescript": "^6.0.3"
-  }
+  },
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/matrix#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/bridges/matrix"
+  },
+  "keywords": [
+    "matrix",
+    "element",
+    "mulmobridge",
+    "chatbot",
+    "bridge",
+    "ai-agent",
+    "mulmoclaude"
+  ]
 }
