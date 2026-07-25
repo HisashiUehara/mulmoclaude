@@ -6,6 +6,7 @@ const TASKS_BASE_URL = "https://tasks.googleapis.com/tasks/v1";
 const TASKS_API_LABEL = "Google Tasks API";
 const DEFAULT_TASK_LIST_ID = "@default";
 const TASK_STATUS_COMPLETED = "completed";
+const TASK_STATUS_NEEDS_ACTION = "needsAction";
 const MAX_TASK_LISTS = 50;
 
 export interface TaskListSummary {
@@ -99,8 +100,9 @@ export async function createTask(accessToken: string, input: CreateTaskInput): P
 
 /** PATCH body for a task edit — only the fields the caller supplied. As with
  *  events, `undefined` means "leave as is" and `""` means "clear it", so the
- *  two must stay distinct. `status` is deliberately absent: `completeTask`
- *  owns that transition, and two ways to set it would drift apart. */
+ *  two must stay distinct. `status` is deliberately absent: `completeTask` /
+ *  `uncompleteTask` own that transition, and two ways to set it would drift
+ *  apart. */
 export const buildTaskPatch = (input: UpdateTaskInput): Record<string, unknown> => ({
   ...(input.title !== undefined ? { title: input.title } : {}),
   ...(input.notes !== undefined ? { notes: input.notes } : {}),
@@ -120,6 +122,28 @@ export async function completeTask(accessToken: string, input: CompleteTaskInput
   const updated = await googleRequest(TASKS_API_LABEL, accessToken, url, {
     method: "PATCH",
     body: JSON.stringify({ status: TASK_STATUS_COMPLETED }),
+  });
+  return toTaskSummary(updated);
+}
+
+/** Send a completed task back to the to-do list.
+ *
+ *  Its own function rather than a flag on `completeTask`, and deliberately not
+ *  a `status` field on `updateTask`: one kind per target state keeps the name
+ *  honest and leaves exactly one code path setting each value.
+ *
+ *  The patch carries `status` alone — mirroring `completeTask`, which also
+ *  sets only `status` and lets Google fill in the `completed` timestamp. Note
+ *  that whether Google *clears* that timestamp on the way back is its
+ *  behaviour, not ours, and is unverified here: `TaskSummary` doesn't carry
+ *  `completed`, so nothing in this codebase would show a stale one. If a
+ *  reopened task ever displays a completion date in Google's own UI, this is
+ *  the place to add `completed: null` to the patch. */
+export async function uncompleteTask(accessToken: string, input: CompleteTaskInput): Promise<TaskSummary> {
+  const url = tasksUrl(input.taskListId, `/${encodeURIComponent(input.taskId)}`);
+  const updated = await googleRequest(TASKS_API_LABEL, accessToken, url, {
+    method: "PATCH",
+    body: JSON.stringify({ status: TASK_STATUS_NEEDS_ACTION }),
   });
   return toTaskSummary(updated);
 }

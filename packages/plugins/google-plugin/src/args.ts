@@ -101,6 +101,14 @@ export const GoogleArgs = z.discriminatedUnion("kind", [
     taskId: NonEmpty,
     taskListId: OptionalNonEmpty,
   }),
+  // Its own kind rather than a flag on tasksComplete or a status field on
+  // tasksUpdate: one kind per target state keeps the name honest and leaves a
+  // single code path setting each value (#2574).
+  z.object({
+    kind: z.literal("tasksUncomplete"),
+    taskId: NonEmpty,
+    taskListId: OptionalNonEmpty,
+  }),
   z.object({
     kind: z.literal("tasksDelete"),
     taskId: NonEmpty,

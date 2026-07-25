@@ -30,8 +30,9 @@ export const TOOL_DEFINITION = {
     " - `taskListsList`: list the user's task lists (`id`, `title`). Only needed when the user means a list other than their default one.\n" +
     " - `tasksList`: list tasks. Optional `taskListId` (default: the user's default list), `maxResults` (1-50, default 10), `showCompleted` (default false).\n" +
     " - `tasksCreate`: add a task. Requires `title`; optional `notes`, `due` (ISO 8601 with offset — Google keeps the DATE only, so do not promise a time of day), `taskListId`.\n" +
-    ' - `tasksUpdate`: edit a task. Requires `taskId` (from `tasksList`) plus AT LEAST ONE of `title`, `notes`, `due`; omitted fields keep their value and `notes: ""` clears them. Use `tasksComplete` to mark it done — this kind does not change status. Optional `taskListId`.\n' +
+    ' - `tasksUpdate`: edit a task. Requires `taskId` (from `tasksList`) plus AT LEAST ONE of `title`, `notes`, `due`; omitted fields keep their value and `notes: ""` clears them. Use `tasksComplete` / `tasksUncomplete` to change status — this kind does not. Optional `taskListId`.\n' +
     " - `tasksComplete`: mark a task done. Requires `taskId` (from `tasksList`); optional `taskListId`.\n" +
+    " - `tasksUncomplete`: put a completed task back on the to-do list. Requires `taskId`; optional `taskListId`. Completed tasks are hidden from `tasksList` unless you pass `showCompleted: true`, so list with that first to find the id.\n" +
     " - `tasksDelete`: delete a task. Requires `taskId`; optional `taskListId`. Cannot be undone — confirm with the user before calling.\n" +
     "\n" +
     "Drive — IMPORTANT: this app can only see files IT created, never the user's wider Drive. Never claim you searched their whole Drive:\n" +
@@ -57,6 +58,7 @@ export const TOOL_DEFINITION = {
           "tasksCreate",
           "tasksUpdate",
           "tasksComplete",
+          "tasksUncomplete",
           "tasksDelete",
           "driveList",
           "driveCreate",
@@ -78,7 +80,7 @@ export const TOOL_DEFINITION = {
       title: { type: "string", description: "tasksCreate / tasksUpdate: task title" },
       notes: { type: "string", description: 'tasksCreate / tasksUpdate: task notes ("" on update clears them)' },
       due: { type: "string", description: "tasksCreate / tasksUpdate: due date, ISO 8601 with offset (Google keeps the date only)" },
-      taskId: { type: "string", description: "tasksUpdate / tasksComplete / tasksDelete: id of the task, from tasksList" },
+      taskId: { type: "string", description: "tasksUpdate / tasksComplete / tasksUncomplete / tasksDelete: id of the task, from tasksList" },
       name: { type: "string", description: "driveCreate: file name" },
       content: { type: "string", description: "driveCreate: file body" },
       mimeType: { type: "string", description: "driveCreate: optional MIME type (default text/plain)" },

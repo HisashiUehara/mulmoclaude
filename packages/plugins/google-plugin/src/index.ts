@@ -28,6 +28,7 @@ import {
   readDriveFile,
   saveCalendarSyncToken,
   syncCalendarEvents,
+  uncompleteTask,
   updateCalendarEvent,
   updateTask,
   DEFAULT_LIST_MAX_RESULTS,
@@ -169,6 +170,10 @@ export default definePlugin(({ log }) => {
       }
       case "tasksComplete": {
         const task = await completeTask(await getGoogleAccessToken(), { taskId: args.taskId, taskListId: args.taskListId });
+        return { ok: true, task };
+      }
+      case "tasksUncomplete": {
+        const task = await uncompleteTask(await getGoogleAccessToken(), { taskId: args.taskId, taskListId: args.taskListId });
         return { ok: true, task };
       }
       case "tasksDelete": {
