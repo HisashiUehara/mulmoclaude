@@ -102,6 +102,16 @@ describe("shortenHome", () => {
     assert.equal(shortenHome("/home/alicia/x", "/home/alice"), "/home/alicia/x");
   });
 
+  it("does not shorten siblings using punctuation that is legal in a directory name", () => {
+    // The first fix classified path characters as `[\w.-]`, which mangled every
+    // sibling built with anything else. Almost any byte is legal in a directory
+    // name, so the rule keys off delimiters instead.
+    ["+archive", "@work", "~backup", "(old)", "&co", "!tmp", "%2f", "=v2", "#1"].forEach((suffix) => {
+      const text = `/home/alice${suffix}/x`;
+      assert.equal(shortenHome(text, "/home/alice"), text, `mis-shortened /home/alice${suffix}`);
+    });
+  });
+
   it("shortens home itself, with or without a trailing path", () => {
     assert.equal(shortenHome("/home/alice", "/home/alice"), "~");
     assert.equal(shortenHome("/home/alice/ws", "/home/alice"), "~/ws");
@@ -110,6 +120,15 @@ describe("shortenHome", () => {
 
   it("shortens some occurrences while leaving non-boundary ones intact", () => {
     assert.equal(shortenHome("/home/alice/ws and /home/alice-old/ws", "/home/alice"), "~/ws and /home/alice-old/ws");
+  });
+
+  it("still shortens home where a sentence ends the path", () => {
+    // The other failure direction, and the more serious one: leaving the path
+    // unshortened publishes the account name. Pinned alongside the sibling
+    // cases above so a future fix for one cannot silently reintroduce the other.
+    [",", ";", " ", '"', "'", "`", ")", "]", ">", "|"].forEach((delimiter) => {
+      assert.equal(shortenHome(`at /home/alice${delimiter}x`, "/home/alice"), `at ~${delimiter}x`, `left home unshortened before ${JSON.stringify(delimiter)}`);
+    });
   });
 
   it("does not shred every path when home is the root", () => {

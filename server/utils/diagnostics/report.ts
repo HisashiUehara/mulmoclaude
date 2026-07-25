@@ -61,14 +61,21 @@ export function redactSettings(settings: unknown, keys: readonly string[]): Reda
 
 const isSeparator = (char: string): boolean => char === "/" || char === "\\";
 
-// What may continue a path segment. A match followed by one of these is a
-// LONGER name, not the home directory: `/home/alice` inside
-// `/home/alice-archive` must survive untouched. Anything else — a separator, a
-// comma, a space, a quote, end of string — ends the path, so the match is real
-// and has to be shortened or the account name stays in a published report.
-const SEGMENT_CHAR_RE = /[\w.-]/;
+// Characters that END a path when it appears inside prose. Everything NOT
+// listed here continues the directory name, so `/home/alice` inside
+// `/home/alice-archive` (or `alice+archive`, `alice@work`) survives untouched.
+//
+// A delimiter list, not a "valid path character" list, because almost anything
+// is legal in a directory name — `+`, `@`, `~`, parentheses. Guessing which
+// characters a path may contain mis-shortens real sibling directories; guessing
+// which ones a sentence uses to end a path is a much smaller set.
+//
+// The two failure directions are not equal, and this errs toward the safer one:
+// mangling a sibling path makes the report confusing, but failing to shorten
+// leaves the account name in something the user publishes.
+const PATH_DELIMITER_RE = /[\s,;:"'`)\]}<>|]/;
 
-const endsHomePath = (following: string): boolean => following === "" || isSeparator(following) || !SEGMENT_CHAR_RE.test(following);
+const endsHomePath = (following: string): boolean => following === "" || isSeparator(following) || PATH_DELIMITER_RE.test(following);
 
 /** Replace the home directory with `~`, but only where it ends a path.
  *
