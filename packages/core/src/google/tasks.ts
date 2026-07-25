@@ -115,12 +115,17 @@ export async function updateTask(accessToken: string, input: UpdateTaskInput): P
   return toTaskSummary(updated);
 }
 
+/** The only two states this module transitions a task between. Spelled as a
+ *  union rather than `string` so the compiler, not just the doc comment,
+ *  enforces that there is no third one. */
+type TaskStatus = typeof TASK_STATUS_COMPLETED | typeof TASK_STATUS_NEEDS_ACTION;
+
 /** Shared body of the two status transitions. PATCH keeps the rest of the task
  *  intact — a PUT would need the full body and would silently drop fields the
  *  caller never read. Private on purpose: the exported `completeTask` /
  *  `uncompleteTask` names are the API, so no caller can invent a third target
  *  state by passing an arbitrary status through. */
-async function patchTaskStatus(accessToken: string, input: CompleteTaskInput, status: string): Promise<TaskSummary> {
+async function patchTaskStatus(accessToken: string, input: CompleteTaskInput, status: TaskStatus): Promise<TaskSummary> {
   const url = tasksUrl(input.taskListId, `/${encodeURIComponent(input.taskId)}`);
   const updated = await googleRequest(TASKS_API_LABEL, accessToken, url, { method: "PATCH", body: JSON.stringify({ status }) });
   return toTaskSummary(updated);
