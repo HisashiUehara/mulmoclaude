@@ -130,9 +130,15 @@ export async function completeTask(accessToken: string, input: CompleteTaskInput
  *
  *  Its own function rather than a flag on `completeTask`, and deliberately not
  *  a `status` field on `updateTask`: one kind per target state keeps the name
- *  honest and leaves exactly one code path setting each value. Google clears
- *  `completed` (the timestamp) on its own when status leaves `completed`, so
- *  the patch carries status alone. */
+ *  honest and leaves exactly one code path setting each value.
+ *
+ *  The patch carries `status` alone — mirroring `completeTask`, which also
+ *  sets only `status` and lets Google fill in the `completed` timestamp. Note
+ *  that whether Google *clears* that timestamp on the way back is its
+ *  behaviour, not ours, and is unverified here: `TaskSummary` doesn't carry
+ *  `completed`, so nothing in this codebase would show a stale one. If a
+ *  reopened task ever displays a completion date in Google's own UI, this is
+ *  the place to add `completed: null` to the patch. */
 export async function uncompleteTask(accessToken: string, input: CompleteTaskInput): Promise<TaskSummary> {
   const url = tasksUrl(input.taskListId, `/${encodeURIComponent(input.taskId)}`);
   const updated = await googleRequest(TASKS_API_LABEL, accessToken, url, {
