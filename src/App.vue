@@ -376,6 +376,7 @@ import { applyAgentEvent, type AgentEventContext } from "./utils/agent/eventDisp
 import { pushErrorMessage, beginUserTurn, updateResult, applyToolResultToSession } from "./utils/session/sessionHelpers";
 import { parseCollectionSlashSeed, makeSyntheticCollectionResult, hasRealCollectionResult } from "./utils/collections/presentSeed";
 import { mergeBufferedIntoDraft } from "./utils/chat/buffer";
+import { createInFlightShare } from "./utils/inFlightShare";
 import { roleName, roleIcon } from "./utils/role/icon";
 import { usePendingCalls } from "./composables/usePendingCalls";
 import { loadCspExtra } from "./composables/useCspExtra";
@@ -915,22 +916,42 @@ function handleSessionFinished(sessionId: string): void {
 //     throttling — WS keeps `connected` on the server but delivery stops
 //     while the tab is backgrounded, and there's no `disconnect` event to
 //     hook on reconnect)
+// BOTH surfaces have to stay: neither detects every case the other does.
+// They do, however, fire together on the common path — Chrome throttles a
+// backgrounded tab until the socket drops, so returning to it reconnects
+// AND flips visibility at once. Sharing the pass keeps the coverage while
+// running the work once (#2584): `GET /api/sessions` walks every session
+// in the window with two stats + a meta read each, so a duplicate pass is
+// ~1500 syscalls on a 488-session workspace, for nothing.
+//
 // refreshSessionStates() carries its own sequence guard inside
 // useSessionSync so concurrent catch-ups can't overwrite newer live state
 // with an older-but-slower response. refreshSessionTranscript() only
 // upgrades toolResults when the server view is strictly larger, so it's
-// already idempotent against interleaving.
-function catchUpMissedEvents(reason: "reconnect" | "visibility"): void {
-  console.info(`[chat-ui] catching up after ${reason}`);
-  refreshSessionStates().catch((err) => {
+// already idempotent against interleaving. Both guards stay — they cover
+// interleaving with LIVE events, which the share does not touch.
+const catchUpShare = createInFlightShare();
+
+async function runCatchUp(): Promise<void> {
+  const states = refreshSessionStates().catch((err: unknown) => {
     console.warn("[chat-ui] refreshSessionStates failed:", err);
   });
   const currentId = currentSessionId.value;
-  if (currentId) {
-    refreshSessionTranscript(currentId).catch((err) => {
-      console.warn("[chat-ui] refreshSessionTranscript failed:", err);
-    });
+  const transcript = currentId
+    ? refreshSessionTranscript(currentId).catch((err: unknown) => {
+        console.warn("[chat-ui] refreshSessionTranscript failed:", err);
+      })
+    : Promise.resolve();
+  await Promise.all([states, transcript]);
+}
+
+function catchUpMissedEvents(reason: "reconnect" | "visibility"): void {
+  if (catchUpShare.isRunning()) {
+    console.info(`[chat-ui] catch-up after ${reason} joined the pass already running`);
+  } else {
+    console.info(`[chat-ui] catching up after ${reason}`);
   }
+  void catchUpShare.run(runCatchUp);
 }
 
 // Capture the unsubscribe so remount / HMR doesn't accumulate stale
