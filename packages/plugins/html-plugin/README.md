@@ -1,10 +1,19 @@
-# @mulmoclaude/markdown-utils
+# @mulmoclaude/html-plugin
 
-Browser-safe markdown / image rendering utilities shared by the MulmoClaude host and the markdown plugin.
+presentHtml — self-contained HTML page tool for MulmoClaude and MulmoTerminal. Server core (validation + artifacts persistence via the generic gui-chat-protocol files.artifacts capability) on `.`, Vue View/Preview on `./vue`.
+
+A plugin for [MulmoClaude](https://github.com/receptron/mulmoclaude) and [MulmoTerminal](https://github.com/receptron/mulmoterminal) — loaded by the host, not run standalone.
+
+## Dev loop
+
+```bash
+yarn workspace @mulmoclaude/html-plugin run build
+yarn workspace @mulmoclaude/html-plugin run test
+```
 
 ## Related projects
 
-Published from the MulmoClaude monorepo by [Receptron](https://github.com/receptron).
+Used by both MulmoClaude and MulmoTerminal, and published from the MulmoClaude monorepo by [Receptron](https://github.com/receptron).
 
 - **[MulmoClaude](https://github.com/receptron/mulmoclaude)** — an open-source AI assistant platform that runs on your own computer. Claude Code as the engine, a personal wiki for long-term memory, schema-driven collections for your data, and chat that summons the right GUI (markdown, charts, forms, spreadsheets, wikis) for each task.
 - **[MulmoTerminal](https://github.com/receptron/mulmoterminal)** — a terminal-first cockpit for running many AI coding agents in parallel. One roster showing every session's summary and PR status, tmux-backed session persistence, git-worktree isolation, one-click PRs, and mobile push with remote reply.

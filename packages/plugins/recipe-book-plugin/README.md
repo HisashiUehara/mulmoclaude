@@ -1,6 +1,15 @@
-# @mulmoclaude/markdown-utils
+# @mulmoclaude/recipe-book-plugin
 
-Browser-safe markdown / image rendering utilities shared by the MulmoClaude host and the markdown plugin.
+Personal recipe book runtime plugin for MulmoClaude — saves recipes as markdown-per-file with frontmatter, multi-tab live sync. PR-A of #1169 Cooking Coach.
+
+A plugin for [MulmoClaude](https://github.com/receptron/mulmoclaude) — loaded by the host, not run standalone.
+
+## Dev loop
+
+```bash
+yarn workspace @mulmoclaude/recipe-book-plugin run build
+yarn workspace @mulmoclaude/recipe-book-plugin run test
+```
 
 ## Related projects
 

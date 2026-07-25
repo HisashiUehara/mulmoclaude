@@ -1,6 +1,15 @@
-# @mulmoclaude/markdown-utils
+# @mulmoclaude/spotify-plugin
 
-Browser-safe markdown / image rendering utilities shared by the MulmoClaude host and the markdown plugin.
+Read-only Spotify integration for MulmoClaude — Liked Songs / playlists / recently played, OAuth via PKCE. Built as a runtime plugin (issue #1162).
+
+A plugin for [MulmoClaude](https://github.com/receptron/mulmoclaude) — loaded by the host, not run standalone.
+
+## Dev loop
+
+```bash
+yarn workspace @mulmoclaude/spotify-plugin run build
+yarn workspace @mulmoclaude/spotify-plugin run test
+```
 
 ## Related projects
 

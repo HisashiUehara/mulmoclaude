@@ -1,6 +1,15 @@
-# @mulmoclaude/markdown-utils
+# @mulmoclaude/bookmarks-plugin
 
-Browser-safe markdown / image rendering utilities shared by the MulmoClaude host and the markdown plugin.
+Sample runtime plugin for MulmoClaude — saves URLs with multi-tab live sync, demonstrates the gui-chat-protocol v0.3 runtime API (#1110).
+
+A plugin for [MulmoClaude](https://github.com/receptron/mulmoclaude) — loaded by the host, not run standalone.
+
+## Dev loop
+
+```bash
+yarn workspace @mulmoclaude/bookmarks-plugin run build
+yarn workspace @mulmoclaude/bookmarks-plugin run test
+```
 
 ## Related projects
 

@@ -214,6 +214,14 @@ This monorepo also hosts a couple of packages that are **not part of MulmoBridge
 | [@receptron/task-scheduler](./scheduler/) | General-purpose persistent task scheduler with catch-up recovery. Schedule recurring tasks (interval / daily / weekly / one-shot), survive restarts, recover missed runs. Zero dependencies. | [![npm](https://img.shields.io/npm/v/@receptron/task-scheduler)](https://www.npmjs.com/package/@receptron/task-scheduler) |
 | [mulmoclaude](./mulmoclaude/) | Launcher npm package for the MulmoClaude app itself — `npx mulmoclaude` to start the GUI chat on `http://localhost:3001`. Bundles the server + client as a ready-to-run distribution. | [![npm](https://img.shields.io/npm/v/mulmoclaude)](https://www.npmjs.com/package/mulmoclaude) |
 
+## Related projects
+
+MulmoBridge is developed by [Receptron](https://github.com/receptron), who also build the two applications below. Both are open source, and neither is required to use these packages.
+
+- **[MulmoClaude](https://github.com/receptron/mulmoclaude)** — an open-source AI assistant platform that runs on your own computer. Claude Code as the engine, a personal wiki for long-term memory, schema-driven collections for your data, and chat that summons the right GUI (markdown, charts, forms, spreadsheets, wikis) for each task. This is the repository MulmoBridge is published from.
+- **[MulmoTerminal](https://github.com/receptron/mulmoterminal)** — a terminal-first cockpit for running many AI coding agents in parallel. One roster showing every session's summary and PR status, tmux-backed session persistence, git-worktree isolation, one-click PRs, and mobile push with remote reply.
+- **[MulmoTerminal manual](https://receptron.github.io/mulmoterminal/)** — setup, workflows, feature reference, configuration, mobile notifications, and alternative / local model providers. Available in English and Japanese.
+
 ## License
 
 All packages are MIT licensed.

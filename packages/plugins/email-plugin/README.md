@@ -1,6 +1,15 @@
-# @mulmoclaude/markdown-utils
+# @mulmoclaude/email-plugin
 
-Browser-safe markdown / image rendering utilities shared by the MulmoClaude host and the markdown plugin.
+Generic IMAP/SMTP email runtime plugin for MulmoClaude. Gmail-default provider presets; works with any IMAP/SMTP server (Fastmail / iCloud / Outlook / …). Uses App Password auth (no OAuth in v1).
+
+A plugin for [MulmoClaude](https://github.com/receptron/mulmoclaude) — loaded by the host, not run standalone.
+
+## Dev loop
+
+```bash
+yarn workspace @mulmoclaude/email-plugin run build
+yarn workspace @mulmoclaude/email-plugin run test
+```
 
 ## Related projects
 

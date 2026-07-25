@@ -1,6 +1,15 @@
-# @mulmoclaude/markdown-utils
+# @mulmoclaude/debug-plugin
 
-Browser-safe markdown / image rendering utilities shared by the MulmoClaude host and the markdown plugin.
+Dev-only debug playground plugin for MulmoClaude. Standalone /debug page used as the integration bed for experimental host features (e.g. the upcoming Notifier engine in the Encore plan).
+
+A plugin for [MulmoClaude](https://github.com/receptron/mulmoclaude) — loaded by the host, not run standalone.
+
+## Dev loop
+
+```bash
+yarn workspace @mulmoclaude/debug-plugin run build
+yarn workspace @mulmoclaude/debug-plugin run test
+```
 
 ## Related projects
 

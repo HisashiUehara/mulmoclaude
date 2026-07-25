@@ -1,6 +1,15 @@
-# @mulmoclaude/markdown-utils
+# @mulmoclaude/edgar-plugin
 
-Browser-safe markdown / image rendering utilities shared by the MulmoClaude host and the markdown plugin.
+SEC EDGAR runtime plugin for MulmoClaude — wraps the public EDGAR API as one tool with kind-discriminated dispatch. Server-only; no Vue View.
+
+A plugin for [MulmoClaude](https://github.com/receptron/mulmoclaude) — loaded by the host, not run standalone.
+
+## Dev loop
+
+```bash
+yarn workspace @mulmoclaude/edgar-plugin run build
+yarn workspace @mulmoclaude/edgar-plugin run test
+```
 
 ## Related projects
 
