@@ -231,6 +231,42 @@ describe("transformResolvableUrlsInHtml — edge cases", () => {
     assert.ok(elapsed < 1000, `100KB probe took ${elapsed}ms`);
   });
 
+  // Regression for CodeQL js/polynomial-redos (alert #402). The probe above
+  // uses a run of `x`, which never enters the attribute iterator's leading
+  // whitespace class — so it stayed green against the quadratic regex and
+  // proved nothing. The killer input is a long run of WHITESPACE that is not
+  // followed by an attribute name: `\s+` matched the whole run, failed
+  // `[A-Za-z]`, and backtracked through every shorter length, from every
+  // start position inside the run.
+  //
+  // Sizing note: with the `\s+` regex this input measured ~6.7s (it is
+  // cleanly quadratic — 4x per doubling). The fixed `\s` regex is under a
+  // millisecond, so the 2s ceiling has a >3000x margin and stays honest even
+  // on a heavily loaded CI runner.
+  it("ReDoS-safe: a long whitespace run inside a tag stays linear", () => {
+    const blob = `<img${" ".repeat(64_000)}!>`;
+    const start = Date.now();
+    transformResolvableUrlsInHtml(blob, tag);
+    const elapsed = Date.now() - start;
+    assert.ok(elapsed < 2000, `64k-space probe took ${elapsed}ms`);
+  });
+
+  // Pins the behaviour that lets the leading class be a single `\s`: the
+  // match lands on the whitespace immediately before the name, so any run
+  // ahead of it falls outside the match and `replace` copies it verbatim.
+  // If someone "tidies" group 1 into `\s+` again this stays green, but the
+  // probe above goes red — and if someone collapses the run into one space,
+  // this goes red instead.
+  it("preserves a multi-space run before a rewritten attribute", () => {
+    const out = transformResolvableUrlsInHtml('<img   src="a.png">', tag);
+    assert.equal(out, '<img   src="R(a.png)">');
+  });
+
+  it("preserves newlines and tabs between attributes when rewriting", () => {
+    const out = transformResolvableUrlsInHtml('<img\n\talt="x"\n\tsrc="a.png">', tag);
+    assert.equal(out, '<img\n\talt="x"\n\tsrc="R(a.png)">');
+  });
+
   it("self-closing tag form still rewrites", () => {
     assert.equal(transformResolvableUrlsInHtml('<img src="a" />', tag), '<img src="R(a)" />');
   });
