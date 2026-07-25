@@ -31,7 +31,13 @@
               }}
             </div>
             <!-- eslint-disable vue/no-v-html -- marked.parse output of the plugin-seeded prompt; trusted in-process render matching the standard textResponse path. Multi-line element so disable/enable pair (CLAUDE.md UI rule). -->
-            <div ref="markdownContainerRef" class="markdown-content prose prose-slate max-w-none" @click="openLinksInNewTab" v-html="renderedHtml"></div>
+            <div
+              ref="markdownContainerRef"
+              class="markdown-content prose prose-slate max-w-none"
+              translate="yes"
+              @click="openLinksInNewTab"
+              v-html="renderedHtml"
+            ></div>
             <!-- eslint-enable vue/no-v-html -->
             <div v-if="messageAttachments.length > 0" class="space-y-3 mt-3" data-testid="text-response-seeded-attachments">
               <SentAttachmentChip v-for="path in messageAttachments" :key="path" :path="path" variant="block" />
@@ -90,6 +96,7 @@
                 <div
                   ref="markdownContainerRef"
                   class="markdown-content prose prose-slate max-w-none leading-relaxed text-gray-900"
+                  translate="yes"
                   :data-testid="isAssistant ? 'text-response-assistant-body' : undefined"
                   v-html="renderedHtml"
                 ></div>
