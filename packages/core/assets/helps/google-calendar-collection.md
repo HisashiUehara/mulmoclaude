@@ -5,8 +5,10 @@ Add a `googleCalendar` block to its `schema.json` and the host pulls changed
 events on a schedule and writes them as records — **without calling you**. No
 tool call, no tokens spent per sync, so hourly syncing is free.
 
-This is the only calendar mechanism: there is no calendar tool and no bundled
-calendar collection. You author the schema when the user asks for one.
+This is the mechanism for *keeping a collection fresh*. For one-off reads and
+for creating / editing / deleting events, use the `google` tool — see
+[The `google` tool](google.md). There is no bundled calendar collection: you
+author the schema when the user asks for one.
 
 ## Requirements
 

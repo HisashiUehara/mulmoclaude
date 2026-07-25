@@ -151,6 +151,77 @@ describe("GoogleArgs — tasks", () => {
   });
 });
 
+describe("GoogleArgs — calendar update / delete (#2569)", () => {
+  const update = { kind: "calendarUpdateEvent", eventId: "e1" };
+
+  it("parses an update that changes one field", () => {
+    const args = GoogleArgs.parse({ ...update, summary: "Renamed" });
+    assert.equal(args.kind, "calendarUpdateEvent");
+  });
+
+  // A PATCH with no fields answers 200 on an unchanged event, so the LLM would
+  // report a successful edit that never happened.
+  it("rejects an update that changes nothing", () => {
+    assert.throws(() => GoogleArgs.parse(update), /at least one field/);
+  });
+
+  it("rejects an update whose only field is calendarId — that targets, it does not edit", () => {
+    assert.throws(() => GoogleArgs.parse({ ...update, calendarId: "team@group.calendar.google.com" }), /at least one field/);
+  });
+
+  // "" is a real edit (clear the body), so it must satisfy the guard that a
+  // naive truthiness check would reject.
+  it('accepts description: "" as the one change — it clears the body', () => {
+    const args = GoogleArgs.parse({ ...update, description: "" });
+    assert.equal(args.kind === "calendarUpdateEvent" && args.description, "");
+  });
+
+  it("rejects an empty eventId", () => {
+    assert.throws(() => GoogleArgs.parse({ kind: "calendarUpdateEvent", eventId: "", summary: "x" }));
+  });
+
+  it("rejects a date-only start on update, same as create", () => {
+    assert.throws(() => GoogleArgs.parse({ ...update, start: "2026-07-17" }));
+  });
+
+  it("parses a delete", () => {
+    assert.deepEqual(GoogleArgs.parse({ kind: "calendarDeleteEvent", eventId: "e1" }), { kind: "calendarDeleteEvent", eventId: "e1" });
+  });
+
+  it("rejects a delete without an eventId — it would target the collection URL", () => {
+    assert.throws(() => GoogleArgs.parse({ kind: "calendarDeleteEvent" }));
+    assert.throws(() => GoogleArgs.parse({ kind: "calendarDeleteEvent", eventId: "" }));
+  });
+});
+
+describe("GoogleArgs — tasks update / delete (#2569)", () => {
+  it("parses an update that changes one field", () => {
+    const args = GoogleArgs.parse({ kind: "tasksUpdate", taskId: "t1", title: "Renamed" });
+    assert.equal(args.kind, "tasksUpdate");
+  });
+
+  it("rejects an update that changes nothing", () => {
+    assert.throws(() => GoogleArgs.parse({ kind: "tasksUpdate", taskId: "t1" }), /at least one field/);
+  });
+
+  it('accepts notes: "" as the one change — it clears them', () => {
+    const args = GoogleArgs.parse({ kind: "tasksUpdate", taskId: "t1", notes: "" });
+    assert.equal(args.kind === "tasksUpdate" && args.notes, "");
+  });
+
+  it("rejects a date-only due on update, same as create", () => {
+    assert.throws(() => GoogleArgs.parse({ kind: "tasksUpdate", taskId: "t1", due: "2026-07-18" }));
+  });
+
+  it("parses a delete", () => {
+    assert.deepEqual(GoogleArgs.parse({ kind: "tasksDelete", taskId: "t1" }), { kind: "tasksDelete", taskId: "t1" });
+  });
+
+  it("rejects a delete without a taskId", () => {
+    assert.throws(() => GoogleArgs.parse({ kind: "tasksDelete" }));
+  });
+});
+
 describe("GoogleArgs — drive", () => {
   it("parses driveList with defaults omitted", () => {
     assert.deepEqual(GoogleArgs.parse({ kind: "driveList" }), { kind: "driveList" });

@@ -17,6 +17,11 @@ const NonEmpty = z.string().min(1);
 // `/calendars//events` URL, and colorId "" would be sent as a bad palette id.
 const OptionalNonEmpty = z.string().trim().min(1).optional();
 
+// Fields an update kind may change. Named so the "at least one" guard and its
+// error message can't drift apart from the schema.
+const EDITABLE_EVENT_FIELDS = ["summary", "start", "end", "description", "colorId"] as const;
+const EDITABLE_TASK_FIELDS = ["title", "notes", "due"] as const;
+
 export const GoogleArgs = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("status") }),
   // Calendar
@@ -42,6 +47,27 @@ export const GoogleArgs = z.discriminatedUnion("kind", [
     calendarId: OptionalNonEmpty,
     colorId: OptionalNonEmpty,
   }),
+  z
+    .object({
+      kind: z.literal("calendarUpdateEvent"),
+      eventId: NonEmpty,
+      summary: NonEmpty.optional(),
+      start: IsoDateTimeWithOffset.optional(),
+      end: IsoDateTimeWithOffset.optional(),
+      description: z.string().optional(),
+      calendarId: OptionalNonEmpty,
+      colorId: OptionalNonEmpty,
+    })
+    // An edit with no edited field would PATCH an empty body — a wasted call
+    // that answers 200, so the LLM would report success on a no-op.
+    .refine((args) => EDITABLE_EVENT_FIELDS.some((field) => args[field] !== undefined), {
+      error: `pass at least one field to change (${EDITABLE_EVENT_FIELDS.join(", ")})`,
+    }),
+  z.object({
+    kind: z.literal("calendarDeleteEvent"),
+    eventId: NonEmpty,
+    calendarId: OptionalNonEmpty,
+  }),
   // Tasks
   z.object({ kind: z.literal("taskListsList") }),
   z.object({
@@ -57,8 +83,25 @@ export const GoogleArgs = z.discriminatedUnion("kind", [
     due: IsoDateTimeWithOffset.optional(),
     taskListId: z.string().optional(),
   }),
+  z
+    .object({
+      kind: z.literal("tasksUpdate"),
+      taskId: NonEmpty,
+      title: NonEmpty.optional(),
+      notes: z.string().optional(),
+      due: IsoDateTimeWithOffset.optional(),
+      taskListId: z.string().optional(),
+    })
+    .refine((args) => EDITABLE_TASK_FIELDS.some((field) => args[field] !== undefined), {
+      error: `pass at least one field to change (${EDITABLE_TASK_FIELDS.join(", ")})`,
+    }),
   z.object({
     kind: z.literal("tasksComplete"),
+    taskId: NonEmpty,
+    taskListId: z.string().optional(),
+  }),
+  z.object({
+    kind: z.literal("tasksDelete"),
     taskId: NonEmpty,
     taskListId: z.string().optional(),
   }),
