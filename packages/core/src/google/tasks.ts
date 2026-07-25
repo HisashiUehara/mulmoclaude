@@ -115,15 +115,19 @@ export async function updateTask(accessToken: string, input: UpdateTaskInput): P
   return toTaskSummary(updated);
 }
 
-export async function completeTask(accessToken: string, input: CompleteTaskInput): Promise<TaskSummary> {
-  // PATCH keeps the rest of the task intact — a PUT would need the full body
-  // and would silently drop fields the caller never read.
+/** Shared body of the two status transitions. PATCH keeps the rest of the task
+ *  intact — a PUT would need the full body and would silently drop fields the
+ *  caller never read. Private on purpose: the exported `completeTask` /
+ *  `uncompleteTask` names are the API, so no caller can invent a third target
+ *  state by passing an arbitrary status through. */
+async function patchTaskStatus(accessToken: string, input: CompleteTaskInput, status: string): Promise<TaskSummary> {
   const url = tasksUrl(input.taskListId, `/${encodeURIComponent(input.taskId)}`);
-  const updated = await googleRequest(TASKS_API_LABEL, accessToken, url, {
-    method: "PATCH",
-    body: JSON.stringify({ status: TASK_STATUS_COMPLETED }),
-  });
+  const updated = await googleRequest(TASKS_API_LABEL, accessToken, url, { method: "PATCH", body: JSON.stringify({ status }) });
   return toTaskSummary(updated);
+}
+
+export async function completeTask(accessToken: string, input: CompleteTaskInput): Promise<TaskSummary> {
+  return patchTaskStatus(accessToken, input, TASK_STATUS_COMPLETED);
 }
 
 /** Send a completed task back to the to-do list.
@@ -140,12 +144,7 @@ export async function completeTask(accessToken: string, input: CompleteTaskInput
  *  reopened task ever displays a completion date in Google's own UI, this is
  *  the place to add `completed: null` to the patch. */
 export async function uncompleteTask(accessToken: string, input: CompleteTaskInput): Promise<TaskSummary> {
-  const url = tasksUrl(input.taskListId, `/${encodeURIComponent(input.taskId)}`);
-  const updated = await googleRequest(TASKS_API_LABEL, accessToken, url, {
-    method: "PATCH",
-    body: JSON.stringify({ status: TASK_STATUS_NEEDS_ACTION }),
-  });
-  return toTaskSummary(updated);
+  return patchTaskStatus(accessToken, input, TASK_STATUS_NEEDS_ACTION);
 }
 
 export async function deleteTask(accessToken: string, input: CompleteTaskInput): Promise<void> {

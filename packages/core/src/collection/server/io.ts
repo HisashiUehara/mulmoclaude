@@ -134,6 +134,19 @@ export type WriteItemResult =
   | { kind: "conflict"; itemId: string }
   | { kind: "path-escape"; itemId: string };
 
+/** The symlink-containment refusal every record path shares: one check, one
+ *  warn, one answer. Extracted because this is a security RULE applied at
+ *  three sites (write pre-mkdir, write post-mkdir, delete) — a fix to the
+ *  check must not be able to land at only one of them.
+ *
+ *  `stage` names the call site so the warn stays as diagnosable as the three
+ *  hand-written copies were. */
+function escapesWorkspace(dataDir: string, workspaceRoot: string, itemId: string, stage: string): boolean {
+  if (isContainedInRoot(dataDir, workspaceRoot)) return false;
+  log.warn("collections", `${stage} refused: dataDir escapes workspace via symlink`, { dataDir, itemId });
+  return true;
+}
+
 /** Write a record. Ensures the directory exists, validates the id,
  *  re-checks symlink containment after mkdir, and writes atomically.
  *
@@ -157,15 +170,9 @@ export async function writeItem(dataDir: string, itemId: string, item: Collectio
   // was swapped after discovery. We re-check AFTER mkdir to catch
   // a symlink racing in between the two — belt + suspenders, cheap
   // and the only honest defense against TOCTOU on directory creation.
-  if (!isContainedInRoot(dataDir, workspaceRoot)) {
-    log.warn("collections", "writeItem refused: dataDir escapes workspace via symlink (pre-mkdir)", { dataDir, itemId: safeId });
-    return { kind: "path-escape", itemId: safeId };
-  }
+  if (escapesWorkspace(dataDir, workspaceRoot, safeId, "writeItem (pre-mkdir)")) return { kind: "path-escape", itemId: safeId };
   await mkdir(dataDir, { recursive: true });
-  if (!isContainedInRoot(dataDir, workspaceRoot)) {
-    log.warn("collections", "writeItem refused: dataDir escapes workspace via symlink (post-mkdir)", { dataDir, itemId: safeId });
-    return { kind: "path-escape", itemId: safeId };
-  }
+  if (escapesWorkspace(dataDir, workspaceRoot, safeId, "writeItem (post-mkdir)")) return { kind: "path-escape", itemId: safeId };
   const filePath = itemFilePath(dataDir, safeId);
   const payload = `${JSON.stringify(item, null, 2)}\n`;
 
@@ -199,10 +206,7 @@ export async function deleteItem(dataDir: string, itemId: string, opts: IoOption
   const safeId = safeRecordId(itemId);
   if (safeId === null) return { kind: "invalid-id", itemId };
   const workspaceRoot = opts.workspaceRoot ?? getWorkspaceRoot();
-  if (!isContainedInRoot(dataDir, workspaceRoot)) {
-    log.warn("collections", "deleteItem refused: dataDir escapes workspace via symlink", { dataDir, itemId: safeId });
-    return { kind: "path-escape", itemId: safeId };
-  }
+  if (escapesWorkspace(dataDir, workspaceRoot, safeId, "deleteItem")) return { kind: "path-escape", itemId: safeId };
   const filePath = itemFilePath(dataDir, safeId);
   try {
     await unlink(filePath);

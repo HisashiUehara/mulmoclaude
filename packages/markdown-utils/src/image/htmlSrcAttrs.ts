@@ -147,10 +147,24 @@ const RESOLVABLE_TAG_OUTER_RE = /<(?:img|source|video|audio)\b(?:[^>"']|"[^"]*"|
 const TAG_NAME_RE = /^<([a-z]+)/i;
 
 // Attribute iterator: walks each `name=value` pair inside a tag. The
-// leading `\s+` ensures we only match real attribute boundaries, not
+// leading `\s` ensures we only match real attribute boundaries, not
 // `src=` text embedded inside another attribute's quoted value.
+//
+// That leading class is a single `\s`, NOT `\s+`, and the difference is
+// quadratic runtime rather than style. With `\s+`, a run of N spaces that
+// is not followed by an attribute name makes the engine match all N, fail
+// `[A-Za-z]`, then backtrack through every shorter length — repeated from
+// every start position inside the run, so `<img` + N spaces + `!>` costs
+// O(N²) (measured 4x per doubling; ~1.7s at N=32k). Matching one
+// whitespace char cannot backtrack, so the same input is linear.
+//
+// Output is unaffected: under the `g` flag the scan advances one char at a
+// time, so the match still lands on the whitespace immediately before the
+// name. Any earlier whitespace simply falls outside the match and is
+// copied through verbatim by `replace`.
+//
 // Capture groups:
-//   1: leading whitespace
+//   1: the single whitespace char before the attribute name
 //   2: attribute name
 //   3: `=` with surrounding spaces (only when value present)
 //   4: full quoted/unquoted value (unused but captured for clarity)
@@ -161,8 +175,8 @@ const TAG_NAME_RE = /^<([a-z]+)/i;
 //      quote as the value
 //
 // All quantifiers bounded — verified ReDoS-safe in test_htmlSrcAttrs.ts.
-// eslint-disable-next-line sonarjs/super-linear-regex, sonarjs/regex-complexity, security/detect-unsafe-regex -- bounded quantifiers, ReDoS-safe (test in test_htmlSrcAttrs.ts)
-const ATTR_ITER_RE = /(\s+)([A-Za-z][\w:-]*)(?:(\s*=\s*)("([^"]*)"|'([^']*)'|([^\s>"'][^\s>]*)))?/g;
+// eslint-disable-next-line sonarjs/regex-complexity, security/detect-unsafe-regex -- bounded quantifiers, ReDoS-safe (test in test_htmlSrcAttrs.ts)
+const ATTR_ITER_RE = /(\s)([A-Za-z][\w:-]*)(?:(\s*=\s*)("([^"]*)"|'([^']*)'|([^\s>"'][^\s>]*)))?/g;
 
 /** Transform every URL-bearing attribute on a recognised tag.
  *
