@@ -39,6 +39,22 @@ export interface CalendarEventInput {
   colorId?: string;
 }
 
+export interface UpdateCalendarEventInput {
+  eventId: string;
+  summary?: string;
+  startDateTime?: string;
+  endDateTime?: string;
+  /** `""` clears the description; omit to leave it untouched. */
+  description?: string;
+  calendarId?: string;
+  colorId?: string;
+}
+
+export interface DeleteCalendarEventInput {
+  eventId: string;
+  calendarId?: string;
+}
+
 export interface ListEventsInput {
   timeMin?: string;
   maxResults?: number;
@@ -139,6 +155,37 @@ export async function createCalendarEvent(accessToken: string, input: CalendarEv
   };
   const created = await googleRequest(CALENDAR_API_LABEL, accessToken, eventsUrl(input.calendarId), { method: "POST", body: JSON.stringify(body) });
   return toEventSummary(created);
+}
+
+const eventUrl = (calendarId: string | undefined, eventId: string): string => `${eventsUrl(calendarId)}/${encodeURIComponent(eventId)}`;
+
+/** PATCH body for an event edit — only the fields the caller actually supplied.
+ *
+ *  `undefined` means "leave as is" and `""` means "clear it", so the two cannot
+ *  be collapsed: dropping `description: ""` would silently ignore a request to
+ *  empty the body text. Pure so the distinction is testable without network. */
+export const buildEventPatch = (input: UpdateCalendarEventInput): Record<string, unknown> => ({
+  ...(input.summary !== undefined ? { summary: input.summary } : {}),
+  ...(input.description !== undefined ? { description: input.description } : {}),
+  ...(input.startDateTime !== undefined ? { start: { dateTime: input.startDateTime } } : {}),
+  ...(input.endDateTime !== undefined ? { end: { dateTime: input.endDateTime } } : {}),
+  ...(input.colorId ? { colorId: input.colorId } : {}),
+});
+
+/** Edit an existing event in place. PATCH, not PUT — a PUT would need the whole
+ *  event and would drop every field the caller never read (attendees,
+ *  reminders, recurrence). */
+export async function updateCalendarEvent(accessToken: string, input: UpdateCalendarEventInput): Promise<CalendarEventSummary> {
+  const url = eventUrl(input.calendarId, input.eventId);
+  const updated = await googleRequest(CALENDAR_API_LABEL, accessToken, url, { method: "PATCH", body: JSON.stringify(buildEventPatch(input)) });
+  return toEventSummary(updated);
+}
+
+/** Remove an event. Google answers 204 with no body, so there is nothing to
+ *  return; a second delete of the same id answers 410, which surfaces as a
+ *  GoogleApiError rather than being swallowed. */
+export async function deleteCalendarEvent(accessToken: string, input: DeleteCalendarEventInput): Promise<void> {
+  await googleRequest(CALENDAR_API_LABEL, accessToken, eventUrl(input.calendarId, input.eventId), { method: "DELETE" });
 }
 
 export async function listCalendarEvents(accessToken: string, input: ListEventsInput = {}): Promise<CalendarEventSummary[]> {

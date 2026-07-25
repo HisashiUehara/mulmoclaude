@@ -28,9 +28,11 @@ export {
 export { createGoogleAuthFlow, googleAuthFlow, type GoogleAuthFlow, type GoogleAuthFlowStatus } from "./authFlow.js";
 export { googleApiError, isGoogleApiError, GoogleApiError, DEFAULT_LIST_MAX_RESULTS, MAX_LIST_RESULTS } from "./apiClient.js";
 export {
+  buildEventPatch,
   calendarApiError,
   collectCalendarPages,
   createCalendarEvent,
+  deleteCalendarEvent,
   getCalendarColors,
   canonicalCalendarId,
   listCalendarEvents,
@@ -38,6 +40,7 @@ export {
   syncCalendarEvents,
   toCalendarSummary,
   toEventSummary,
+  updateCalendarEvent,
   type CalendarColorEntry,
   type CalendarColors,
   type CalendarEventInput,
@@ -45,8 +48,10 @@ export {
   type CalendarListPage,
   type CalendarSummary,
   type CalendarSyncResult,
+  type DeleteCalendarEventInput,
   type ListEventsInput,
   type SyncEventsInput,
+  type UpdateCalendarEventInput,
 } from "./calendar.js";
 export { calendarSyncStatePath, clearCalendarSyncToken, loadCalendarSyncToken, saveCalendarSyncToken } from "./calendarSyncStore.js";
 export { toCollectionDateTime } from "./collectionDateTime.js";
@@ -72,6 +77,8 @@ export {
   type ManualCalendarSyncOutcome,
 } from "./collectionSync.js";
 export {
+  buildTaskPatch,
+  canonicalTaskListId,
   completeTask,
   createTask,
   deleteTask,
@@ -79,11 +86,13 @@ export {
   listTasks,
   toTaskListSummary,
   toTaskSummary,
+  updateTask,
   type CompleteTaskInput,
   type CreateTaskInput,
   type ListTasksInput,
   type TaskListSummary,
   type TaskSummary,
+  type UpdateTaskInput,
 } from "./tasks.js";
 export {
   assertSafeMimeType,

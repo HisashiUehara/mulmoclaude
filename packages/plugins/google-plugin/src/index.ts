@@ -14,6 +14,8 @@ import {
   createCalendarEvent,
   createDriveFile,
   createTask,
+  deleteCalendarEvent,
+  deleteTask,
   getCalendarColors,
   getGoogleAccessToken,
   listCalendarEvents,
@@ -26,6 +28,8 @@ import {
   readDriveFile,
   saveCalendarSyncToken,
   syncCalendarEvents,
+  updateCalendarEvent,
+  updateTask,
   DEFAULT_LIST_MAX_RESULTS,
   type CalendarSyncResult,
 } from "@mulmoclaude/core/google";
@@ -113,6 +117,24 @@ export default definePlugin(({ log }) => {
         log.info("calendar event created", { id: event.id });
         return { ok: true, event };
       }
+      case "calendarUpdateEvent": {
+        const event = await updateCalendarEvent(await getGoogleAccessToken(), {
+          eventId: args.eventId,
+          summary: args.summary,
+          startDateTime: args.start,
+          endDateTime: args.end,
+          description: args.description,
+          calendarId: args.calendarId,
+          colorId: args.colorId,
+        });
+        log.info("calendar event updated", { id: event.id });
+        return { ok: true, event };
+      }
+      case "calendarDeleteEvent": {
+        await deleteCalendarEvent(await getGoogleAccessToken(), { eventId: args.eventId, calendarId: args.calendarId });
+        log.info("calendar event deleted", { id: args.eventId });
+        return { ok: true, deleted: args.eventId };
+      }
       case "taskListsList": {
         return { ok: true, taskLists: await listTaskLists(await getGoogleAccessToken()) };
       }
@@ -134,9 +156,25 @@ export default definePlugin(({ log }) => {
         log.info("task created", { id: task.id });
         return { ok: true, task };
       }
+      case "tasksUpdate": {
+        const task = await updateTask(await getGoogleAccessToken(), {
+          taskId: args.taskId,
+          title: args.title,
+          notes: args.notes,
+          due: args.due,
+          taskListId: args.taskListId,
+        });
+        log.info("task updated", { id: task.id });
+        return { ok: true, task };
+      }
       case "tasksComplete": {
         const task = await completeTask(await getGoogleAccessToken(), { taskId: args.taskId, taskListId: args.taskListId });
         return { ok: true, task };
+      }
+      case "tasksDelete": {
+        await deleteTask(await getGoogleAccessToken(), { taskId: args.taskId, taskListId: args.taskListId });
+        log.info("task deleted", { id: args.taskId });
+        return { ok: true, deleted: args.taskId };
       }
       case "driveList": {
         const files = await listDriveFiles(await getGoogleAccessToken(), { maxResults: args.maxResults ?? DEFAULT_LIST_MAX_RESULTS });

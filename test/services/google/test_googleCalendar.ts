@@ -3,7 +3,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { calendarApiError, collectCalendarPages, toCalendarSummary, toEventSummary, type CalendarListPage } from "@mulmoclaude/core/google";
+import { buildEventPatch, calendarApiError, collectCalendarPages, toCalendarSummary, toEventSummary, type CalendarListPage } from "@mulmoclaude/core/google";
 
 const emptyEvent = { id: "", summary: "", start: "", end: "", htmlLink: "", status: "", colorId: "" };
 
@@ -125,6 +125,52 @@ describe("collectCalendarPages", () => {
     }, 3);
     assert.equal(calls, 3);
     assert.equal(calendars.length, 3);
+  });
+});
+
+describe("buildEventPatch (#2569)", () => {
+  it("sends only what the caller asked to change", () => {
+    assert.deepEqual(buildEventPatch({ eventId: "e1", summary: "Renamed" }), { summary: "Renamed" });
+  });
+
+  it("sends nothing when nothing changed — eventId and calendarId address, they do not edit", () => {
+    assert.deepEqual(buildEventPatch({ eventId: "e1", calendarId: "team@group.calendar.google.com" }), {});
+  });
+
+  // The whole reason the builder can't use truthiness: "" is a request to
+  // empty the body, and dropping it would silently ignore the edit.
+  it('keeps description: "" — it clears the body', () => {
+    assert.deepEqual(buildEventPatch({ eventId: "e1", description: "" }), { description: "" });
+  });
+
+  // Deliberate asymmetry with `description`: Calendar rejects colorId "" as a
+  // bad palette id, and the arg layer already refuses it, so falsy means omit.
+  it('drops colorId: "" rather than sending an invalid palette id', () => {
+    assert.deepEqual(buildEventPatch({ eventId: "e1", summary: "x", colorId: "" }), { summary: "x" });
+  });
+
+  it("wraps the times the way the API expects", () => {
+    assert.deepEqual(buildEventPatch({ eventId: "e1", startDateTime: "2026-07-17T09:00:00+09:00", endDateTime: "2026-07-17T10:00:00+09:00" }), {
+      start: { dateTime: "2026-07-17T09:00:00+09:00" },
+      end: { dateTime: "2026-07-17T10:00:00+09:00" },
+    });
+  });
+
+  it("moves one end of the event without touching the other", () => {
+    assert.deepEqual(buildEventPatch({ eventId: "e1", endDateTime: "2026-07-17T11:00:00+09:00" }), { end: { dateTime: "2026-07-17T11:00:00+09:00" } });
+  });
+
+  it("carries every field together", () => {
+    const patch = buildEventPatch({
+      eventId: "e1",
+      summary: "S",
+      description: "D",
+      startDateTime: "2026-07-17T09:00:00Z",
+      endDateTime: "2026-07-17T10:00:00Z",
+      colorId: "7",
+      calendarId: "ignored",
+    });
+    assert.deepEqual(Object.keys(patch).sort(), ["colorId", "description", "end", "start", "summary"]);
   });
 });
 

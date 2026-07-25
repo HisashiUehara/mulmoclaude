@@ -41,6 +41,17 @@ export interface CompleteTaskInput {
   taskListId?: string;
 }
 
+export interface UpdateTaskInput {
+  taskId: string;
+  title?: string;
+  /** `""` clears the notes; omit to leave them untouched. */
+  notes?: string;
+  /** RFC3339. Same DATE-only caveat as `CreateTaskInput.due`. Google rejects
+   *  `""`, so a due date can be changed but not removed through this call. */
+  due?: string;
+  taskListId?: string;
+}
+
 export const toTaskListSummary = (value: unknown): TaskListSummary => {
   const record = asRecord(value);
   return { id: stringField(record, "id"), title: stringField(record, "title") };
@@ -57,8 +68,14 @@ export const toTaskSummary = (value: unknown): TaskSummary => {
   };
 };
 
+/** Resolve a declared taskListId to the one the API addresses. `||` (not `??`)
+ *  so a blank string also falls back instead of building a malformed
+ *  `/lists//tasks` URL — the same rule, and the same reason, as
+ *  `canonicalCalendarId`. */
+export const canonicalTaskListId = (taskListId: string | undefined): string => taskListId?.trim() || DEFAULT_TASK_LIST_ID;
+
 const tasksUrl = (taskListId: string | undefined, suffix = ""): string =>
-  `${TASKS_BASE_URL}/lists/${encodeURIComponent(taskListId ?? DEFAULT_TASK_LIST_ID)}/tasks${suffix}`;
+  `${TASKS_BASE_URL}/lists/${encodeURIComponent(canonicalTaskListId(taskListId))}/tasks${suffix}`;
 
 export async function listTaskLists(accessToken: string): Promise<TaskListSummary[]> {
   const listed = await googleRequest(TASKS_API_LABEL, accessToken, `${TASKS_BASE_URL}/users/@me/lists?maxResults=${MAX_TASK_LISTS}`);
@@ -78,6 +95,22 @@ export async function createTask(accessToken: string, input: CreateTaskInput): P
   const body = { title: input.title, notes: input.notes, due: input.due };
   const created = await googleRequest(TASKS_API_LABEL, accessToken, tasksUrl(input.taskListId), { method: "POST", body: JSON.stringify(body) });
   return toTaskSummary(created);
+}
+
+/** PATCH body for a task edit — only the fields the caller supplied. As with
+ *  events, `undefined` means "leave as is" and `""` means "clear it", so the
+ *  two must stay distinct. `status` is deliberately absent: `completeTask`
+ *  owns that transition, and two ways to set it would drift apart. */
+export const buildTaskPatch = (input: UpdateTaskInput): Record<string, unknown> => ({
+  ...(input.title !== undefined ? { title: input.title } : {}),
+  ...(input.notes !== undefined ? { notes: input.notes } : {}),
+  ...(input.due !== undefined ? { due: input.due } : {}),
+});
+
+export async function updateTask(accessToken: string, input: UpdateTaskInput): Promise<TaskSummary> {
+  const url = tasksUrl(input.taskListId, `/${encodeURIComponent(input.taskId)}`);
+  const updated = await googleRequest(TASKS_API_LABEL, accessToken, url, { method: "PATCH", body: JSON.stringify(buildTaskPatch(input)) });
+  return toTaskSummary(updated);
 }
 
 export async function completeTask(accessToken: string, input: CompleteTaskInput): Promise<TaskSummary> {
