@@ -1,0 +1,67 @@
+// Unit tests for the dev backend supervisor's restart policy
+// (`scripts/dev-server.mjs`). The script itself is JS; we import the pure
+// helpers (no spawn, no process.argv reading) and drive them directly.
+//
+// Why this matters: before the supervisor, one backend crash mid-session
+// turned every client request into `ECONNREFUSED` and `concurrently -k`
+// then killed the whole `yarn dev`. The policy below is what makes that a
+// blip — while still failing loudly when the backend simply can't boot.
+
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { crashHint, describeExit, restartPlan } from "../../scripts/dev-server.mjs";
+
+describe("restartPlan", () => {
+  it("restarts briskly after a backend that ran a while", () => {
+    const plan = restartPlan({ ranForMs: 60_000, prevDelayMs: 4000, fastCrashes: 3 });
+    assert.equal(plan.action, "restart");
+    assert.equal(plan.delayMs, 300);
+    // A long-lived run clears the crash-loop counter — this was a one-off.
+    assert.equal(plan.fastCrashes, 0);
+  });
+
+  it("backs off exponentially while crashes keep coming fast", () => {
+    const first = restartPlan({ ranForMs: 100, prevDelayMs: 0, fastCrashes: 0 });
+    assert.deepEqual(first, { action: "restart", delayMs: 300, fastCrashes: 1 });
+    const second = restartPlan({ ranForMs: 100, prevDelayMs: first.delayMs, fastCrashes: first.fastCrashes });
+    assert.deepEqual(second, { action: "restart", delayMs: 600, fastCrashes: 2 });
+    const third = restartPlan({ ranForMs: 100, prevDelayMs: second.delayMs, fastCrashes: second.fastCrashes });
+    assert.deepEqual(third, { action: "restart", delayMs: 1200, fastCrashes: 3 });
+  });
+
+  it("caps the backoff", () => {
+    const plan = restartPlan({ ranForMs: 100, prevDelayMs: 4000, fastCrashes: 1 });
+    assert.equal(plan.delayMs, 5000);
+  });
+
+  // A backend that can never boot must fail loudly rather than respawn
+  // forever behind a wall of identical stack traces.
+  it("gives up after five consecutive fast crashes", () => {
+    const plan = restartPlan({ ranForMs: 100, prevDelayMs: 5000, fastCrashes: 4 });
+    assert.equal(plan.action, "giveup");
+    assert.equal(plan.fastCrashes, 5);
+  });
+});
+
+describe("describeExit", () => {
+  it("names the signal when the child was killed", () => {
+    assert.equal(describeExit(null, "SIGKILL"), "signal SIGKILL");
+  });
+
+  it("falls back to the exit code", () => {
+    assert.equal(describeExit(1, null), "code 1");
+  });
+});
+
+describe("crashHint", () => {
+  // Every dev crash captured so far is a V8 heap OOM, which reaches us as a
+  // bare SIGABRT with no JS stack — the hint is the only breadcrumb.
+  it("calls out a heap OOM on SIGABRT", () => {
+    assert.match(crashHint("SIGABRT"), /heap OOM/);
+  });
+
+  it("stays quiet for exits that explain themselves", () => {
+    assert.equal(crashHint("SIGTERM"), "");
+    assert.equal(crashHint(null), "");
+  });
+});
