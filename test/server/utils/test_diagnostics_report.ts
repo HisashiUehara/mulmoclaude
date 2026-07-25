@@ -117,6 +117,31 @@ describe("shortenHome", () => {
     assert.equal(shortenHome("Workspace: /home/alice/ws", "/home/alice"), "Workspace: ~/ws");
   });
 
+  it("treats a separator as an end boundary but never as a start one", () => {
+    // The asymmetry is deliberate and easy to undo: `/home/alice` + `/ws` is
+    // the home directory, but `x/` + `/home/alice` is not — a separator before
+    // the match means the home path is the tail of a longer one. Adding a
+    // separator to PATH_START_RE would look symmetrical and be wrong.
+    assert.equal(shortenHome("/home/alice/ws", "/home/alice"), "~/ws");
+    assert.equal(shortenHome("x//home/alice", "/home/alice"), "x//home/alice");
+  });
+
+  it("treats a closing bracket as an end boundary but never an opening one", () => {
+    // The mirror asymmetry, and the one a future "make the two lists match"
+    // cleanup would break: prose wraps a path as `(/home/alice)`, so an opener
+    // may START a path — but a directory can genuinely be named `alice(x)`, so
+    // an opener may never END one.
+    assert.equal(shortenHome("(/home/alice)", "/home/alice"), "(~)");
+    assert.equal(shortenHome("/home/alice(x)/ws", "/home/alice"), "/home/alice(x)/ws");
+  });
+
+  it("reads both boundaries from the input, not from its own partial output", () => {
+    // Once the first match becomes `~`, the characters around a later match no
+    // longer describe the input. `~/home/alice` is the right answer here: a
+    // directory literally named `home/alice` beneath the user's home.
+    assert.equal(shortenHome("/home/alice/home/alice", "/home/alice"), "~/home/alice");
+  });
+
   it("does not shorten siblings using punctuation that is legal in a directory name", () => {
     // The first fix classified path characters as `[\w.-]`, which mangled every
     // sibling built with anything else. Almost any byte is legal in a directory
