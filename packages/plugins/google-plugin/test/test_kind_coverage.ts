@@ -14,12 +14,11 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 
 /** The `kind` literal of one union member.
  *
- *  A Zod discriminated union has no public API for enumerating its members, so
- *  this reads `def.options` and each member's shape. `.refine()`d members
- *  (the update kinds) still expose `shape`. If a Zod upgrade changes either,
- *  this returns nothing and the coverage assertions below fail loudly — which
- *  is the point: a guard that quietly degrades to an empty list is worse than
- *  no guard.
+ *  Reads the member's shape rather than re-declaring the list. `.refine()`d
+ *  members (the update kinds) still expose `shape`. If a Zod upgrade changes
+ *  that, this returns nothing and the coverage assertions below fail loudly —
+ *  which is the point: a guard that quietly degrades to an empty list is worse
+ *  than no guard.
  */
 const literalKindOf = (option: unknown): string | null => {
   if (!isRecord(option)) return null;
@@ -28,11 +27,7 @@ const literalKindOf = (option: unknown): string | null => {
   return kind !== null && typeof kind.value === "string" ? kind.value : null;
 };
 
-const schemaKinds = (): string[] => {
-  const def: unknown = isRecord(GoogleArgs) ? GoogleArgs.def : null;
-  const options = isRecord(def) && Array.isArray(def.options) ? def.options : [];
-  return options.map(literalKindOf).filter((kind): kind is string => kind !== null);
-};
+const schemaKinds = (): string[] => GoogleArgs.options.map(literalKindOf).filter((kind): kind is string => kind !== null);
 
 const definitionKinds = (): string[] => {
   const kind = TOOL_DEFINITION.parameters.properties.kind;

@@ -45,8 +45,8 @@ caller never read (attendees, reminders, recurrence).
 - **`tasksUpdate` cannot set status.** `tasksComplete` owns that transition;
   two ways to set it would drift. Un-completing a task therefore remains
   impossible — left out deliberately, worth its own issue if anyone asks.
-- **`due` can be changed but not cleared** — Google rejects `""` there. Recorded
-  as a comment on `UpdateTaskInput`.
+- **`due` can be changed but not cleared** — Google rejects `""` there. The
+  limitation is recorded as a comment on `UpdateTaskInput` and in the help doc.
 
 ## Tests
 

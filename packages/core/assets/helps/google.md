@@ -1,8 +1,9 @@
 # The `google` tool — Calendar, Tasks and Drive
 
 One tool, one `kind` per operation, against the Google account the user linked
-on this machine. The refresh token lives in `~/.config/mulmo/` and never leaves
-the machine; this is independent of any claude.ai Google connector.
+on this machine. The refresh token is stored locally in `~/.config/mulmo/` and
+goes only to Google, to mint access tokens — never to claude.ai or any other
+service. This works with no claude.ai Google connector involved.
 
 Call `kind: "status"` when unsure whether the account is linked. If a call fails
 with "Google account not linked", ask the user to link it in settings and retry
@@ -59,7 +60,7 @@ Operate on the user's default task list unless `taskListId` is given.
 | `taskListsList` | The user's task lists (`id`, `title`). Only needed for a non-default list |
 | `tasksList` | List tasks. Optional `taskListId`, `maxResults` (1-50, default 10), `showCompleted` (default false) |
 | `tasksCreate` | Add a task. Requires `title`; optional `notes`, `due`, `taskListId` |
-| `tasksUpdate` | Edit. Requires `taskId` + at least one of `title`, `notes`, `due`. `notes: ""` clears them |
+| `tasksUpdate` | Edit. Requires `taskId` + at least one of `title`, `notes`, `due`. `notes: ""` clears them; `due` can be changed but **not** cleared |
 | `tasksComplete` | Mark done. Requires `taskId` |
 | `tasksDelete` | Delete. Requires `taskId` — not reversible, so confirm first |
 
@@ -70,8 +71,11 @@ ignored, so never promise the user a time of day on a task.
 
 ## Drive
 
-Scoped to `drive.file`: this app can see **only the files it created itself**,
-never the user's wider Drive. Never claim to have searched their Drive.
+In practice this app sees **only the files it created itself**, never the user's
+wider Drive. Never claim to have searched their Drive.
+
+(The `drive.file` scope also covers files the user hands to an app through a
+Google Picker, but this app has no Picker — so app-created is the whole set.)
 
 | kind | What it does |
 | --- | --- |
