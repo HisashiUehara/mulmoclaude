@@ -65,6 +65,7 @@ import { resolveThumbnail } from "../../utils/files/thumbnail-store.js";
 import { badRequest, notFound, conflict, forbidden, methodNotAllowed, serverError, serviceUnavailable, type ApiResponse } from "../../utils/httpError.js";
 import { ONE_MINUTE_MS } from "../../utils/time.js";
 import { errorMessage } from "../../utils/errors.js";
+import { singleLineForLog } from "../../utils/logPreview.js";
 import { log } from "../../system/logger/index.js";
 import { workspacePath } from "../../workspace/workspace.js";
 import { refreshOne } from "@mulmoclaude/core/feeds/server";
@@ -518,7 +519,7 @@ async function respondForMutateAction(
     // crafted id can't forge log lines, same pattern as the view routes.
     log.info("collections", "mutate action refused", {
       slug: collection.slug,
-      itemId: itemId.replace(/[\r\n]/g, " "),
+      itemId: singleLineForLog(itemId),
       actionId: action.id,
       status: outcome.status,
       problem: outcome.problem,
@@ -529,7 +530,7 @@ async function respondForMutateAction(
     else badRequest(res, outcome.problem);
     return;
   }
-  log.info("collections", "mutate action applied", { slug: collection.slug, itemId: itemId.replace(/[\r\n]/g, " "), actionId: action.id });
+  log.info("collections", "mutate action applied", { slug: collection.slug, itemId: singleLineForLog(itemId), actionId: action.id });
   res.json({ written: true, itemId, item: outcome.item });
 }
 
@@ -578,14 +579,19 @@ router.post(
         serverError(res, `template '${action.template}' for action '${action.id}' could not be read`);
         return;
       }
-      log.info("collections", "action seed built", { slug: collection.slug, itemId: req.params.itemId, actionId: action.id, kind: action.kind });
+      log.info("collections", "action seed built", {
+        slug: collection.slug,
+        itemId: singleLineForLog(req.params.itemId),
+        actionId: action.id,
+        kind: action.kind,
+      });
       const seed = { prompt: buildActionSeedPrompt(record, template, promptPathsFor(collection, workspacePath)), role: action.role };
       await respondForActionKind(res, collection, action, seed, req.params.itemId);
     } catch (err) {
       log.warn("collections", "action seed failed", {
         slug: collection.slug,
-        itemId: req.params.itemId,
-        actionId: req.params.actionId,
+        itemId: singleLineForLog(req.params.itemId),
+        actionId: singleLineForLog(req.params.actionId),
         error: errorMessage(err),
       });
       serverError(res, errorMessage(err));
@@ -850,8 +856,8 @@ router.get(API_ROUTES.collections.remoteViewItems, async (req: Request<{ slug: s
     // Strip CR/LF from request-derived params before logging (log-injection
     // resistance, same convention as the view-i18n handler below).
     log.warn("collections", "remote-view items failed", {
-      slug: req.params.slug.replace(/[\r\n]/g, " "),
-      viewId: req.params.viewId.replace(/[\r\n]/g, " "),
+      slug: singleLineForLog(req.params.slug),
+      viewId: singleLineForLog(req.params.viewId),
       error: errorMessage(err),
     });
     serverError(res, errorMessage(err));
@@ -885,7 +891,7 @@ router.get(API_ROUTES.collections.viewI18n, async (req: Request<{ slug: string }
     // slugs above (so this path always has a safe slug in practice), but
     // belt-and-suspenders for log-injection / forged-line resistance per
     // CodeRabbit review on #1842.
-    log.warn("collections", "view-i18n read failed", { slug: req.params.slug.replace(/[\r\n]/g, " "), error: errorMessage(err) });
+    log.warn("collections", "view-i18n read failed", { slug: singleLineForLog(req.params.slug), error: errorMessage(err) });
     serverError(res, errorMessage(err));
   }
 });
@@ -997,7 +1003,7 @@ router.post(
       // Log the detail server-side; the token holder gets a FIXED message —
       // a raw DuckDB error can carry absolute paths / host internals, and a
       // scoped view is not a trusted audience for those.
-      log.warn("collections", "view-data query failed", { slug: req.params.slug.replace(/[\r\n]/g, " "), error: errorMessage(err) });
+      log.warn("collections", "view-data query failed", { slug: singleLineForLog(req.params.slug), error: errorMessage(err) });
       serverError(res, "collection query failed");
     }
   },
@@ -1141,8 +1147,8 @@ router.post(
       // Route params are caller-controlled — strip CR/LF so a crafted
       // slug/actionId can't forge log lines (same pattern as viewI18n).
       log.warn("collections", "view mutate action failed", {
-        slug: req.params.slug.replace(/[\r\n]/g, " "),
-        actionId: req.params.actionId.replace(/[\r\n]/g, " "),
+        slug: singleLineForLog(req.params.slug),
+        actionId: singleLineForLog(req.params.actionId),
         error: errorMessage(err),
       });
       serverError(res, errorMessage(err));

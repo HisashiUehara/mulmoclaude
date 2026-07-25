@@ -7,12 +7,20 @@
 //   POST   /api/scheduler/tasks/:id/run — manual trigger
 //   GET    /api/scheduler/logs         — execution log (newest first)
 
-import { Router, type Request, type Response } from "express";
+import { Router, type Request } from "express";
 import { getSchedulerTasks, getSchedulerLogs, getSchedulerTaskState } from "../../events/scheduler-adapter.js";
 import type { TaskLogEntry } from "@receptron/task-scheduler";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { bindRoute } from "../../utils/router.js";
-import { loadUserTasks, validateAndCreate, applyUpdate, withUserTaskLock, runUserTaskNow, userTaskManagerId } from "../../workspace/skills/user-tasks.js";
+import {
+  loadUserTasks,
+  validateAndCreate,
+  applyUpdate,
+  withUserTaskLock,
+  runUserTaskNow,
+  userTaskManagerId,
+  type PersistedUserTask,
+} from "../../workspace/skills/user-tasks.js";
 import { getScheduledSkills, runScheduledSkillNow } from "../../workspace/skills/scheduler.js";
 import { badRequest, notFound, type ApiResponse } from "../../utils/httpError.js";
 import { errorMessage } from "../../utils/errors.js";
@@ -73,7 +81,7 @@ bindRoute(
 bindRoute(
   router,
   API_ROUTES.scheduler.taskUpdate,
-  asyncHandler<Request<{ id: string }>, Response>("scheduler-tasks", "Failed to update task", async (req, res) => {
+  asyncHandler<Request<{ id: string }>, ApiResponse<{ task: PersistedUserTask | undefined }>>("scheduler-tasks", "Failed to update task", async (req, res) => {
     const { id: taskId } = req.params;
     log.info("scheduler-tasks", "update: start", { taskId });
     try {
@@ -106,7 +114,7 @@ bindRoute(
 bindRoute(
   router,
   API_ROUTES.scheduler.taskDelete,
-  asyncHandler<Request<{ id: string }>, Response>("scheduler-tasks", "Failed to delete task", async (req, res) => {
+  asyncHandler<Request<{ id: string }>, ApiResponse<{ deleted: string }>>("scheduler-tasks", "Failed to delete task", async (req, res) => {
     const { id: taskId } = req.params;
     log.info("scheduler-tasks", "delete: start", { taskId });
     try {
@@ -135,35 +143,39 @@ bindRoute(
 bindRoute(
   router,
   API_ROUTES.scheduler.taskRun,
-  asyncHandler<Request<{ id: string }>, Response>("scheduler-tasks", "Failed to run task", async (req, res) => {
-    const { id: taskId } = req.params;
-    log.info("scheduler-tasks", "run: start", { taskId });
+  asyncHandler<Request<{ id: string }>, ApiResponse<{ triggered: string; chatSessionId?: string }>>(
+    "scheduler-tasks",
+    "Failed to run task",
+    async (req, res) => {
+      const { id: taskId } = req.params;
+      log.info("scheduler-tasks", "run: start", { taskId });
 
-    // User task (unprefixed id) — dispatch its prompt + record the run.
-    const userChatSessionId = await runUserTaskNow(taskId);
-    if (userChatSessionId) {
-      log.info("scheduler-tasks", "run: user task triggered", { taskId, chatSessionId: userChatSessionId });
-      res.json({ triggered: taskId, chatSessionId: userChatSessionId });
-      return;
-    }
+      // User task (unprefixed id) — dispatch its prompt + record the run.
+      const userChatSessionId = await runUserTaskNow(taskId);
+      if (userChatSessionId) {
+        log.info("scheduler-tasks", "run: user task triggered", { taskId, chatSessionId: userChatSessionId });
+        res.json({ triggered: taskId, chatSessionId: userChatSessionId });
+        return;
+      }
 
-    // Skill task (`skill.<name>` id) — dispatch `/skill-name` + record the run.
-    const skillChatSessionId = await runScheduledSkillNow(taskId);
-    if (skillChatSessionId) {
-      log.info("scheduler-tasks", "run: skill task triggered", { taskId, chatSessionId: skillChatSessionId });
-      res.json({ triggered: taskId, chatSessionId: skillChatSessionId });
-      return;
-    }
+      // Skill task (`skill.<name>` id) — dispatch `/skill-name` + record the run.
+      const skillChatSessionId = await runScheduledSkillNow(taskId);
+      if (skillChatSessionId) {
+        log.info("scheduler-tasks", "run: skill task triggered", { taskId, chatSessionId: skillChatSessionId });
+        res.json({ triggered: taskId, chatSessionId: skillChatSessionId });
+        return;
+      }
 
-    // System tasks have no prompt to dispatch; everything else is unknown.
-    if (getSchedulerTasks().some((task) => task.id === taskId)) {
-      log.warn("scheduler-tasks", "run: refused (system task)", { taskId });
-      badRequest(res, "manual run is only supported for user and skill tasks");
-      return;
-    }
-    log.warn("scheduler-tasks", "run: not found", { taskId });
-    notFound(res, `task not found: ${taskId}`);
-  }),
+      // System tasks have no prompt to dispatch; everything else is unknown.
+      if (getSchedulerTasks().some((task) => task.id === taskId)) {
+        log.warn("scheduler-tasks", "run: refused (system task)", { taskId });
+        badRequest(res, "manual run is only supported for user and skill tasks");
+        return;
+      }
+      log.warn("scheduler-tasks", "run: not found", { taskId });
+      notFound(res, `task not found: ${taskId}`);
+    },
+  ),
 );
 
 // ── Execution logs ──────────────────────────────────────────────
