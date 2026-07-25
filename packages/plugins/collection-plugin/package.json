@@ -61,5 +61,15 @@
     "vue-i18n": "^11.4.7",
     "vue-tsc": "^3.3.8"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "collections",
+    "schema-driven",
+    "crud",
+    "mulmoclaude",
+    "mulmoclaude-plugin",
+    "gui-chat-protocol",
+    "claude-code",
+    "mulmoterminal"
+  ]
 }

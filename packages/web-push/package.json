@@ -28,5 +28,21 @@
   "author": "Receptron Team",
   "devDependencies": {
     "typescript": "^6.0.3"
+  },
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/web-push#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/web-push"
+  },
+  "keywords": [
+    "web-push",
+    "fcm",
+    "push-notification",
+    "mulmoterminal",
+    "mulmoclaude"
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
   }
 }

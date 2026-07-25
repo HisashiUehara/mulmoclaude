@@ -34,5 +34,23 @@
     "@types/express": "^5.0.0",
     "@types/node": "^26.1.1",
     "typescript": "^6.0.3"
+  },
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/messenger#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/bridges/messenger"
+  },
+  "keywords": [
+    "facebook-messenger",
+    "messenger",
+    "mulmobridge",
+    "chatbot",
+    "bridge",
+    "ai-agent",
+    "mulmoclaude"
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
   }
 }

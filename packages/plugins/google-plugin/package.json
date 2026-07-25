@@ -45,5 +45,17 @@
     "vite-plugin-dts": "^5.0.3",
     "zod": "^4.4.3"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "google",
+    "google-calendar",
+    "google-tasks",
+    "google-drive",
+    "oauth",
+    "mulmoclaude",
+    "mulmoclaude-plugin",
+    "gui-chat-protocol",
+    "claude-code",
+    "mulmoterminal"
+  ]
 }

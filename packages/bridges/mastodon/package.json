@@ -33,5 +33,23 @@
     "@types/ws": "^8.18.1",
     "tsx": "^4.23.1",
     "typescript": "^6.0.3"
+  },
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/mastodon#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/bridges/mastodon"
+  },
+  "keywords": [
+    "mastodon",
+    "activitypub",
+    "mulmobridge",
+    "chatbot",
+    "bridge",
+    "ai-agent",
+    "mulmoclaude"
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
   }
 }

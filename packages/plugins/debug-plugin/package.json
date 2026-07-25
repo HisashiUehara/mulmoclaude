@@ -36,5 +36,22 @@
     "vue": "^3.5.40",
     "zod": "^4.4.3"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/plugins/debug-plugin#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/plugins/debug-plugin"
+  },
+  "keywords": [
+    "debug",
+    "playground",
+    "mulmoclaude",
+    "mulmoclaude-plugin",
+    "gui-chat-protocol",
+    "claude-code"
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
+  }
 }

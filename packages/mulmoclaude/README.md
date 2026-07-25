@@ -142,6 +142,14 @@ Server-side `definePlugin` factory edits still require a launcher restart (Node 
 - Architecture, scripts, and the publish flow live in `docs/developer.md` of the repo.
 - Publish flow for this package: see `bin/prepare-dist.js` header comment plus `.claude/skills/publish-mulmoclaude/SKILL.md`.
 
+## Related projects
+
+This launcher is published by [Receptron](https://github.com/receptron), who also build MulmoTerminal below.
+
+- **[MulmoClaude on GitHub](https://github.com/receptron/mulmoclaude)** — source, issues, and the full documentation for the app this package launches.
+- **[MulmoTerminal](https://github.com/receptron/mulmoterminal)** — a terminal-first cockpit for running many AI coding agents in parallel. One roster showing every session's summary and PR status, tmux-backed session persistence, git-worktree isolation, one-click PRs, and mobile push with remote reply.
+- **[MulmoTerminal manual](https://receptron.github.io/mulmoterminal/)** — setup, workflows, feature reference, configuration, mobile notifications, and alternative / local model providers. Available in English and Japanese.
+
 ## License
 
 MIT

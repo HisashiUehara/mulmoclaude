@@ -36,5 +36,22 @@
   "devDependencies": {
     "@types/express": "^5.0.0",
     "typescript": "^6.0.3"
+  },
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/chat-service#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/receptron/mulmoclaude.git",
+    "directory": "packages/chat-service"
+  },
+  "keywords": [
+    "mulmobridge",
+    "chat-service",
+    "socket.io",
+    "express",
+    "ai-agent",
+    "server"
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
   }
 }

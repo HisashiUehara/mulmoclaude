@@ -95,5 +95,9 @@
     "chat",
     "gui",
     "mulmoclaude"
-  ]
+  ],
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/mulmoclaude#readme",
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
+  }
 }
