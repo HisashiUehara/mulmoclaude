@@ -22,3 +22,6 @@ test-results-live/
 
 # Local, machine-only secrets files — never commit
 .twitter_memo
+
+# V8 heap snapshots written by the dev server on near-OOM (scripts/dev-server.mjs)
+*.heapsnapshot
