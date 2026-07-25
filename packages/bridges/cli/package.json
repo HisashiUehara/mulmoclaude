@@ -1,6 +1,6 @@
 {
   "name": "@mulmobridge/cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Interactive CLI bridge for MulmoBridge — talk to MulmoClaude from your terminal",
   "type": "module",
   "main": "./dist/index.js",
@@ -30,7 +30,7 @@
   "license": "MIT",
   "author": "Receptron Team",
   "dependencies": {
-    "@mulmobridge/client": "^1.0.0",
+    "@mulmobridge/client": "^1.0.1",
     "dotenv": "^17.0.0"
   },
   "devDependencies": {
