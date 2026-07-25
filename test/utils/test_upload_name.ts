@@ -4,7 +4,6 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
 
 import { renamedCandidate, sanitizeUploadFilename, uploadRelPath } from "../../server/utils/files/upload-name.js";
 
@@ -99,19 +98,18 @@ describe("renamedCandidate", () => {
 
 // The route returns this string to the client and publishes it as the
 // file-change channel, so it has to look the same on every host. Every case
-// runs against BOTH host join rules — bound to the runner's own `path.join`,
-// the Windows separator rule is invisible outside Windows CI, which is how the
-// backslash form reached main in the first place.
+// runs against BOTH host separators — bound to the runner's own `path.sep`,
+// the Windows rule is invisible outside Windows CI, which is how the backslash
+// form reached main in the first place. The two cases that are deliberately
+// NOT host-independent are called out where they appear.
 describe("uploadRelPath", () => {
-  const hosts = [
-    { name: "posix", join: path.posix.join },
-    { name: "win32", join: path.win32.join },
-  ];
+  const WIN32_SEP = "\\";
+  const POSIX_SEP = "/";
 
   /** Same expectation on every host — that identity IS the contract. */
   function expectOnEveryHost(dirRel: string, filename: string, expected: string): void {
-    for (const host of hosts) {
-      assert.equal(uploadRelPath(dirRel, filename, host.join), expected, `${host.name} host`);
+    for (const sep of [POSIX_SEP, WIN32_SEP]) {
+      assert.equal(uploadRelPath(dirRel, filename, sep), expected, `sep=${JSON.stringify(sep)}`);
     }
   }
 
@@ -123,8 +121,19 @@ describe("uploadRelPath", () => {
     expectOnEveryHost("data/2026/07", "photo.png", "data/2026/07/photo.png");
   });
 
-  it("normalises a Windows-shaped directory from the client", () => {
-    expectOnEveryHost("data\\sub", "photo.png", "data/sub/photo.png");
+  // Deliberately host-dependent, and the one case where "same on every host"
+  // would be WRONG: on Windows `data\sub` is two directories a client echoed
+  // back, but on POSIX a backslash is a legal filename character, so `data\sub`
+  // is one directory and splitting it would send the write elsewhere (#2542).
+  it("normalises a Windows-shaped directory only on Windows", () => {
+    assert.equal(uploadRelPath("data\\sub", "photo.png", WIN32_SEP), "data/sub/photo.png");
+    assert.equal(uploadRelPath("data\\sub", "photo.png", POSIX_SEP), "data\\sub/photo.png");
+  });
+
+  // Only `dirRel` crosses to POSIX; the filename is appended as one segment and
+  // is never rewritten. Host-independent because `sep` never reaches it.
+  it("keeps a literal backslash in the filename on every host", () => {
+    expectOnEveryHost("data", "we\\ird.txt", "data/we\\ird.txt");
   });
 
   it("returns the bare filename at the workspace root", () => {
@@ -152,11 +161,16 @@ describe("uploadRelPath", () => {
     expectOnEveryHost("/etc", "passwd", "/etc/passwd");
   });
 
-  it("keeps a Windows drive-absolute dir absolute", () => {
-    expectOnEveryHost("C:\\Windows", "evil.dll", "C:/Windows/evil.dll");
+  // Same asymmetry: on Windows this is a drive-absolute path the resolver must
+  // refuse; on POSIX it is a directory literally named `C:\Windows`, which the
+  // resolver treats as workspace-relative — correctly, because that is what it
+  // is there.
+  it("keeps a Windows drive-absolute dir absolute on Windows", () => {
+    assert.equal(uploadRelPath("C:\\Windows", "evil.dll", WIN32_SEP), "C:/Windows/evil.dll");
+    assert.equal(uploadRelPath("C:\\Windows", "evil.dll", POSIX_SEP), "C:\\Windows/evil.dll");
   });
 
-  it("defaults to the host's own join", () => {
+  it("defaults to the host's own separator", () => {
     assert.equal(uploadRelPath("data", "photo.png"), "data/photo.png");
   });
 });

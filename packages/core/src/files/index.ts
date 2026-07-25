@@ -7,3 +7,4 @@
 export { writeFileAtomic, writeFileAtomicSync, type WriteAtomicOptions } from "./atomic.js";
 export { writeJsonAtomic } from "./json.js";
 export { isEnoent, resolveWithinRoot } from "./safe.js";
+export { toPosixRelPath, joinPosixRelPath } from "./relPath.js";

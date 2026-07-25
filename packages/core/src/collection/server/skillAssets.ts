@@ -10,6 +10,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { getWorkspaceRoot, skillsStagingDir } from "./host";
+import { toPosixRelPath } from "../../files/relPath.js";
 import { isRegularFile, type IoOptions } from "./io";
 import { resolveTemplatePath, safeSlugName } from "./paths";
 import type { CollectionItem, CollectionSchema } from "../core/schema";
@@ -212,7 +213,7 @@ export function promptPathsFor(collection: Pick<LoadedCollection, "slug" | "sche
   // escape sequences and break the invocation. Every legitimate consumer (bash
   // inside the sandbox, cross-platform CLIs) accepts forward slashes on both
   // platforms, so the normalization is one-way safe. Codex review on #1897.
-  const skillDir = raw.split(path.sep).join("/");
+  const skillDir = toPosixRelPath(raw);
   // A `dataSource` collection has no record dir — its data location IS the
   // external file, so that path is the honest value for scripts/templates.
   return { slug: collection.slug, dataPath: collection.schema.dataPath ?? collection.schema.dataSource?.path ?? "", skillDir };

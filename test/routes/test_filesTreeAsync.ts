@@ -185,3 +185,73 @@ describe("listDirShallow", () => {
     assert.deepEqual(node.children, []);
   });
 });
+
+// #2542. `TreeNode.path` is a POSIX contract, and the walk also feeds it to the
+// `ignore` package, which only matches POSIX input. Built with `path.join` it
+// was `dir1\ignored.md` on Windows, so a nested `.gitignore` rule matched
+// nothing and the entries the user marked ignored surfaced in the Files tree.
+//
+// These assert the shape rather than the separator, so they read the same on
+// every host — and they are what goes red on Windows if the walk regresses.
+// The separator rule itself is asserted host-independently in
+// `packages/core/test/files/test_relPath.ts`.
+describe("workspace-relative paths in the tree", () => {
+  let root: string;
+
+  before(async () => {
+    root = await mkdtemp(path.join(tmpdir(), "files-tree-posix-"));
+    await mkdir(path.join(root, "dir1", "keep"), { recursive: true });
+    await mkdir(path.join(root, "dir1", "node_modules"), { recursive: true });
+    await writeFile(path.join(root, "dir1", ".gitignore"), "ignored.md\nnode_modules/\n");
+    await writeFile(path.join(root, "dir1", "b.md"), "b");
+    await writeFile(path.join(root, "dir1", "ignored.md"), "should not surface");
+    await writeFile(path.join(root, "dir1", "node_modules", "pkg.md"), "should not surface");
+    await writeFile(path.join(root, "dir1", "keep", "c.md"), "c");
+  });
+
+  after(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  function flatten(node: TreeNodeShape): TreeNodeShape[] {
+    return [node, ...(node.children ?? []).flatMap(flatten)];
+  }
+
+  /** Match on a substring of the path, not `node.name`: when the walk regresses
+   *  to host-shaped paths, the leaked node's own name comes back as the whole
+   *  `dir1\ignored.md` string, so an equality check on `name` reports "absent"
+   *  for an entry that is very much present. */
+  async function treeMentions(needle: string): Promise<boolean> {
+    const tree = (await buildTreeAsync(root, "")) as TreeNodeShape;
+    return flatten(tree).some((node) => node.path.includes(needle) || node.name.includes(needle));
+  }
+
+  it("honours a nested .gitignore rule", async () => {
+    assert.equal(await treeMentions("ignored.md"), false, "ignored.md leaked into the tree");
+  });
+
+  it("honours a nested directory-only .gitignore rule", async () => {
+    assert.equal(await treeMentions("node_modules"), false, "node_modules leaked into the tree");
+  });
+
+  it("still surfaces the entries the .gitignore does not cover", async () => {
+    assert.equal(await treeMentions("b.md"), true);
+    assert.equal(await treeMentions("c.md"), true);
+  });
+
+  it("reports every nested path POSIX-separated", async () => {
+    const tree = (await buildTreeAsync(root, "")) as TreeNodeShape;
+    const paths = flatten(tree).map((node) => node.path);
+    assert.ok(paths.includes("dir1/keep/c.md"), `expected a POSIX nested path, got: ${paths.join(", ")}`);
+    assert.deepEqual(
+      paths.filter((rel) => rel.includes("\\")),
+      [],
+    );
+  });
+
+  it("reports POSIX paths from the shallow listing too", async () => {
+    const node = (await listDirShallow(path.join(root, "dir1"), "dir1")) as TreeNodeShape;
+    const paths = (node.children ?? []).map((child) => child.path);
+    assert.ok(paths.includes("dir1/b.md"), `expected a POSIX child path, got: ${paths.join(", ")}`);
+  });
+});
