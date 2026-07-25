@@ -44,7 +44,16 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   </head>
   <body>
-    <div id="app"></div>
+    <!--
+      translate="no" (#2561). Material Icons / Material Symbols draw
+      glyphs from *ligatures*, so an icon element's text content is the
+      icon name (`send`, `lightbulb`). Browser page-translation rewrites
+      those text nodes, the ligature stops matching, and every icon-only
+      control renders its name as a word. The chrome is already shipped
+      in 8 locales (VITE_LOCALE), so nothing here needs translating —
+      agent / user content opts back in with translate="yes".
+    -->
+    <div id="app" translate="no"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

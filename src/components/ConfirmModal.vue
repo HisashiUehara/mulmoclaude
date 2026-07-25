@@ -25,6 +25,7 @@
         aria-labelledby="confirm-title"
         aria-describedby="confirm-message"
         data-testid="host-confirm-modal"
+        translate="no"
         @click="onOverlayClick"
       >
         <div class="confirm-card" @click.stop>

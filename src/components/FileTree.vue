@@ -83,6 +83,7 @@
         class="fixed z-50 min-w-32 bg-white border border-gray-200 rounded shadow-md py-1 text-sm"
         :style="{ top: `${menuY}px`, left: `${menuX}px` }"
         data-testid="file-tree-context-menu"
+        translate="no"
         @click.stop
       >
         <button

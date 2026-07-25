@@ -89,6 +89,7 @@
       v-else-if="detail && renderedBody"
       ref="markdownRef"
       class="markdown-content text-gray-700"
+      translate="yes"
       data-testid="skill-body-rendered"
       @click="handleExternalLinkClick"
       v-html="renderedBody"
