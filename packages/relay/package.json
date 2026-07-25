@@ -49,5 +49,8 @@
     "webhook",
     "websocket",
     "offline-queue"
-  ]
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
+  }
 }

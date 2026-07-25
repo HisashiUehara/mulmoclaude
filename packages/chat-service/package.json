@@ -50,5 +50,8 @@
     "express",
     "ai-agent",
     "server"
-  ]
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
+  }
 }

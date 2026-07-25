@@ -65,5 +65,8 @@
     "bridge",
     "chat",
     "ai-agent"
-  ]
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
+  }
 }

@@ -1,8 +1,40 @@
 # @mulmoclaude/collection-plugin
 
-Schema-driven Collections plugin (presentCollection) — the Vue surfaces (chat View/Preview, embeds, calendar, record modal, i18n) for MulmoClaude and MulmoTerminal. The isomorphic engine + node storage engine now live in @mulmoclaude/core/collection and @mulmoclaude/core/collection/server.
+The **Collections** plugin (`presentCollection`) for **MulmoClaude** and
+**MulmoTerminal** — the Vue surfaces for schema-driven data apps: the chat
+View / Preview, page embeds, table / kanban / calendar / day / backlinks views,
+the record modal, and i18n in 8 locales.
 
-A plugin for [MulmoClaude](https://github.com/receptron/mulmoclaude) and [MulmoTerminal](https://github.com/receptron/mulmoterminal) — loaded by the host, not run standalone.
+A collection is an application described by a `schema.json`: fields, relations,
+computed values, action buttons and which views to offer. The agent authors that
+schema when you describe what you want — a restaurant list, an invoice tracker,
+a vocabulary deck — and the records are plain files in your workspace.
+
+The isomorphic engine and the node storage engine live in
+[`@mulmoclaude/core/collection`](https://www.npmjs.com/package/@mulmoclaude/core)
+and `@mulmoclaude/core/collection/server`; this package is the UI half.
+
+## Google Calendar sync
+
+A collection can declare a `googleCalendar` block and mirror one of the user's
+calendars. The host syncs on creation, hourly in the background, and on demand
+from the Sync button in the collection header — with no tool call and no tokens
+spent per refresh.
+
+## About MulmoClaude and MulmoTerminal
+
+- **[MulmoClaude](https://github.com/receptron/mulmoclaude)** — an AI-native
+  application platform built on Claude Code. Chat summons the right GUI for each
+  task (documents, charts, forms, wikis, spreadsheets, 3D scenes), and
+  everything your assistant accumulates stays as plain files in your own
+  workspace, on your own machine.
+- **[MulmoTerminal](https://github.com/receptron/mulmoterminal)** — run a whole
+  team of coding agents from your browser. Many Claude Code / Codex sessions at
+  once in a grid, colour-coded so you see which are working, which need you and
+  which are done, plus git worktrees, one-click PRs and cost readouts. One `npx`
+  command, no Electron, no config.
+
+📖 **User guide**: <https://receptron.github.io/mulmoterminal/> (日本語 / English)
 
 ## Dev loop
 
@@ -11,10 +43,6 @@ yarn workspace @mulmoclaude/collection-plugin run build
 yarn workspace @mulmoclaude/collection-plugin run test
 ```
 
-## Related projects
+## License
 
-Used by both MulmoClaude and MulmoTerminal, and published from the MulmoClaude monorepo by [Receptron](https://github.com/receptron).
-
-- **[MulmoClaude](https://github.com/receptron/mulmoclaude)** — an open-source AI assistant platform that runs on your own computer. Claude Code as the engine, a personal wiki for long-term memory, schema-driven collections for your data, and chat that summons the right GUI (markdown, charts, forms, spreadsheets, wikis) for each task.
-- **[MulmoTerminal](https://github.com/receptron/mulmoterminal)** — a terminal-first cockpit for running many AI coding agents in parallel. One roster showing every session's summary and PR status, tmux-backed session persistence, git-worktree isolation, one-click PRs, and mobile push with remote reply.
-- **[MulmoTerminal manual](https://receptron.github.io/mulmoterminal/)** — setup, workflows, feature reference, configuration, mobile notifications, and alternative / local model providers. Available in English and Japanese.
+MIT

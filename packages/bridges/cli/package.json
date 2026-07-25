@@ -51,5 +51,8 @@
     "bridge",
     "ai-agent",
     "mulmoclaude"
-  ]
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
+  }
 }

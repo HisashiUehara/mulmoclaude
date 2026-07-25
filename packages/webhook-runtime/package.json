@@ -47,5 +47,8 @@
     "express",
     "hmac",
     "rate-limit"
-  ]
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
+  }
 }

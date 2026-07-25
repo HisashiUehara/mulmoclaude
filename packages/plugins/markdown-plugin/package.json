@@ -81,5 +81,8 @@
     "gui-chat-protocol",
     "claude-code",
     "mulmoterminal"
-  ]
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
+  }
 }

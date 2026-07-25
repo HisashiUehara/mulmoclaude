@@ -41,5 +41,8 @@
     "push-notification",
     "mulmoterminal",
     "mulmoclaude"
-  ]
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
+  }
 }

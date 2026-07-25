@@ -34,5 +34,8 @@
     "type": "git",
     "url": "git+https://github.com/receptron/mulmoclaude.git",
     "directory": "packages/create-mulmoclaude-plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
   }
 }

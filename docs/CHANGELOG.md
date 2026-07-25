@@ -10,6 +10,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ---
 
+## Package releases - 2026-07-25
+
+Three shared packages published. No launcher release — these reach `npx mulmoclaude` users on the launcher's next publish.
+
+### `@mulmoclaude/core` 1.4.0
+
+- **Google Calendar / Tasks write API completed** (#2572, closes #2569) — `updateCalendarEvent` / `deleteCalendarEvent` / `updateTask` join the existing create/list/sync calls. Editing is a PATCH; the pure `buildEventPatch` / `buildTaskPatch` builders encode that `undefined` (leave alone) and `""` (clear it) are different, so "remove the description" cannot be silently dropped.
+- **`canonicalTaskListId`** mirrors the existing `canonicalCalendarId` — a blank or whitespace `taskListId` falls back to `@default` instead of building `/lists//tasks`. Pre-existing bug affecting `tasksList` / `tasksCreate` / `tasksComplete`, not only the new calls.
+- **Calendar-backed collections sync on creation and on demand** (#2566, closes #2427) — `syncNewCalendarCollections`, `syncCalendarForCollection`, `unsyncedGroups`, `withKeyedLock` exported for the host.
+- **New agent help `assets/helps/google.md`** — every `google` tool kind, the timezone-offset requirement, patch semantics, failure modes. The calendar-collection help claimed *"there is no calendar tool"*; corrected, and the two now cross-link.
+- Corrected a security claim in both the help and the tool prompt: the refresh token **does** go to Google's token endpoint to mint access tokens. It never goes to claude.ai or any other service.
+- First README for the package, plus `repository` / `homepage` / `bugs` (#2576).
+
+### `@mulmoclaude/google-plugin` 1.1.0
+
+- **Kinds 13 → 17** (#2572, closes #2569): `calendarUpdateEvent`, `calendarDeleteEvent`, `tasksUpdate`, `tasksDelete`. **No re-linking needed** — the OAuth scope was already `calendar.events` (read and write).
+- Update kinds reject a call that changes nothing: an empty PATCH answers 200, which would be reported as a successful edit that never happened.
+- `tasksUpdate` deliberately does not change status (`tasksComplete` owns it), so un-completing a task remains unsupported (#2574).
+- Blank `taskListId` now rejected at the schema layer across all five tasks kinds.
+- New guard test pins the kind list against the tool definition's enum in both directions.
+- README listed 9 kinds with no update/delete; npm description still described Tasks and Drive as future work (#2576).
+
+### `@mulmoclaude/collection-plugin` 1.1.0
+
+- **Sync button for `googleCalendar` collections** (#2566, closes #2427) — on-demand refresh, closing the feeds-parity gap. New i18n keys in all 8 locales.
+- **Record modal made safe from browser page translation** (#2563, closes #2561) — it teleports to `<body>`, outside `#app`, so it did not inherit `translate="no"`; page translation was rewriting Material Icons ligature text into words.
+- `uiContext` sync result gained an optional `removed` count (additive).
+- First README for the package, plus npm metadata (#2576).
+
+---
+
 ## [1.5.0] - 2026-07-25
 
 **The launcher finally delivers the 1.x package line — with a deduplication campaign, a spreadsheet-correctness pass, and four oversized views broken apart behind it.**

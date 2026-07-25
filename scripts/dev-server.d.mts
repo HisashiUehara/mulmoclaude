@@ -1,0 +1,27 @@
+// Type declarations for the JS sibling so `tsc -p test/tsconfig.json`
+// can resolve `import { restartPlan } from "../scripts/dev-server.mjs"`
+// without `allowJs: true`.
+
+export interface RestartPlanInput {
+  /** How long the backend child ran before exiting, in ms. */
+  ranForMs: number;
+  /** The previous backoff delay (0 on the first crash). */
+  prevDelayMs: number;
+  /** Consecutive fast crashes seen so far. */
+  fastCrashes: number;
+}
+
+export interface RestartPlanResult {
+  action: "restart" | "giveup";
+  delayMs: number;
+  fastCrashes: number;
+}
+
+/** Decide whether to respawn the crashed backend, and after how long. */
+export declare function restartPlan(input: RestartPlanInput): RestartPlanResult;
+
+/** Human-readable rendering of a child exit ("code 1" / "signal SIGKILL"). */
+export declare function describeExit(code: number | null, signal: NodeJS.Signals | null): string;
+
+/** Trailing hint naming the likely cause of a signal-only exit; "" when there is none. */
+export declare function crashHint(signal: NodeJS.Signals | null): string;

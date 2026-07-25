@@ -43,5 +43,8 @@
     "recurring-tasks",
     "catch-up",
     "zero-dependency"
-  ]
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
+  }
 }

@@ -44,5 +44,8 @@
     "testing",
     "socket.io",
     "bridge"
-  ]
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
+  }
 }

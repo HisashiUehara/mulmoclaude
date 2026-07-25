@@ -42,5 +42,8 @@
     "chat",
     "ai-agent",
     "types"
-  ]
+  ],
+  "bugs": {
+    "url": "https://github.com/receptron/mulmoclaude/issues"
+  }
 }

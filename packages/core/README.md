@@ -1,20 +1,49 @@
 # @mulmoclaude/core
 
-Shared server-side core for MulmoClaude and MulmoTerminal — the always-shipped-together subsystems consolidated behind subpath exports so the two hosts can't drift. Server-only except the browser-safe ./artifacts, ./whisper/client, ./workspace-setup/slug, ./translation/client, ./remote-view, ./remote-host and ./plugin-vue entries. All host specifics are injected.
+Shared server-side core for **MulmoClaude** and **MulmoTerminal** — the
+subsystems the two hosts always ship together, consolidated behind subpath
+exports so they cannot drift apart.
 
-A library, not an application: [MulmoClaude](https://github.com/receptron/mulmoclaude) and [MulmoTerminal](https://github.com/receptron/mulmoterminal) each import the subpaths they need and inject their own host specifics (logger, workspace root, and so on).
+Not a general-purpose library: it exists so one implementation of collections,
+wiki, feeds, Google integration, scheduling and the rest serves both hosts.
+Every host specific (paths, logging, notification transport, …) is injected
+rather than imported, which is what lets the same code run under either.
 
-## Dev loop
+## Subpath exports
 
-```bash
-yarn workspace @mulmoclaude/core run build
-yarn workspace @mulmoclaude/core run test
-```
+| Area | Entries |
+| --- | --- |
+| Collections | `./collection`, `./collection/server`, `./collection/paths`, `./collection/registry`, `./collection/registry/server`, `./collection-watchers` |
+| Knowledge | `./wiki`, `./wiki/server`, `./wiki/paths`, `./feeds`, `./feeds/server`, `./feeds/paths` |
+| Google | `./google` — OAuth (loopback + PKCE), token store, Calendar / Tasks / Drive REST |
+| Runtime | `./scheduler`, `./notifier`, `./skill-bridge`, `./file-change`, `./workspace-setup`, `./artifacts` |
+| Remote | `./remote-host`, `./remote-host/server`, `./remote-view` |
+| Voice | `./whisper`, `./whisper/client` |
+| Plugin support | `./plugin-vue`, `./plugin-vue/i18n` |
+| Utilities | `./utils`, `./files`, `./fetch` |
 
-## Related projects
+**Server-only**, except the browser-safe entries: `./artifacts`,
+`./whisper/client`, `./workspace-setup/slug`, `./translation/client`,
+`./remote-view`, `./remote-host` and `./plugin-vue`.
 
-Used by both MulmoClaude and MulmoTerminal, and published from the MulmoClaude monorepo by [Receptron](https://github.com/receptron).
+The package also ships `assets/helps/*` — the help documents the agent reads at
+runtime — which is why a change there alone still warrants a release.
 
-- **[MulmoClaude](https://github.com/receptron/mulmoclaude)** — an open-source AI assistant platform that runs on your own computer. Claude Code as the engine, a personal wiki for long-term memory, schema-driven collections for your data, and chat that summons the right GUI (markdown, charts, forms, spreadsheets, wikis) for each task.
-- **[MulmoTerminal](https://github.com/receptron/mulmoterminal)** — a terminal-first cockpit for running many AI coding agents in parallel. One roster showing every session's summary and PR status, tmux-backed session persistence, git-worktree isolation, one-click PRs, and mobile push with remote reply.
-- **[MulmoTerminal manual](https://receptron.github.io/mulmoterminal/)** — setup, workflows, feature reference, configuration, mobile notifications, and alternative / local model providers. Available in English and Japanese.
+## About MulmoClaude and MulmoTerminal
+
+- **[MulmoClaude](https://github.com/receptron/mulmoclaude)** — an AI-native
+  application platform built on Claude Code. Chat summons the right GUI for each
+  task (documents, charts, forms, wikis, spreadsheets, 3D scenes), and
+  everything your assistant accumulates stays as plain files in your own
+  workspace, on your own machine.
+- **[MulmoTerminal](https://github.com/receptron/mulmoterminal)** — run a whole
+  team of coding agents from your browser. Many Claude Code / Codex sessions at
+  once in a grid, colour-coded so you see which are working, which need you and
+  which are done, plus git worktrees, one-click PRs and cost readouts. One `npx`
+  command, no Electron, no config.
+
+📖 **User guide**: <https://receptron.github.io/mulmoterminal/> (日本語 / English)
+
+## License
+
+MIT
