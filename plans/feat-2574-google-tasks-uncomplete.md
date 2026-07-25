@@ -2,7 +2,7 @@
 
 ## Background
 
-#2572 gave `tasksUpdate` `title` / `notes` / `due` and deliberately withheld
+Issue #2572 gave `tasksUpdate` `title` / `notes` / `due` and deliberately withheld
 `status`, so that `tasksComplete` is the only route to the completed state —
 "two ways to set the same state always drift apart".
 
@@ -37,10 +37,14 @@ un-completed** from MulmoClaude. The only fix was to open Google ToDo.
 
 ## Two things worth knowing
 
-**Google clears the `completed` timestamp itself.** Leaving `status` alone in
-the patch body is enough; there is no second field to reset. PATCH, not PUT —
-a PUT would need the whole task and would drop `title`, `notes`, `due` and
-`position`.
+**The patch carries `status` alone — and whether Google resets the `completed`
+timestamp is unverified.** `completeTask` sets only `status` and lets Google
+fill the timestamp in; this mirrors it on the way back. Nothing here proves
+Google clears it again, and the stubbed tests cannot: `TaskSummary` doesn't
+carry `completed`, so a stale one would only ever be visible in Google's own
+UI. `docs/manual-testing.md` §10 is the live check; if a date lingers, the fix
+is `completed: null` in the patch body. PATCH, not PUT — a PUT would need the
+whole task and would drop `title`, `notes`, `due` and `position`.
 
 **Completed tasks are invisible by default.** `tasksList` sends
 `showCompleted=false`, so an agent asked to un-complete something cannot find
@@ -50,9 +54,11 @@ otherwise the model lists, sees nothing, and reports the task doesn't exist.
 ## Testing
 
 **`test/services/google/test_taskStatusTransitions.ts`** (new, 6 tests) —
-`globalThis.fetch` stubbed, no network. This is the failure mode worth pinning:
-Google accepts an unknown `status` with **200** and leaves the task where it
-was, so a typo reports success while the to-do list never changes.
+`globalThis.fetch` stubbed, no network. The regression they guard is a typo or
+a copy-paste that leaves both functions sending the same status: the request
+still goes out, still looks like success to every caller, and the task simply
+doesn't move. What Google does with a *malformed* status is out of reach here —
+the stub answers 200 whatever it receives.
 
 - both transitions send exactly `{ status: ... }` and nothing else
 - the two send *different* values — catches a copy-paste that leaves both
