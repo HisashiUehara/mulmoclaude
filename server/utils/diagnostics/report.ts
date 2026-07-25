@@ -61,23 +61,21 @@ export function redactSettings(settings: unknown, keys: readonly string[]): Reda
 
 const isSeparator = (char: string): boolean => char === "/" || char === "\\";
 
-// What ENDS a path in running text: whitespace, and the punctuation that
-// surrounds a path in prose rather than appearing inside one. A separator or
-// end of string ends it too.
+// Characters that END a path when it appears inside prose. Everything NOT
+// listed here continues the directory name, so `/home/alice` inside
+// `/home/alice-archive` (or `alice+archive`, `alice@work`) survives untouched.
 //
-// Stated as what cannot continue a filename, not as which characters look
-// word-like. A filename may hold `+`, `@`, `%`, `#`, `~` and more, so an
-// allowlist of `[\w.-]` rewrote `/home/alice+archive` into `~+archive` — a
-// sibling directory reported as the user's home (Codex review #2579).
+// A delimiter list, not a "valid path character" list, because almost anything
+// is legal in a directory name — `+`, `@`, `~`, parentheses. Guessing which
+// characters a path may contain mis-shortens real sibling directories; guessing
+// which ones a sentence uses to end a path is a much smaller set.
 //
-// The two failure directions are not symmetric, which is why the boundary is
-// not simply "separator or end": over-shortening distorts a path in a
-// diagnostics report, while under-shortening leaves the account name in a
-// document strangers read. So an ambiguous character is treated as the end of
-// the path, and only characters that genuinely continue a filename hold it.
-const PATH_ENDING_RE = /[\s,;:"'`()[\]{}<>|?*!]/;
+// The two failure directions are not equal, and this errs toward the safer one:
+// mangling a sibling path makes the report confusing, but failing to shorten
+// leaves the account name in something the user publishes.
+const PATH_DELIMITER_RE = /[\s,;:"'`)\]}<>|]/;
 
-const endsHomePath = (following: string): boolean => following === "" || isSeparator(following) || PATH_ENDING_RE.test(following);
+const endsHomePath = (following: string): boolean => following === "" || isSeparator(following) || PATH_DELIMITER_RE.test(following);
 
 /** Replace the home directory with `~`, but only where it ends a path.
  *

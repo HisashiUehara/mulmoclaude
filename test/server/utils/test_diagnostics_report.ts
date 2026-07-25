@@ -102,6 +102,16 @@ describe("shortenHome", () => {
     assert.equal(shortenHome("/home/alicia/x", "/home/alice"), "/home/alicia/x");
   });
 
+  it("does not shorten siblings using punctuation that is legal in a directory name", () => {
+    // The first fix classified path characters as `[\w.-]`, which mangled every
+    // sibling built with anything else. Almost any byte is legal in a directory
+    // name, so the rule keys off delimiters instead.
+    ["+archive", "@work", "~backup", "(old)", "&co", "!tmp", "%2f", "=v2", "#1"].forEach((suffix) => {
+      const text = `/home/alice${suffix}/x`;
+      assert.equal(shortenHome(text, "/home/alice"), text, `mis-shortened /home/alice${suffix}`);
+    });
+  });
+
   it("shortens home itself, with or without a trailing path", () => {
     assert.equal(shortenHome("/home/alice", "/home/alice"), "~");
     assert.equal(shortenHome("/home/alice/ws", "/home/alice"), "~/ws");
@@ -112,22 +122,13 @@ describe("shortenHome", () => {
     assert.equal(shortenHome("/home/alice/ws and /home/alice-old/ws", "/home/alice"), "~/ws and /home/alice-old/ws");
   });
 
-  // A filename may hold characters an allowlist of `[\w.-]` calls "not word-like".
-  // Treating those as the end of the path renamed a sibling directory to the
-  // user's home in the report (Codex review #2579).
-  it("does not shorten a sibling whose name continues with a non-word character", () => {
-    assert.equal(shortenHome("/home/alice+archive/x", "/home/alice"), "/home/alice+archive/x");
-    assert.equal(shortenHome("/home/alice@work/x", "/home/alice"), "/home/alice@work/x");
-    assert.equal(shortenHome("/home/alice%20old/x", "/home/alice"), "/home/alice%20old/x");
-    assert.equal(shortenHome("/home/alice~bak/x", "/home/alice"), "/home/alice~bak/x");
-  });
-
-  // The other direction is a privacy failure, not a cosmetic one: a path that
-  // ends mid-sentence must still lose the account name.
-  it("still shortens a path ended by prose punctuation", () => {
-    assert.equal(shortenHome('workspace "/home/alice" is missing', "/home/alice"), 'workspace "~" is missing');
-    assert.equal(shortenHome("see (/home/alice) for logs", "/home/alice"), "see (~) for logs");
-    assert.equal(shortenHome("at /home/alice; then /home/alice/ws", "/home/alice"), "at ~; then ~/ws");
+  it("still shortens home where a sentence ends the path", () => {
+    // The other failure direction, and the more serious one: leaving the path
+    // unshortened publishes the account name. Pinned alongside the sibling
+    // cases above so a future fix for one cannot silently reintroduce the other.
+    [",", ";", " ", '"', "'", "`", ")", "]", ">", "|"].forEach((delimiter) => {
+      assert.equal(shortenHome(`at /home/alice${delimiter}x`, "/home/alice"), `at ~${delimiter}x`, `left home unshortened before ${JSON.stringify(delimiter)}`);
+    });
   });
 
   it("does not shred every path when home is the root", () => {
