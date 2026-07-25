@@ -55,6 +55,8 @@ yarn dev
 
 [http://localhost:5173](http://localhost:5173) 을 여세요. 아키텍처와 스크립트 자세한 내용은 [`docs/developer.md`](docs/developer.md) 를 참고하세요.
 
+> **UI가 깨지거나 스타일이 적용되지 않나요?** 아이콘이 글자로 표시됨, `dist/*` 404, 재시작 후 `401` — [`docs/troubleshooting.md`](docs/troubleshooting.md) 를 참고하세요.
+
 ## 무엇을 할 수 있나요?
 
 | Claude에게 요청해 보세요...       | 결과물                                             |
@@ -667,6 +669,7 @@ Claude는 채팅 대화에서 지속적인 사용자 사실을 자동으로 추�
 | [Bridge 프로토콜](docs/bridge-protocol.md)        | 새 메시징 브릿지 작성을 위한 와이어 레벨 스펙    |
 | [샌드박스 자격 증명](docs/sandbox-credentials.md) | Docker 샌드박스 자격 증명 전달 (SSH, GitHub CLI) |
 | [로깅](docs/logging.md)                           | 로그 레벨, 형식, 파일 회전                       |
+| [문제 해결](docs/troubleshooting.md)              | 설치 문제 — UI 깨짐, `dist/*` 404, Windows/OneDrive, 재시작 후 `401`, 부팅 경고 |
 | [CHANGELOG](docs/CHANGELOG.md)                    | 릴리스 이력                                      |
 
 ## 라이선스
