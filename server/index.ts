@@ -881,11 +881,15 @@ async function initBootDiagnostics(): Promise<void> {
   // notification.
   await announcePluginMetaDiagnostics();
 
+  // One settings read shared by the dep announce (gates the whisper warning on
+  // voice-input opt-in) and the sidecar warm-up below.
+  const bootSettings = loadSettings();
+
   // --- Optional host-dependency probe (#1385) ---
   // Probes docker / ffmpeg / … once, warns (log + bell) for any
   // missing one so a feature degrading is visible instead of a
   // later opaque crash. Never throws.
-  await announceOptionalDeps();
+  await announceOptionalDeps(bootSettings);
 
   // --- Gemini key presence (#2081) ---
   announceGeminiKey();
@@ -895,7 +899,7 @@ async function initBootDiagnostics(): Promise<void> {
   // pre-spawn the whisper-server sidecar now (deps were just probed) so
   // the user's first dictation doesn't pay the ~10s+ model-load cost
   // inside the request. No-op when voice input is off / not ready.
-  warmupVoiceInput(loadSettings());
+  warmupVoiceInput(bootSettings);
 
   // --- Billing-suite migration ---
   // The invoicing collections moved from bundled `mc-*` presets to

@@ -8,12 +8,30 @@ import { BUILT_IN_PLUGIN_METAS } from "../../src/plugins/metas.js";
 import type { PluginMeta } from "../../src/plugins/meta-types.js";
 import { NOTIFICATION_KINDS, NOTIFICATION_PRIORITIES } from "../../src/types/notification.js";
 import { log } from "./logger/index.js";
+import type { AppSettings } from "./config.js";
 import { publishNotification, type PublishNotificationOpts } from "../events/notifications.js";
 import { probeOptionalDeps, optionalDeps, type OptionalDep, type DepStatus } from "./optionalDeps.js";
 
 function pluginsRequiring(depId: string): string[] {
   const metas: readonly PluginMeta[] = Object.values(BUILT_IN_PLUGIN_METAS);
   return metas.filter((meta) => meta.requires?.includes(depId)).map((meta) => meta.toolName);
+}
+
+// Opt-in optional deps: announced only when the user has turned their feature on.
+// Voice input ships OFF, so a missing whisper-server binary is expected and must
+// not warn/notify unless voice input is actually enabled. docker (sandbox) and
+// ffmpeg (mulmocast) are not listed here, so they always announce when missing.
+const ANNOUNCE_GATE: Record<string, (settings: AppSettings) => boolean> = {
+  whisper: (settings) => settings.voiceInput?.enabled === true,
+};
+
+/** Whether a missing optional dep should be surfaced at boot. Pure — the gate for
+ *  an opt-in dep reads the settings flag for its feature; non-gated deps always
+ *  announce. The single gate entry is guarded by a unit test, so a typo'd key
+ *  can't silently slip in. */
+export function shouldAnnounceDep(depId: string, settings: AppSettings): boolean {
+  const gate = ANNOUNCE_GATE[depId];
+  return gate ? gate(settings) : true;
 }
 
 // Pure payload builder, exposed for unit tests. `not-on-path` →
@@ -41,11 +59,12 @@ export function buildOptionalDepNotification(dep: OptionalDep, status: DepStatus
   };
 }
 
-export async function announceOptionalDeps(): Promise<void> {
+export async function announceOptionalDeps(settings: AppSettings): Promise<void> {
   const statuses = await probeOptionalDeps();
   for (const dep of optionalDeps()) {
     const status = statuses[dep.id];
     if (!status || status.available) continue;
+    if (!shouldAnnounceDep(dep.id, settings)) continue;
     const affectedPlugins = pluginsRequiring(dep.id);
     log.warn("deps", `optional dependency '${dep.command}' unavailable — ${dep.enables} degraded`, {
       depId: dep.id,

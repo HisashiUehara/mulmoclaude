@@ -12,7 +12,9 @@ import { isDockerLive } from "./docker.js";
 
 /** A single optional host dependency the app can run without. */
 export interface OptionalDep {
-  /** Stable id used by `depStatus()` lookups and notification ids. */
+  /** Stable id used by `depStatus()` lookups and notification ids. Kept a plain
+   *  string — `probeOne` is a generic probe exercised with synthetic ids in the
+   *  unit tests, so narrowing this to the registry union would over-constrain it. */
   readonly id: string;
   /** Binary name passed to `which` for the default presence probe. */
   readonly command: string;
