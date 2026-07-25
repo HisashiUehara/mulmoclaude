@@ -79,25 +79,21 @@ export function crashHint(signal) {
 // is NOT a JS exception: no try/catch, no uncaughtException handler, and no
 // server log line can see it — hence the "server just vanished" symptom.
 //
-// Diagnosed: mulmocast's `fileCacheAgentFilter` returned the generated media
-// `buffer` as a GraphAI node result. GraphAI retains every node result for the
-// whole run and walks it for debug keys; a Buffer is array-like but not an
-// Array, so that walk emits ONE KEY STRING PER BYTE — ~280x expansion, ~115 MB
-// retained per beat in the 68-beat build we captured. Fixed upstream on
-// mulmocast's `fix/media-buffer-memory-growth` branch; NOT in the published
-// 2.9.1, so the headroom below still matters until a release carries it.
+// Diagnosed cause of the OOMs this supervisor was written for: mulmocast's
+// `fileCacheAgentFilter` returned the generated media `buffer` as a GraphAI
+// node result. GraphAI retains every node result for the whole run and walks it
+// for debug keys; a Buffer is array-like but not an Array, so that walk emitted
+// ONE KEY STRING PER BYTE — ~280x expansion, ~115 MB retained per beat, which
+// exhausted the default heap around beat 25 of a 68-beat build. Fixed in
+// mulmocast 2.9.2 (68 beats now peaks at ~173 MB), which this repo depends on.
 //
-// Headroom only — this does not fix the growth, it just moves the wall (at
-// ~115 MB/beat, 8 GB buys roughly 65 beats). Override with
-// DEV_SERVER_MAX_OLD_SPACE_MB.
-const MAX_OLD_SPACE_MB = process.env.DEV_SERVER_MAX_OLD_SPACE_MB ?? "8192";
-// Heap snapshot on near-OOM is OFF by default: it did its job (it is how the
-// per-byte key strings were identified), and it is actively harmful to leave
-// armed. Dumping an 8 GB heap froze the server for ~7 minutes, ballooned RSS
-// to 21 GB while serializing, and left a 13 GB file. Opt back in with
-// DEV_SERVER_HEAP_SNAPSHOT=1 when hunting a NEW retainer.
+// So NO heap flags by default. Both of the following are opt-in, for hunting a
+// future retainer — deliberately not left on, because a raised ceiling hides
+// the next leak and an armed snapshot makes a bad OOM worse (dumping an 8 GB
+// heap froze the server ~7 minutes, grew RSS to 21 GB, and wrote a 13 GB file).
+const oldSpaceArgs = process.env.DEV_SERVER_MAX_OLD_SPACE_MB ? [`--max-old-space-size=${process.env.DEV_SERVER_MAX_OLD_SPACE_MB}`] : [];
 const heapSnapshotArgs = process.env.DEV_SERVER_HEAP_SNAPSHOT === "1" ? ["--heapsnapshot-near-heap-limit=1"] : [];
-const heapArgs = [`--max-old-space-size=${MAX_OLD_SPACE_MB}`, ...heapSnapshotArgs];
+const heapArgs = [...oldSpaceArgs, ...heapSnapshotArgs];
 
 // DEV_SERVER_ENTRY points the supervisor at a plain .mjs stub (no tsx) —
 // used only by its own unit test to drive a child that crashes on boot.

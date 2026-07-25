@@ -7951,9 +7951,9 @@ mulmocast-vision@^1.0.12:
     yauzl "^3.4.0"
 
 mulmocast@^2.9.1:
-  version "2.9.1"
-  resolved "https://registry.yarnpkg.com/mulmocast/-/mulmocast-2.9.1.tgz#b207d5ce515feb7af5d9fc20e8784929f501be84"
-  integrity sha512-mgBExGvvBEnQ8uZiOaakfNnIfsYqJqUkmWCxVkdzQgQZEAmL3bOYWO++tgDPu9tOyY3USzpb66x4ZgkweBsdtQ==
+  version "2.9.2"
+  resolved "https://registry.yarnpkg.com/mulmocast/-/mulmocast-2.9.2.tgz#16731c0db5babe22bdb23037fffb1f5b7acd3d22"
+  integrity sha512-ymHUV+is09Q3gK5p0YuCt60c2Ch2J2dtHLZgDhHH6x3UmDwGoVgf3JQPJdt1kyhaWrqDD/afbYFEBeNAOykiJg==
   dependencies:
     "@google-cloud/text-to-speech" "^6.4.1"
     "@google/genai" "^2.13.0"

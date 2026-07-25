@@ -61,10 +61,12 @@ Measured growth for the 68-beat build: 568 MB idle → 4.6 GB at ~2 min → 8.2 
 at ~8.5 min, linear, never released. Node's default ~4 GB old-space was
 exhausted around beat 25, which is why builds of this size could never finish.
 
-**The fix belongs upstream** and exists on mulmocast's
-`fix/media-buffer-memory-growth` branch (drop `buffer` from the filter's return
-value; 68 beats then peaks at 173 MB). It is **not** in the published 2.9.1 —
-that release still does `return output` — so a dependency bump does nothing yet.
+**The fix belongs upstream**, and shipped in **mulmocast 2.9.2**: the filter now
+strips `buffer` from its return value (`withoutPayload`), and a 68-beat build
+peaks at ~173 MB instead of OOMing. This branch bumps the lockfile to it.
+
+(2.9.1 does *not* contain the fix — it still does `return output` — so verify
+the published artifact, not just the version number, if this ever regresses.)
 
 ## What this change does
 
@@ -88,17 +90,24 @@ receptron/mulmoterminal#732 / #734, does watch; this one does not.)
 A SIGABRT exit now says so explicitly, since a heap OOM otherwise reads as an
 unexplained disappearance.
 
-### 2. Heap headroom, and the snapshot flag off by default
+### 2. `yarn.lock` — mulmocast 2.9.2
 
-`--max-old-space-size=8192` (default ~4 GB on a 96 GB machine). This is
-headroom, not a fix — at ~115 MB/beat it buys roughly 65 beats.
-`DEV_SERVER_MAX_OLD_SPACE_MB` overrides.
+The declared range is already `^2.9.0`, which floats across patches, so this is
+a lockfile-only change. Restricted to the `mulmocast` entry by hand: `yarn
+upgrade mulmocast` under yarn 1 re-resolves the whole tree and rewrote ~296
+unrelated lines.
 
-`--heapsnapshot-near-heap-limit=1` is **off** by default. It did its job — it is
-how the per-byte key strings were identified — but leaving it armed is harmful:
-dumping an 8 GB heap froze the server for ~7 minutes, ballooned RSS to 21 GB
-while serializing, and left a 13 GB file. `DEV_SERVER_HEAP_SNAPSHOT=1` re-arms
-it when hunting a new retainer.
+### 3. Heap flags: opt-in, not default
+
+Neither `--max-old-space-size` nor `--heapsnapshot-near-heap-limit` is set by
+default. Both were used to diagnose this and are kept as env opt-ins
+(`DEV_SERVER_MAX_OLD_SPACE_MB`, `DEV_SERVER_HEAP_SNAPSHOT=1`) for hunting a
+future retainer.
+
+They are deliberately *not* left on. A raised ceiling hides the next leak — an
+OOM at the default is a signal worth keeping. And an armed snapshot makes a bad
+OOM worse: dumping an 8 GB heap froze the server for ~7 minutes, ballooned RSS
+to 21 GB while serializing, and left a 13 GB file.
 
 ## Tests
 
@@ -111,11 +120,7 @@ crashes on boot (backoff and give-up both fire) and against the real backend
 
 ## Follow-up (not in this change)
 
-1. When a mulmocast release carries the `fix/media-buffer-memory-growth` fix,
-   bump the dep. The declared range is already `^2.9.0`, which floats, so this
-   is a lockfile update.
-2. **Then drop `--max-old-space-size=8192`** back to the default. After the fix
-   a 68-beat build peaks at 173 MB, so the headroom is unnecessary — and leaving
-   it raised makes the next leak harder to notice.
-3. The true upstream cause is graphai's `debugResultKeyInner`, which should skip
-   binary views. mulmocast's change keeps it off that path regardless.
+The true upstream cause is graphai's `debugResultKeyInner`, which should skip
+binary views — any other caller returning a Buffer as a node result hits the
+same expansion. mulmocast 2.9.2 keeps itself off that path regardless, so this
+is a robustness fix for graphai rather than a blocker here.
