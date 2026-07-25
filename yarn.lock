@@ -2082,7 +2082,7 @@
     "@mulmocast/deck" "^0.7.0"
     zod "^4.4.3"
 
-"@mulmochat-plugin/quiz@1.1.0":
+"@mulmochat-plugin/quiz@^1.1.0":
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/@mulmochat-plugin/quiz/-/quiz-1.1.0.tgz#a09d4a992eec860a3691e79e6140532435aaa673"
   integrity sha512-iKL5rtbAD1YuU3Oxex3iL3KK6V5Dt3OacEo+06M1asWEuo2o/9fCoRZfgOYWbZxTTW3HwfTCl/4wP2rzV1ftow==
@@ -6065,7 +6065,7 @@ find-up@^5.0.0:
     locate-path "^6.0.0"
     path-exists "^4.0.0"
 
-firebase@12.16.0:
+firebase@^12.16.0:
   version "12.16.0"
   resolved "https://registry.yarnpkg.com/firebase/-/firebase-12.16.0.tgz#d94f3827626314e310c434c55a50542495b6151f"
   integrity sha512-CNw6hFBdONkzF8UGLDx/RDRY9gVa5VmJNHd7qi4gdmA3ZuLkuOrhmWefB2l+FN+OxFpN77Itq7aO6zlTi780ag==
@@ -7303,7 +7303,7 @@ kleur@^4.1.5:
   resolved "https://registry.yarnpkg.com/kleur/-/kleur-4.1.5.tgz#95106101795f7050c6c650f350c683febddb1780"
   integrity sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==
 
-knip@6.29.0:
+knip@^6.29.0:
   version "6.29.0"
   resolved "https://registry.yarnpkg.com/knip/-/knip-6.29.0.tgz#2bd44f47ddeab41a0c12a6b3415207bcd00aa418"
   integrity sha512-A3kXqSBky1tWBAqiU9srdtu0Larhzkuyor0aD/gg+ToiqyBncCCs2Q60sLsxmcKhV0OsKss9LV0hMPpwLv711Q==
@@ -10267,7 +10267,7 @@ vite-plugin-dts@^5.0.3:
   dependencies:
     unplugin-dts "1.0.3"
 
-vite@8.1.5, vite@^8.1.4, vite@^8.1.5:
+vite@^8.1.4, vite@^8.1.5:
   version "8.1.5"
   resolved "https://registry.yarnpkg.com/vite/-/vite-8.1.5.tgz#ccffce3ee487b1886223b24ebb27b91674827d30"
   integrity sha512-7ULLwsCdYx/nRyrpiEwvqb5TFHrMVZyBt+rg/OAXT7rgj/z+DtTDyKFeLAdDkubDVDKD8jOsndmy7m55XcfUsw==
@@ -10309,7 +10309,7 @@ vue-eslint-parser@^10.4.0, vue-eslint-parser@^10.4.1:
     esquery "^1.6.0"
     semver "^7.6.3"
 
-vue-i18n@11.4.7, vue-i18n@^11.4.7:
+vue-i18n@^11.4.7:
   version "11.4.7"
   resolved "https://registry.yarnpkg.com/vue-i18n/-/vue-i18n-11.4.7.tgz#b20dda80ed81924ea068c539ad915f79feed54c2"
   integrity sha512-j6RyshdPPzqLiMAUpnpvZGFPM+rRoWi14Sl5yTsquvoW0/56DWyvhAj2o9TO2YXGvb6teg8T0xrYO9jR3urvdw==
