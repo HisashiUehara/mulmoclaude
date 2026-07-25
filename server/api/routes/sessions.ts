@@ -162,6 +162,14 @@ const metaCache = createStampedCache<SessionMeta>();
 
 const metaStamp = (jsonlMtimeMs: number, metaMtimeMs: number): string => `${jsonlMtimeMs}:${metaMtimeMs}`;
 
+/** Test seam. The cache outlives the chat directory, so a suite that wipes its
+ *  fixtures between cases and rewrites the same session id at the same mtime
+ *  would be served the previous case's meta — a stamp repeat that cannot
+ *  happen in production, where every write moves the mtime forward. */
+export function clearSessionMetaCache(): void {
+  metaCache.clear();
+}
+
 /** The meta for one session, read only when its stamp has moved.
  *
  *  Both mtimes are in the stamp because `readSessionMeta` has two

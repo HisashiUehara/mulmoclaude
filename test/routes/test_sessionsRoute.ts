@@ -16,6 +16,7 @@ import type { Request, Response } from "express";
 import { encodeCursor } from "../../server/api/routes/sessionsCursor.js";
 
 type RouteModule = typeof import("../../server/api/routes/sessions.js");
+let clearMetaCache: () => void;
 
 interface SessionSummary {
   id: string;
@@ -164,6 +165,7 @@ before(async () => {
   mkdirSync(chatDir, { recursive: true });
   mkdirSync(manifestDir, { recursive: true });
   const routeMod = await import("../../server/api/routes/sessions.js");
+  clearMetaCache = routeMod.clearSessionMetaCache;
   getHandler = extractRouteHandler(routeMod, "/api/sessions", "get");
   markReadHandler = extractRouteHandler(routeMod, "/api/sessions/:id/mark-read", "post");
 });
@@ -178,6 +180,10 @@ after(async () => {
 
 beforeEach(async () => {
   await resetChatDir();
+  // The meta cache is module-level and outlives the wiped fixture dir. Cases
+  // here legitimately rewrite the same session id at the same mtime, which
+  // production never does, so the stamp would read as unchanged (#2588).
+  clearMetaCache();
 });
 
 describe("GET /api/sessions — full fetch (no ?since=)", () => {

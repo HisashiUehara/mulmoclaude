@@ -99,3 +99,22 @@ describe("createStampedCache — retainOnly", () => {
     assert.equal(cache.size(), 2);
   });
 });
+
+describe("createStampedCache — clear", () => {
+  it("empties the cache", () => {
+    const cache = createStampedCache<string>();
+    cache.set("a", "1", "A");
+    cache.set("b", "2", "B");
+    cache.clear();
+    assert.equal(cache.size(), 0);
+    assert.equal(cache.get("a", "1"), undefined);
+  });
+
+  it("leaves the cache usable afterwards", () => {
+    const cache = createStampedCache<string>();
+    cache.set("a", "1", "A");
+    cache.clear();
+    cache.set("a", "1", "fresh");
+    assert.equal(cache.get("a", "1"), "fresh");
+  });
+});

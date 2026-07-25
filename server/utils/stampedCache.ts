@@ -16,6 +16,10 @@ export interface StampedCache<T> {
   set: (key: string, stamp: string, value: T) => void;
   /** Drop every key not in `liveKeys`. Returns how many were dropped. */
   retainOnly: (liveKeys: Iterable<string>) => number;
+  /** Drop everything. For a caller whose whole source was replaced under it
+   *  — notably a test suite that wipes its fixture directory between cases,
+   *  where the stamps can legitimately repeat. */
+  clear: () => void;
   size: () => number;
 }
 
@@ -39,6 +43,7 @@ export function createStampedCache<T>(): StampedCache<T> {
       }
       return dropped;
     },
+    clear: () => entries.clear(),
     size: () => entries.size,
   };
 }

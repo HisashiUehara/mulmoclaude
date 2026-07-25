@@ -78,6 +78,18 @@ list, and untouched sessions must survive the scan.
 Mutation-checked: pinning the stamp to a constant (so the cache always hits)
 turns the rewritten-title test red.
 
+## Test seam
+
+The cache is module-level, so it outlives the fixture directory a suite wipes
+between cases — and those cases legitimately rewrite the same session id at the
+same mtime, which production never does. Without a reset, a future test writing
+an existing id with different content would silently be served the previous
+case's meta. `clearSessionMetaCache()` is called from `beforeEach`.
+
+Found reviewing my own diff: `s1` and `a` are already reused across cases today.
+They happen not to collide because the content matches too, so nothing fails
+yet — it is a landmine rather than a live bug.
+
 ## Known limitation
 
 Validity is mtime **equality**. Two writes landing inside the same mtime tick
