@@ -58,6 +58,11 @@ const HOST_API_ROUTES = {
   health: "/api/health",
   sandbox: "/api/sandbox",
 
+  // Environment report for a bug report, as markdown. Secret values are
+  // withheld by an allow list in `server/utils/diagnostics/report.ts` — the
+  // agent pastes what it gets rather than deciding what to mask.
+  diagnosticsReport: "/api/diagnostics/report",
+
   // Manually-pinned launcher shortcuts (collections / feeds). GET reads
   // the list; PUT replaces it wholesale (client owns add / remove /
   // order). Single replace-endpoint — no add/remove route sprawl.

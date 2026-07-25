@@ -1,0 +1,188 @@
+// The environment report a user pastes into a bug report, assembled and
+// REDACTED here rather than by the agent. mulmoterminal's equivalent skill
+// asked the model to withhold `*_KEY` values as a prose instruction; the same
+// approach here would be worse — `googleMapsApiKey` is stored in plaintext and
+// `config/mcp.json` carries provider tokens in `env` / `headers`. A rule that
+// only exists in a prompt cannot be tested, so it lives in code with the
+// redaction decisions as pure functions.
+//
+// Everything here is pure: the caller reads the files, the OS and the plugin
+// diagnostics, then hands the values in. That keeps the redaction rules
+// testable without a workspace, a server, or a developer's real settings.
+import { APP_SETTINGS_KEYS, SAFE_SETTINGS_KEYS } from "../../system/config.js";
+import { isRecord } from "../types.js";
+
+/** What a redacted setting reports instead of its value. */
+export const REDACTED_PRESENT = "(set — value withheld)";
+export const REDACTED_ABSENT = "(not set)";
+
+export interface RedactedSetting {
+  key: string;
+  /** Rendered value: the real one for allow-listed keys, a marker otherwise. */
+  value: string;
+  /** True when the value was withheld — surfaced so a reader can tell the
+   *  difference between "off" and "we refused to print it". */
+  redacted: boolean;
+}
+
+const isSafeKey = (key: string): boolean => SAFE_SETTINGS_KEYS.some((safe) => safe === key);
+
+// `JSON.stringify` answers `undefined` — not a string — for a function or a
+// symbol. Settings come from JSON so they can't hold either, but this function
+// takes `unknown` by design, and a caller that passed one would otherwise get
+// the literal text "undefined" where a value was promised.
+const renderValue = (value: unknown): string => {
+  if (typeof value === "string") return value;
+  return JSON.stringify(value) ?? String(value);
+};
+
+const readOwn = (settings: Record<string, unknown>, key: string): unknown => (Object.prototype.hasOwnProperty.call(settings, key) ? settings[key] : undefined);
+
+/** Render every requested setting, printing values ONLY for allow-listed keys.
+ *  Absent keys are reported too: for a feature that does nothing until it is
+ *  switched on, "not set" IS the diagnosis, so dropping absent keys would
+ *  remove the most useful line in the report.
+ *
+ *  Takes `unknown`, not `Partial<AppSettings>`: the redaction decision is made
+ *  from the key NAME against the allow list, so a settings file holding a field
+ *  this build has never heard of must flow through the same path rather than
+ *  being a type error at the call site. `hasOwnProperty` rather than
+ *  `key in settings` — a settings object parsed from JSON still inherits
+ *  `constructor`, and `in` would report it present. */
+export function redactSettings(settings: unknown, keys: readonly string[]): RedactedSetting[] {
+  const record = isRecord(settings) ? settings : {};
+  return keys.map((key) => {
+    const value = readOwn(record, key);
+    if (value === undefined) return { key, value: REDACTED_ABSENT, redacted: false };
+    if (!isSafeKey(key)) return { key, value: REDACTED_PRESENT, redacted: true };
+    return { key, value: renderValue(value), redacted: false };
+  });
+}
+
+const isSeparator = (char: string): boolean => char === "/" || char === "\\";
+
+// Characters that END a path when it appears inside prose. Everything NOT
+// listed here continues the directory name, so `/home/alice` inside
+// `/home/alice-archive` (or `alice+archive`, `alice@work`) survives untouched.
+//
+// A delimiter list, not a "valid path character" list, because almost anything
+// is legal in a directory name — `+`, `@`, `~`, parentheses. Guessing which
+// characters a path may contain mis-shortens real sibling directories; guessing
+// which ones a sentence uses to end a path is a much smaller set.
+//
+// The two failure directions are not equal, and this errs toward the safer one:
+// mangling a sibling path makes the report confusing, but failing to shorten
+// leaves the account name in something the user publishes.
+const PATH_DELIMITER_RE = /[\s,;:"'`)\]}<>|]/;
+
+const endsHomePath = (following: string): boolean => following === "" || isSeparator(following) || PATH_DELIMITER_RE.test(following);
+
+// Where a path may BEGIN. Checking only the character after a match let
+// `/tmp/home/alice/ws` — a different directory that merely ends with the home
+// path — become `/tmp~/ws`. A separator is deliberately absent: `x//home/alice`
+// is not the home directory either. Opening brackets appear here but not in the
+// end-delimiters above, because prose wraps a path as `(/home/alice/x)` while a
+// directory may genuinely be named `alice(backup)`.
+const PATH_START_RE = /[\s,;:"'`([{<=|]/;
+
+const startsHomePath = (preceding: string): boolean => preceding === "" || PATH_START_RE.test(preceding);
+
+/** Replace the home directory with `~`, but only where it is the whole path —
+ *  bounded on BOTH sides.
+ *
+ *  A report is read by strangers, and an absolute path leaks the account name
+ *  on every line that carries one, so this errs toward replacing: it skips a
+ *  match only when the surrounding text proves the path is a different one. */
+export function shortenHome(text: string, home: string): string {
+  const trimmed = isSeparator(home.slice(-1)) ? home.slice(0, -1) : home;
+  // An empty home, or a home of `/`, would otherwise match at every separator
+  // and shred every path in the report.
+  if (!trimmed) return text;
+  const out: string[] = [];
+  let cursor = 0;
+  for (let found = text.indexOf(trimmed); found >= 0; found = text.indexOf(trimmed, cursor)) {
+    const before = found === 0 ? "" : text.charAt(found - 1);
+    const after = text.charAt(found + trimmed.length);
+    out.push(text.slice(cursor, found), startsHomePath(before) && endsHomePath(after) ? "~" : trimmed);
+    cursor = found + trimmed.length;
+  }
+  out.push(text.slice(cursor));
+  return out.join("");
+}
+
+export interface DiagnosticsInput {
+  appVersion: string;
+  nodeVersion: string;
+  platform: string;
+  arch: string;
+  /** Home dir, used only to shorten paths — never printed on its own. */
+  home: string;
+  sandboxEnabled: boolean;
+  /** Config mount names the sandbox was started with (`gh`, …). Names only. */
+  sandboxMounts: readonly string[];
+  sshAgentForwarded: boolean;
+  /** The parsed settings object, as loaded. Typed loosely on purpose — see
+   *  `redactSettings`: an unrecognised field must still reach the allow-list
+   *  check rather than being rejected by the type system. */
+  settings: unknown;
+  /** MCP server NAMES only. Never the spec — `env` / `headers` hold tokens. */
+  mcpServerNames: readonly string[];
+  /** One line per plugin-aggregation collision, already formatted upstream. */
+  pluginDiagnostics: readonly string[];
+  workspacePath: string;
+}
+
+const yesNo = (value: boolean): string => (value ? "yes" : "no");
+
+const bullets = (items: readonly string[], whenEmpty: string): string[] => (items.length === 0 ? [`- ${whenEmpty}`] : items.map((item) => `- ${item}`));
+
+const settingsLines = (settings: unknown): string[] => redactSettings(settings, APP_SETTINGS_KEYS).map(({ key, value }) => `- \`${key}\`: ${value}`);
+
+const section = (heading: string, body: readonly string[]): string[] => [heading, "", ...body, ""];
+
+const hostSection = (input: DiagnosticsInput): string[] =>
+  section("## Environment", [
+    `- MulmoClaude: ${input.appVersion}`,
+    `- Node: ${input.nodeVersion}`,
+    `- OS: ${input.platform} ${input.arch}`,
+    `- Workspace: ${input.workspacePath}`,
+  ]);
+
+const sandboxSection = (input: DiagnosticsInput): string[] =>
+  section("### Sandbox", [
+    `- enabled: ${yesNo(input.sandboxEnabled)}`,
+    `- SSH agent forwarded: ${yesNo(input.sshAgentForwarded)}`,
+    ...bullets(
+      input.sandboxMounts.map((name) => `mounted config: \`${name}\``),
+      "no config mounts",
+    ),
+  ]);
+
+const mcpSection = (input: DiagnosticsInput): string[] =>
+  section(
+    "### MCP servers",
+    bullets(
+      input.mcpServerNames.map((name) => `\`${name}\``),
+      "none registered",
+    ),
+  );
+
+const footer = (): string[] => [
+  "> Secrets are withheld by the server, not by the agent. Values marked",
+  `> "${REDACTED_PRESENT}" are present in the config but never printed.`,
+];
+
+/** Build the markdown block. Pure — same input, same bytes (golden-testable).
+ *  Home shortening runs once over the assembled text so no caller has to
+ *  remember it per field. */
+export function buildDiagnosticsReport(input: DiagnosticsInput): string {
+  const lines = [
+    ...hostSection(input),
+    ...sandboxSection(input),
+    ...section("### Settings", settingsLines(input.settings)),
+    ...mcpSection(input),
+    ...section("### Plugin diagnostics", bullets(input.pluginDiagnostics, "no collisions reported")),
+    ...footer(),
+  ];
+  return `${shortenHome(lines.join("\n"), input.home)}\n`;
+}
