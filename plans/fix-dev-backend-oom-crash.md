@@ -4,7 +4,7 @@
 
 Mid-session the server vanishes. The client pane fills with:
 
-```
+```text
 [vite] http proxy error: /api/plugins/runtime/mulmoScript/dispatch
 AggregateError [ECONNREFUSED]:
     at internalConnectMultiple (node:net:1134:18)
@@ -26,7 +26,7 @@ directly: no `catch`, no `uncaughtException`, no log line. Confirmed from
 macOS crash reports (`~/Library/Logs/DiagnosticReports/node-*.ips`) — 11 of
 them over four days, all with the same faulting stack:
 
-```
+```text
 abort
 node::OOMErrorHandler(char const*, v8::OOMDetails const&)
 v8::internal::V8::FatalProcessOutOfMemory(...)
