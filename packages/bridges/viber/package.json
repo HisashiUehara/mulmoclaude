@@ -1,6 +1,6 @@
 {
   "name": "@mulmobridge/viber",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Viber bridge for MulmoBridge — Public Account chatbot via webhook + REST",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,10 +22,10 @@
   "license": "MIT",
   "author": "Receptron Team",
   "dependencies": {
-    "@mulmobridge/client": "^1.0.0",
-    "@mulmobridge/protocol": "^1.0.0",
-    "@mulmobridge/webhook-runtime": "^1.0.1",
-    "@mulmoclaude/common": "^1.1.0",
+    "@mulmobridge/client": "^1.0.1",
+    "@mulmobridge/protocol": "^1.0.1",
+    "@mulmobridge/webhook-runtime": "^1.0.2",
+    "@mulmoclaude/common": "^1.1.1",
     "dotenv": "^17.0.0",
     "express": "^5.0.0",
     "express-rate-limit": "^8.6.0"

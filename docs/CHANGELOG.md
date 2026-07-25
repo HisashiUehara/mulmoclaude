@@ -10,6 +10,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ---
 
+## Package releases - 2026-07-26
+
+**Discoverability release across all 51 published shared packages** (#2578). **49 of them are documentation-only patches** — byte-identical to their previous release apart from their own `package.json` and `README.md`. The remaining two carry code and take a minor; they are listed at the end of this entry.
+
+What every package gained:
+
+- **A `## Related projects` section** in its README linking [MulmoClaude](https://github.com/receptron/mulmoclaude), [MulmoTerminal](https://github.com/receptron/mulmoterminal) and the [MulmoTerminal manual](https://receptron.github.io/mulmoterminal/), each with a one-line description rather than a bare URL. 15 packages (`@mulmoclaude/core` and 14 plugins) had no README at all before this.
+- **npm metadata**: `homepage`, `repository` (with the monorepo `directory`), `bugs`, and hand-picked `keywords` — 51 of the 53 packages previously declared none of these, leaving their npm pages with no link back to the source and no search terms to be found by.
+
+Version map: the 49 documentation-only packages each move one patch (`1.0.0 → 1.0.1`, `1.3.0 → 1.3.1`, …). Internal dependency ranges were swept in the same commit, so no consumer is left pointing at a superseded line.
+
+**Two packages carry real code and take a minor instead**, because feature work landed after their last release:
+
+- **`@mulmoclaude/core` 1.4.0 → 1.5.0** — `uncompleteTask` joins the Tasks API (#2577, closes #2574): a completed task can be put back on the list. Completed tasks are hidden from `tasksList` unless `showCompleted: true`, so that is how the caller finds the id.
+- **`@mulmoclaude/google-plugin` 1.1.0 → 1.2.0** — the `tasksUncomplete` kind (#2577) exposes it, taking the kind count to 18. `tasksUpdate` deliberately still refuses to change status, so the two operations stay separable.
+
+Not included: `mulmoclaude` (the launcher — its version belongs to the `/publish-mulmoclaude` flow) and `create-mulmoclaude-plugin` (never published).
+
+---
+
 ## Package releases - 2026-07-25
 
 Three shared packages published. No launcher release — these reach `npx mulmoclaude` users on the launcher's next publish.
