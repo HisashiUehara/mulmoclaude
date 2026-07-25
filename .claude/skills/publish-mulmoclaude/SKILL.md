@@ -165,20 +165,38 @@ rm -rf /tmp/npx-fresh && mkdir /tmp/npx-fresh && cd /tmp/npx-fresh
 npx --yes --registry=https://registry.npmjs.org/ mulmoclaude@<X.Y.Z> --version
 ```
 
-`/publish-mulmoclaude`'s §2 drift check only covers `@mulmobridge/*` scope — `@mulmoclaude/*` workspace packages (core + plugins under `packages/plugins/*`) are NOT audited. Before publishing the launcher, manually verify every `@mulmoclaude/<name>` in `packages/mulmoclaude/package.json`'s `dependencies` resolves on the public registry:
+§2's drift check compares source against published `dist/` for four `@mulmobridge/*` packages only — it says nothing about whether a dep's *version* was ever published at all, in either scope. That gap is what this step covers: before publishing the launcher, verify every internal dep in `packages/mulmoclaude/package.json`'s `dependencies` (both `@mulmoclaude/*` and `@mulmobridge/*`) resolves on the public registry:
 
 ```bash
 # Local vs npm — a mismatch means a prior chore(release) bumped local
-# without publishing. Publish the missing one from packages/<pkg-dir>
+# without publishing. Publish the missing one from its package dir
 # BEFORE republishing the launcher, or `npx mulmoclaude@X.Y.Z` fails
 # with ETARGET on the first install.
-for pkg in $(jq -r '.dependencies | keys[] | select(startswith("@mulmoclaude/"))' packages/mulmoclaude/package.json); do
-  dir=$(echo "$pkg" | sed 's|@mulmoclaude/|packages/plugins/|; s|^packages/plugins/core$|packages/core|')
-  local=$(jq -r .version "$dir/package.json" 2>/dev/null)
+#
+# Resolve each dep's directory by READING the workspace `name` fields.
+# Do NOT derive the path from the package name: the workspace is not
+# flat — `@mulmoclaude/core` is `packages/core`, `common` is
+# `packages/common`, `markdown-utils` is `packages/markdown-utils`, and
+# only the plugins live under `packages/plugins/`. A name→path guess
+# leaves `local=` empty for the ones it gets wrong, which prints as a ⚠
+# with no version; an operator who learns to wave those away will wave
+# away a real one too.
+#
+# The `git ls-files` pathspec is explicit for a reason: a bare
+# `git ls-files packages` also matches
+# `test/scripts/mulmoclaude/fixtures/*/packages/*/package.json`, whose
+# deliberately-stale fixture versions then overwrite the real entries and
+# invent drift that isn't there.
+for f in $(git ls-files -- 'packages/*/package.json' 'packages/*/*/package.json'); do
+  echo "$(jq -r .name "$f") $(jq -r .version "$f")"
+done > /tmp/mc-workspace-versions.txt
+
+for pkg in $(jq -r '.dependencies | keys[] | select(startswith("@mulmoclaude/") or startswith("@mulmobridge/"))' packages/mulmoclaude/package.json); do
+  local=$(awk -v n="$pkg" '$1==n {print $2}' /tmp/mc-workspace-versions.txt)
   npmv=$(npm view "$pkg" version --registry https://registry.npmjs.org/ 2>/dev/null)
-  marker=" "; [ "$local" != "$npmv" ] && marker="⚠"
-  echo " $marker $pkg local=$local npm=$npmv"
+  [ "$local" = "$npmv" ] || echo "  ⚠ $pkg local=${local:-NOT-IN-WORKSPACE} npm=${npmv:-NOT-ON-NPM}"
 done
+echo "  (no ⚠ lines above = every launcher dep resolves to a published version)"
 ```
 
 ### 7. Tag + GitHub release for cascade-bumped @mulmobridge/* / @mulmoclaude/* packages
@@ -232,6 +250,15 @@ A launcher publish is not done until it has a visible, changelog-backed `latest`
 - a one-line **bold tagline**,
 - a `### Highlights` block with `#### <feature> (#issue, #pr)` subsections,
 - a closing `Ships \`@mulmoclaude/core@<v>\`, …` line naming every scoped package version this launcher pulls in.
+
+**9a-bis. Re-check the window between cutting the branch and merging it.** The section is written from the PRs merged as of the moment the release branch is cut — but `main` keeps moving while the release PR sits in CI and review, and everything that lands in that window ships in this release too. Run this after the §8 PR merges and BEFORE tagging:
+
+```bash
+BRANCH_POINT=$(git merge-base origin/main <release-branch>)   # or the bump commit's parent
+git log --merges --oneline "$BRANCH_POINT"..origin/main
+```
+
+Read every PR it lists and fold the user-visible ones into the `## [X.Y.Z]` section with a follow-up docs PR. Release-plumbing and dependency-bump PRs need no entry; a behaviour change does. This is not hypothetical — 1.5.0 was one merge away from shipping without the fix for its most-reported symptom (#2563, browser translation breaking every icon glyph), because that PR landed in exactly this window.
 
 **9b. Tag + release at the merged bump commit.** After the §8 PR merges, tag `main` (the tag MUST point at the commit whose root `package.json` is `X.Y.Z`):
 
