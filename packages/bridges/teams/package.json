@@ -1,6 +1,6 @@
 {
   "name": "@mulmobridge/teams",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Microsoft Teams bridge for MulmoBridge — receives activity via Bot Framework webhook and relays to MulmoClaude",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,9 +22,9 @@
   "license": "MIT",
   "author": "Receptron Team",
   "dependencies": {
-    "@mulmobridge/client": "^1.0.0",
-    "@mulmobridge/protocol": "^1.0.0",
-    "@mulmoclaude/common": "^1.1.0",
+    "@mulmobridge/client": "^1.0.1",
+    "@mulmobridge/protocol": "^1.0.1",
+    "@mulmoclaude/common": "^1.1.1",
     "botbuilder": "^4.23.0",
     "dotenv": "^17.0.0",
     "express": "^5.0.0"
