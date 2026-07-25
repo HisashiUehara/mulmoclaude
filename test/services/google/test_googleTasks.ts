@@ -3,7 +3,29 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { buildTaskPatch, toTaskListSummary, toTaskSummary } from "@mulmoclaude/core/google";
+import { buildTaskPatch, canonicalTaskListId, toTaskListSummary, toTaskSummary } from "@mulmoclaude/core/google";
+
+// Blank must resolve to the default list, not to "" — otherwise the URL builder
+// produces `/lists//tasks`, which 404s instead of hitting the user's default.
+// Same rule (and same reason) as `canonicalCalendarId` for `/calendars//events`.
+describe("canonicalTaskListId", () => {
+  it("falls back to @default when the id is missing", () => {
+    assert.equal(canonicalTaskListId(undefined), "@default");
+  });
+
+  it("falls back for an empty string — the case `??` would have let through", () => {
+    assert.equal(canonicalTaskListId(""), "@default");
+  });
+
+  it("falls back for whitespace", () => {
+    assert.equal(canonicalTaskListId("   "), "@default");
+  });
+
+  it("keeps a real id, trimmed", () => {
+    assert.equal(canonicalTaskListId("MTIzNDU2"), "MTIzNDU2");
+    assert.equal(canonicalTaskListId("  MTIzNDU2  "), "MTIzNDU2");
+  });
+});
 
 describe("toTaskSummary", () => {
   it("maps a full task", () => {

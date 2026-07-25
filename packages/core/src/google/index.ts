@@ -72,6 +72,7 @@ export {
 } from "./collectionSync.js";
 export {
   buildTaskPatch,
+  canonicalTaskListId,
   completeTask,
   createTask,
   deleteTask,

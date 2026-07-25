@@ -68,8 +68,14 @@ export const toTaskSummary = (value: unknown): TaskSummary => {
   };
 };
 
+/** Resolve a declared taskListId to the one the API addresses. `||` (not `??`)
+ *  so a blank string also falls back instead of building a malformed
+ *  `/lists//tasks` URL — the same rule, and the same reason, as
+ *  `canonicalCalendarId`. */
+export const canonicalTaskListId = (taskListId: string | undefined): string => taskListId?.trim() || DEFAULT_TASK_LIST_ID;
+
 const tasksUrl = (taskListId: string | undefined, suffix = ""): string =>
-  `${TASKS_BASE_URL}/lists/${encodeURIComponent(taskListId ?? DEFAULT_TASK_LIST_ID)}/tasks${suffix}`;
+  `${TASKS_BASE_URL}/lists/${encodeURIComponent(canonicalTaskListId(taskListId))}/tasks${suffix}`;
 
 export async function listTaskLists(accessToken: string): Promise<TaskListSummary[]> {
   const listed = await googleRequest(TASKS_API_LABEL, accessToken, `${TASKS_BASE_URL}/users/@me/lists?maxResults=${MAX_TASK_LISTS}`);

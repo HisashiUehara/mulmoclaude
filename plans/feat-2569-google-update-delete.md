@@ -48,6 +48,27 @@ caller never read (attendees, reminders, recurrence).
 - **`due` can be changed but not cleared** — Google rejects `""` there. The
   limitation is recorded as a comment on `UpdateTaskInput` and in the help doc.
 
+## Blank `taskListId` — a pre-existing bug the new kinds inherited
+
+Codex flagged that `tasksUpdate` / `tasksDelete` accepted a blank `taskListId`,
+which core turned into `/lists//tasks` instead of falling back to `@default`.
+Swept the rule rather than the two new lines:
+
+| Layer | Sites | Broken | Already correct |
+| --- | --- | --- | --- |
+| Arg schemas (`taskListId`) | 5 | **5** (3 pre-existing + 2 new) | — |
+| Core URL builders | 2 | **1** (`tasksUrl`, `??`) | `eventsUrl` via `canonicalCalendarId`, `\|\|` |
+| Remote-host handlers | 1 calendar, 0 tasks | 0 | `optionalString` already throws on blank |
+
+The calendar module had solved this exact rule already — `canonicalCalendarId`
+uses `||` "so an empty string also falls back instead of building a malformed
+`/calendars//events`". Tasks now has the mirror, `canonicalTaskListId`, and all
+five arg sites use the shared `OptionalNonEmpty` that `calendarId` uses.
+
+Fixed in both layers on purpose: the arg schema is the actionable-error surface,
+the canonical helper is the one that has to hold when a future caller reaches
+core directly.
+
 ## Tests
 
 - `test/services/google/test_googleCalendar.ts` — `buildEventPatch`: omitted

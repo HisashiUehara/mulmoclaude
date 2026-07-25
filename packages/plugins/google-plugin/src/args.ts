@@ -13,8 +13,9 @@ const IsoDateTimeWithOffset = z.string().refine(isIsoDateTimeWithOffset, {
 
 const MaxResults = z.number().int().min(1).max(MAX_LIST_RESULTS).optional();
 const NonEmpty = z.string().min(1);
-// Trimmed + non-empty: an empty/whitespace calendarId would build a malformed
-// `/calendars//events` URL, and colorId "" would be sent as a bad palette id.
+// Trimmed + non-empty: a blank calendarId / taskListId would build a malformed
+// `/calendars//events` or `/lists//tasks` URL instead of falling back to the
+// default, and colorId "" would be sent as a bad palette id.
 const OptionalNonEmpty = z.string().trim().min(1).optional();
 
 // Fields an update kind may change. Named so the "at least one" guard and its
@@ -72,7 +73,7 @@ export const GoogleArgs = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("taskListsList") }),
   z.object({
     kind: z.literal("tasksList"),
-    taskListId: z.string().optional(),
+    taskListId: OptionalNonEmpty,
     maxResults: MaxResults,
     showCompleted: z.boolean().optional(),
   }),
@@ -81,7 +82,7 @@ export const GoogleArgs = z.discriminatedUnion("kind", [
     title: NonEmpty,
     notes: z.string().optional(),
     due: IsoDateTimeWithOffset.optional(),
-    taskListId: z.string().optional(),
+    taskListId: OptionalNonEmpty,
   }),
   z
     .object({
@@ -90,7 +91,7 @@ export const GoogleArgs = z.discriminatedUnion("kind", [
       title: NonEmpty.optional(),
       notes: z.string().optional(),
       due: IsoDateTimeWithOffset.optional(),
-      taskListId: z.string().optional(),
+      taskListId: OptionalNonEmpty,
     })
     .refine((args) => EDITABLE_TASK_FIELDS.some((field) => args[field] !== undefined), {
       error: `pass at least one field to change (${EDITABLE_TASK_FIELDS.join(", ")})`,
@@ -98,12 +99,12 @@ export const GoogleArgs = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("tasksComplete"),
     taskId: NonEmpty,
-    taskListId: z.string().optional(),
+    taskListId: OptionalNonEmpty,
   }),
   z.object({
     kind: z.literal("tasksDelete"),
     taskId: NonEmpty,
-    taskListId: z.string().optional(),
+    taskListId: OptionalNonEmpty,
   }),
   // Drive (drive.file scope — app-created files only)
   z.object({ kind: z.literal("driveList"), maxResults: MaxResults }),

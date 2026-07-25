@@ -149,6 +149,28 @@ describe("GoogleArgs — tasks", () => {
   it("rejects tasksComplete without a taskId", () => {
     assert.throws(() => GoogleArgs.parse({ kind: "tasksComplete" }));
   });
+
+  // A blank taskListId used to reach core as "", which built `/lists//tasks`
+  // instead of falling back to the user's default list (Codex, PR #2572).
+  // Every tasks kind decides this, so every tasks kind is checked.
+  const listBearing = [
+    { kind: "tasksList" },
+    { kind: "tasksCreate", title: "x" },
+    { kind: "tasksUpdate", taskId: "t1", title: "x" },
+    { kind: "tasksComplete", taskId: "t1" },
+    { kind: "tasksDelete", taskId: "t1" },
+  ];
+  for (const base of listBearing) {
+    it(`rejects a blank taskListId on ${base.kind}`, () => {
+      assert.throws(() => GoogleArgs.parse({ ...base, taskListId: "" }));
+      assert.throws(() => GoogleArgs.parse({ ...base, taskListId: "   " }));
+    });
+
+    it(`trims taskListId whitespace on ${base.kind}`, () => {
+      const parsed = GoogleArgs.parse({ ...base, taskListId: "  MTIzNDU2  " });
+      assert.equal("taskListId" in parsed && parsed.taskListId, "MTIzNDU2");
+    });
+  }
 });
 
 describe("GoogleArgs — calendar update / delete (#2569)", () => {
