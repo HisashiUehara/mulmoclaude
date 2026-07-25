@@ -61,14 +61,23 @@ export function redactSettings(settings: unknown, keys: readonly string[]): Reda
 
 const isSeparator = (char: string): boolean => char === "/" || char === "\\";
 
-// What may continue a path segment. A match followed by one of these is a
-// LONGER name, not the home directory: `/home/alice` inside
-// `/home/alice-archive` must survive untouched. Anything else — a separator, a
-// comma, a space, a quote, end of string — ends the path, so the match is real
-// and has to be shortened or the account name stays in a published report.
-const SEGMENT_CHAR_RE = /[\w.-]/;
+// What ENDS a path in running text: whitespace, and the punctuation that
+// surrounds a path in prose rather than appearing inside one. A separator or
+// end of string ends it too.
+//
+// Stated as what cannot continue a filename, not as which characters look
+// word-like. A filename may hold `+`, `@`, `%`, `#`, `~` and more, so an
+// allowlist of `[\w.-]` rewrote `/home/alice+archive` into `~+archive` — a
+// sibling directory reported as the user's home (Codex review #2579).
+//
+// The two failure directions are not symmetric, which is why the boundary is
+// not simply "separator or end": over-shortening distorts a path in a
+// diagnostics report, while under-shortening leaves the account name in a
+// document strangers read. So an ambiguous character is treated as the end of
+// the path, and only characters that genuinely continue a filename hold it.
+const PATH_ENDING_RE = /[\s,;:"'`()[\]{}<>|?*!]/;
 
-const endsHomePath = (following: string): boolean => following === "" || isSeparator(following) || !SEGMENT_CHAR_RE.test(following);
+const endsHomePath = (following: string): boolean => following === "" || isSeparator(following) || PATH_ENDING_RE.test(following);
 
 /** Replace the home directory with `~`, but only where it ends a path.
  *

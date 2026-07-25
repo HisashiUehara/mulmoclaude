@@ -112,6 +112,24 @@ describe("shortenHome", () => {
     assert.equal(shortenHome("/home/alice/ws and /home/alice-old/ws", "/home/alice"), "~/ws and /home/alice-old/ws");
   });
 
+  // A filename may hold characters an allowlist of `[\w.-]` calls "not word-like".
+  // Treating those as the end of the path renamed a sibling directory to the
+  // user's home in the report (Codex review #2579).
+  it("does not shorten a sibling whose name continues with a non-word character", () => {
+    assert.equal(shortenHome("/home/alice+archive/x", "/home/alice"), "/home/alice+archive/x");
+    assert.equal(shortenHome("/home/alice@work/x", "/home/alice"), "/home/alice@work/x");
+    assert.equal(shortenHome("/home/alice%20old/x", "/home/alice"), "/home/alice%20old/x");
+    assert.equal(shortenHome("/home/alice~bak/x", "/home/alice"), "/home/alice~bak/x");
+  });
+
+  // The other direction is a privacy failure, not a cosmetic one: a path that
+  // ends mid-sentence must still lose the account name.
+  it("still shortens a path ended by prose punctuation", () => {
+    assert.equal(shortenHome('workspace "/home/alice" is missing', "/home/alice"), 'workspace "~" is missing');
+    assert.equal(shortenHome("see (/home/alice) for logs", "/home/alice"), "see (~) for logs");
+    assert.equal(shortenHome("at /home/alice; then /home/alice/ws", "/home/alice"), "at ~; then ~/ws");
+  });
+
   it("does not shred every path when home is the root", () => {
     // `/` as home would match at every separator and destroy the report.
     assert.equal(shortenHome("/a/b/c", "/"), "/a/b/c");
