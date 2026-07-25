@@ -67,8 +67,9 @@ subtree. Browser translation can't be driven from Playwright, so it's recorded i
 `docs/manual-testing.md` §9. If content stops being translatable, option B is the
 fallback.
 
-## Follow-up
+## Release drift
 
-`docs/troubleshooting.md` (PR #2562, not yet merged) tells users to turn
-translation off. Once both land, that entry should note the fix shipped and keep
-the workaround only for older versions.
+`packages/plugins/collection-plugin` was published as `1.0.2` in #2560, and this
+PR edits its source afterwards — so the package now differs from what shipped.
+Left for the next `/publish` run rather than bumped here, since the launcher's
+own release workflow owns that version.
