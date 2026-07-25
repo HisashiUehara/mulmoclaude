@@ -1,6 +1,6 @@
 {
   "name": "@mulmoclaude/google-plugin",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Google integration tool for MulmoClaude — operates the user's locally linked Google account (Calendar now; Tasks / Drive ride the same grant later). Server-only; no Vue View.",
   "type": "module",
   "main": "./dist/index.js",
