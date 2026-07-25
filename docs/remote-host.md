@@ -183,6 +183,8 @@ calling the collection engine directly. Added incrementally across phases:
 | `startChat` | Starts a visible chat from the phone (message + optional role + attachments) | — |
 | `ingestAttachments` | Pulls staged files from Firebase Storage into the workspace | — |
 | `google.calendar.createEvent` | Creates a Google Calendar event (`{ event }`); params `summary`, `start`, `end` (ISO 8601), optional `description`, `calendarId`, `colorId` | — |
+| `google.calendar.updateEvent` | Edits an event in place (`{ event }`); requires `eventId` plus at least one of `summary`, `start`, `end`, `description`, `colorId`; optional `calendarId`. `description: ""` clears it, omitting it leaves it | — |
+| `google.calendar.deleteEvent` | Removes an event (`{ deleted, eventId }`); requires `eventId`, optional `calendarId` | — |
 | `google.calendar.listEvents` | Upcoming events (`{ events }`, each with `colorId`); optional `calendarId` (default primary), `timeMin`, `maxResults` (≤ 50) | — |
 | `google.calendar.listCalendars` | Calendars the user has added/subscribed to (`{ calendars }` — id, summary, primary, colours) | — |
 | `google.calendar.colors` | Event/calendar colour palettes mapping `colorId` → hex (`{ colors }`) | — |
