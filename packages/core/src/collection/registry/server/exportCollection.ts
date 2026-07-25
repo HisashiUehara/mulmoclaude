@@ -11,6 +11,7 @@ import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promi
 import path from "node:path";
 
 import { log } from "../../server/host.js";
+import { toPosixRelPath } from "../../../files/relPath.js";
 
 export const EXPORT_BASE = "data/registry-export";
 const BUNDLE_FILES = ["SKILL.md", "schema.json"] as const;
@@ -151,6 +152,6 @@ export async function writeCollectionExport(params: {
   const metaOut = { ...meta, ...(seed.count > 0 ? { dataConsent: true } : {}) };
   await writeFile(path.join(outDir, "meta.json"), `${JSON.stringify(metaOut, null, 2)}\n`, "utf-8");
   log.info("collections-registry", "exported collection", { slug: meta.slug, author: meta.author, seedCount: seed.count });
-  const outRel = path.relative(wsRoot, outDir).split(path.sep).join("/");
+  const outRel = toPosixRelPath(path.relative(wsRoot, outDir));
   return { ok: true, outputPath: outRel, fileCount: bundleCount + 1, seedCount: seed.count, seedSkipped: seed.skipped, warnings: seed.warnings };
 }

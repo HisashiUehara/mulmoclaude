@@ -7,6 +7,7 @@ import { statSafe, statSafeAsync, readDirSafeAsync, resolveWithinRoot, writeFile
 import { stripDataUri } from "../../utils/files/attachment-store.js";
 import { writeNewFileExclusive } from "../../utils/files/upload-io.js";
 import { MAX_RENAME_ATTEMPTS, renamedCandidate, sanitizeUploadFilename, uploadRelPath } from "../../utils/files/upload-name.js";
+import { joinPosixRelPath, toPosixRelPath } from "@mulmoclaude/core/files";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, notFound, sendError, serverError } from "../../utils/httpError.js";
 import { jsonSyntaxError, MAX_PREVIEW_BYTES } from "../../utils/files/content-write-validate.js";
@@ -476,7 +477,11 @@ async function resolveVisibleChild(
   if (HIDDEN_DIRS.has(entry.name)) return null;
   if (!entry.isDirectory() && isSensitivePath(entry.name)) return null;
   if (entry.isSymbolicLink()) return null;
-  const childRel = relPath ? path.join(relPath, entry.name) : entry.name;
+  // POSIX-shaped: this becomes `TreeNode.path` (a `/`-separated contract on
+  // every host) and the `.gitignore` test path below, and the `ignore` package
+  // only matches POSIX input — on Windows `sub\node_modules/` silently misses a
+  // `node_modules/` rule, surfacing entries the user marked ignored (#2542).
+  const childRel = joinPosixRelPath(relPath, entry.name);
   // .gitignore check: for directories, append trailing / so
   // directory-only patterns (e.g. "node_modules/") match.
   if (localFilter) {
@@ -686,7 +691,9 @@ router.get(API_ROUTES.files.dir, async (req: Request<object, unknown, unknown, P
   }
   try {
     const filter = buildGitignoreFilterChain(workspaceReal, absPath);
-    const listing = await listDirShallow(absPath, path.relative(workspaceReal, absPath), filter);
+    // `path.relative` is host-shaped; the walk below joins onto this seed and
+    // hands the result out as `TreeNode.path`, so it crosses to POSIX here.
+    const listing = await listDirShallow(absPath, toPosixRelPath(path.relative(workspaceReal, absPath)), filter);
     res.json(listing);
   } catch (err) {
     log.error("files", "GET dir: threw", { pathPreview: previewSnippet(relPath), error: errorMessage(err) });

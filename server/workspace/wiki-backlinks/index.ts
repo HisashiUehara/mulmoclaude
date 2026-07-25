@@ -23,6 +23,7 @@ import { log } from "../../system/logger/index.js";
 import { updateSessionBacklinks } from "./sessionBacklinks.js";
 import { writeWikiPage } from "../wiki-pages/io.js";
 import { ONE_SECOND_MS } from "../../utils/time.js";
+import { toPosixRelPath } from "@mulmoclaude/core/files";
 
 // Small tolerance for filesystem mtime granularity (some filesystems
 // only record to 1-second precision). Without this, a page written
@@ -102,7 +103,7 @@ async function processOneFile(pagesDir: string, fileName: string, sessionId: str
     const chatFileAbs = path.join(workspaceRoot, WORKSPACE_DIRS.chat, `${sessionId}.jsonl`);
     // Markdown link targets are URL-ish and must use forward slashes
     // even on Windows, where `path.relative` returns backslashes.
-    const linkHref = path.relative(path.dirname(fullPath), chatFileAbs).split(path.sep).join("/");
+    const linkHref = toPosixRelPath(path.relative(path.dirname(fullPath), chatFileAbs));
     const updated = updateSessionBacklinks(content, sessionId, linkHref);
     if (updated === content) return;
 
