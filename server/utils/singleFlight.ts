@@ -10,23 +10,33 @@ interface Slot {
   pending: boolean;
 }
 
-/** Wrap `pass` so concurrent calls share one run, with at most one queued
- *  re-run for triggers that arrived while it was in flight. The returned
- *  promise resolves when the run covering the caller finishes, and rejects
- *  with whatever `pass` threw. */
+/** Wrap `pass` so concurrent calls share one run, with a queued re-run for
+ *  triggers that arrived while it was in flight. The returned promise resolves
+ *  when the run covering the caller finishes, and rejects with whatever `pass`
+ *  threw first. */
 export function makeSingleFlight(pass: () => Promise<void>): () => Promise<void> {
   const slot: Slot = { running: null, pending: false };
   const loop = async (): Promise<void> => {
+    // A failed pass must not swallow a trigger that arrived while it ran: that
+    // trigger stands for state the failed pass never looked at, and dropping it
+    // strands that state until something else fires (CodeRabbit review #2566).
+    // The failure is still reported, after the queue has drained.
+    let failure: { error: unknown } | null = null;
     try {
       let keepGoing = true;
       while (keepGoing) {
         slot.pending = false;
-        await pass();
+        try {
+          await pass();
+        } catch (error) {
+          failure ??= { error };
+        }
         keepGoing = slot.pending;
       }
     } finally {
       slot.running = null;
     }
+    if (failure) throw failure.error;
   };
   return () => {
     if (slot.running) {

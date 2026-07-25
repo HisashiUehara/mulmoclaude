@@ -14,6 +14,7 @@ import {
   orphanedCalendarId,
   toCollectionRecord,
   unsyncedGroups,
+  withKeyedLock,
 } from "@mulmoclaude/core/google";
 import type { CalendarDeclaring, CalendarEventSummary } from "@mulmoclaude/core/google";
 import { parseIsoDateTime } from "@mulmoclaude/core/collection";
@@ -351,5 +352,84 @@ describe("unsyncedGroups (#2427 first sync)", () => {
   it("treats an empty-string token as synced", async () => {
     const pending = await unsyncedGroups(groups("work"), tokens({ work: "" }));
     assert.equal(pending.size, 0);
+  });
+});
+
+/** Runs whose completion the test controls, recording the order they started
+ *  in — "did the second one start early?" is the question the lock answers. */
+function trackedRuns() {
+  const started: string[] = [];
+  const releases = new Map<string, (value: string) => void>();
+  const run = (label: string) => (): Promise<string> => {
+    started.push(label);
+    return new Promise<string>((resolve) => releases.set(label, resolve));
+  };
+  const release = (label: string): void => releases.get(label)?.(label);
+  return { run, started, release };
+}
+
+/** Let every pending microtask settle before asserting on start order. */
+const settle = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+
+// Three doors lead into one calendar — the scheduler, the create trigger and
+// the Refresh button — and the sync token is keyed by calendar, not by caller.
+// Two passes running at once would both load the SAME token and walk the same
+// window (idempotent, but a wasted full walk), so they queue instead
+// (CodeRabbit review #2566).
+describe("withKeyedLock (#2566 per-calendar queuing)", () => {
+  it("holds the second run on a key until the first settles", async () => {
+    const locks = new Map<string, Promise<unknown>>();
+    const { run, started, release } = trackedRuns();
+    const first = withKeyedLock(locks, "work", run("a"));
+    const second = withKeyedLock(locks, "work", run("b"));
+    await settle();
+    assert.deepEqual(started, ["a"], "the second pass must not read the token the first is still advancing");
+
+    release("a");
+    await first;
+    await settle();
+    assert.deepEqual(started, ["a", "b"]);
+    release("b");
+    assert.equal(await second, "b");
+  });
+
+  it("runs different calendars concurrently — the token is per calendar", async () => {
+    const locks = new Map<string, Promise<unknown>>();
+    const { run, started, release } = trackedRuns();
+    const work = withKeyedLock(locks, "work", run("a"));
+    const home = withKeyedLock(locks, "home", run("b"));
+    await settle();
+    assert.deepEqual(started.sort(), ["a", "b"]);
+    release("a");
+    release("b");
+    assert.deepEqual(await Promise.all([work, home]), ["a", "b"]);
+  });
+
+  it("lets the queue advance after a failed run", async () => {
+    const locks = new Map<string, Promise<unknown>>();
+    const { run, started, release } = trackedRuns();
+    const failing = withKeyedLock(locks, "work", () => Promise.reject(new Error("boom")));
+    const next = withKeyedLock(locks, "work", run("b"));
+    await assert.rejects(failing, /boom/);
+    await settle();
+    assert.deepEqual(started, ["b"], "one calendar's failure must not wedge that calendar forever");
+    release("b");
+    assert.equal(await next, "b");
+  });
+
+  it("releases the key once nothing is queued behind it", async () => {
+    const locks = new Map<string, Promise<unknown>>();
+    await withKeyedLock(locks, "work", () => Promise.resolve(1));
+    await settle();
+    assert.equal(locks.size, 0, "the map must not grow one entry per calendar forever");
+  });
+
+  it("returns each caller its own run's value", async () => {
+    const locks = new Map<string, Promise<unknown>>();
+    const results = await Promise.all([
+      withKeyedLock(locks, "work", () => Promise.resolve("first")),
+      withKeyedLock(locks, "work", () => Promise.resolve("second")),
+    ]);
+    assert.deepEqual(results, ["first", "second"]);
   });
 });

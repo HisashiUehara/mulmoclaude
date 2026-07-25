@@ -62,7 +62,7 @@ the calendar day view then draws each record as a proportional time block.
 - **On creation** — the first sync starts as soon as the schema lands, so the
   collection is not empty while the user waits for the schedule. The same
   applies when you add a `googleCalendar` block to an existing collection.
-- **Hourly** afterwards, in the background.
+- **Hourly** after that, in the background.
 - **On demand** — the collection view has a Sync button. Tell the user about it
   if they want the calendar refreshed right now.
 

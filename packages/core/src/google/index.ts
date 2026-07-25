@@ -64,6 +64,7 @@ export {
   syncNewCalendarCollections,
   toCollectionRecord,
   unsyncedGroups,
+  withKeyedLock,
   GOOGLE_CALENDAR_SYNC_TASK_ID,
   type CalendarCollectionSyncResult,
   type CalendarDeclaring,

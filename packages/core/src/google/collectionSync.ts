@@ -131,6 +131,32 @@ async function restartFullSync(accessToken: string, calendarId: string | undefin
   return await syncCalendarEvents(accessToken, { calendarId });
 }
 
+/** Serialise `run` against whatever is already running for `key`.
+ *
+ *  `locks` is passed in so the queuing rule is testable without module state;
+ *  the key is dropped once nothing is queued behind it, so the map cannot grow
+ *  an entry per calendar forever. A failed predecessor still releases the
+ *  queue — `then(run, run)`. */
+export async function withKeyedLock<T>(locks: Map<string, Promise<unknown>>, key: string, run: () => Promise<T>): Promise<T> {
+  const previous = locks.get(key) ?? Promise.resolve();
+  const result = previous.then(run, run);
+  const tail = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  locks.set(key, tail);
+  try {
+    return await result;
+  } finally {
+    if (locks.get(key) === tail) locks.delete(key);
+  }
+}
+
+/** In-flight sync per canonical calendar id. Module state on purpose: the
+ *  scheduler, the create trigger and the Refresh button are three doors into
+ *  the same calendar (CodeRabbit review #2566). */
+const calendarLocks = new Map<string, Promise<unknown>>();
+
 /** Sync ONE calendar and fan its events out to every collection bound to it.
  *
  *  The fan-out is not an optimisation, it is correctness: the sync token is
@@ -138,8 +164,23 @@ async function restartFullSync(accessToken: string, calendarId: string | undefin
  *  first collection advance the shared token and leave every later collection
  *  on the same calendar reading an already-consumed window — silently missing
  *  those events forever. Fetch once, apply to all, then advance the token.
- *  (Codex + CodeRabbit review on #2184.) */
+ *  (Codex + CodeRabbit review on #2184.)
+ *
+ *  Queued per calendar for the same reason the fan-out exists: two passes over
+ *  one calendar (a Refresh click landing during the scheduled run) would each
+ *  load the SAME stored token and walk the same window. That is idempotent —
+ *  writes are upserts by event id — but it is a wasted full walk. Queued, the
+ *  second pass resumes from the token the first just stored and fetches only
+ *  what is genuinely new. */
 export async function syncCalendarGroup(
+  calendarId: string | undefined,
+  collections: readonly LoadedCollection[],
+  workspaceRoot: string,
+): Promise<CalendarCollectionSyncResult[]> {
+  return await withKeyedLock(calendarLocks, canonicalCalendarId(calendarId), () => syncCalendarGroupNow(calendarId, collections, workspaceRoot));
+}
+
+async function syncCalendarGroupNow(
   calendarId: string | undefined,
   collections: readonly LoadedCollection[],
   workspaceRoot: string,
