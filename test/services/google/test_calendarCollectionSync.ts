@@ -6,7 +6,15 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { anySyncedCollectionSurvives, classifyDelete, classifyWrite, groupByCalendar, orphanedCalendarId, toCollectionRecord } from "@mulmoclaude/core/google";
+import {
+  anySyncedCollectionSurvives,
+  classifyDelete,
+  classifyWrite,
+  groupByCalendar,
+  orphanedCalendarId,
+  toCollectionRecord,
+  unsyncedGroups,
+} from "@mulmoclaude/core/google";
 import type { CalendarDeclaring, CalendarEventSummary } from "@mulmoclaude/core/google";
 import { parseIsoDateTime } from "@mulmoclaude/core/collection";
 import type { CollectionFieldSpec } from "@mulmoclaude/core/collection";
@@ -298,5 +306,50 @@ describe("anySyncedCollectionSurvives (#2428 mid-sync delete)", () => {
   // consumed the window" must never advance the token either.
   it("treats an empty group as no survivor", async () => {
     assert.equal(await anySyncedCollectionSurvives([], existing("/ws/.claude/skills/cal")), false);
+  });
+});
+
+// The trigger behind "the collection shows up already populated" (#2427): a
+// calendar with no stored token has never synced, which is exactly the state a
+// just-created collection is in. The rule fires on every config write, so what
+// keeps it from re-walking calendars forever is that the first sync stores a
+// token and the calendar stops matching.
+describe("unsyncedGroups (#2427 first sync)", () => {
+  const tokens =
+    (stored: Record<string, string>) =>
+    (calendarId: string): Promise<string | null> =>
+      Promise.resolve(stored[calendarId] ?? null);
+
+  const groups = (...calendarIds: string[]) => new Map(calendarIds.map((calendarId) => [calendarId, [`${calendarId}-collection`]]));
+
+  it("keeps a calendar that has never synced", async () => {
+    const pending = await unsyncedGroups(groups("work"), tokens({}));
+    assert.deepEqual([...pending.keys()], ["work"]);
+  });
+
+  it("drops a calendar that already holds a sync token", async () => {
+    const pending = await unsyncedGroups(groups("work"), tokens({ work: "tok-1" }));
+    assert.equal(pending.size, 0);
+  });
+
+  it("keeps only the never-synced calendars in a mixed set", async () => {
+    const pending = await unsyncedGroups(groups("work", "home", "family"), tokens({ home: "tok-1" }));
+    assert.deepEqual([...pending.keys()].sort(), ["family", "work"]);
+  });
+
+  it("carries each kept calendar's collections through untouched", async () => {
+    const pending = await unsyncedGroups(groups("work"), tokens({}));
+    assert.deepEqual(pending.get("work"), ["work-collection"]);
+  });
+
+  it("returns an empty map when nothing declares a calendar", async () => {
+    assert.equal((await unsyncedGroups(new Map(), tokens({}))).size, 0);
+  });
+
+  // An empty string is a stored token, not a missing one — treating it as
+  // missing would re-walk the whole calendar on every config write.
+  it("treats an empty-string token as synced", async () => {
+    const pending = await unsyncedGroups(groups("work"), tokens({ work: "" }));
+    assert.equal(pending.size, 0);
   });
 });

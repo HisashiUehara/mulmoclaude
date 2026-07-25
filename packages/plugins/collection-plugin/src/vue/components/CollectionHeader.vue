@@ -54,7 +54,7 @@
     />
 
     <button
-      v-if="collection?.schema.ingest"
+      v-if="refreshLabel"
       type="button"
       class="h-8 px-2.5 flex items-center gap-1 rounded border border-indigo-200 bg-white hover:bg-indigo-50 text-indigo-600 font-bold text-xs transition-colors disabled:opacity-50"
       :disabled="refreshing"
@@ -62,7 +62,7 @@
       @click="$emit('refreshFeed')"
     >
       <span class="material-icons text-sm">{{ refreshing ? "hourglass_empty" : "refresh" }}</span>
-      <span>{{ t("collectionsView.refreshFeed") }}</span>
+      <span>{{ refreshLabel }}</span>
     </button>
 
     <button
@@ -198,7 +198,7 @@
 // the document-level outside-click listener resolves against a ref this
 // component owns, exactly as before. The parent drives the per-slug reset
 // through the exposed `resetForSlugChange`, keeping its original timing.
-import { toRef } from "vue";
+import { computed, toRef } from "vue";
 import { useCollectionI18n } from "../lang";
 import { collectionUi } from "../uiContext";
 import { useRelatedMenu } from "../composables/useRelatedMenu";
@@ -248,6 +248,16 @@ const {
   relatedDirectionLabel,
   resetForSlugChange,
 } = useRelatedMenu({ collection: toRef(props, "collection"), embedded: toRef(props, "embedded"), cui, t });
+
+/** The Refresh button's label, or null when the collection has nothing to
+ *  re-run. A `googleCalendar` collection syncs on the same button but says so
+ *  (#2427); `ingest` wins if a schema declares both, matching the route. */
+const refreshLabel = computed<string | null>(() => {
+  const schema = props.collection?.schema;
+  if (schema?.ingest) return t("collectionsView.refreshFeed");
+  if (schema?.googleCalendar) return t("collectionsView.syncCalendar");
+  return null;
+});
 
 /** Header buttons only ever check the collection-level run key (no itemId),
  *  so this mirrors the parent's `isActionRunning(id)` via the same key builder. */

@@ -304,22 +304,30 @@ export async function releaseOrphanedCalendarToken(deleted: CalendarDeclaring, w
   }
 }
 
-/** Sync every collection that declares `googleCalendar`. Failures are isolated
- *  per calendar — one unreachable calendar (or a revoked grant) must not stop
- *  the others. */
-export async function syncDueCalendarCollections(workspaceRoot: string): Promise<CalendarCollectionSyncResult[]> {
+/** Every declaring collection, grouped by the calendar it reads. */
+async function declaringGroups(workspaceRoot: string): Promise<Map<string, LoadedCollection[]>> {
   const all = await discoverCollections({ workspaceRoot });
-  const declaring = all.filter((collection) => collection.schema.googleCalendar);
-  if (declaring.length === 0) return [];
-  // Authoring the collection before linking the account is an expected state,
-  // not a failure. Checking once here keeps it a quiet skip instead of an
-  // access-token throw per calendar, every hour, until the user links (#2188).
-  if (!(await isGoogleLinked())) {
-    log.info("google", "skipping calendar sync — no Google account linked on this host", { collections: declaring.length });
-    return [];
-  }
+  return groupByCalendar(all.filter((collection) => collection.schema.googleCalendar));
+}
+
+/** Whether a background sync of these groups may run at all.
+ *
+ *  Authoring the collection before linking the account is an expected state,
+ *  not a failure. Checking once here keeps it a quiet skip instead of an
+ *  access-token throw per calendar, every hour, until the user links (#2188).
+ *  A user-triggered sync answers differently — it says so out loud. */
+async function backgroundSyncAllowed(groups: Map<string, LoadedCollection[]>): Promise<boolean> {
+  if (groups.size === 0) return false;
+  if (await isGoogleLinked()) return true;
+  log.info("google", "skipping calendar sync — no Google account linked on this host", { calendars: groups.size });
+  return false;
+}
+
+/** Run each group, isolating failures per calendar — one unreachable calendar
+ *  (or a revoked grant) must not stop the others. */
+async function runCalendarGroups(groups: Map<string, LoadedCollection[]>, workspaceRoot: string): Promise<CalendarCollectionSyncResult[]> {
   const results: CalendarCollectionSyncResult[] = [];
-  for (const [calendarId, collections] of groupByCalendar(declaring)) {
+  for (const [calendarId, collections] of groups) {
     try {
       results.push(...(await syncCalendarGroup(calendarId, collections, workspaceRoot)));
     } catch (error) {
@@ -328,6 +336,54 @@ export async function syncDueCalendarCollections(workspaceRoot: string): Promise
     }
   }
   return results;
+}
+
+/** Sync every collection that declares `googleCalendar`. */
+export async function syncDueCalendarCollections(workspaceRoot: string): Promise<CalendarCollectionSyncResult[]> {
+  const groups = await declaringGroups(workspaceRoot);
+  return (await backgroundSyncAllowed(groups)) ? await runCalendarGroups(groups, workspaceRoot) : [];
+}
+
+/** The groups whose calendar has never synced. A missing token IS the "created
+ *  since the last sync" signal — nothing else distinguishes a new collection
+ *  from an edited one on the write path this feeds (#2427).
+ *
+ *  Self-silencing by construction: the first sync stores a token, so a calendar
+ *  matches at most once. `loadToken` is injected so the rule is testable without
+ *  a workspace on disk. */
+export async function unsyncedGroups<T>(groups: Map<string, T>, loadToken: (calendarId: string) => Promise<string | null>): Promise<Map<string, T>> {
+  const checked = await Promise.all([...groups].map(async (entry) => ((await loadToken(entry[0])) === null ? entry : null)));
+  return new Map(checked.filter((entry): entry is [string, T] => entry !== null));
+}
+
+/** Sync only the calendars that have never synced — the first sync for a
+ *  just-created collection, which otherwise stays empty until the hourly
+ *  scheduler run (#2427). Cheap and safe to call on every config write. */
+export async function syncNewCalendarCollections(workspaceRoot: string): Promise<CalendarCollectionSyncResult[]> {
+  const groups = await declaringGroups(workspaceRoot);
+  const pending = await unsyncedGroups(groups, (calendarId) => loadCalendarSyncToken(calendarId, workspaceRoot));
+  if (!(await backgroundSyncAllowed(pending))) return [];
+  log.info("google", "running the first sync for newly declared calendars", { calendars: [...pending.keys()] });
+  return await runCalendarGroups(pending, workspaceRoot);
+}
+
+/** A user-triggered sync's outcome. `not-a-calendar` and `not-linked` are
+ *  states the caller must report rather than swallow: a Refresh click that
+ *  quietly returns "0 written" reads as an empty calendar, not as a setup gap. */
+export type ManualCalendarSyncOutcome = { kind: "synced"; results: CalendarCollectionSyncResult[] } | { kind: "not-a-calendar" } | { kind: "not-linked" };
+
+/** Sync the calendar ONE collection reads, on demand (the Refresh button).
+ *
+ *  Deliberately syncs the whole group, not just `slug`: the sync token is keyed
+ *  by calendar, so consuming a window for one collection would leave the others
+ *  on that calendar reading an already-consumed one. Returns every result of the
+ *  group so the caller can report the requested slug's own counts. */
+export async function syncCalendarForCollection(slug: string, workspaceRoot: string): Promise<ManualCalendarSyncOutcome> {
+  const groups = await declaringGroups(workspaceRoot);
+  const owning = [...groups].filter(([, collections]) => collections.some((collection) => collection.slug === slug));
+  if (owning.length === 0) return { kind: "not-a-calendar" };
+  if (!(await isGoogleLinked())) return { kind: "not-linked" };
+  return { kind: "synced", results: await runCalendarGroups(new Map(owning), workspaceRoot) };
 }
 
 /** Scheduler registration, shaped like `feedRefreshTaskDef` so hosts wire it

@@ -93,6 +93,7 @@ const koMessages: CollectionMessages = {
     relatedIn: "이 컬렉션으로 링크함",
     relatedBoth: "양방향 링크",
     refreshFeed: "새로고침",
+    syncCalendar: "동기화",
     refreshFailed: "새로고침 실패: {error}",
     refreshDispatched: "백그라운드에서 새로고침을 시작했습니다.",
     feedChatSeed:

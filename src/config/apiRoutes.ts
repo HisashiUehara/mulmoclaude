@@ -322,8 +322,9 @@ const HOST_API_ROUTES = {
     /** POST → assemble a collection-level action's seed prompt (no record;
      *  injects a progress summary of all items) → { prompt, role } */
     collectionAction: "/api/collections/:slug/actions/:actionId",
-    /** POST → re-run a feed collection's retrieval now → { refreshed, written }.
-     *  400 when the collection has no `ingest` block (not a feed). */
+    /** POST → re-run a collection's retrieval now: a feed's `ingest`, or a
+     *  `googleCalendar` sync (#2427) → { refreshed, written, removed? }.
+     *  400 when the collection declares neither. */
     refresh: "/api/collections/:slug/refresh",
     /** GET ?id=<viewId> → the custom view's HTML file (global-bearer auth),
      *  read from data/skills/:slug/views/. The parent renders it sandboxed. */

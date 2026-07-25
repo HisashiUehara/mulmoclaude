@@ -608,11 +608,13 @@ const editingRowId = computed<string | null>(() => {
   return draft.originalId;
 });
 
-/** Re-run a feed collection's retrieval now, then reload its records.
- *  Only reachable when `schema.ingest` is present (button is gated). */
+/** Re-run a collection's retrieval now, then reload its records: a feed's
+ *  `ingest`, or a `googleCalendar` sync (#2427). Only reachable when one of
+ *  the two is present (button is gated). */
 async function refreshFeed(): Promise<void> {
   const current = collection.value;
-  if (!current?.schema.ingest || refreshing.value) return;
+  if (!current || refreshing.value) return;
+  if (!current.schema.ingest && !current.schema.googleCalendar) return;
   refreshing.value = true;
   inlineError.value = null;
   const result = await cui.refreshCollection(current.slug);

@@ -92,6 +92,7 @@ const zhMessages: CollectionMessages = {
     relatedIn: "它链接到此集合",
     relatedBoth: "双向关联",
     refreshFeed: "刷新",
+    syncCalendar: "同步",
     refreshFailed: "刷新失败：{error}",
     refreshDispatched: "已在后台开始刷新。",
     feedChatSeed:

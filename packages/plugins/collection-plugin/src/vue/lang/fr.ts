@@ -95,6 +95,7 @@ const frMessages: CollectionMessages = {
     relatedIn: "Renvoie à cette collection",
     relatedBoth: "Liées dans les deux sens",
     refreshFeed: "Actualiser",
+    syncCalendar: "Synchroniser",
     refreshFailed: "Échec de l'actualisation : {error}",
     refreshDispatched: "Actualisation lancée en arrière-plan.",
     feedChatSeed:

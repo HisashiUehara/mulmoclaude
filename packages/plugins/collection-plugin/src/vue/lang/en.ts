@@ -91,6 +91,7 @@ const enMessages = {
     relatedIn: "It links to this collection",
     relatedBoth: "Linked both ways",
     refreshFeed: "Refresh",
+    syncCalendar: "Sync",
     refreshFailed: "Refresh failed: {error}",
     refreshDispatched: "Refresh started in the background.",
     feedChatSeed:

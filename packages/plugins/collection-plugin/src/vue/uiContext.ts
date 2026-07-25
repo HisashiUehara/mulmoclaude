@@ -60,6 +60,9 @@ export interface CollectionRefreshResult {
   refreshed: boolean;
   written: number;
   errors: string[];
+  /** Records a `googleCalendar` sync deleted (the event was cancelled in
+   *  Google). Absent for a feed refresh, which never removes records. */
+  removed?: number;
   dispatched?: boolean;
   chatId?: string;
 }

@@ -68,7 +68,8 @@ import { errorMessage } from "../../utils/errors.js";
 import { log } from "../../system/logger/index.js";
 import { workspacePath } from "../../workspace/workspace.js";
 import { refreshOne } from "@mulmoclaude/core/feeds/server";
-import { releaseOrphanedCalendarToken } from "@mulmoclaude/core/google";
+import { releaseOrphanedCalendarToken, syncCalendarForCollection } from "@mulmoclaude/core/google";
+import { calendarRefreshBody, type CollectionRefreshBody as RefreshResponse } from "./collectionCalendarRefresh.js";
 import { manageCollection } from "../../agent/mcp-tools/manageCollection.js";
 import { dispatchAgentAction, runningAgentActions } from "./collectionAgentActions.js";
 import { clampCapabilities, mintViewToken, requireViewToken } from "../auth/viewToken.js";
@@ -432,39 +433,41 @@ router.delete(API_ROUTES.collections.item, async (req: Request<{ slug: string; i
   }
 });
 
-interface RefreshResponse {
-  refreshed: true;
-  written: number;
-  errors: string[];
-  /** True when an agent-ingest refresh dispatched a worker (fire-and-forget):
-   *  records update asynchronously, so the client shows a note rather than a
-   *  written count. */
-  dispatched?: boolean;
-  /** The visible worker's chat session id (manual Refresh only) so the client
-   *  can open it to watch the refresh run. */
-  chatId?: string;
+async function refreshFeedCollection(collection: LoadedCollection, res: Response<RefreshResponse>): Promise<void> {
+  // Manual Refresh button → run a VISIBLE worker (hidden:false) so the user
+  // can open the session and watch/debug it. Scheduled refreshes (the
+  // `refreshDue` loop) stay hidden. Declarative feeds ignore the flag.
+  const result = await refreshOne(workspacePath, collection, { hidden: false });
+  log.info("collections", "feed refreshed via collection route", { slug: collection.slug, written: result.written, dispatched: result.dispatched ?? false });
+  res.json({ refreshed: true, written: result.written, errors: result.errors, dispatched: result.dispatched, chatId: result.chatId });
 }
 
-// Re-run a feed collection's retrieval now. Generic over kind — the
-// engine dispatches on `schema.ingest.kind`. 400 when the collection
-// carries no `ingest` block (it's an ordinary skill collection, not a
-// feed). Backs the CollectionView "Refresh feed" button.
+/** Sync now, on the user's click, instead of waiting for the hourly scheduler
+ *  run (#2427) — the calendar counterpart of a feed's Refresh. */
+async function refreshCalendarCollection(slug: string, res: Response<RefreshResponse>): Promise<void> {
+  const outcome = await syncCalendarForCollection(slug, workspacePath);
+  const body = calendarRefreshBody(slug, outcome);
+  log.info("collections", "calendar synced via collection route", { slug, written: body.written, removed: body.removed, errors: body.errors.length });
+  res.json(body);
+}
+
+// Re-run a collection's retrieval now: a feed's `ingest` (generic over kind —
+// the engine dispatches on `schema.ingest.kind`) or a `googleCalendar` sync.
+// 400 when the collection declares neither (it's an ordinary skill collection).
+// Backs the CollectionView Refresh button. `ingest` wins if a schema somehow
+// declares both — that is the pre-existing behaviour of this route.
 router.post(API_ROUTES.collections.refresh, async (req: Request<{ slug: string }>, res: Response<RefreshResponse>) => {
   const collection = await loadCollectionOr404(req.params.slug, res);
   if (!collection) return;
-  if (!collection.schema.ingest) {
-    badRequest(res, `collection '${collection.slug}' is not a feed (no ingest config)`);
+  if (!collection.schema.ingest && !collection.schema.googleCalendar) {
+    badRequest(res, `collection '${collection.slug}' is not refreshable (no ingest or googleCalendar config)`);
     return;
   }
   try {
-    // Manual Refresh button → run a VISIBLE worker (hidden:false) so the user
-    // can open the session and watch/debug it. Scheduled refreshes (the
-    // `refreshDue` loop) stay hidden. Declarative feeds ignore the flag.
-    const result = await refreshOne(workspacePath, collection, { hidden: false });
-    log.info("collections", "feed refreshed via collection route", { slug: collection.slug, written: result.written, dispatched: result.dispatched ?? false });
-    res.json({ refreshed: true, written: result.written, errors: result.errors, dispatched: result.dispatched, chatId: result.chatId });
+    if (collection.schema.ingest) await refreshFeedCollection(collection, res);
+    else await refreshCalendarCollection(collection.slug, res);
   } catch (err) {
-    log.warn("collections", "feed refresh failed", { slug: collection.slug, error: errorMessage(err) });
+    log.warn("collections", "collection refresh failed", { slug: collection.slug, error: errorMessage(err) });
     serverError(res, errorMessage(err));
   }
 });

@@ -94,6 +94,7 @@ const ptBRMessages: CollectionMessages = {
     relatedIn: "Faz referência a esta coleção",
     relatedBoth: "Vinculadas nos dois sentidos",
     refreshFeed: "Atualizar",
+    syncCalendar: "Sincronizar",
     refreshFailed: "Falha ao atualizar: {error}",
     refreshDispatched: "Atualização iniciada em segundo plano.",
     feedChatSeed:

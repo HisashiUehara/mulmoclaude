@@ -93,6 +93,7 @@ const jaMessages: CollectionMessages = {
     relatedIn: "このコレクションへのリンク",
     relatedBoth: "相互にリンク",
     refreshFeed: "更新",
+    syncCalendar: "同期",
     refreshFailed: "更新に失敗しました: {error}",
     refreshDispatched: "バックグラウンドで更新を開始しました。",
     feedChatSeed:
