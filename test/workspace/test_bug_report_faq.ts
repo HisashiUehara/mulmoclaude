@@ -61,7 +61,22 @@ describe("bundled bug-report FAQ", () => {
     // the banned phrasing, and must stay free to do that.
     const [, entriesBody] = readFileSync(FAQ_PATH, "utf-8").split(/^---$/m);
     assert.ok(entriesBody, "expected a `---` line separating the header from the entries");
-    const bannedPhrases = ["the default is", "defaults to", "by default it is"];
+    // Every phrasing below states a CURRENT VALUE. The first version of this
+    // file passed the check while saying "ships off" four times — the ban list
+    // has to cover how people actually write a default, not just the words the
+    // header happens to use.
+    const bannedPhrases = [
+      "the default is",
+      "defaults to",
+      "by default",
+      "ships off",
+      "ships on",
+      "stays off",
+      "is off until",
+      "is on until",
+      "off by default",
+      "on by default",
+    ];
     const found = bannedPhrases.filter((phrase) => entriesBody.toLowerCase().includes(phrase));
     assert.deepEqual(found, [], "state where to read the live value, not what the value is");
   });

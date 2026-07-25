@@ -1,10 +1,40 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseFaqEntries, entryHasPointer } from "@mulmoclaude/core/workspace-setup";
+import { parseFaqEntries, entryHasPointer, parsePointerLine } from "@mulmoclaude/core/workspace-setup";
 
 // Unit tests for the bug-report FAQ parser. The shipped file is checked
 // separately (test_bug_report_faq.ts); this file pins the format rules that
 // make that check meaningful.
+
+describe("parsePointerLine", () => {
+  it("reads each known field into its list", () => {
+    assert.deepEqual(parsePointerLine("configKey: voiceInput"), { list: "configKeys", value: "voiceInput" });
+    assert.deepEqual(parsePointerLine("source: server/x.ts"), { list: "sources", value: "server/x.ts" });
+    assert.deepEqual(parsePointerLine("help: sandbox.md"), { list: "helps", value: "sandbox.md" });
+  });
+
+  it("tolerates whitespace around the field name and value", () => {
+    assert.deepEqual(parsePointerLine("configKey :   voiceInput  "), { list: "configKeys", value: "voiceInput" });
+  });
+
+  it("keeps a value containing further colons intact", () => {
+    // A URL or a Windows path would otherwise be truncated at its own colon.
+    assert.deepEqual(parsePointerLine("help: a.md: see also"), { list: "helps", value: "a.md: see also" });
+  });
+
+  it("rejects prose, unknown fields, empty values and leading colons", () => {
+    assert.equal(parsePointerLine("Note: this is prose"), null);
+    assert.equal(parsePointerLine("configKey:"), null);
+    assert.equal(parsePointerLine(": orphan"), null);
+    assert.equal(parsePointerLine("no colon here"), null);
+    assert.equal(parsePointerLine(""), null);
+  });
+
+  it("does not resolve a field name through the prototype chain", () => {
+    assert.equal(parsePointerLine("constructor: boom"), null);
+    assert.equal(parsePointerLine("toString: boom"), null);
+  });
+});
 
 describe("parseFaqEntries", () => {
   it("reads a heading and its three pointer kinds", () => {

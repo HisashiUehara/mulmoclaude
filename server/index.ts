@@ -579,8 +579,11 @@ app.get(API_ROUTES.diagnosticsReport, (_req: Request, res: Response) => {
   try {
     res.type("text/markdown; charset=utf-8").send(buildDiagnosticsMarkdown({ sandboxEnabled, workspacePath }));
   } catch (err) {
+    // Generic reply on purpose: this endpoint's whole job is withholding local
+    // detail, and `errorMessage(err)` on a config parse failure would hand back
+    // the very paths and values the success path redacts. Detail stays in the log.
     log.warn("diagnostics", "report build failed", { error: errorMessage(err) });
-    serverError(res, errorMessage(err));
+    serverError(res, "Failed to build the diagnostics report");
   }
 });
 

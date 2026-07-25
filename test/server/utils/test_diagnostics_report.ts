@@ -59,6 +59,15 @@ describe("redactSettings", () => {
     assert.equal(rendered[1].value, "false");
   });
 
+  it("still returns a string for values JSON cannot represent", () => {
+    // `JSON.stringify` answers `undefined` for a function or symbol, which
+    // would break the declared return type. Not reachable from a JSON settings
+    // file, but the function accepts `unknown`.
+    const rendered = redactSettings({ extraAllowedTools: () => "x", photoExif: Symbol("s") }, ["extraAllowedTools", "photoExif"]);
+    rendered.forEach((entry) => assert.equal(typeof entry.value, "string"));
+    assert.ok(!rendered.some((entry) => entry.value === "undefined"));
+  });
+
   it("keeps the allow list a strict subset of the known keys", () => {
     const known = new Set<string>(APP_SETTINGS_KEYS);
     const strays = SAFE_SETTINGS_KEYS.filter((key) => !known.has(key));
@@ -85,6 +94,27 @@ describe("shortenHome", () => {
     assert.equal(shortenHome("/opt/app", ""), "/opt/app");
     assert.equal(shortenHome("/opt/app", "/"), "/opt/app");
     assert.equal(shortenHome("/opt/app", "/Users/alice"), "/opt/app");
+  });
+
+  it("does not shorten a sibling directory that merely starts with home", () => {
+    // A plain substring swap turned `/home/alice-archive` into `~-archive`.
+    assert.equal(shortenHome("/home/alice-archive/x", "/home/alice"), "/home/alice-archive/x");
+    assert.equal(shortenHome("/home/alicia/x", "/home/alice"), "/home/alicia/x");
+  });
+
+  it("shortens home itself, with or without a trailing path", () => {
+    assert.equal(shortenHome("/home/alice", "/home/alice"), "~");
+    assert.equal(shortenHome("/home/alice/ws", "/home/alice"), "~/ws");
+    assert.equal(shortenHome("at /home/alice, and /home/alice/ws", "/home/alice"), "at ~, and ~/ws");
+  });
+
+  it("shortens some occurrences while leaving non-boundary ones intact", () => {
+    assert.equal(shortenHome("/home/alice/ws and /home/alice-old/ws", "/home/alice"), "~/ws and /home/alice-old/ws");
+  });
+
+  it("does not shred every path when home is the root", () => {
+    // `/` as home would match at every separator and destroy the report.
+    assert.equal(shortenHome("/a/b/c", "/"), "/a/b/c");
   });
 });
 

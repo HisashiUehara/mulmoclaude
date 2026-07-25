@@ -39,11 +39,11 @@ configKey: voiceInput
 source: packages/core/src/whisper
 help: error-recovery.md
 
-Local voice input ships off and the user's opt-in is what triggers the model download. Read
-`voiceInput` from the live settings: absent means never enabled. Three separate conditions gate the
-mic button — platform capability, the opt-in, and whether the model finished downloading — so
-"enabled but still greyed out" is a different question from "never enabled". `GET /api/health`
-reports all three as `voiceInput`.
+Read `voiceInput` from the live settings — a key absent from the file has never been touched, and
+turning it on is what triggers the model download. Three separate conditions gate the mic button:
+platform capability, the opt-in, and whether the model finished downloading. `GET /api/health`
+reports all three as `voiceInput`, so check it before deciding which one is missing — "on but still
+greyed out" is a different question from "never turned on".
 
 ## I don't get a notification when a task finishes
 
@@ -51,29 +51,30 @@ configKey: pushEnabled
 source: server/agent/webPush.ts
 help: remote-host.md
 
-Web Push is off until the user turns it on, **and** it only sends while the RemoteHost channel is
-connected — that connection is what supplies the Firebase auth, so with the phone link down it is a
-no-op by design. Check the setting first, then the RemoteHost status; a user who never connected a
-phone has nothing to receive the push.
+Two conditions must hold at once, so read both before calling it a bug. `pushEnabled` in the live
+settings is the user's opt-in. The RemoteHost channel must also be connected — that connection is
+what supplies the Firebase auth, so with the phone link down the send is a no-op by design. A user
+who never connected a phone has nothing to receive the push regardless of the setting.
 
 ## My chats never get titles or summaries
 
 configKey: chatIndex
 source: server/workspace/chat-index/indexer.ts
 
-The background summarizer ships off and stays off until the user picks a model for it. One
-exception worth knowing before calling it a bug: sessions that didn't originate from the user
-(`system`, `scheduler`) are always skipped regardless of the setting, so a scheduled task's chat
-having no title is expected.
+Read `chatIndex` — it names the model the background summarizer spawns, and the summarizer does
+nothing until it does. One exception worth knowing before calling it a bug: sessions that didn't
+originate from the user (`system`, `scheduler`) are always skipped whatever the setting says, so a
+scheduled task's chat having no title is expected.
 
 ## The journal / daily summary is empty
 
 configKey: journal
 source: server/workspace/journal/index.ts
 
-The archivist that summarizes chat sessions into `journal/*.md` ships off. When off, it
-short-circuits before the interval gate is consulted, so neither the turn-end hook nor the hourly
-scheduled task will have written anything. Read the setting before looking for a scheduler fault.
+Read `journal` first — it gates the archivist that summarizes chat sessions into `journal/*.md`,
+and when it is not enabling a run the archivist short-circuits before the interval gate is even
+consulted. Neither the turn-end hook nor the hourly scheduled task will have written anything, so
+an empty journal is not evidence of a scheduler fault.
 
 ## Gmail / Google Calendar / Notion tools don't show up for the agent
 
@@ -112,10 +113,11 @@ skill to a new non-`mc-` slug.
 help: error-recovery.md
 help: sandbox.md
 
-The agent runs in a credential-free Docker sandbox by default — no host SSH agent, no `gh` config,
-unless the user opted them in at start-up. This is the single most common "it's broken" report and
-it is configuration. `error-recovery.md` has the exact flags and the verification commands; don't
-restate them from memory.
+The agent's Docker sandbox exposes no host SSH agent and no `gh` config unless the user opted them
+in at start-up. `GET /api/sandbox` reports whether the sandbox is active and which config mounts it
+was started with — read that rather than assuming either way. This is the single most common "it's
+broken" report and it is configuration. `error-recovery.md` has the exact flags and the
+verification commands; don't restate them from memory.
 
 ## A collection's custom view is blank
 

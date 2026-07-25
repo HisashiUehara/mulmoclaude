@@ -74,7 +74,9 @@ gh issue list --repo receptron/mulmoclaude --state all --limit 20 --search "<sym
 sandbox (see § gh / git / SSH errors inside the sandbox). Don't spend turns
 fighting it: hand the user the search URL instead.
 
-`https://github.com/receptron/mulmoclaude/issues?q=<keywords>`
+`https://github.com/receptron/mulmoclaude/issues?q=voice+input+disabled` — build
+the `q=` value percent-encoded (space → `+` or `%20`, `#` → `%23`), or the link
+breaks on the first symptom that contains one.
 
 - **Closed and fixed** → compare their version against the release that fixed
   it. If they're simply behind, tell them to update and stop.
@@ -84,11 +86,29 @@ fighting it: hand the user the search URL instead.
 
 ### Step 4 — File it
 
-Only now collect details. Fetch the environment report from the server:
+Only now collect details. Fetch the environment report from the server, from the
+workspace root:
 
 ```bash
-curl -s http://localhost:<port>/api/diagnostics/report
+curl -s -H "Authorization: Bearer $(cat .session-token)" \
+  "http://${MULMOCLAUDE_HOST:-127.0.0.1}:$(cat .server-port)/api/diagnostics/report"
 ```
+
+Three parts of that command are load-bearing, and dropping any one returns
+nothing useful:
+
+- **The bearer header.** Every `/api/*` route requires it; without it the reply
+  is a 401, not a report. The token is regenerated each startup and lives in
+  `.session-token` at the workspace root.
+- **`$MULMOCLAUDE_HOST`.** In the default Docker sandbox `localhost` is the
+  container, not the machine running the server — the variable is set to
+  `host.docker.internal` there and unset on a host-mode run, hence the fallback.
+- **`.server-port`.** The port is chosen at startup; there is no fixed default
+  to hardcode.
+
+Keep the token inside the command substitution: never echo it, never let it
+reach the report body, and if you quote the command in the issue, quote it in
+the `$(cat …)` form above rather than with the value expanded.
 
 **The server does the redaction, not you.** It prints values only for
 allow-listed settings and withholds everything else, including the plaintext

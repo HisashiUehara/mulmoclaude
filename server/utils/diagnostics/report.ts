@@ -27,13 +27,20 @@ export interface RedactedSetting {
 
 const isSafeKey = (key: string): boolean => SAFE_SETTINGS_KEYS.some((safe) => safe === key);
 
-const renderValue = (value: unknown): string => (typeof value === "string" ? value : JSON.stringify(value));
+// `JSON.stringify` answers `undefined` — not a string — for a function or a
+// symbol. Settings come from JSON so they can't hold either, but this function
+// takes `unknown` by design, and a caller that passed one would otherwise get
+// the literal text "undefined" where a value was promised.
+const renderValue = (value: unknown): string => {
+  if (typeof value === "string") return value;
+  return JSON.stringify(value) ?? String(value);
+};
 
 const readOwn = (settings: Record<string, unknown>, key: string): unknown => (Object.prototype.hasOwnProperty.call(settings, key) ? settings[key] : undefined);
 
 /** Render every requested setting, printing values ONLY for allow-listed keys.
- *  Absent keys are reported too: "not set" is the answer to half the FAQ
- *  entries ("voice input does nothing" → it ships off), so dropping them would
+ *  Absent keys are reported too: for a feature that does nothing until it is
+ *  switched on, "not set" IS the diagnosis, so dropping absent keys would
  *  remove the most useful line in the report.
  *
  *  Takes `unknown`, not `Partial<AppSettings>`: the redaction decision is made
@@ -52,12 +59,31 @@ export function redactSettings(settings: unknown, keys: readonly string[]): Reda
   });
 }
 
-/** Replace the home directory prefix with `~`. A report is read by strangers,
- *  and an absolute path leaks the account name on every line that has one. */
+const isSeparator = (char: string): boolean => char === "/" || char === "\\";
+
+// What may continue a path segment. A match followed by one of these is a
+// LONGER name, not the home directory: `/home/alice` inside
+// `/home/alice-archive` must survive untouched. Anything else — a separator, a
+// comma, a space, a quote, end of string — ends the path, so the match is real
+// and has to be shortened or the account name stays in a published report.
+const SEGMENT_CHAR_RE = /[\w.-]/;
+
+const endsHomePath = (following: string): boolean => following === "" || isSeparator(following) || !SEGMENT_CHAR_RE.test(following);
+
+/** Replace the home directory with `~`, but only where it ends a path.
+ *
+ *  A report is read by strangers, and an absolute path leaks the account name
+ *  on every line that carries one — so this errs toward replacing: it skips a
+ *  match only when the text proves the path continues into a different name. */
 export function shortenHome(text: string, home: string): string {
-  const trimmed = home.endsWith("/") || home.endsWith("\\") ? home.slice(0, -1) : home;
+  const trimmed = isSeparator(home.slice(-1)) ? home.slice(0, -1) : home;
+  // An empty home, or a home of `/`, would otherwise match at every separator
+  // and shred every path in the report.
   if (!trimmed) return text;
-  return text.split(trimmed).join("~");
+  return text.split(trimmed).reduce((joined, segment, index) => {
+    if (index === 0) return segment;
+    return joined + (endsHomePath(segment.slice(0, 1)) ? "~" : trimmed) + segment;
+  }, "");
 }
 
 export interface DiagnosticsInput {
@@ -88,44 +114,51 @@ const bullets = (items: readonly string[], whenEmpty: string): string[] => (item
 
 const settingsLines = (settings: unknown): string[] => redactSettings(settings, APP_SETTINGS_KEYS).map(({ key, value }) => `- \`${key}\`: ${value}`);
 
-/** Build the markdown block. Pure — same input, same bytes (golden-testable).
- *  Home shortening runs once over the assembled text so no caller has to
- *  remember it per field. */
-export function buildDiagnosticsReport(input: DiagnosticsInput): string {
-  const lines = [
-    "## Environment",
-    "",
+const section = (heading: string, body: readonly string[]): string[] => [heading, "", ...body, ""];
+
+const hostSection = (input: DiagnosticsInput): string[] =>
+  section("## Environment", [
     `- MulmoClaude: ${input.appVersion}`,
     `- Node: ${input.nodeVersion}`,
     `- OS: ${input.platform} ${input.arch}`,
     `- Workspace: ${input.workspacePath}`,
-    "",
-    "### Sandbox",
-    "",
+  ]);
+
+const sandboxSection = (input: DiagnosticsInput): string[] =>
+  section("### Sandbox", [
     `- enabled: ${yesNo(input.sandboxEnabled)}`,
     `- SSH agent forwarded: ${yesNo(input.sshAgentForwarded)}`,
     ...bullets(
       input.sandboxMounts.map((name) => `mounted config: \`${name}\``),
       "no config mounts",
     ),
-    "",
-    "### Settings",
-    "",
-    ...settingsLines(input.settings),
-    "",
+  ]);
+
+const mcpSection = (input: DiagnosticsInput): string[] =>
+  section(
     "### MCP servers",
-    "",
-    ...bullets(
+    bullets(
       input.mcpServerNames.map((name) => `\`${name}\``),
       "none registered",
     ),
-    "",
-    "### Plugin diagnostics",
-    "",
-    ...bullets(input.pluginDiagnostics, "no collisions reported"),
-    "",
-    "> Secrets are withheld by the server, not by the agent. Values marked",
-    `> "${REDACTED_PRESENT}" are present in the config but never printed.`,
+  );
+
+const footer = (): string[] => [
+  "> Secrets are withheld by the server, not by the agent. Values marked",
+  `> "${REDACTED_PRESENT}" are present in the config but never printed.`,
+];
+
+/** Build the markdown block. Pure — same input, same bytes (golden-testable).
+ *  Home shortening runs once over the assembled text so no caller has to
+ *  remember it per field. */
+export function buildDiagnosticsReport(input: DiagnosticsInput): string {
+  const lines = [
+    ...hostSection(input),
+    ...sandboxSection(input),
+    ...section("### Settings", settingsLines(input.settings)),
+    ...mcpSection(input),
+    ...section("### Plugin diagnostics", bullets(input.pluginDiagnostics, "no collisions reported")),
+    ...footer(),
   ];
   return `${shortenHome(lines.join("\n"), input.home)}\n`;
 }

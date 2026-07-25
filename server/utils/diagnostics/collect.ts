@@ -16,23 +16,29 @@ export interface CollectDiagnosticsParams {
   workspacePath: string;
 }
 
-export function collectDiagnosticsInput(params: CollectDiagnosticsParams): DiagnosticsInput {
-  const home = homedir();
-  const sandbox = buildSandboxStatus({
-    sandboxEnabled: params.sandboxEnabled,
+/** Sandbox facts as the report wants them: `null` (disabled) collapses to the
+ *  same shape as "enabled but nothing forwarded", so the caller has one case. */
+function sandboxFacts(sandboxEnabled: boolean): { mounts: readonly string[]; sshAgent: boolean } {
+  const status = buildSandboxStatus({
+    sandboxEnabled,
     sshAgentForward: env.sandboxSshAgentForward,
     configMountNames: env.sandboxMountConfigs,
     sshAuthSock: process.env.SSH_AUTH_SOCK,
   });
+  return { mounts: status?.mounts ?? [], sshAgent: status?.sshAgent ?? false };
+}
+
+export function collectDiagnosticsInput(params: CollectDiagnosticsParams): DiagnosticsInput {
+  const sandbox = sandboxFacts(params.sandboxEnabled);
   return {
     appVersion: APP_VERSION,
     nodeVersion: process.version,
     platform: platform(),
     arch: arch(),
-    home,
+    home: homedir(),
     sandboxEnabled: params.sandboxEnabled,
-    sandboxMounts: sandbox?.mounts ?? [],
-    sshAgentForwarded: sandbox?.sshAgent ?? false,
+    sandboxMounts: sandbox.mounts,
+    sshAgentForwarded: sandbox.sshAgent,
     settings: loadSettings(),
     mcpServerNames: Object.keys(loadMcpConfig().mcpServers),
     pluginDiagnostics: collectPluginMetaDiagnostics().map((entry) => entry.message),

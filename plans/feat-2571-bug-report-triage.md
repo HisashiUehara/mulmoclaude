@@ -11,9 +11,13 @@ preset skill (`mc-bug-report`) は `data/skills/catalog/preset/` に入るだけ
 `.claude/skills/` に来ない（`packages/core/src/workspace-setup/sync.ts`）。壊れて困っている人が
 事前にスターしている前提は成り立たないので却下。
 
-help doc は毎 boot で `config/helps/` に seed されるので既定で効く。さらに**新規 help を立てず
-`error-recovery.md` に節を足す** — 索引が2つに分かれると「gh が使えない」のような両方に出る話の
-重複管理が始まり、片方が確実に腐る。
+help doc は毎 boot で `config/helps/` に seed されるので既定で効く。さらに**手順の新規 help は立てず
+`error-recovery.md` に節を足す** — 手順の索引が2つに分かれると「gh が使えない」のような両方に出る
+話の重複管理が始まり、片方が確実に腐る。
+
+`bug-report-faq.md` を別ファイルにするのはこれと矛盾しない。あちらは**手順ではなくデータ**
+（症状 → 確認先の pointer 表）で、CI がパースして pointer の実在を検証する対象になる。手順は
+`error-recovery.md` が持ち、FAQ はそこから引かれる索引、という役割分担。
 
 ### (2) 入口: starter query（新 UI ゼロ）
 

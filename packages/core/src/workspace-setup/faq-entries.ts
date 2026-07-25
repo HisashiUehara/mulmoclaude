@@ -11,7 +11,7 @@ export interface FaqEntry {
   helps: string[];
 }
 
-type FieldList = "configKeys" | "sources" | "helps";
+export type FieldList = "configKeys" | "sources" | "helps";
 
 // A Map, not an object literal: the field name comes from arbitrary prose in a
 // markdown file, and `FIELDS["constructor"]` on a literal would answer through
@@ -27,6 +27,22 @@ const FENCE = "```";
 
 const newEntry = (symptom: string): FaqEntry => ({ symptom, configKeys: [], sources: [], helps: [] });
 
+export interface PointerLine {
+  list: FieldList;
+  value: string;
+}
+
+/** Read one `field: value` pointer line, or `null` for anything else — prose,
+ *  a blank line, or a sentence that merely contains a colon. Split out so the
+ *  line grammar can be tested on its own rather than through whole documents. */
+export function parsePointerLine(line: string): PointerLine | null {
+  const colon = line.indexOf(":");
+  if (colon <= 0) return null;
+  const list = FIELDS.get(line.slice(0, colon).trim());
+  const value = line.slice(colon + 1).trim();
+  return list && value ? { list, value } : null;
+}
+
 /** `## symptom` opens an entry; `field: value` lines under it are its pointers.
  *  Everything else is prose for the model to read. A field line before the
  *  first heading belongs to no entry and is dropped — the format block at the
@@ -38,19 +54,15 @@ export function parseFaqEntries(markdown: string): FaqEntry[] {
   for (const line of markdown.split("\n")) {
     if (line.startsWith(FENCE)) {
       inFence = !inFence;
+    } else if (inFence) {
       continue;
-    }
-    if (inFence) continue;
-    if (line.startsWith(HEADING)) {
+    } else if (line.startsWith(HEADING)) {
       entries.push(newEntry(line.slice(HEADING.length).trim()));
-      continue;
+    } else {
+      const pointer = parsePointerLine(line);
+      const current = entries[entries.length - 1];
+      if (pointer && current) current[pointer.list].push(pointer.value);
     }
-    const colon = line.indexOf(":");
-    if (colon <= 0) continue;
-    const list = FIELDS.get(line.slice(0, colon).trim());
-    const value = line.slice(colon + 1).trim();
-    const current = entries[entries.length - 1];
-    if (list && value && current) current[list].push(value);
   }
   return entries;
 }
