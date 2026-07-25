@@ -12,14 +12,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ## Package releases - 2026-07-26
 
-**Discoverability patch across all 51 published shared packages** (#2578). No code changed in any of them — every package is byte-identical to its previous release apart from its own `package.json` and `README.md`, so this is a documentation-only line of patch versions.
+**Discoverability release across all 51 published shared packages** (#2578). **49 of them are documentation-only patches** — byte-identical to their previous release apart from their own `package.json` and `README.md`. The remaining two carry code and take a minor; they are listed at the end of this entry.
 
-What each package gained:
+What every package gained:
 
 - **A `## Related projects` section** in its README linking [MulmoClaude](https://github.com/receptron/mulmoclaude), [MulmoTerminal](https://github.com/receptron/mulmoterminal) and the [MulmoTerminal manual](https://receptron.github.io/mulmoterminal/), each with a one-line description rather than a bare URL. 15 packages (`@mulmoclaude/core` and 14 plugins) had no README at all before this.
-- **npm metadata**: `homepage`, `repository` (with the monorepo `directory`), `bugs`, and hand-picked `keywords` — 51 of the 53 packages previously declared none of them, so their npm pages carried no link back to the source and no terms to be found by.
+- **npm metadata**: `homepage`, `repository` (with the monorepo `directory`), `bugs`, and hand-picked `keywords` — 51 of the 53 packages previously declared none of these, leaving their npm pages with no link back to the source and no search terms to be found by.
 
-Version map: every package moves one patch (`1.0.0 → 1.0.1`, `1.3.0 → 1.3.1`, …). Internal dependency ranges were swept in the same commit, so no consumer is left pointing at a superseded line.
+Version map: the 49 documentation-only packages each move one patch (`1.0.0 → 1.0.1`, `1.3.0 → 1.3.1`, …). Internal dependency ranges were swept in the same commit, so no consumer is left pointing at a superseded line.
 
 **Two packages carry real code and take a minor instead**, because feature work landed after their last release:
 
