@@ -33,25 +33,30 @@ translating it is never the desired behaviour; user/agent content opts back in.
 ## Change
 
 - `index.html` — `<div id="app" translate="no">` with the reason inline.
-- Body teleports render **outside** `#app` and don't inherit it, so
-  `src/components/ConfirmModal.vue` and `src/components/FileTree.vue` carry their
-  own `translate="no"`.
+- Teleports render **outside** `#app` and don't inherit it, so
+  `src/components/ConfirmModal.vue`, `src/components/FileTree.vue` and
+  collection-plugin's `CollectionRecordModal.vue` carry their own
+  `translate="no"`. The last one binds `:to="teleportTarget"`, which defaults to
+  `body` — a dynamic target that the first revision of the guard skipped
+  (caught by Codex on PR #2563).
 - `translate="yes"` on the agent/user content bodies: assistant reply
   (`textResponse/View.vue`, both layouts), wiki page (`WikiPageBody.vue`), skill
   body (`skill/View.vue`), skill detail + catalog panes (`manageSkills/`).
 
 ## Guard
 
-`test/helpers/bodyTeleportProbe.ts` — pure, parses the SFC with Vue's own
-compiler and reports each `<Teleport to="body">` root plus whether it carries
-`translate="no"`. Looks through transparent wrappers (`Transition`, …) to the
-element that actually renders. Self-checked in
-`test/helpers/test_bodyTeleportProbe.ts` against the cases a source grep would
-wave through: the attribute on a sibling, on the `Teleport` itself, spelled
-`"yes"`, dynamic `:to`, no template block.
+`test/helpers/teleportProbe.ts` — pure, parses the SFC with Vue's own compiler
+and reports each `<Teleport>` root plus whether it carries `translate="no"`.
+Looks through transparent wrappers (`Transition`, …) to the element that actually
+renders. **Every** teleport is reported, not only `to="body"`: whether a target
+sits inside `#app` is not decidable from source, and a redundant attribute costs
+nothing while a missed one costs the bug back. Self-checked in
+`test/helpers/test_teleportProbe.ts` against the cases a source grep would wave
+through: the attribute on a sibling, on the `Teleport` itself, spelled `"yes"`,
+a dynamic `:to`, no template block.
 
 `test/components/test_translate_guard.ts` — asserts `#app` carries the attribute
-and that no body-teleport root in `src/` or `packages/plugins/` is unprotected.
+and that no teleport root in `src/` or `packages/plugins/` is unprotected.
 Both assertions were mutation-checked: removing the attribute from `index.html`
 and from `ConfirmModal.vue` turns them red, restoring turns them green.
 

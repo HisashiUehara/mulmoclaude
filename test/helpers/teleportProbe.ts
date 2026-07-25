@@ -1,13 +1,21 @@
-// Test helper — reports the root elements each `<Teleport to="body">`
-// in a Vue SFC renders, and whether they carry `translate="no"`.
+// Test helper — reports the root elements every `<Teleport>` in a Vue
+// SFC renders, and whether they carry `translate="no"`.
 //
 // `index.html` marks `#app` with `translate="no"` so browser page
 // translation can't rewrite Material Icons ligature text (#2561). A
-// body teleport renders OUTSIDE `#app`, so it does not inherit that
-// attribute — a new body-level menu / dialog silently reintroduces the
-// bug. Parsing with Vue's own compiler keeps the *element association*
-// under test; a source grep for "translate" would pass on an attribute
-// sitting anywhere in the file.
+// teleport moves its content elsewhere in the DOM, where that attribute
+// may not be inherited — so a new teleported menu / dialog silently
+// reintroduces the bug.
+//
+// Every teleport is reported, not just `to="body"`. Whether a target is
+// inside `#app` is not decidable from source (`:to="teleportTarget"` in
+// collection-plugin's record modal resolves to `body` at runtime), and a
+// redundant `translate="no"` on an in-app target costs nothing while a
+// missed one costs the bug back.
+//
+// Parsing with Vue's own compiler keeps the *element association* under
+// test; a source grep for "translate" would pass on an attribute sitting
+// anywhere in the file.
 
 import { parse } from "vue/compiler-sfc";
 
@@ -20,10 +28,14 @@ type ElementNode = Extract<TemplateChild, { type: typeof NODE_TYPE_ELEMENT }>;
 type ElementProp = ElementNode["props"][number];
 type AttributeNode = Extract<ElementProp, { type: typeof NODE_TYPE_ATTRIBUTE }>;
 
-export interface BodyTeleportRoot {
+export interface TeleportRoot {
   tag: string;
+  /** Static `to` value, or `"(dynamic)"` when bound — for the failure message. */
+  target: string;
   hasTranslateNo: boolean;
 }
+
+const DYNAMIC_TARGET = "(dynamic)";
 
 // Components that render their child through without a DOM element of
 // their own — the attribute has to land on what's inside them.
@@ -48,10 +60,7 @@ const staticAttr = (element: ElementNode, name: string): string | null => {
 
 const isElement = (node: TemplateChild): node is ElementNode => node.type === NODE_TYPE_ELEMENT;
 
-// `<Teleport to="body">`. A dynamic `:to` binding is not resolvable
-// from source, so it reads as "not a body teleport" rather than being
-// guessed at — record such a case by hand if one ever appears.
-const isBodyTeleport = (element: ElementNode): boolean => (element.tag === "Teleport" || element.tag === "teleport") && staticAttr(element, "to") === "body";
+const isTeleport = (element: ElementNode): boolean => element.tag === "Teleport" || element.tag === "teleport";
 
 /** First element on each branch that actually renders a DOM node. */
 const rootsBelow = (node: TemplateChild, found: ElementNode[]): void => {
@@ -63,25 +72,26 @@ const rootsBelow = (node: TemplateChild, found: ElementNode[]): void => {
   node.children.forEach((child) => rootsBelow(child, found));
 };
 
-const collectTeleports = (node: TemplateChild, found: BodyTeleportRoot[]): void => {
+const collectTeleports = (node: TemplateChild, found: TeleportRoot[]): void => {
   if (!isElement(node)) return;
-  if (isBodyTeleport(node)) {
+  if (isTeleport(node)) {
+    const target = staticAttr(node, "to") ?? DYNAMIC_TARGET;
     const roots: ElementNode[] = [];
     node.children.forEach((child) => rootsBelow(child, roots));
-    roots.forEach((root) => found.push({ tag: root.tag, hasTranslateNo: staticAttr(root, "translate") === "no" }));
+    roots.forEach((root) => found.push({ tag: root.tag, target, hasTranslateNo: staticAttr(root, "translate") === "no" }));
   }
   node.children.forEach((child) => collectTeleports(child, found));
 };
 
-/** Every root element rendered by a `<Teleport to="body">`, in template order. */
-export function findBodyTeleportRoots(sfcSource: string): BodyTeleportRoot[] {
+/** Every root element rendered by a `<Teleport>`, in template order. */
+export function findTeleportRoots(sfcSource: string): TeleportRoot[] {
   const { descriptor, errors } = parse(sfcSource);
   if (errors.length > 0) {
     throw new Error(`SFC parse failed: ${errors.map((error) => error.message).join("; ")}`);
   }
   const ast = descriptor.template?.ast;
   if (ast === undefined) return [];
-  const found: BodyTeleportRoot[] = [];
+  const found: TeleportRoot[] = [];
   ast.children.forEach((child) => collectTeleports(child, found));
   return found;
 }

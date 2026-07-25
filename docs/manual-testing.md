@@ -259,13 +259,14 @@ icon-only control renders its name as a word (#2561 / #2558). `#app` carries
 
 ### What to check
 
-Open the app in Chrome, right-click → **Translate to <other language>** (or set
-the browser UI language to one different from `VITE_LOCALE`).
+Open the app in Chrome, right-click → **Translate to <other language>** and pick
+a target language (changing Chrome's UI language does not translate the page on
+its own). Pick a language different from `VITE_LOCALE` so the effect is visible.
 
 | Surface | Expected |
 |---|---|
 | Header nav, sidebar rows, chat composer buttons | Icons stay as **glyphs**; no `send` / `lightbulb` / `送信` / `電球` text, no doubled labels |
-| Body-teleported UI (file-tree context menu, confirm dialog) | Same — these render outside `#app`, so they carry their own `translate="no"` |
+| Teleported UI (file-tree context menu, confirm dialog, collection record modal) | Same — these render outside `#app`, so they carry their own `translate="no"` |
 | Assistant reply body, wiki page body, skill body | **Do** get translated — these are `translate="yes"`, and losing that is the silent regression to watch for |
 
 Nested `translate="yes"` inside a `translate="no"` subtree is per spec, but

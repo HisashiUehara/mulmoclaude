@@ -12,7 +12,12 @@
        and restored to the trigger on close, so keyboard users can't reach
        the controls behind the overlay (WCAG focus containment). -->
   <Teleport :to="teleportTarget">
-    <div class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4" data-testid="collections-record-modal" @click.self="emit('close')">
+    <div
+      class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4"
+      data-testid="collections-record-modal"
+      translate="no"
+      @click.self="emit('close')"
+    >
       <div
         ref="dialogEl"
         class="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl focus:outline-none"

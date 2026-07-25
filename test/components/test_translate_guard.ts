@@ -9,15 +9,16 @@
 // never loaded.
 //
 // The fix is one attribute on `#app`, so the failure mode to guard is
-// UI that renders OUTSIDE `#app`: a `<Teleport to="body">` does not
-// inherit the attribute and reintroduces the bug silently.
+// UI that renders OUTSIDE `#app`: a `<Teleport>` moves its content to a
+// target that may not inherit the attribute, reintroducing the bug
+// silently.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { findBodyTeleportRoots } from "../helpers/bodyTeleportProbe.js";
+import { findTeleportRoots } from "../helpers/teleportProbe.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
@@ -47,19 +48,19 @@ test('#app carries translate="no" so icon ligatures survive page translation', (
   );
 });
 
-test('every <Teleport to="body"> root carries translate="no" — it renders outside #app', () => {
+test('every <Teleport> root carries translate="no" — it may render outside #app', () => {
   const files = SCANNED_ROOTS.flatMap((rel) => vueFilesUnder(path.join(REPO_ROOT, rel)));
   assert.ok(files.length > 0, "found no .vue files to scan — the scan roots are wrong");
 
   const unprotected = files.flatMap((file) =>
-    findBodyTeleportRoots(readFileSync(file, "utf-8"))
+    findTeleportRoots(readFileSync(file, "utf-8"))
       .filter((root) => !root.hasTranslateNo)
-      .map((root) => `${path.relative(REPO_ROOT, file)} → <${root.tag}>`),
+      .map((root) => `${path.relative(REPO_ROOT, file)} → <${root.tag}> (to=${root.target})`),
   );
 
   assert.deepEqual(
     unprotected,
     [],
-    `Body-teleported roots render outside #app and do not inherit its translate="no", so page translation breaks their Material Icons ligatures (#2561). Add translate="no" to:\n  ${unprotected.join("\n  ")}`,
+    `Teleported roots can render outside #app and then do not inherit its translate="no", so page translation breaks their Material Icons ligatures (#2561). A dynamic target counts — collection-plugin's record modal resolves \`:to\` to \`body\`. Add translate="no" to:\n  ${unprotected.join("\n  ")}`,
   );
 });
