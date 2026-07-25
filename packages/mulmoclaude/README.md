@@ -33,7 +33,7 @@ Your browser opens to `http://localhost:3001`. That's it.
 | "Put that on my task list"      | Task in Google Tasks, with notes and a due date       |
 | "Subscribe to this RSS feed"    | Data feed on `/feeds`, fetched on a schedule          |
 
-**Pages you can visit directly**: `/wiki` (browse + lint), `/feeds` (data feeds), `/collections` (data apps — Discover tab to import community collections, Contribute to share your own), `/automations` (recurring tasks), `/files`, `/skills`, `/roles`. Each page has its own chat composer that spawns a fresh chat already aware of the page context.
+**Pages you can visit directly**: `/wiki` (browse + lint), `/feeds` (data feeds), `/collections` (data apps — Discover tab to import community collections, Contribute to share your own), `/automations` (recurring tasks), `/files` (drop files onto a folder row to save them straight into it), `/skills`, `/roles`. Each page has its own chat composer that spawns a fresh chat already aware of the page context.
 
 ## Options
 
@@ -46,7 +46,10 @@ npx mulmoclaude --dev-plugin ./my-plugin     # Load a runtime plugin from a loca
                                              # project dir (repeatable; relative or
                                              # absolute path)
 npx mulmoclaude --version                    # Show version
+npx mulmoclaude --help                       # Full flag list
 ```
+
+Each boolean flag mirrors an environment variable, so `--disable-sandbox` and `DISABLE_SANDBOX=1` do the same thing. `--help` lists the rest: `--disable-macos-reminders` (skip the macOS Reminder notification sink) plus the `--journal-force-run`, `--chat-index-force-run`, and `--persist-tool-calls` debugging toggles.
 
 ## How it works
 
@@ -88,7 +91,7 @@ npx @mulmobridge/discord@latest      # Discord
 npx @mulmobridge/line@latest         # LINE
 npx @mulmobridge/whatsapp@latest     # WhatsApp
 npx @mulmobridge/email@latest        # Email (IMAP + SMTP)
-# …matrix, mastodon, bluesky, signal, teams, zulip, irc, rocketchat,
+# …matrix, mattermost, mastodon, bluesky, signal, teams, zulip, irc, rocketchat,
 #   chatwork, xmpp, viber, messenger, google-chat, twilio-sms, webhook, nostr, line-works
 ```
 
@@ -116,7 +119,7 @@ Recommended: ≥ 32 characters of random data (shorter values trigger a startup 
 
 - **Roles** (sidebar selector): General, Office, Guide & Planner, Artist, Tutor, Storyteller, Settings. Each one biases Claude toward a workflow and surfaces its sample prompts.
 - **Skills** (`~/.claude/skills/<name>/SKILL.md`): personal skills shared across every project, plus project skills under `<workspace>/.claude/skills/`. Bundled "preset" skills (`mc-*`) re-seed on each boot.
-- **Collections**: schema-driven data apps. Author your own (`data/skills/<slug>/schema.json` declares the model + UI), or use the Discover tab on `/collections` to import community collections from the official registry — or your own org / community registry by dropping `config/collections-registries.json` in the workspace. The Map tab draws the ontology graph across your collections, so you can see how their records reference each other.
+- **Collections**: schema-driven data apps. Author your own (`data/skills/<slug>/schema.json` declares the model + UI), or use the Discover tab on `/collections` to import community collections from the official registry — or your own org / community registry by dropping `config/collections-registries.json` in the workspace. The Map tab draws the ontology graph across your collections, so you can see how their records reference each other, and the view header has a pulldown to jump straight to a related collection.
 
 ## Optional features
 
