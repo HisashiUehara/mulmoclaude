@@ -98,6 +98,7 @@ import { runTopicMigrationOnce } from "./workspace/memory/topic-run.js";
 import { migrateCookingRecipesFromPlugin } from "./workspace/cooking-recipes/migrate.js";
 import { env, isAblated, isGeminiAvailable } from "./system/env.js";
 import { buildSandboxStatus } from "./api/sandboxStatus.js";
+import { buildDiagnosticsMarkdown } from "./utils/diagnostics/collect.js";
 import { existsSync, readFileSync } from "fs";
 import { makeCachedRealpath, resolveArtifactRequestPath } from "./utils/files/safe.js";
 import { cpus, loadavg } from "os";
@@ -566,6 +567,24 @@ app.get(API_ROUTES.sandbox, (_req: Request, res: Response) => {
     sshAuthSock: process.env.SSH_AUTH_SOCK,
   });
   res.json(status ?? {});
+});
+
+// Environment report for a bug report (#2571). Lives inline next to
+// `/api/sandbox` for the same reason: it needs the boot-time `sandboxEnabled`,
+// which isn't exported. The redaction decisions are in
+// `server/utils/diagnostics/report.ts` — deliberately in code rather than in a
+// prompt, because `googleMapsApiKey` is stored in plaintext and `mcp.json`
+// carries provider tokens, and a prose instruction to the agent can't be tested.
+app.get(API_ROUTES.diagnosticsReport, (_req: Request, res: Response) => {
+  try {
+    res.type("text/markdown; charset=utf-8").send(buildDiagnosticsMarkdown({ sandboxEnabled, workspacePath }));
+  } catch (err) {
+    // Generic reply on purpose: this endpoint's whole job is withholding local
+    // detail, and `errorMessage(err)` on a config parse failure would hand back
+    // the very paths and values the success path redacts. Detail stays in the log.
+    log.warn("diagnostics", "report build failed", { error: errorMessage(err) });
+    serverError(res, "Failed to build the diagnostics report");
+  }
 });
 
 // Routers register FULL `/api/...` paths internally (see

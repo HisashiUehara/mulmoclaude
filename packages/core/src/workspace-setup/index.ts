@@ -8,3 +8,4 @@
 export * from "./sync.js";
 export * from "./assets.js";
 export * from "./slug.js";
+export * from "./faq-entries.js";
