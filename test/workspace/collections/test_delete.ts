@@ -209,3 +209,57 @@ describe("deleteCollection — storage (sqlite) collections", () => {
     assert.ok(restore.includes("(storage)"), "summary line must mark the storage backend");
   });
 });
+
+// #2550. The retrieval cursor lives in a SHARED dir outside every
+// per-collection location, so nothing else would remove it. Left behind, a
+// collection recreated under the same slug inherits `lastFetchedAt` and skips
+// its initial fetch — it just sits empty until the next scheduled tick.
+describe("deleteCollection — ingest state", () => {
+  function seedIngestState(slug: string): string {
+    const stateDir = path.join(workdir, "data", "ingest-state");
+    mkdirSync(stateDir, { recursive: true });
+    const stateFile = path.join(stateDir, `${slug}.json`);
+    writeFileSync(stateFile, JSON.stringify({ slug, lastFetchedAt: "2026-07-01T00:00:00.000Z", cursor: { etag: "abc" }, consecutiveFailures: 3 }));
+    return stateFile;
+  }
+
+  it("removes the collection's ingest state", async () => {
+    const collection = seedCollection("daily-news", "project");
+    const stateFile = seedIngestState("daily-news");
+
+    const result = await deleteCollection(collection, { workspaceRoot: workdir, dateStamp: "2026-07-25" });
+
+    assert.equal(result.kind, "ok");
+    assert.equal(existsSync(stateFile), false, "ingest state survived the delete");
+  });
+
+  it("leaves another collection's ingest state alone", async () => {
+    const collection = seedCollection("daily-news", "project");
+    const otherState = seedIngestState("weekly-digest");
+
+    await deleteCollection(collection, { workspaceRoot: workdir, dateStamp: "2026-07-25" });
+
+    assert.equal(existsSync(otherState), true, "deleted the wrong collection's ingest state");
+  });
+
+  it("succeeds when there is no ingest state to remove", async () => {
+    const collection = seedCollection("restaurants", "project");
+
+    const result = await deleteCollection(collection, { workspaceRoot: workdir, dateStamp: "2026-07-25" });
+
+    assert.equal(result.kind, "ok");
+  });
+
+  // Deliberate: the archive exists to restore user data, and restoring a stale
+  // cursor would reintroduce the bug this delete is fixing.
+  it("does NOT archive the ingest state", async () => {
+    const collection = seedCollection("daily-news", "project");
+    seedIngestState("daily-news");
+
+    const result = await deleteCollection(collection, { workspaceRoot: workdir, dateStamp: "2026-07-25" });
+
+    assert.equal(result.kind, "ok");
+    if (result.kind !== "ok") return;
+    assert.equal(existsSync(path.join(workdir, result.archivePath, "daily-news.json")), false);
+  });
+});

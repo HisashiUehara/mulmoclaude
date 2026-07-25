@@ -23,6 +23,7 @@ import path from "node:path";
 import { log, getWorkspaceRoot, isPresetSlug, skillsStagingDir, archiveDir as archiveRelDir } from "./host";
 import { isContainedInRoot } from "./paths";
 import { checkpointSqliteDatabase } from "./sqliteStore";
+import { ingestStatePath } from "../../feeds/paths";
 import type { LoadedCollection } from "./discoveredCollection";
 
 export type DeleteCollectionResult =
@@ -86,6 +87,7 @@ function deleteTargets(collection: LoadedCollection, workspaceRoot: string): str
     stagingSkillDir(workspaceRoot, collection.slug),
     collection.skillDir,
     collection.dataDir,
+    ingestStatePath(collection.slug, workspaceRoot),
     ...(collection.storageFile !== undefined ? [collection.storageFile] : []),
   ];
 }
@@ -209,6 +211,14 @@ async function removeLocations(collection: LoadedCollection, workspaceRoot: stri
   await rm(collection.skillDir, { recursive: true, force: true });
   await rm(collection.dataDir, { recursive: true, force: true });
   await rmdir(path.dirname(collection.dataDir)).catch(() => undefined);
+  // The retrieval cursor lives in a SHARED dir (`data/ingest-state/<slug>.json`),
+  // outside every per-collection location above, so nothing else would remove
+  // it. Left behind, a collection recreated under the same slug inherits the old
+  // `lastFetchedAt` and takes the "wait for the interval" branch in
+  // `isDailyAtHourDue` instead of fetching immediately — it just sits empty
+  // (#2550). Deliberately not archived: the archive restores user data, and
+  // restoring a stale cursor would reintroduce exactly this bug.
+  await rm(ingestStatePath(collection.slug, workspaceRoot), { force: true });
   // The archived copy above is the backup; remove the live db (+ sqlite
   // sidecars) so a deleted collection doesn't leave orphaned data behind.
   if (collection.storageFile !== undefined) {

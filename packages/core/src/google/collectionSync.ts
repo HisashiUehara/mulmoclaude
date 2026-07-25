@@ -8,6 +8,7 @@
 // `googleCalendar` in its schema, exactly the way a feed opts in by declaring
 // `ingest`. There is no preset calendar collection (the standalone Calendar
 // view was removed in 0.7.0); the user asks for one and the agent authors it.
+import { stat } from "node:fs/promises";
 import { MISSED_RUN_POLICIES, SCHEDULE_TYPES } from "@receptron/task-scheduler";
 import type { SystemTaskDef } from "../scheduler/adapter.js";
 import { discoverCollections } from "../collection/server/discovery.js";
@@ -163,12 +164,55 @@ export async function syncCalendarGroup(
     log.warn("google", "skipping calendar events that can never be stored", { calendarId, unwritable });
   }
   const failed = results.flatMap((entry) => entry.errors);
-  if (result.nextSyncToken && failed.length === 0) {
-    await saveCalendarSyncToken(calendarId, result.nextSyncToken, workspaceRoot);
-  } else if (failed.length > 0) {
+  if (failed.length > 0) {
     log.warn("google", "holding back calendar sync token after failed writes", { calendarId, failed: failed.length });
+    return results;
   }
+  if (result.nextSyncToken) await advanceToken(calendarId, result.nextSyncToken, collections, workspaceRoot);
   return results;
+}
+
+/** Save the window's token unless every collection that consumed it was deleted
+ *  while the sync was in flight.
+ *
+ *  The sync opens with a `discoverCollections()` snapshot, so a delete landing
+ *  mid-run has already cleared this calendar's token by the time we get here
+ *  (`releaseOrphanedCalendarToken`). Saving anyway would resurrect exactly the
+ *  orphan the delete removed, and the next collection on this calendar would
+ *  resume from a token describing records it never received (#2428).
+ *
+ *  One survivor is enough: it still needs the incremental position. */
+async function advanceToken(
+  calendarId: string | undefined,
+  nextSyncToken: string,
+  collections: readonly LoadedCollection[],
+  workspaceRoot: string,
+): Promise<void> {
+  if (!(await anySyncedCollectionSurvives(collections))) {
+    log.info("google", "not advancing the sync token — every collection on this calendar was deleted mid-sync", { calendarId });
+    return;
+  }
+  await saveCalendarSyncToken(calendarId, nextSyncToken, workspaceRoot);
+}
+
+async function pathExists(absPath: string): Promise<boolean> {
+  try {
+    await stat(absPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Liveness of the collections a sync just wrote to, checked against the skill
+ *  dir `deleteCollection` removes. `exists` is injected so the rule is testable
+ *  without a filesystem. An empty group has no survivor by definition. */
+export async function anySyncedCollectionSurvives(
+  collections: readonly Pick<LoadedCollection, "skillDir">[],
+  exists: (absPath: string) => Promise<boolean> = pathExists,
+): Promise<boolean> {
+  const alive = await Promise.all(collections.map((collection) => exists(collection.skillDir)));
+  return alive.some(Boolean);
 }
 
 async function applyEventsToCollection(
@@ -210,6 +254,54 @@ export function groupByCalendar(collections: readonly LoadedCollection[]): Map<s
     groups.set(key, [...(groups.get(key) ?? []), collection]);
   }
   return groups;
+}
+
+/** The minimum a value needs for the orphan check: just the calendar it reads.
+ *  Structural so the rule can be exercised without building a LoadedCollection. */
+export interface CalendarDeclaring {
+  googleCalendar?: { calendarId?: string };
+}
+
+/** The canonical calendar whose sync token nothing needs any more, or null.
+ *
+ *  Sync tokens are keyed by calendar, NOT by collection, so a deleted
+ *  collection's token outlives it. Recreating a collection on the same calendar
+ *  then resumes from that token and receives only the delta — the new
+ *  collection never gets the history (#2428).
+ *
+ *  Returns null while ANY remaining collection still reads that calendar:
+ *  clearing a live calendar's token costs a full re-walk on the next sync. The
+ *  comparison is on the CANONICAL id for the same reason `groupByCalendar` is —
+ *  an omitted `calendarId` and an explicit `"primary"` are one calendar. */
+export function orphanedCalendarId(deleted: CalendarDeclaring, remaining: readonly CalendarDeclaring[]): string | null {
+  if (!deleted.googleCalendar) return null;
+  const key = canonicalCalendarId(deleted.googleCalendar.calendarId);
+  const stillRead = remaining.some((other) => other.googleCalendar && canonicalCalendarId(other.googleCalendar.calendarId) === key);
+  return stillRead ? null : key;
+}
+
+/** Drop the sync token of a just-deleted collection's calendar, unless another
+ *  collection still reads it. Call AFTER the delete lands — the check reads the
+ *  collections that survive it.
+ *
+ *  Returns the cleared calendar id, or null when nothing was cleared. Never
+ *  throws: a failed cleanup must not fail the delete it follows. */
+export async function releaseOrphanedCalendarToken(deleted: CalendarDeclaring, workspaceRoot: string): Promise<string | null> {
+  try {
+    if (!deleted.googleCalendar) return null;
+    const remaining = await discoverCollections({ workspaceRoot });
+    const orphaned = orphanedCalendarId(
+      deleted,
+      remaining.map((collection) => collection.schema),
+    );
+    if (orphaned === null) return null;
+    await clearCalendarSyncToken(orphaned, workspaceRoot);
+    log.info("google", "cleared the sync token of a calendar no collection reads any more", { calendarId: orphaned });
+    return orphaned;
+  } catch (error) {
+    log.warn("google", "could not release the deleted collection's calendar sync token", { error: String(error) });
+    return null;
+  }
 }
 
 /** Sync every collection that declares `googleCalendar`. Failures are isolated
