@@ -14,7 +14,7 @@ import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { bindRoute } from "../../utils/router.js";
 import { loadUserTasks, validateAndCreate, applyUpdate, withUserTaskLock, runUserTaskNow, userTaskManagerId } from "../../workspace/skills/user-tasks.js";
 import { getScheduledSkills, runScheduledSkillNow } from "../../workspace/skills/scheduler.js";
-import { badRequest, notFound } from "../../utils/httpError.js";
+import { badRequest, notFound, type ApiResponse } from "../../utils/httpError.js";
 import { errorMessage } from "../../utils/errors.js";
 import { getOptionalStringQuery } from "../../utils/request.js";
 import { log } from "../../system/logger/index.js";
@@ -177,7 +177,7 @@ interface LogQuery {
 bindRoute(
   router,
   API_ROUTES.scheduler.logs,
-  asyncHandler<Request<object, unknown, object, LogQuery>, Response<{ logs: TaskLogEntry[] }>>(
+  asyncHandler<Request<object, unknown, object, LogQuery>, ApiResponse<{ logs: TaskLogEntry[] }>>(
     "scheduler-tasks",
     "Failed to read scheduler logs",
     async (req, res) => {

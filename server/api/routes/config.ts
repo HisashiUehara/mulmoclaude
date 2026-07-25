@@ -17,7 +17,7 @@ import {
 } from "../../system/config.js";
 import { readCspExtraSync } from "../../utils/files/csp-io.js";
 import type { CspExtraHosts } from "../../../src/utils/html/previewCsp.js";
-import { badRequest, serverError } from "../../utils/httpError.js";
+import { badRequest, serverError, type ApiResponse } from "../../utils/httpError.js";
 import { errorMessage } from "../../utils/errors.js";
 import { isRecord } from "../../utils/types.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
@@ -45,11 +45,7 @@ export interface ConfigResponse {
   csp: CspExtraHosts;
 }
 
-export interface ConfigErrorResponse {
-  error: string;
-}
-
-type ConfigRes = Response<ConfigResponse | ConfigErrorResponse>;
+type ConfigRes = ApiResponse<ConfigResponse>;
 
 function buildFullResponse(): ConfigResponse {
   return {
@@ -217,29 +213,25 @@ router.get(API_ROUTES.config.workspaceDirs, (_req: Request, res: Response<{ dirs
 
 router.put(
   API_ROUTES.config.workspaceDirs,
-  asyncHandler<Request<unknown, unknown, { dirs: unknown }>, Response<{ dirs: CustomDirEntry[] } | ConfigErrorResponse>>(
-    "config",
-    "save failed",
-    async (req, res) => {
-      const { body } = req;
-      log.info("config", "PUT workspace-dirs: start");
-      if (!isRecord(body) || !("dirs" in body)) {
-        log.warn("config", "PUT workspace-dirs: invalid envelope");
-        badRequest(res, "expected { dirs: [...] }");
-        return;
-      }
-      const result = validateCustomDirs(body.dirs);
-      if ("error" in result) {
-        log.warn("config", "PUT workspace-dirs: validation failed", { error: result.error });
-        badRequest(res, result.error);
-        return;
-      }
-      saveCustomDirs(result.entries);
-      ensureCustomDirs(result.entries);
-      log.info("config", "PUT workspace-dirs: ok", { dirs: result.entries.length });
-      res.json({ dirs: result.entries });
-    },
-  ),
+  asyncHandler<Request<unknown, unknown, { dirs: unknown }>, ApiResponse<{ dirs: CustomDirEntry[] }>>("config", "save failed", async (req, res) => {
+    const { body } = req;
+    log.info("config", "PUT workspace-dirs: start");
+    if (!isRecord(body) || !("dirs" in body)) {
+      log.warn("config", "PUT workspace-dirs: invalid envelope");
+      badRequest(res, "expected { dirs: [...] }");
+      return;
+    }
+    const result = validateCustomDirs(body.dirs);
+    if ("error" in result) {
+      log.warn("config", "PUT workspace-dirs: validation failed", { error: result.error });
+      badRequest(res, result.error);
+      return;
+    }
+    saveCustomDirs(result.entries);
+    ensureCustomDirs(result.entries);
+    log.info("config", "PUT workspace-dirs: ok", { dirs: result.entries.length });
+    res.json({ dirs: result.entries });
+  }),
 );
 
 // ── Reference directories (#455) ────────────────────────────────
@@ -250,28 +242,24 @@ router.get(API_ROUTES.config.referenceDirs, (_req: Request, res: Response<{ dirs
 
 router.put(
   API_ROUTES.config.referenceDirs,
-  asyncHandler<Request<unknown, unknown, { dirs: unknown }>, Response<{ dirs: ReferenceDirEntry[] } | ConfigErrorResponse>>(
-    "config",
-    "save failed",
-    async (req, res) => {
-      const { body } = req;
-      log.info("config", "PUT reference-dirs: start");
-      if (!isRecord(body) || !("dirs" in body)) {
-        log.warn("config", "PUT reference-dirs: invalid envelope");
-        badRequest(res, "expected { dirs: [...] }");
-        return;
-      }
-      const result = validateReferenceDirs(body.dirs);
-      if ("error" in result) {
-        log.warn("config", "PUT reference-dirs: validation failed", { error: result.error });
-        badRequest(res, result.error);
-        return;
-      }
-      saveReferenceDirs(result.entries);
-      log.info("config", "PUT reference-dirs: ok", { dirs: result.entries.length });
-      res.json({ dirs: result.entries });
-    },
-  ),
+  asyncHandler<Request<unknown, unknown, { dirs: unknown }>, ApiResponse<{ dirs: ReferenceDirEntry[] }>>("config", "save failed", async (req, res) => {
+    const { body } = req;
+    log.info("config", "PUT reference-dirs: start");
+    if (!isRecord(body) || !("dirs" in body)) {
+      log.warn("config", "PUT reference-dirs: invalid envelope");
+      badRequest(res, "expected { dirs: [...] }");
+      return;
+    }
+    const result = validateReferenceDirs(body.dirs);
+    if ("error" in result) {
+      log.warn("config", "PUT reference-dirs: validation failed", { error: result.error });
+      badRequest(res, result.error);
+      return;
+    }
+    saveReferenceDirs(result.entries);
+    log.info("config", "PUT reference-dirs: ok", { dirs: result.entries.length });
+    res.json({ dirs: result.entries });
+  }),
 );
 
 router.get(API_ROUTES.config.schedulerOverrides, (_req: Request, res: Response<{ overrides: ScheduleOverrides }>) => {
@@ -280,45 +268,41 @@ router.get(API_ROUTES.config.schedulerOverrides, (_req: Request, res: Response<{
 
 router.put(
   API_ROUTES.config.schedulerOverrides,
-  asyncHandler<Request<unknown, unknown, { overrides: unknown }>, Response<{ overrides: ScheduleOverrides } | ConfigErrorResponse>>(
-    "config",
-    "save failed",
-    async (req, res) => {
-      const { body } = req;
-      log.info("config", "PUT scheduler-overrides: start");
-      if (!isRecord(body) || !("overrides" in body)) {
-        log.warn("config", "PUT scheduler-overrides: invalid envelope");
-        badRequest(res, "expected { overrides: { ... } }");
-        return;
-      }
-      const raw = body.overrides;
-      if (!isRecord(raw)) {
-        log.warn("config", "PUT scheduler-overrides: overrides not an object");
-        badRequest(res, "overrides must be an object");
-        return;
-      }
-      const overrides = raw as ScheduleOverrides;
-      saveSchedulerOverrides(overrides);
+  asyncHandler<Request<unknown, unknown, { overrides: unknown }>, ApiResponse<{ overrides: ScheduleOverrides }>>("config", "save failed", async (req, res) => {
+    const { body } = req;
+    log.info("config", "PUT scheduler-overrides: start");
+    if (!isRecord(body) || !("overrides" in body)) {
+      log.warn("config", "PUT scheduler-overrides: invalid envelope");
+      badRequest(res, "expected { overrides: { ... } }");
+      return;
+    }
+    const raw = body.overrides;
+    if (!isRecord(raw)) {
+      log.warn("config", "PUT scheduler-overrides: overrides not an object");
+      badRequest(res, "overrides must be an object");
+      return;
+    }
+    const overrides = raw as ScheduleOverrides;
+    saveSchedulerOverrides(overrides);
 
-      // Apply to running task-manager immediately
-      for (const [taskId, ovr] of Object.entries(overrides)) {
-        if (typeof ovr.intervalMs === "number" && ovr.intervalMs > 0) {
-          await applyScheduleOverride(taskId, {
-            type: SCHEDULE_TYPES.interval,
-            intervalMs: ovr.intervalMs,
-          });
-        } else if (typeof ovr.time === "string" && UTC_HH_MM_RE.test(ovr.time)) {
-          await applyScheduleOverride(taskId, {
-            type: SCHEDULE_TYPES.daily,
-            time: ovr.time,
-          });
-        }
+    // Apply to running task-manager immediately
+    for (const [taskId, ovr] of Object.entries(overrides)) {
+      if (typeof ovr.intervalMs === "number" && ovr.intervalMs > 0) {
+        await applyScheduleOverride(taskId, {
+          type: SCHEDULE_TYPES.interval,
+          intervalMs: ovr.intervalMs,
+        });
+      } else if (typeof ovr.time === "string" && UTC_HH_MM_RE.test(ovr.time)) {
+        await applyScheduleOverride(taskId, {
+          type: SCHEDULE_TYPES.daily,
+          time: ovr.time,
+        });
       }
+    }
 
-      log.info("config", "PUT scheduler-overrides: ok", { tasks: Object.keys(overrides).length });
-      res.json({ overrides: loadSchedulerOverrides() });
-    },
-  ),
+    log.info("config", "PUT scheduler-overrides: ok", { tasks: Object.keys(overrides).length });
+    res.json({ overrides: loadSchedulerOverrides() });
+  }),
 );
 
 // ── Connectors (read-only) ──────────────────────────────────────

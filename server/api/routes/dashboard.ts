@@ -9,19 +9,19 @@
 // viewMode) before persisting. A single replace-endpoint mirrors the
 // shortcuts route.
 
-import { Router, Request, Response } from "express";
+import { Router, Request } from "express";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import type { DashboardFile } from "../../../src/types/dashboard.js";
 import { readDashboard, writeDashboard } from "../../utils/files/dashboard-io.js";
 import { errorMessage } from "../../utils/errors.js";
-import { badRequest, serverError } from "../../utils/httpError.js";
+import { badRequest, serverError, type ApiResponse } from "../../utils/httpError.js";
 import { log } from "../../system/logger/index.js";
 
 const router = Router();
 
 type DashboardResponse = DashboardFile;
 
-router.get(API_ROUTES.dashboard, async (_req: Request, res: Response<DashboardResponse>) => {
+router.get(API_ROUTES.dashboard, async (_req: Request, res: ApiResponse<DashboardResponse>) => {
   try {
     res.json(await readDashboard());
   } catch (err) {
@@ -30,7 +30,7 @@ router.get(API_ROUTES.dashboard, async (_req: Request, res: Response<DashboardRe
   }
 });
 
-router.put(API_ROUTES.dashboard, async (req: Request, res: Response<DashboardResponse>) => {
+router.put(API_ROUTES.dashboard, async (req: Request, res: ApiResponse<DashboardResponse>) => {
   const { tiles, rowHeights } = req.body ?? {};
   if (!Array.isArray(tiles)) {
     badRequest(res, "Request body must be { tiles: DashboardTile[], rowHeights?: number[] }");

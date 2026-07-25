@@ -8,12 +8,12 @@
 // listener binds on this host, so the browser must run on the same machine
 // (`yarn google:auth` covers remote setups). Bearer-guarded like every /api
 // route; tokens never appear in any response or log.
-import { Router, Request, Response } from "express";
+import { Router, Request } from "express";
 
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { clientSecretPresence, googleAuthFlow, loadGoogleTokens, unlinkGoogle, type ClientSecretPresence } from "@mulmoclaude/core/google";
 import { errorMessage } from "../../utils/errors.js";
-import { serverError } from "../../utils/httpError.js";
+import { serverError, type ApiResponse } from "../../utils/httpError.js";
 import { log } from "../../system/logger/index.js";
 
 const PREFIX = "google";
@@ -26,7 +26,7 @@ interface GoogleStatusResponse {
   lastError: string | null;
 }
 
-router.get(API_ROUTES.google.status, async (_req: Request, res: Response<GoogleStatusResponse>) => {
+router.get(API_ROUTES.google.status, async (_req: Request, res: ApiResponse<GoogleStatusResponse>) => {
   try {
     const [tokens, clientSecret] = await Promise.all([loadGoogleTokens(), clientSecretPresence()]);
     const flow = googleAuthFlow.status();
@@ -36,7 +36,7 @@ router.get(API_ROUTES.google.status, async (_req: Request, res: Response<GoogleS
   }
 });
 
-router.post(API_ROUTES.google.authorize, async (_req: Request, res: Response<{ authUrl: string }>) => {
+router.post(API_ROUTES.google.authorize, async (_req: Request, res: ApiResponse<{ authUrl: string }>) => {
   try {
     res.json(await googleAuthFlow.start());
   } catch (err) {
@@ -45,7 +45,7 @@ router.post(API_ROUTES.google.authorize, async (_req: Request, res: Response<{ a
   }
 });
 
-router.post(API_ROUTES.google.unlink, async (_req: Request, res: Response<{ linked: boolean }>) => {
+router.post(API_ROUTES.google.unlink, async (_req: Request, res: ApiResponse<{ linked: boolean }>) => {
   try {
     await unlinkGoogle();
     res.json({ linked: false });

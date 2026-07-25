@@ -15,7 +15,40 @@ import type { Request, Response, NextFunction } from "express";
 import { log } from "./context.js";
 import { errorMessage } from "../shared/errors.js";
 
-export function asyncHandler<TReq = Request, TRes = Response>(
+/** The body the catch path sends. Declared here rather than imported from the
+ *  host's `httpError.ts` for the same reason the wrapper is copied: reaching
+ *  into the host would be an uphill import. */
+export interface ErrorBody {
+  error: string;
+}
+
+/** A route response that can carry either its success body or an error — use
+ *  this, not a bare `Response<T>`, for any handler wrapped by `asyncHandler`,
+ *  which can always emit `ErrorBody` on the failure path. */
+export type ApiResponse<T> = Response<T | ErrorBody>;
+
+/** The bounds below name exactly what the catch path dereferences.
+ *
+ *  They are NOT `extends Request` / `extends Response`: Express uses its type
+ *  parameters in mixed variance positions, so a nominal bound rejects valid
+ *  call sites like `Request<object, unknown, MyBody>`. Naming only the members
+ *  we touch keeps every concrete `Request<…>` / `Response<…>` assignable.
+ *
+ *  Structural bounds rather than unconstrained generics plus `as` casts,
+ *  because the casts were load-bearing in a way that hid a real contract: this
+ *  wrapper sends `{ error }` on the failure path, so a route declaring a
+ *  `ResBody` that cannot carry it was lying. That is now a compile error, and
+ *  the fix at such a site is `ApiResponse<T>`. */
+interface RoutePathBearing {
+  path: string;
+}
+
+interface ErrorSendableResponse {
+  headersSent: boolean;
+  status: (code: number) => { json: (body: ErrorBody) => unknown };
+}
+
+export function asyncHandler<TReq extends RoutePathBearing = Request, TRes extends ErrorSendableResponse = Response>(
   namespace: string,
   fallbackMessage: string,
   handler: (req: TReq, res: TRes) => Promise<void>,
@@ -24,17 +57,15 @@ export function asyncHandler<TReq = Request, TRes = Response>(
     try {
       await handler(req, res);
     } catch (err) {
-      const expressReq = req as Request;
-      const expressRes = res as Response;
-      log.error(namespace, "handler threw", { route: expressReq.path, error: errorMessage(err) });
-      if (expressRes.headersSent) {
+      log.error(namespace, "handler threw", { route: req.path, error: errorMessage(err) });
+      if (res.headersSent) {
         // Response already (partially) sent — we can't write a clean 500.
         // Forward to Express's error flow so it can destroy the socket
         // rather than leaving the request hanging.
         next(err);
         return;
       }
-      expressRes.status(500).json({ error: fallbackMessage });
+      res.status(500).json({ error: fallbackMessage });
     }
   };
 }

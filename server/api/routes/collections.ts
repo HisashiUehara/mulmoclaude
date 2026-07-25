@@ -62,7 +62,7 @@ import {
 } from "../../workspace/collections/remoteView.js";
 import { clampImageMaxEdge, clampLimit, clampOffset, normalizeFields, normalizeMutate } from "@mulmoclaude/core/remote-view";
 import { resolveThumbnail } from "../../utils/files/thumbnail-store.js";
-import { badRequest, notFound, conflict, forbidden, methodNotAllowed, serverError, serviceUnavailable } from "../../utils/httpError.js";
+import { badRequest, notFound, conflict, forbidden, methodNotAllowed, serverError, serviceUnavailable, type ApiResponse } from "../../utils/httpError.js";
 import { ONE_MINUTE_MS } from "../../utils/time.js";
 import { errorMessage } from "../../utils/errors.js";
 import { log } from "../../system/logger/index.js";
@@ -257,7 +257,7 @@ async function toClientSummary(collection: LoadedCollection): Promise<Collection
   return { ...summary, icon, iconSources: [spec.source.collection] };
 }
 
-router.get(API_ROUTES.collections.list, async (_req: Request, res: Response<CollectionsListResponse>) => {
+router.get(API_ROUTES.collections.list, async (_req: Request, res: ApiResponse<CollectionsListResponse>) => {
   try {
     const collections = await discoverCollections();
     const summaries = await Promise.all(collections.map(toClientSummary));
@@ -272,7 +272,7 @@ router.get(API_ROUTES.collections.list, async (_req: Request, res: Response<Coll
 // demand, never stored); the /collections Map tab builds its graph from
 // these with the shared `buildOntologyGraph`. Registered before the
 // `:slug` routes so "ontology" is never swallowed as a slug.
-router.get(API_ROUTES.collections.ontology, async (_req: Request, res: Response<CollectionOntologyResponse>) => {
+router.get(API_ROUTES.collections.ontology, async (_req: Request, res: ApiResponse<CollectionOntologyResponse>) => {
   try {
     res.json({ entries: await buildWorkspaceOntology() });
   } catch (err) {
@@ -281,7 +281,7 @@ router.get(API_ROUTES.collections.ontology, async (_req: Request, res: Response<
   }
 });
 
-router.get(API_ROUTES.collections.detail, async (req: Request<{ slug: string }>, res: Response<CollectionDetailResponse>) => {
+router.get(API_ROUTES.collections.detail, async (req: Request<{ slug: string }>, res: ApiResponse<CollectionDetailResponse>) => {
   const collection = await loadCollectionOr404(req.params.slug, res);
   if (!collection) return;
   try {
@@ -315,7 +315,7 @@ router.get(API_ROUTES.collections.detail, async (req: Request<{ slug: string }>,
 // its records — after archiving a restorable copy. Only project-scope,
 // non-preset collections are deletable; see deleteCollection for the
 // scope rules and the archive layout.
-router.delete(API_ROUTES.collections.detail, async (req: Request<{ slug: string }>, res: Response<DeleteCollectionResponse>) => {
+router.delete(API_ROUTES.collections.detail, async (req: Request<{ slug: string }>, res: ApiResponse<DeleteCollectionResponse>) => {
   const collection = await loadCollectionOr404(req.params.slug, res);
   if (!collection) return;
   try {
@@ -337,7 +337,7 @@ router.delete(API_ROUTES.collections.detail, async (req: Request<{ slug: string 
   }
 });
 
-router.post(API_ROUTES.collections.items, async (req: Request<{ slug: string }>, res: Response<ItemMutationResponse>) => {
+router.post(API_ROUTES.collections.items, async (req: Request<{ slug: string }>, res: ApiResponse<ItemMutationResponse>) => {
   const collection = await loadCollectionOr404(req.params.slug, res);
   if (!collection) return;
   const createStore = storeFor(collection).write;
@@ -373,7 +373,7 @@ router.post(API_ROUTES.collections.items, async (req: Request<{ slug: string }>,
   }
 });
 
-router.put(API_ROUTES.collections.item, async (req: Request<{ slug: string; itemId: string }>, res: Response<ItemMutationResponse>) => {
+router.put(API_ROUTES.collections.item, async (req: Request<{ slug: string; itemId: string }>, res: ApiResponse<ItemMutationResponse>) => {
   const collection = await loadCollectionOr404(req.params.slug, res);
   if (!collection) return;
   const updateStore = storeFor(collection).write;
@@ -411,7 +411,7 @@ router.put(API_ROUTES.collections.item, async (req: Request<{ slug: string; item
   }
 });
 
-router.delete(API_ROUTES.collections.item, async (req: Request<{ slug: string; itemId: string }>, res: Response<DeleteResponse>) => {
+router.delete(API_ROUTES.collections.item, async (req: Request<{ slug: string; itemId: string }>, res: ApiResponse<DeleteResponse>) => {
   const collection = await loadCollectionOr404(req.params.slug, res);
   if (!collection) return;
   const deleteStore = storeFor(collection).delete;
@@ -433,7 +433,7 @@ router.delete(API_ROUTES.collections.item, async (req: Request<{ slug: string; i
   }
 });
 
-async function refreshFeedCollection(collection: LoadedCollection, res: Response<RefreshResponse>): Promise<void> {
+async function refreshFeedCollection(collection: LoadedCollection, res: ApiResponse<RefreshResponse>): Promise<void> {
   // Manual Refresh button → run a VISIBLE worker (hidden:false) so the user
   // can open the session and watch/debug it. Scheduled refreshes (the
   // `refreshDue` loop) stay hidden. Declarative feeds ignore the flag.
@@ -444,7 +444,7 @@ async function refreshFeedCollection(collection: LoadedCollection, res: Response
 
 /** Sync now, on the user's click, instead of waiting for the hourly scheduler
  *  run (#2427) — the calendar counterpart of a feed's Refresh. */
-async function refreshCalendarCollection(slug: string, res: Response<RefreshResponse>): Promise<void> {
+async function refreshCalendarCollection(slug: string, res: ApiResponse<RefreshResponse>): Promise<void> {
   const outcome = await syncCalendarForCollection(slug, workspacePath);
   const body = calendarRefreshBody(slug, outcome);
   log.info("collections", "calendar synced via collection route", { slug, written: body.written, removed: body.removed, errors: body.errors.length });
@@ -456,7 +456,7 @@ async function refreshCalendarCollection(slug: string, res: Response<RefreshResp
 // 400 when the collection declares neither (it's an ordinary skill collection).
 // Backs the CollectionView Refresh button. `ingest` wins if a schema somehow
 // declares both — that is the pre-existing behaviour of this route.
-router.post(API_ROUTES.collections.refresh, async (req: Request<{ slug: string }>, res: Response<RefreshResponse>) => {
+router.post(API_ROUTES.collections.refresh, async (req: Request<{ slug: string }>, res: ApiResponse<RefreshResponse>) => {
   const collection = await loadCollectionOr404(req.params.slug, res);
   if (!collection) return;
   if (!collection.schema.ingest && !collection.schema.googleCalendar) {
@@ -479,7 +479,7 @@ router.post(API_ROUTES.collections.refresh, async (req: Request<{ slug: string }
 // 409 on a double-dispatch (the stamp-at-dispatch guard); 503 on a
 // cap-miss / launch failure so the button un-sticks and reads honest.
 async function respondForActionKind(
-  res: Response<ActionRunResponse>,
+  res: ApiResponse<ActionRunResponse>,
   collection: LoadedCollection,
   action: CollectionSeededAction,
   seed: ActionSeedResponse,
@@ -504,7 +504,7 @@ async function respondForActionKind(
 // engine work lives in `applyMutateAction` (core); this maps its outcome
 // to HTTP.
 async function respondForMutateAction(
-  res: Response<ActionRunResponse>,
+  res: ApiResponse<ActionRunResponse>,
   collection: LoadedCollection,
   action: CollectionMutateAction,
   itemId: string,
@@ -539,56 +539,59 @@ async function respondForMutateAction(
 // client starts the chat (or, for `kind: "agent"`, the server dispatches
 // the hidden worker itself; for `kind: "mutate"`, it applies the
 // declarative write). No domain (invoice / PDF / role) literals.
-router.post(API_ROUTES.collections.itemAction, async (req: Request<{ slug: string; itemId: string; actionId: string }>, res: Response<ActionRunResponse>) => {
-  const collection = await loadCollectionOr404(req.params.slug, res);
-  if (!collection) return;
-  const action = findActionOr404(collection, req.params.actionId, res);
-  if (!action) return;
-  try {
-    const record = await storeFor(collection).read(req.params.itemId);
-    if (!record) {
-      notFound(res, `item '${req.params.itemId}' not found`);
-      return;
-    }
-    // Enforce the action's `when` predicate server-side: the client
-    // hides out-of-state buttons, but a stale or crafted request could
-    // still target one (e.g. seed a payment journal for a non-paid
-    // invoice). The visibility rule is the authorization rule.
-    if (!actionVisible(action, record)) {
-      conflict(res, `action '${action.id}' is not available for item '${req.params.itemId}' in its current state`);
-      return;
-    }
-    // `kind: "mutate"` needs no template / seed / LLM — the host applies
-    // the declarative write itself (require was just enforced above,
-    // same visibility-is-authorization rule as the seeded kinds).
-    if (action.kind === "mutate") {
-      // Schema validation already rejects mutate actions on a dataSource
-      // collection; this is the defensive server-side twin.
-      if (!collectionWritable(collection)) {
-        methodNotAllowed(res, readOnlyRefusal(collection.slug));
+router.post(
+  API_ROUTES.collections.itemAction,
+  async (req: Request<{ slug: string; itemId: string; actionId: string }>, res: ApiResponse<ActionRunResponse>) => {
+    const collection = await loadCollectionOr404(req.params.slug, res);
+    if (!collection) return;
+    const action = findActionOr404(collection, req.params.actionId, res);
+    if (!action) return;
+    try {
+      const record = await storeFor(collection).read(req.params.itemId);
+      if (!record) {
+        notFound(res, `item '${req.params.itemId}' not found`);
         return;
       }
-      await respondForMutateAction(res, collection, action, req.params.itemId, req.body as { params?: unknown } | undefined);
-      return;
+      // Enforce the action's `when` predicate server-side: the client
+      // hides out-of-state buttons, but a stale or crafted request could
+      // still target one (e.g. seed a payment journal for a non-paid
+      // invoice). The visibility rule is the authorization rule.
+      if (!actionVisible(action, record)) {
+        conflict(res, `action '${action.id}' is not available for item '${req.params.itemId}' in its current state`);
+        return;
+      }
+      // `kind: "mutate"` needs no template / seed / LLM — the host applies
+      // the declarative write itself (require was just enforced above,
+      // same visibility-is-authorization rule as the seeded kinds).
+      if (action.kind === "mutate") {
+        // Schema validation already rejects mutate actions on a dataSource
+        // collection; this is the defensive server-side twin.
+        if (!collectionWritable(collection)) {
+          methodNotAllowed(res, readOnlyRefusal(collection.slug));
+          return;
+        }
+        await respondForMutateAction(res, collection, action, req.params.itemId, req.body as { params?: unknown } | undefined);
+        return;
+      }
+      const template = await readSkillTemplate(collection.skillDir, action.template);
+      if (template === null) {
+        serverError(res, `template '${action.template}' for action '${action.id}' could not be read`);
+        return;
+      }
+      log.info("collections", "action seed built", { slug: collection.slug, itemId: req.params.itemId, actionId: action.id, kind: action.kind });
+      const seed = { prompt: buildActionSeedPrompt(record, template, promptPathsFor(collection, workspacePath)), role: action.role };
+      await respondForActionKind(res, collection, action, seed, req.params.itemId);
+    } catch (err) {
+      log.warn("collections", "action seed failed", {
+        slug: collection.slug,
+        itemId: req.params.itemId,
+        actionId: req.params.actionId,
+        error: errorMessage(err),
+      });
+      serverError(res, errorMessage(err));
     }
-    const template = await readSkillTemplate(collection.skillDir, action.template);
-    if (template === null) {
-      serverError(res, `template '${action.template}' for action '${action.id}' could not be read`);
-      return;
-    }
-    log.info("collections", "action seed built", { slug: collection.slug, itemId: req.params.itemId, actionId: action.id, kind: action.kind });
-    const seed = { prompt: buildActionSeedPrompt(record, template, promptPathsFor(collection, workspacePath)), role: action.role };
-    await respondForActionKind(res, collection, action, seed, req.params.itemId);
-  } catch (err) {
-    log.warn("collections", "action seed failed", {
-      slug: collection.slug,
-      itemId: req.params.itemId,
-      actionId: req.params.actionId,
-      error: errorMessage(err),
-    });
-    serverError(res, errorMessage(err));
-  }
-});
+  },
+);
 
 // Assemble the seed for a collection-level action: read the template and inject
 // a compact progress summary of every record. Returns null when the template
@@ -604,7 +607,7 @@ async function buildCollectionActionSeed(collection: LoadedCollection, action: C
 
 // Like the per-record route but with no `itemId`: there is no record to read or
 // gate on, so the seed injects a progress summary instead. No domain literals.
-router.post(API_ROUTES.collections.collectionAction, async (req: Request<{ slug: string; actionId: string }>, res: Response<ActionRunResponse>) => {
+router.post(API_ROUTES.collections.collectionAction, async (req: Request<{ slug: string; actionId: string }>, res: ApiResponse<ActionRunResponse>) => {
   const collection = await loadCollectionOr404(req.params.slug, res);
   if (!collection) return;
   const action = collection.schema.collectionActions?.find((entry) => entry.id === req.params.actionId);
@@ -1107,7 +1110,7 @@ router.post(
   viewDataCors,
   viewActionRateLimit,
   requireViewToken("write"),
-  async (req: Request<{ slug: string; actionId: string }>, res: Response<ActionRunResponse>) => {
+  async (req: Request<{ slug: string; actionId: string }>, res: ApiResponse<ActionRunResponse>) => {
     try {
       const collection = await loadCollectionOr404(req.params.slug, res);
       if (!collection) return;
@@ -1169,7 +1172,7 @@ function sendDeleteViewRefusal(res: Response, result: Exclude<DeleteViewResult, 
 // Delete one custom view: drop it from schema.json `views[]` (every on-disk
 // copy) and unlink its HTML file. Behind the global bearer. Source-aware;
 // refuses user-scope + preset collections, consistent with collection delete.
-router.delete(API_ROUTES.collections.viewDelete, async (req: Request<{ slug: string; viewId: string }>, res: Response<DeleteViewResponse>) => {
+router.delete(API_ROUTES.collections.viewDelete, async (req: Request<{ slug: string; viewId: string }>, res: ApiResponse<DeleteViewResponse>) => {
   try {
     const collection = await loadCollectionOr404(req.params.slug, res);
     if (!collection) return;

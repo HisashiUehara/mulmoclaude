@@ -8,12 +8,12 @@
 // `(kind, slug)`, no length cap) before persisting. A single
 // replace-endpoint avoids add/remove route sprawl.
 
-import { Router, Request, Response } from "express";
+import { Router, Request } from "express";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import type { Shortcut } from "../../../src/types/shortcuts.js";
 import { readShortcuts, writeShortcuts } from "../../utils/files/shortcuts-io.js";
 import { errorMessage } from "../../utils/errors.js";
-import { badRequest, serverError } from "../../utils/httpError.js";
+import { badRequest, serverError, type ApiResponse } from "../../utils/httpError.js";
 import { log } from "../../system/logger/index.js";
 
 const router = Router();
@@ -22,7 +22,7 @@ interface ShortcutsResponse {
   shortcuts: Shortcut[];
 }
 
-router.get(API_ROUTES.shortcuts, async (_req: Request, res: Response<ShortcutsResponse>) => {
+router.get(API_ROUTES.shortcuts, async (_req: Request, res: ApiResponse<ShortcutsResponse>) => {
   try {
     res.json({ shortcuts: await readShortcuts() });
   } catch (err) {
@@ -31,7 +31,7 @@ router.get(API_ROUTES.shortcuts, async (_req: Request, res: Response<ShortcutsRe
   }
 });
 
-router.put(API_ROUTES.shortcuts, async (req: Request, res: Response<ShortcutsResponse>) => {
+router.put(API_ROUTES.shortcuts, async (req: Request, res: ApiResponse<ShortcutsResponse>) => {
   const incoming = req.body?.shortcuts;
   if (!Array.isArray(incoming)) {
     badRequest(res, "Request body must be { shortcuts: Shortcut[] }");
