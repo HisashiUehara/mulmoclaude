@@ -55,6 +55,8 @@ yarn dev
 
 [http://localhost:5173](http://localhost:5173) を開いてください。アーキテクチャやスクリプトの詳細は [`docs/developer.md`](docs/developer.md) を参照してください。
 
+> **UI が崩れる・スタイルが当たらない場合**: アイコンが文字で表示される、`dist/*` が 404、再起動後に `401` — [`docs/troubleshooting.md`](docs/troubleshooting.md) を参照してください。
+
 ## 何ができるの?
 
 | Claude にこう頼むと...                           | 得られるもの                                         |
@@ -681,6 +683,7 @@ Claude はチャット会話からユーザーの永続的な事実を自動的�
 | [Bridge Protocol](docs/bridge-protocol.md)         | 新しいメッセージングブリッジを書くためのワイヤーレベル仕様        |
 | [Sandbox Credentials](docs/sandbox-credentials.md) | Docker サンドボックスの資格情報フォワーディング (SSH、GitHub CLI) |
 | [Logging](docs/logging.md)                         | ログレベル、フォーマット、ファイルローテーション                  |
+| [Troubleshooting](docs/troubleshooting.md)         | セットアップの問題 — UI が崩れる、`dist/*` の 404、Windows/OneDrive、再起動後の `401`、起動時の警告 |
 | [CHANGELOG](docs/CHANGELOG.md)                     | リリース履歴                                                      |
 
 ## ライセンス

@@ -97,6 +97,7 @@ Code structure, APIs, and build instructions for the host itself. Plugin authors
 | [Claude ↔ Docker boundary](claude-docker-boundary.md) | English  | What runs in the container vs. on the host when `claude -p` fires — Bash/Read/Write are in the sandbox, MCP tool implementations are on the host through a stdio proxy |
 | [Windows-host filesystem bugs in Linux containers on GHA](windows-docker-ci.md) | English  | How to reproduce Windows-FS-into-Linux-container bugs (dangling NTFS junctions, …) on GitHub Actions using WSL2 + native `dockerd` — the approach `docker_sandbox_windows.yaml` takes |
 | [Manual Testing](manual-testing.md)           | English  | Manual test items not covered by E2E                                                                                                |
+| [Troubleshooting](troubleshooting.md)         | English  | Setup problems between `git clone` and a working UI — broken-looking UI, `dist/*` 404s, Windows/OneDrive, `401` after restart, boot warnings |
 
 ## Project
 

@@ -55,6 +55,8 @@ yarn dev
 
 打开 [http://localhost:5173](http://localhost:5173)。架构和脚本细节请参见 [`docs/developer.md`](docs/developer.md)。
 
+> **界面显示错乱或没有样式？** 图标显示为文字、`dist/*` 返回 404、重启后出现 `401` — 请参见 [`docs/troubleshooting.md`](docs/troubleshooting.md)。
+
 ## 你可以做什么？
 
 | 让 Claude 做...      | 你将得到                                 |
@@ -663,6 +665,7 @@ Claude 会自动从聊天对话中提取持久的用户事实，并将其追加�
 | [桥接协议](docs/bridge-protocol.md)     | 编写新消息桥接的线级规范               |
 | [沙盒凭据](docs/sandbox-credentials.md) | Docker 沙盒凭据转发（SSH、GitHub CLI） |
 | [日志](docs/logging.md)                 | 日志级别、格式、文件轮替               |
+| [故障排查](docs/troubleshooting.md)     | 安装问题 — 界面错乱、`dist/*` 404、Windows/OneDrive、重启后 `401`、启动警告 |
 | [CHANGELOG](docs/CHANGELOG.md)          | 发布历史                               |
 
 ## 许可证

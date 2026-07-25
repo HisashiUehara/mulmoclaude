@@ -55,6 +55,8 @@ yarn dev
 
 Abre [http://localhost:5173](http://localhost:5173). Consulta [`docs/developer.md`](docs/developer.md) para la arquitectura y los scripts.
 
+> **¿La interfaz se ve rota o sin estilos?** Iconos mostrados como palabras, `404` en `dist/*`, `401` tras reiniciar — consulta [`docs/troubleshooting.md`](docs/troubleshooting.md).
+
 ## ¿Qué puedes hacer?
 
 | Pídele a Claude...                          | Lo que obtienes                                             |
@@ -662,6 +664,7 @@ La documentación completa vive en [`docs/`](docs/README.md). Aquí están los p
 | [Bridge Protocol](docs/bridge-protocol.md)         | Especificación a nivel de cable para escribir nuevos puentes de mensajería |
 | [Sandbox Credentials](docs/sandbox-credentials.md) | Reenvío de credenciales del sandbox de Docker (SSH, CLI de GitHub)         |
 | [Logging](docs/logging.md)                         | Niveles de log, formatos, rotación de archivos                             |
+| [Troubleshooting](docs/troubleshooting.md)         | Problemas de instalación — interfaz rota, `404` en `dist/*`, Windows/OneDrive, `401` tras reiniciar, avisos de arranque |
 | [CHANGELOG](docs/CHANGELOG.md)                     | Historial de versiones                                                     |
 
 ## Licencia

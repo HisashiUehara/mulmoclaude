@@ -150,6 +150,7 @@ You never set these by hand; the server constructs them when spawning Claude ins
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `yarn dev`                        | Server (`:3001`) + Vite client (`:5173`) concurrently. The default.                                                                                                                                     |
 | `yarn dev:debug`                  | Same as `dev` but spawns the server with `--debug` (Node inspector ready).                                                                                                                              |
+| `yarn dev:full-build`             | Same as `dev` but rebuilds every workspace package unconditionally first. Use when a plugin's `dist/` is stale or half-written — `dev`'s mtime gate treats a partial `dist/` as fresh and skips it.      |
 | `yarn dev:client`                 | Vite client only — useful when you've already started the server elsewhere.                                                                                                                             |
 | `yarn dev:server` / `yarn server` | Express server only.                                                                                                                                                                                    |
 | `yarn server:debug`               | Server with `--debug` flag.                                                                                                                                                                             |
@@ -757,6 +758,8 @@ Aggregator collisions don't throw — they're filtered and reported. `server/plu
 ---
 
 ## Common gotchas
+
+> Setup-time symptoms (unstyled UI, `dist/*` 404s, Windows/OneDrive, `401` after a restart) live in [`troubleshooting.md`](troubleshooting.md).
 
 - **Playwright uses its own port `:45173`** (`dev:client:e2e` in `package.json` + `webServer` in `e2e/playwright.config.ts`), so it doesn't collide with a running `yarn dev` on `:5173`. `reuseExistingServer: true` is still on for that port — if a stale `vite` process from a different working tree is already serving `:45173`, Playwright will happily talk to _that_ one. Symptom: tests fail because UI changes "haven't landed". Kill the stray process: `lsof -i :45173 | grep LISTEN`.
 - **CSRF guard is strict.** `requireSameOrigin` (`server/api/csrfGuard.ts`) rejects state-changing requests from non-localhost origins. Requests with no `Origin` header (CLI tools, server-to-server) are allowed because the listener is bound to `127.0.0.1`. If you ever expose the listener publicly, tighten this middleware first.

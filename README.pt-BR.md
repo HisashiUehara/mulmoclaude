@@ -55,6 +55,8 @@ yarn dev
 
 Abra [http://localhost:5173](http://localhost:5173). Consulte [`docs/developer.md`](docs/developer.md) para arquitetura e scripts.
 
+> **A interface parece quebrada ou sem estilo?** Ícones exibidos como palavras, `404` em `dist/*`, `401` após reiniciar — consulte [`docs/troubleshooting.md`](docs/troubleshooting.md).
+
 ## O que você pode fazer?
 
 | Peça ao Claude para...                              | O que você recebe                                          |
@@ -666,6 +668,7 @@ A documentação completa está em [`docs/`](docs/README.md). Aqui estão os pri
 | [Bridge Protocol](docs/bridge-protocol.md)         | Especificação em nível de protocolo para escrever novos bridges de mensagens |
 | [Sandbox Credentials](docs/sandbox-credentials.md) | Encaminhamento de credenciais do sandbox Docker (SSH, GitHub CLI)            |
 | [Logging](docs/logging.md)                         | Níveis de log, formatos, rotação de arquivos                                 |
+| [Troubleshooting](docs/troubleshooting.md)         | Problemas de instalação — interface quebrada, `404` em `dist/*`, Windows/OneDrive, `401` após reiniciar, avisos de inicialização |
 | [CHANGELOG](docs/CHANGELOG.md)                     | Histórico de releases                                                        |
 
 ## Licença

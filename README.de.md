@@ -55,6 +55,8 @@ yarn dev
 
 Öffnen Sie [http://localhost:5173](http://localhost:5173). Architektur und Skripte siehe [`docs/developer.md`](docs/developer.md).
 
+> **UI wirkt kaputt oder ungestylt?** Icons als Wörter, `dist/*` mit 404, `401` nach einem Neustart — siehe [`docs/troubleshooting.md`](docs/troubleshooting.md).
+
 ## Was kann man tun?
 
 | Bitten Sie Claude um...                                   | Was Sie erhalten                                      |
@@ -664,6 +666,7 @@ Die vollständige Dokumentation befindet sich unter [`docs/`](docs/README.md). H
 | [Bridge-Protokoll](docs/bridge-protocol.md)                 | Wire-Level-Spezifikation zum Schreiben neuer Messaging-Bridges          |
 | [Sandbox-Anmeldeinformationen](docs/sandbox-credentials.md) | Docker-Sandbox-Weiterleitung von Anmeldeinformationen (SSH, GitHub CLI) |
 | [Logging](docs/logging.md)                                  | Log-Level, Formate, Dateirotation                                       |
+| [Troubleshooting](docs/troubleshooting.md)                  | Setup-Probleme — kaputt wirkende UI, `dist/*`-404s, Windows/OneDrive, `401` nach Neustart, Boot-Warnungen |
 | [CHANGELOG](docs/CHANGELOG.md)                              | Release-Historie                                                        |
 
 ## Lizenz
