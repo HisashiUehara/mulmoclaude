@@ -64,7 +64,9 @@ bindRoute(
     log.info("scheduler-tasks", "create: start");
     const validated = validateAndCreate(req.body);
     if (validated.kind === "error") {
-      log.warn("scheduler-tasks", "create: validation failed", { error: validated.error });
+      // Same vector as the update path: `validated.error` is built from
+      // `req.body`, so it carries request-controlled text into the log.
+      log.warn("scheduler-tasks", "create: validation failed", { error: singleLineForLog(validated.error) });
       badRequest(res, validated.error);
       return;
     }
@@ -103,7 +105,10 @@ bindRoute(
       // asyncHandler wrapper to surface as 500.
       const msg = errorMessage(err);
       if (msg.startsWith("task not found") || msg.startsWith("request body")) {
-        log.warn("scheduler-tasks", "update: validation failed", { taskId: taskIdForLog, reason: msg });
+        // `msg` embeds the raw taskId (`task not found: <id>`), so sanitising
+        // the taskId field alone would leave the same CR/LF through this one.
+        // The response keeps the raw message.
+        log.warn("scheduler-tasks", "update: validation failed", { taskId: taskIdForLog, reason: singleLineForLog(msg) });
         notFound(res, msg);
         return;
       }
