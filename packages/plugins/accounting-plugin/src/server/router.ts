@@ -34,15 +34,17 @@ import {
 import type { BookSummary } from "../shared/types.js";
 import { ACCOUNTING_ACTIONS, ACCOUNTING_API } from "../shared";
 import { log } from "./context.js";
-import { asyncHandler } from "./http.js";
+import { asyncHandler, type ErrorBody } from "./http.js";
 
 interface AccountingActionBody {
   action: string;
   [key: string]: unknown;
 }
 
-interface AccountingErrorResponse {
-  error: string;
+/** `ErrorBody` plus the structured detail this router attaches to a failed
+ *  dispatch (see the `err.details` send below) — a superset, not a rival
+ *  declaration of the same shape. */
+interface AccountingErrorResponse extends ErrorBody {
   details?: unknown;
 }
 

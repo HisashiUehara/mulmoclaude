@@ -13,12 +13,12 @@
 // when disconnected). Bearer-guarded like every /api route (the browser's apiPost
 // attaches the token); the idToken and session blob are secrets carried in the
 // POST body over the loopback listener only — never logged.
-import { Router, Request, Response } from "express";
+import { Router, Request } from "express";
 
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { connect, disconnect, exportSession, reconnect, RemoteHostSessionExpiredError, status, type RemoteHostStatus } from "../../remoteHost/index.js";
 import { errorMessage } from "../../utils/errors.js";
-import { badRequest, serverError, unauthorized } from "../../utils/httpError.js";
+import { badRequest, serverError, unauthorized, type ApiResponse } from "../../utils/httpError.js";
 import { log } from "../../system/logger/index.js";
 
 const PREFIX = "remote-host";
@@ -30,11 +30,11 @@ interface StatusResponse {
   session: string | null;
 }
 
-const respond = (res: Response<StatusResponse>, hostStatus: RemoteHostStatus): void => {
+const respond = (res: ApiResponse<StatusResponse>, hostStatus: RemoteHostStatus): void => {
   res.json({ status: hostStatus, session: exportSession() });
 };
 
-router.post(API_ROUTES.remoteHost.connect, async (req: Request<object, unknown, { idToken?: string }>, res: Response<StatusResponse>) => {
+router.post(API_ROUTES.remoteHost.connect, async (req: Request<object, unknown, { idToken?: string }>, res: ApiResponse<StatusResponse>) => {
   const idToken = typeof req.body?.idToken === "string" ? req.body.idToken.trim() : "";
   if (!idToken) {
     badRequest(res, "Request body must be { idToken: string }");
@@ -49,7 +49,7 @@ router.post(API_ROUTES.remoteHost.connect, async (req: Request<object, unknown, 
   }
 });
 
-router.post(API_ROUTES.remoteHost.reconnect, async (req: Request<object, unknown, { session?: string }>, res: Response<StatusResponse>) => {
+router.post(API_ROUTES.remoteHost.reconnect, async (req: Request<object, unknown, { session?: string }>, res: ApiResponse<StatusResponse>) => {
   const session = typeof req.body?.session === "string" ? req.body.session : "";
   if (!session) {
     badRequest(res, "Request body must be { session: string }");
@@ -72,7 +72,7 @@ router.post(API_ROUTES.remoteHost.reconnect, async (req: Request<object, unknown
   }
 });
 
-router.post(API_ROUTES.remoteHost.disconnect, async (_req: Request, res: Response<StatusResponse>) => {
+router.post(API_ROUTES.remoteHost.disconnect, async (_req: Request, res: ApiResponse<StatusResponse>) => {
   try {
     respond(res, await disconnect());
   } catch (err) {
@@ -81,7 +81,7 @@ router.post(API_ROUTES.remoteHost.disconnect, async (_req: Request, res: Respons
   }
 });
 
-router.get(API_ROUTES.remoteHost.status, (_req: Request, res: Response<StatusResponse>) => {
+router.get(API_ROUTES.remoteHost.status, (_req: Request, res: ApiResponse<StatusResponse>) => {
   respond(res, status());
 });
 

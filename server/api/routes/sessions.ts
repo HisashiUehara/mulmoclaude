@@ -17,7 +17,7 @@ import {
 import { readManifest, removeSessionFromIndex } from "../../workspace/chat-index/indexer.js";
 import type { ChatIndexEntry } from "../../workspace/chat-index/types.js";
 import { markRead, getSession, evictSession, publishSessionsChanged } from "../../events/session-store/index.js";
-import { notFound } from "../../utils/httpError.js";
+import { notFound, type ApiResponse, type ErrorBody } from "../../utils/httpError.js";
 import { createStampedCache } from "../../utils/stampedCache.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
@@ -283,10 +283,6 @@ interface SessionIdParams {
   id: string;
 }
 
-interface SessionErrorResponse {
-  error: string;
-}
-
 // Narrow type predicate for the presentMulmoScript tool-result shape
 // the enrichment helper inspects. Returning `entry is …` lets the
 // caller drop the redundant nested checks once the predicate passes.
@@ -360,7 +356,7 @@ async function parseSessionEntry(line: string): Promise<unknown> {
   return entry;
 }
 
-router.get(API_ROUTES.sessions.detail, async (req: Request<SessionIdParams>, res: Response<unknown[] | SessionErrorResponse>) => {
+router.get(API_ROUTES.sessions.detail, async (req: Request<SessionIdParams>, res: ApiResponse<unknown[]>) => {
   const { id: sessionId } = req.params;
   const chatDir = WORKSPACE_PATHS.chat;
   log.info("sessions", "detail: start", { sessionId });
@@ -396,7 +392,7 @@ router.post(API_ROUTES.sessions.markRead, async (req: Request<SessionIdParams>, 
 // Toggle the user-set bookmark flag on a session's meta sidecar.
 router.post(
   API_ROUTES.sessions.bookmark,
-  asyncHandler<Request<SessionIdParams, { ok: boolean } | SessionErrorResponse, { bookmarked: boolean }>, Response<{ ok: boolean } | SessionErrorResponse>>(
+  asyncHandler<Request<SessionIdParams, { ok: boolean } | ErrorBody, { bookmarked: boolean }>, ApiResponse<{ ok: boolean }>>(
     "sessions",
     "Failed to update bookmark",
     async (req, res) => {
@@ -434,7 +430,7 @@ router.post(
 //      a truthful statement.
 router.delete(
   API_ROUTES.sessions.detail,
-  asyncHandler<Request<SessionIdParams>, Response<{ ok: boolean } | SessionErrorResponse>>("sessions", "Failed to delete session", async (req, res) => {
+  asyncHandler<Request<SessionIdParams>, ApiResponse<{ ok: boolean }>>("sessions", "Failed to delete session", async (req, res) => {
     const { id: sessionId } = req.params;
     log.info("sessions", "delete: start", { sessionId });
     if (getSession(sessionId)?.isRunning) {

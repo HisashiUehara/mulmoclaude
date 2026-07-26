@@ -1,9 +1,9 @@
-import { Router, Request, Response } from "express";
+import { Router, Request } from "express";
 import { executeHtml, executeHtmlUpdate } from "@mulmoclaude/html-plugin";
 import type { HtmlArgs, PresentHtmlData } from "@mulmoclaude/html-plugin";
 import { makeArtifactsFileOps } from "../../plugins/runtime.js";
 import { errorMessage } from "../../utils/errors.js";
-import { badRequest, serverError } from "../../utils/httpError.js";
+import { badRequest, serverError, type ApiResponse } from "../../utils/httpError.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { bindRoute } from "../../utils/router.js";
 import { log } from "../../system/logger/index.js";
@@ -27,7 +27,7 @@ interface PresentHtmlResponse {
   error?: string;
 }
 
-bindRoute(router, API_ROUTES.html.create, async (req: Request<object, unknown, HtmlArgs>, res: Response<PresentHtmlResponse>) => {
+bindRoute(router, API_ROUTES.html.create, async (req: Request<object, unknown, HtmlArgs>, res: ApiResponse<PresentHtmlResponse>) => {
   const { html, title, path: htmlPath } = req.body ?? {};
   log.info("html", "present: start", {
     titlePreview: typeof title === "string" ? previewSnippet(title) : undefined,
@@ -67,7 +67,7 @@ interface UpdateHtmlBody {
   html: string;
 }
 
-bindRoute(router, API_ROUTES.html.update, async (req: Request<object, unknown, UpdateHtmlBody>, res: Response<{ path: string } | { error: string }>) => {
+bindRoute(router, API_ROUTES.html.update, async (req: Request<object, unknown, UpdateHtmlBody>, res: ApiResponse<{ path: string } | { error: string }>) => {
   const { relativePath, html } = req.body ?? {};
   log.info("html", "update: start", {
     pathPreview: typeof relativePath === "string" ? previewSnippet(relativePath) : undefined,

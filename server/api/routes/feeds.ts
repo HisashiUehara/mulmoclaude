@@ -6,19 +6,19 @@
 // is no manage tool. Retrieval runs on the hourly scheduler; per-feed
 // manual refresh uses `POST /api/collections/:slug/refresh`.
 
-import { Router, Request, Response } from "express";
+import { Router, Request } from "express";
 import { workspacePath } from "../../workspace/workspace.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { listFeeds, readFeedState, removeFeed } from "@mulmoclaude/core/feeds/server";
 import type { FeedsListResponse } from "@mulmoclaude/core/collection";
 import { buildFeedSummaries } from "../../workspace/feeds/summaries.js";
 import { errorMessage } from "../../utils/errors.js";
-import { serverError } from "../../utils/httpError.js";
+import { serverError, type ApiResponse } from "../../utils/httpError.js";
 import { log } from "../../system/logger/index.js";
 
 const router = Router();
 
-router.get(API_ROUTES.feeds.list, async (_req: Request, res: Response<FeedsListResponse>) => {
+router.get(API_ROUTES.feeds.list, async (_req: Request, res: ApiResponse<FeedsListResponse>) => {
   try {
     const feeds = await listFeeds(workspacePath);
     res.json({ feeds: await buildFeedSummaries(feeds, readFeedState, workspacePath) });
@@ -33,7 +33,7 @@ interface DeleteFeedResponse {
 }
 
 // Remove a feed's registry entry (its records under dataPath are kept).
-router.delete(API_ROUTES.feeds.detail, async (req: Request<{ slug: string }>, res: Response<DeleteFeedResponse>) => {
+router.delete(API_ROUTES.feeds.detail, async (req: Request<{ slug: string }>, res: ApiResponse<DeleteFeedResponse>) => {
   try {
     const removed = await removeFeed(workspacePath, req.params.slug);
     if (removed) log.info("feeds", "feed deleted via UI", { slug: req.params.slug });

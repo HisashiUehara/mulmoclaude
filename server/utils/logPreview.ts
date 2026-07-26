@@ -22,3 +22,19 @@ export function previewSnippet(input: string | null | undefined): string {
   if (input.length <= PREVIEW_CHAR_LIMIT) return input;
   return `${input.slice(0, PREVIEW_CHAR_LIMIT)}${ELLIPSIS}`;
 }
+
+/** Collapse newlines so a request-supplied value cannot forge log records.
+ *
+ *  A slug or id taken straight off `req.params` can contain CR/LF; logged
+ *  verbatim it ends the current line and writes attacker-chosen text as what
+ *  looks like a separate, legitimate entry. Route it through here for anything
+ *  request-derived that reaches `log.*`.
+ *
+ *  Both CR and LF are replaced individually (not as a `\r\n` pair) so a lone
+ *  `\r` — which many log viewers also treat as a line break — cannot slip
+ *  through. Substituting a space rather than deleting keeps the original token
+ *  boundaries readable during triage. */
+export function singleLineForLog(input: string | null | undefined): string {
+  if (!input) return "";
+  return input.replace(/[\r\n]/g, " ");
+}

@@ -34,25 +34,40 @@
 import type { Request, Response } from "express";
 import { log } from "../system/logger/index.js";
 import { errorMessage } from "./errors.js";
-import { serverError } from "./httpError.js";
+import { serverError, type ErrorSendable } from "./httpError.js";
 
-// The TReq / TRes generics intentionally have NO upper-bound constraint.
+// The TReq / TRes bounds name exactly what the catch path dereferences —
+// nothing more.
 //
-// Express's `Request<P, ResBody, ReqBody, Query>` interface uses these
-// type parameters in mixed variance positions (ResBody is
-// contravariant via `res.json(body: ResBody)`, P is constrained to
-// `ParamsDictionary` in the default form). Adding any `extends
-// Request<…>` upper bound here would reject perfectly valid call sites
-// like `Request<object, unknown, MyBody>` or `Request<SessionIdParams,
-// ResBody, ReqBody>` because of invariance — TS treats `object` /
-// concrete-ResBody as incompatible with the default's `ParamsDictionary`
-// / `any` slots.
+// They are NOT `extends Request` / `extends Response`. Express's
+// `Request<P, ResBody, ReqBody, Query>` uses its type parameters in mixed
+// variance positions, so a nominal `extends Request<…>` bound rejects
+// perfectly valid call sites like `Request<object, unknown, MyBody>` or
+// `Request<SessionIdParams, ResBody, ReqBody>`: TS treats `object` /
+// concrete-ResBody as incompatible with the default's `ParamsDictionary` /
+// `any` slots. Naming only the members we touch sidesteps that entirely —
+// every concrete `Request<…>` has `path`, so every call site still fits.
 //
-// The wrapper doesn't dereference req / res itself, so dropping the
-// upper bound costs nothing — call sites still get full Express types
-// via the explicit type arguments. Mirrors `wrapPluginExecute` in
-// `server/api/routes/plugins.ts`, which this module generalises.
-export function asyncHandler<TReq = Request, TRes = Response>(
+// Structural bounds rather than unconstrained generics + `as` casts, because
+// the cast was load-bearing in a way that hid a real contract: this wrapper
+// can send `{ error }` on the failure path, so a route declaring a `ResBody`
+// that cannot carry that body was lying. `ErrorSendable` now makes such a
+// route a compile error instead of a silent runtime mismatch — the fix at
+// those sites is to widen the `ResBody` union, which is the truth.
+//
+// Mirrors `wrapPluginExecute` in `server/api/routes/plugins.ts`, which this
+// module generalises.
+interface RoutePathBearing {
+  path: string;
+}
+
+/** `ErrorSendable` plus the already-sent probe the catch path checks before
+ *  writing a second status. */
+interface ErrorSendableResponse extends ErrorSendable {
+  headersSent: boolean;
+}
+
+export function asyncHandler<TReq extends RoutePathBearing = Request, TRes extends ErrorSendableResponse = Response>(
   namespace: string,
   fallbackMessage: string,
   handler: (req: TReq, res: TRes) => Promise<void>,
@@ -61,14 +76,9 @@ export function asyncHandler<TReq = Request, TRes = Response>(
     try {
       await handler(req, res);
     } catch (err) {
-      // `req` / `res` are typed loosely here so the wrapper can stay
-      // open to any concrete Express Request / Response shape; we
-      // narrow back to the runtime contract just for the catch path.
-      const expressReq = req as Request;
-      const expressRes = res as Response;
-      log.error(namespace, "handler threw", { route: expressReq.path, error: errorMessage(err) });
-      if (!expressRes.headersSent) {
-        serverError(expressRes, fallbackMessage);
+      log.error(namespace, "handler threw", { route: req.path, error: errorMessage(err) });
+      if (!res.headersSent) {
+        serverError(res, fallbackMessage);
       }
     }
   };
