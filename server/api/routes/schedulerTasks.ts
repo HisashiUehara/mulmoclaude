@@ -25,6 +25,7 @@ import { getScheduledSkills, runScheduledSkillNow } from "../../workspace/skills
 import { badRequest, notFound, type ApiResponse } from "../../utils/httpError.js";
 import { errorMessage } from "../../utils/errors.js";
 import { getOptionalStringQuery } from "../../utils/request.js";
+import { singleLineForLog } from "../../utils/logPreview.js";
 import { log } from "../../system/logger/index.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 
@@ -83,7 +84,9 @@ bindRoute(
   API_ROUTES.scheduler.taskUpdate,
   asyncHandler<Request<{ id: string }>, ApiResponse<{ task: PersistedUserTask | undefined }>>("scheduler-tasks", "Failed to update task", async (req, res) => {
     const { id: taskId } = req.params;
-    log.info("scheduler-tasks", "update: start", { taskId });
+    // Raw `taskId` drives lookup and dispatch; the sanitised copy is for logs only.
+    const taskIdForLog = singleLineForLog(taskId);
+    log.info("scheduler-tasks", "update: start", { taskId: taskIdForLog });
     try {
       const updated = await withUserTaskLock(async (tasks) => {
         const result = applyUpdate(tasks, taskId, req.body);
@@ -93,14 +96,14 @@ bindRoute(
         const task = result.tasks.find((taskItem) => taskItem.id === taskId);
         return { tasks: result.tasks, result: task };
       });
-      log.info("scheduler-tasks", "update: ok", { taskId });
+      log.info("scheduler-tasks", "update: ok", { taskId: taskIdForLog });
       res.json({ task: updated });
     } catch (err) {
       // Domain-shaped errors → 404; everything else rethrows for the
       // asyncHandler wrapper to surface as 500.
       const msg = errorMessage(err);
       if (msg.startsWith("task not found") || msg.startsWith("request body")) {
-        log.warn("scheduler-tasks", "update: validation failed", { taskId, reason: msg });
+        log.warn("scheduler-tasks", "update: validation failed", { taskId: taskIdForLog, reason: msg });
         notFound(res, msg);
         return;
       }
@@ -116,7 +119,9 @@ bindRoute(
   API_ROUTES.scheduler.taskDelete,
   asyncHandler<Request<{ id: string }>, ApiResponse<{ deleted: string }>>("scheduler-tasks", "Failed to delete task", async (req, res) => {
     const { id: taskId } = req.params;
-    log.info("scheduler-tasks", "delete: start", { taskId });
+    // Raw `taskId` drives lookup and dispatch; the sanitised copy is for logs only.
+    const taskIdForLog = singleLineForLog(taskId);
+    log.info("scheduler-tasks", "delete: start", { taskId: taskIdForLog });
     try {
       await withUserTaskLock(async (tasks) => {
         const index = tasks.findIndex((task) => task.id === taskId);
@@ -124,12 +129,12 @@ bindRoute(
         const next = tasks.filter((task) => task.id !== taskId);
         return { tasks: next, result: undefined };
       });
-      log.info("scheduler-tasks", "delete: ok", { taskId });
+      log.info("scheduler-tasks", "delete: ok", { taskId: taskIdForLog });
       res.json({ deleted: taskId });
     } catch (err) {
       const msg = errorMessage(err);
       if (msg.startsWith("task not found")) {
-        log.warn("scheduler-tasks", "delete: not found", { taskId });
+        log.warn("scheduler-tasks", "delete: not found", { taskId: taskIdForLog });
         notFound(res, msg);
         return;
       }
@@ -148,12 +153,14 @@ bindRoute(
     "Failed to run task",
     async (req, res) => {
       const { id: taskId } = req.params;
-      log.info("scheduler-tasks", "run: start", { taskId });
+      // Raw `taskId` drives lookup and dispatch; the sanitised copy is for logs only.
+      const taskIdForLog = singleLineForLog(taskId);
+      log.info("scheduler-tasks", "run: start", { taskId: taskIdForLog });
 
       // User task (unprefixed id) — dispatch its prompt + record the run.
       const userChatSessionId = await runUserTaskNow(taskId);
       if (userChatSessionId) {
-        log.info("scheduler-tasks", "run: user task triggered", { taskId, chatSessionId: userChatSessionId });
+        log.info("scheduler-tasks", "run: user task triggered", { taskId: taskIdForLog, chatSessionId: userChatSessionId });
         res.json({ triggered: taskId, chatSessionId: userChatSessionId });
         return;
       }
@@ -161,18 +168,18 @@ bindRoute(
       // Skill task (`skill.<name>` id) — dispatch `/skill-name` + record the run.
       const skillChatSessionId = await runScheduledSkillNow(taskId);
       if (skillChatSessionId) {
-        log.info("scheduler-tasks", "run: skill task triggered", { taskId, chatSessionId: skillChatSessionId });
+        log.info("scheduler-tasks", "run: skill task triggered", { taskId: taskIdForLog, chatSessionId: skillChatSessionId });
         res.json({ triggered: taskId, chatSessionId: skillChatSessionId });
         return;
       }
 
       // System tasks have no prompt to dispatch; everything else is unknown.
       if (getSchedulerTasks().some((task) => task.id === taskId)) {
-        log.warn("scheduler-tasks", "run: refused (system task)", { taskId });
+        log.warn("scheduler-tasks", "run: refused (system task)", { taskId: taskIdForLog });
         badRequest(res, "manual run is only supported for user and skill tasks");
         return;
       }
-      log.warn("scheduler-tasks", "run: not found", { taskId });
+      log.warn("scheduler-tasks", "run: not found", { taskId: taskIdForLog });
       notFound(res, `task not found: ${taskId}`);
     },
   ),
@@ -198,13 +205,14 @@ bindRoute(
       const rawLimit = rawLimitStr ? parseInt(rawLimitStr, 10) : undefined;
       const limit = rawLimit !== undefined && Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, MAX_LIMIT) : undefined;
       const taskId = getOptionalStringQuery(req, "taskId");
-      log.info("scheduler-tasks", "logs: start", { taskId, limit });
+      const taskIdForLog = singleLineForLog(taskId);
+      log.info("scheduler-tasks", "logs: start", { taskId: taskIdForLog, limit });
       const logs = await getSchedulerLogs({
         since: getOptionalStringQuery(req, "since"),
         taskId,
         limit,
       });
-      log.info("scheduler-tasks", "logs: ok", { entries: logs.length, taskId });
+      log.info("scheduler-tasks", "logs: ok", { entries: logs.length, taskId: taskIdForLog });
       res.json({ logs });
     },
   ),
