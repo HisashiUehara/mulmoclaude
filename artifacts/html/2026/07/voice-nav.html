@@ -52,6 +52,18 @@
   #originBar{display:flex;align-items:center;gap:6px;padding:2px 14px 6px;font-size:12.5px;color:var(--muted)}
   #originBar .ob-ic{font-size:13px}
   #originBar b{color:var(--txt);font-weight:600}
+  #compareBar{margin:0 12px 8px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel2)}
+  #compareBar .cmp-row{display:grid;grid-template-columns:52px 1fr 1fr 1fr 1fr;align-items:center;
+    padding:7px 10px;font-size:12.5px;color:var(--txt);border-top:1px solid var(--line)}
+  #compareBar .cmp-head{display:grid;grid-template-columns:52px 1fr 1fr 1fr 1fr;padding:5px 10px;
+    font-size:11px;color:var(--muted);background:#151922}
+  #compareBar .cmp-row.on{background:rgba(76,141,255,.14)}
+  #compareBar .cmp-l{font-weight:700;color:#a9c2ec}
+  #compareBar .cmp-row.on .cmp-l{color:var(--accent2)}
+  #compareBar .cmp-t{font-weight:700}
+  #compareBar .cmp-fee{color:var(--muted)}
+  #compareBar .cmp-head span,#compareBar .cmp-row span{text-align:right}
+  #compareBar .cmp-head span:first-child,#compareBar .cmp-row span:first-child{text-align:left}
   .log{flex:1;overflow-y:auto;padding:6px 14px 4px;display:flex;flex-direction:column;gap:8px;min-height:80px}
   .msg{max-width:86%;padding:9px 12px;border-radius:14px;font-size:14px;line-height:1.4;white-space:pre-wrap}
   .msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
@@ -146,6 +158,7 @@
   <div id="sheet">
     <div class="grab"></div>
     <div id="originBar" title="出発地"><span class="ob-ic">🚩</span><span id="originText">現在地</span></div>
+    <div id="compareBar" style="display:none"></div>
     <div class="log" id="log"></div>
     <div class="chips" id="chips"></div>
     <div id="steps"></div>
@@ -1264,9 +1277,22 @@ async function applyRouteIntent(intent){
     if(gen!==S.intentSeq){ console.log("[MulmoNavi INTENT] superseded gen", gen); return; }   // item8 後勝ち
     updateOriginUI();
     if(!S.destination){ console.log("[MulmoNavi INTENT] action=noop(no destination) gen", gen); botSay(say||T().needDest); return; }
-    console.log("[MulmoNavi INTENT] action=buildRoute gen", gen);
-    if(say) botSay(say, true);                 // LLMの一言を即読み上げ
-    buildRoute(say ? (function(){}) : undefined);  // say がある時は routeReady と二重にしない
+    // item(e): 変化が prefer だけで既に2本の比較を持っているなら、再計算せず描画だけ切替
+    // （比較の数値を維持したまま高速↔下道を切り替える）。
+    const onlyPrefer = diff.length===1 && diff[0]==="prefer";
+    if(onlyPrefer && S.compare && (S.compare.hwy || S.compare.local)){
+      const preferLocal=!!S.avoidHighways;
+      const chosen = preferLocal ? (S.compare.local||S.compare.hwy) : (S.compare.hwy||S.compare.local);
+      if(chosen){
+        try{ S.dirRenderer.setDirections(chosen.res); }catch(e){}
+        S.route=chosen.res.routes[0]; S.steps=S.route.legs.flatMap(l=>l.steps); S.curStep=0; S.lastSpokenStep=-1; renderSteps(); updateCompareUI();
+        console.log("[MulmoNavi INTENT] prefer-only → re-render from cache gen", gen);
+        if(say) botSay(say, true);
+        return;
+      }
+    }
+    console.log("[MulmoNavi INTENT] action=buildRoutePair gen", gen);
+    buildRoutePair(gen, say);   // 高速/下道 2本を並列計算→描画＋比較アナウンス（item1-8）
   }catch(e){
     console.log("[MulmoNavi INTENT] resolve error", e&&e.message);
     botSay(say||cannedFor("chat"));
@@ -1710,6 +1736,86 @@ function buildRoute(cb){
     }
   });
 }
+/* ============================ 所要時間の比較（高速あり/なし 2本）============================
+   DSL経路(applyRouteIntent)から呼ぶ。avoidHighways:false/true の2本を『並列』で発行し、
+   prefer に一致する方を描画・もう一方は数値保持。渋滞込み(duration_in_traffic)を優先。
+   片方失敗でも継続（比較できないが動く）。世代は intentGen + pairSeq の二重ガード。 */
+function _legDur(leg){ // 渋滞込み優先・無ければ duration
+  let t=0, allTraffic=true;
+  for(const l of leg){ if(l.duration_in_traffic && l.duration_in_traffic.value!=null) t+=l.duration_in_traffic.value; else { t+=(l.duration&&l.duration.value)||0; allTraffic=false; } }
+  return { dur:t, usedTraffic:allTraffic };
+}
+function routeInfo(res){
+  if(!res||!res.routes||!res.routes[0]) return null;
+  const leg=res.routes[0].legs;
+  const dist=leg.reduce((a,l)=>a+((l.distance&&l.distance.value)||0),0);
+  const d=_legDur(leg);
+  return { dist, dur:d.dur, usedTraffic:d.usedTraffic, res };
+}
+function etaClock(sec){ const dt=new Date(Date.now()+sec*1000); return dt.getHours()+":"+String(dt.getMinutes()).padStart(2,"0"); }
+function durMin(sec){ return Math.round(sec/60); }
+// item8: 片道の1発話で両方の数字を伝える（2往復にしない）。片方のみなら片方だけ。
+function announceCompare(iHwy, iLocal, sayFallback){
+  const ja=S.lang==="ja"; const parts=[];
+  if(iHwy) parts.push(ja? `高速で${durMin(iHwy.dur)}分、${etaClock(iHwy.dur)}着です。` : `Highway ${durMin(iHwy.dur)} min, arriving ${etaClock(iHwy.dur)}.`);
+  if(iLocal) parts.push(ja? `下道なら${durMin(iLocal.dur)}分です。` : `Local roads ${durMin(iLocal.dur)} min.`);
+  const msg=parts.join(ja?"":" ");
+  botSay(msg || sayFallback || T().routeReady(iHwy?fmtDist(iHwy.dist):"", ""), true, {cache:false});
+}
+// item7: 比較パネル（距離/所要/到着/料金枠）。prefer 側をハイライト。
+function updateCompareUI(){
+  const el=$("compareBar"); if(!el) return;
+  const c=S.compare;
+  if(!c || (!c.hwy && !c.local)){ el.style.display="none"; el.innerHTML=""; return; }
+  const ja=S.lang==="ja"; const preferLocal=!!S.avoidHighways;
+  const row=(label,i,on)=> i ? `<div class="cmp-row${on?' on':''}"><span class="cmp-l">${label}</span>`+
+    `<span>${fmtDist(i.dist)}</span><span class="cmp-t">${durMin(i.dur)}${ja?"分":"m"}</span><span>${etaClock(i.dur)}</span><span class="cmp-fee">—</span></div>` : "";
+  el.innerHTML = `<div class="cmp-head"><span></span><span>${ja?"距離":"Dist"}</span><span>${ja?"所要":"Time"}</span><span>${ja?"到着":"ETA"}</span><span>${ja?"料金":"Toll"}</span></div>`
+    + row(ja?"高速":"Hwy", c.hwy, !preferLocal) + row(ja?"下道":"Local", c.local, preferLocal);
+  el.style.display="block";
+}
+// 1本を Promise で発行（並列化用）。成功=res, 失敗=null。
+function _routeOnce(baseReq, avoidHighways){
+  return new Promise((resolve)=>{
+    try{ S.dirService.route(Object.assign({}, baseReq, {avoidHighways}), (res,status)=> resolve(status==="OK"?res:null)); }
+    catch(e){ resolve(null); }
+  });
+}
+async function buildRoutePair(intentGen, sayFallback){
+  if(!S.destination){ botSay(T().needDest); return; }
+  const originLatLng = S.originOverride || (S.me ? {lat:S.me.lat,lng:S.me.lng} : S.map.getCenter().toJSON());
+  const pairSeq = (S.routeSeq = (S.routeSeq||0) + 1);   // item2: ペアで共有する世代番号
+  const isDriving = (S.travelMode==="DRIVING");
+  const baseReq = {
+    origin:originLatLng, destination:S.destination,
+    waypoints:S.waypoints.map(w=>({location:w.loc,stopover:true})),
+    travelMode:google.maps.TravelMode[S.travelMode],
+    avoidTolls:!!S.avoidTolls, optimizeWaypoints:false
+  };
+  if(isDriving) baseReq.drivingOptions={ departureTime:new Date(), trafficModel:"bestguess" };   // item3
+  const t0=performance.now();
+  // 徒歩は高速/下道の区別が無いので1本のみ（比較UIは出さない）
+  const pair = isDriving ? await Promise.all([ _routeOnce(baseReq,false), _routeOnce(baseReq,true) ])
+                         : [ await _routeOnce(baseReq,false), null ];
+  const latMs=Math.round(performance.now()-t0);
+  // item2: 後着Intent/ペアに追い越されていたら破棄（二重ガード）
+  if(intentGen!==S.intentSeq || pairSeq!==S.routeSeq){ console.log("[MulmoNavi PAIR] stale dropped", {intentGen, curIntent:S.intentSeq, pairSeq, curRoute:S.routeSeq}); return; }
+  const iHwy=routeInfo(pair[0]), iLocal=routeInfo(pair[1]);
+  console.log("[MulmoNavi PAIR] result", { latMs, isDriving,
+    hwy: iHwy?{distM:iHwy.dist,durS:iHwy.dur,traffic:iHwy.usedTraffic,src:iHwy.usedTraffic?"duration_in_traffic":"duration"}:null,
+    local: iLocal?{distM:iLocal.dist,durS:iLocal.dur,traffic:iLocal.usedTraffic}:null });
+  if(!iHwy && !iLocal){ console.log("[MulmoNavi PAIR] both failed"); botSay(T().noRoute); return; }   // item6: 両方失敗のみエラー
+  // item5: 描画は prefer.avoidHighways に一致する方（無ければ成功した方）
+  const preferLocal=!!S.avoidHighways;
+  const chosen = preferLocal ? (iLocal||iHwy) : (iHwy||iLocal);
+  try{ S.dirRenderer.setDirections(chosen.res); }catch(e){ console.log("[MulmoNavi PAIR] setDirections threw", e&&e.message); }
+  S.route=chosen.res.routes[0];
+  S.steps=S.route.legs.flatMap(l=>l.steps);
+  S.curStep=0; S.lastSpokenStep=-1; renderSteps();
+  S.compare={ hwy:iHwy, local:iLocal };
+  updateCompareUI();
+  announceCompare(iHwy, iLocal, sayFallback);   // item8: 片道で両方の数字
+}
 function fmtDuration(sec){
   const m=Math.round(sec/60);
   if(S.lang==="ja") return m>=60?`${Math.floor(m/60)}時間${m%60}分`:`${m}分`;
@@ -1786,6 +1892,7 @@ function resetNavState(){
   S.destination=null; S.destName=""; S.waypoints=[];
   S.avoidHighways=false; S.avoidTolls=false;
   S.route=null; S.roadChosen=false; S.pendingRoad=false;
+  S.compare=null; if(typeof updateCompareUI==="function") updateCompareUI();   // 比較パネルも消す
   updateOriginUI();
   if(typeof renderSteps==="function") renderSteps();
   console.log("[MulmoNavi INTENT] resetNavState (cleared)");
