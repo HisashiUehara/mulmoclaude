@@ -17,6 +17,7 @@ import { Router, Request, Response } from "express";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { env } from "../../system/env.js";
 import { requireNavChatToken, mintTtsToken, mintNavChatToken } from "../auth/viewToken.js";
+import { readMemory, addMemory, removeMemory, formatMemoryForPrompt } from "../../utils/files/nav-memory-io.js";
 import { badRequest, payloadTooLarge, sendError, serverError, serviceUnavailable } from "../../utils/httpError.js";
 import { errorMessage } from "../../utils/errors.js";
 import { log } from "../../system/logger/index.js";
@@ -280,6 +281,8 @@ interface NavChatBody {
   // true（かつ mode:"tools"）→ SSE ストリーミング経路。会話返答を文が確定する端から
   // 流し、クライアントが第1文の時点でTTSを開始できる（体感遅延の短縮）。
   stream?: unknown;
+  // 削除確認後に、クライアントが忘れる記憶の key を渡す（声で確認済みの削除を実行）。M3。
+  confirmForget?: unknown;
 }
 
 interface NavChatAction {
@@ -548,29 +551,37 @@ async function streamTools(req: Request<object, unknown, NavChatBody>, res: Resp
 // 差分ツール(navigate/change_route…)を1個の「経路要求(RouteIntent)」に置換。
 // LLM は route_intent を1回呼び、変更した項目のみ（可能なら維持項目も）返す。
 // 未指定は前回値維持（マージ）はクライアント(applyRouteIntent)側で行う。
-const INTENT_SYSTEM_PROMPT = [
-  "あなたはカーナビ「MulmoNavi」の音声アシスタント。運転中のドライバーの発話から経路要求(RouteIntent)を1個組み立てる。",
+// 封筒(envelope)化: route_intent は「経路(RouteIntent)」＋「経路以外の行動(remember/
+// recall/forget/play_music)」を同じ1呼び出しで返す。RouteIntent は経路専用のまま維持し、
+// 記憶等は actions として封筒に並べる（後から type を増やしても RouteIntent は汚れない）。
+const ENVELOPE_SYSTEM_PROMPT_BASE = [
+  "あなたはカーナビ「MulmoNavi」の音声アシスタント。運転中のドライバーの相棒。",
+  "route_intent ツールを1回だけ呼ぶ。経路(RouteIntent)と経路以外の行動を同じ呼び出しで返す。",
   "",
-  "必ず route_intent ツールを1回だけ呼ぶ（雑談のみの時は say だけ埋め、他は省略）。各項目:",
-  "- origin: 出発地。'current'=現在地、または地名。『今いる場所から』は 'current'。変更が無ければ省略。",
-  "- destination: 目的地の地名。変更が無ければ省略。『出発地を〜』は destination ではなく origin に入れる。",
-  "- via: 経由地の『完全な配列』。変更する時は残す経由地も含めた全件を返す。全消去は空配列 []。変更が無ければ省略。",
-  "- avoidHighways / avoidTolls: 道種。『下道/一般道』→ avoidHighways=true。変更が無ければ省略。",
-  "- say: ドライバーへの短い一言（context.lang の言語, 記号なし, 1文）。",
-  "",
-  "重要: 変更していない項目も可能な限りそのまま含めて返すこと（返し漏れ防止）。不明な項目のみ省略してよい。",
-  "例: 『出発地を新宿駅にして』→ origin:'新宿駅'（destination省略＝維持）",
-  "例: 『新宿駅から東京駅まで』→ origin:'新宿駅', destination:'東京駅'",
-  "例: 『今いる場所から』→ origin:'current'",
-  "例: 『下道で』→ avoidHighways:true（destination省略＝維持）",
-  "例: 経由が新橋と品川で『新橋は外して』→ via:['品川']（残すものを全部返す）",
+  "【経路 RouteIntent】変更した項目に加え、可能なら維持項目も含める（返し漏れ防止）。不明な項目のみ省略。",
+  "- origin: 'current'（現在地）/地名。『今いる場所から』='current'。『出発地を〜』は origin。",
+  "- destination: 目的地の地名。",
+  "- via: 経由地の完全な配列。全消去は []。",
+  "- avoidHighways/avoidTolls: 『下道/一般道』→ avoidHighways=true。",
+  "【経路以外の行動】",
+  "- remember: 『覚えて』と言われたら {key,value,kind}。kind=preference/place/name/fact。例『下道が好き』→{key:'道種の好み',value:'下道が好き',kind:'preference'}",
+  "- recall: 『何を覚えてる?』『何を知ってる?』等の記憶確認 → recall:true を返す（自分で列挙しない。列挙はアプリが行う）。",
+  "- forget: 特定の記憶を忘れてほしい時、その key（削除は後で確認される）。",
+  "- play_music: 音楽リクエストの気分。",
+  "【say】ドライバーへの短い一言（context.lang, 記号なし, 1文）。",
+  "【記憶の活用】下の記憶を前提に応答する。『いつものところ』は記憶の place。道種の好みが下道なら avoidHighways=true を既定に。",
 ].join("\n");
+
+function intentSystemPrompt(): string {
+  const mem = formatMemoryForPrompt(readMemory());
+  return mem ? `${ENVELOPE_SYSTEM_PROMPT_BASE}\n\n${mem}` : ENVELOPE_SYSTEM_PROMPT_BASE;
+}
 
 const ROUTE_INTENT_TOOL = {
   type: "function",
   function: {
     name: "route_intent",
-    description: "経路要求を1個返す。変更が無い項目は省略すること（前回値が維持される）。",
+    description: "経路要求＋経路以外の行動を1個の封筒で返す。変更が無い経路項目は省略（前回値維持）。",
     parameters: {
       type: "object",
       properties: {
@@ -579,6 +590,14 @@ const ROUTE_INTENT_TOOL = {
         via: { type: "array", items: { type: "string" }, description: "経由地の完全な配列。全消去は []。変更が無ければ省略" },
         avoidHighways: { type: "boolean", description: "下道/一般道なら true" },
         avoidTolls: { type: "boolean" },
+        remember: {
+          type: "object",
+          description: "記憶に追加/更新（覚えてと言われた時）",
+          properties: { key: { type: "string" }, value: { type: "string" }, kind: { type: "string", enum: ["preference", "place", "name", "fact"] } },
+        },
+        recall: { type: "boolean", description: "覚えていることを聞かれたら true" },
+        forget: { type: "string", description: "忘れてほしい記憶の key（削除は確認後）" },
+        play_music: { type: "string", description: "音楽リクエストの気分" },
         say: { type: "string", description: "ドライバーへの短い一言（1文）" },
       },
     },
@@ -613,13 +632,60 @@ function normalizeRouteIntent(args: Record<string, unknown>): Record<string, unk
   return out;
 }
 
-/** Call OpenAI to produce a single RouteIntent. Chat-only replies (no tool call)
- *  come back as `{ intent: { say } }` so the client path is uniform. */
-async function callOpenAIIntent(
+interface NavEnvelope {
+  intent: Record<string, unknown>;
+  actions: Record<string, unknown>[];
+  say: string;
+}
+
+/** Assemble the envelope from the LLM's tool args. Executes remember/recall
+ *  server-side immediately (item 6 — additions/updates need no confirm). `forget`
+ *  is NOT executed here: it becomes a client action with needConfirm (deletion is
+ *  confirmed by voice). Unknown fields are ignored. */
+/** Server-authoritative memory readback (avoids LLM hallucination for recall). */
+function recallSay(): string {
+  const mem = readMemory();
+  if (!mem.length) return "まだ何も覚えていません。";
+  const list = mem.map((entry) => `${entry.key}は${entry.value}`).join("、");
+  return `覚えているのは、${list}、です。`;
+}
+
+async function buildEnvelope(args: Record<string, unknown>, nowMs: number): Promise<NavEnvelope> {
+  const intent = normalizeRouteIntent(args);
+  const actions: Record<string, unknown>[] = [];
+  let say = typeof args.say === "string" && args.say.trim() ? args.say.trim().slice(0, 200) : "";
+  // remember → 即実行（追加/更新は確認不要）
+  if (args.remember && typeof args.remember === "object") {
+    const rec = args.remember as { key?: unknown; value?: unknown; kind?: unknown };
+    await addMemory({ key: rec.key, value: rec.value, kind: rec.kind }, nowMs);
+    actions.push({ type: "remember", key: typeof rec.key === "string" ? rec.key.slice(0, 60) : "" });
+  }
+  // recall → 記憶を読み、say をサーバー側で確定（LLMの幻覚を避ける）
+  if (args.recall === true) {
+    actions.push({ type: "recall", count: readMemory().length });
+    say = recallSay();
+  }
+  // forget → 実行せず、確認要アクションとしてクライアントへ（削除は声で確認）
+  if (typeof args.forget === "string" && args.forget.trim()) {
+    actions.push({ type: "forget", key: args.forget.trim().slice(0, 60), needConfirm: true });
+    if (!say) say = "その記憶を消していいですか？";
+  }
+  if (typeof args.play_music === "string" && args.play_music.trim()) {
+    actions.push({ type: "play_music", mood: args.play_music.trim().slice(0, 120) });
+  }
+  if (say) intent.say = say; // クライアントの applyRouteIntent が intent.say を喋る（後方互換）
+  return { intent, actions, say };
+}
+
+/** Call OpenAI → assemble the memory-aware envelope. Memory is injected into the
+ *  system prompt (item 4) so the LLM answers as a partner. Chat-only replies come
+ *  back as `{ intent:{ say }, actions:[], say }` so the client path is uniform. */
+async function callOpenAIEnvelope(
   key: string,
   message: string,
   context: unknown,
-): Promise<{ intent: Record<string, unknown> } | { error: string; status: number }> {
+  nowMs: number,
+): Promise<{ envelope: NavEnvelope } | { error: string; status: number }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -633,7 +699,7 @@ async function callOpenAIIntent(
         tools: [ROUTE_INTENT_TOOL],
         tool_choice: "auto",
         messages: [
-          { role: "system", content: INTENT_SYSTEM_PROMPT },
+          { role: "system", content: intentSystemPrompt() },
           { role: "user", content: buildUserContent(message, context) },
         ],
       }),
@@ -644,26 +710,50 @@ async function callOpenAIIntent(
       log.warn("nav-chat", "openai intent request failed", { status: upstream.status });
       return { error: `OpenAI chat failed (${upstream.status}): ${detail.slice(0, 200)}`, status: 502 };
     }
-    const data = (await upstream.json()) as {
-      choices?: { message?: { content?: unknown; tool_calls?: { function?: { name?: string; arguments?: string } }[] } }[];
-    };
-    const msg = data.choices?.[0]?.message;
-    const call = msg?.tool_calls?.[0]?.function;
-    if (call?.name === "route_intent") {
-      let parsed: Record<string, unknown> = {};
-      try {
-        parsed = JSON.parse(call.arguments ?? "{}") as Record<string, unknown>;
-      } catch {
-        parsed = {};
-      }
-      return { intent: normalizeRouteIntent(parsed) };
-    }
-    const content = msg?.content;
-    if (typeof content === "string" && content.trim()) return { intent: { say: content.trim().slice(0, 200) } };
-    return { error: "OpenAI returned neither an intent nor a reply", status: 502 };
+    return parseEnvelopeResponse(await upstream.json(), nowMs);
   } finally {
     clearTimeout(timer);
   }
+}
+
+interface OpenAiChatData {
+  choices?: { message?: { content?: unknown; tool_calls?: { function?: { name?: string; arguments?: string } }[] } }[];
+}
+
+/** Turn OpenAI's chat response into an envelope (tool call → route+actions;
+ *  plain content → chat-only say). Split out to keep the caller short. */
+async function parseEnvelopeResponse(raw: unknown, nowMs: number): Promise<{ envelope: NavEnvelope } | { error: string; status: number }> {
+  const msg = (raw as OpenAiChatData).choices?.[0]?.message;
+  const call = msg?.tool_calls?.[0]?.function;
+  if (call?.name === "route_intent") {
+    return { envelope: await buildEnvelope(parseToolArgs(call.arguments), nowMs) };
+  }
+  const content = msg?.content;
+  if (typeof content === "string" && content.trim()) {
+    const say = content.trim().slice(0, 200);
+    return { envelope: { intent: { say }, actions: [], say } };
+  }
+  return { error: "OpenAI returned neither an envelope nor a reply", status: 502 };
+}
+
+/** mode:"intent" handler. Confirmed forget executes the deletion; otherwise the
+ *  LLM produces a memory-aware envelope. Split out to keep the route short. */
+async function handleIntentMode(req: Request<object, unknown, NavChatBody>, res: Response, key: string, message: string): Promise<void> {
+  // 削除確認後の実行（クライアントが声で確認済み → confirmForget で削除実行）。M3 item6。
+  if (typeof req.body.confirmForget === "string" && req.body.confirmForget.trim()) {
+    const { removed } = await removeMemory(req.body.confirmForget.trim());
+    const say = removed.length ? "記憶を消しました。" : "その記憶は見つかりませんでした。";
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ intent: { say }, actions: [{ type: "forget_done", removed: removed.length }], say });
+    return;
+  }
+  const result = await callOpenAIEnvelope(key, message, req.body.context, Date.now());
+  if ("error" in result) {
+    sendError(res, result.status, result.error);
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store");
+  res.json(result.envelope);
 }
 
 router.post(API_ROUTES.navChat.chat, requireNavChatToken(), async (req: Request<object, unknown, NavChatBody>, res: Response) => {
@@ -684,18 +774,12 @@ router.post(API_ROUTES.navChat.chat, requireNavChatToken(), async (req: Request<
     return;
   }
   try {
-    // body.mode==="intent" → RouteIntent DSL 経路（新）。"tools" → 差分ツール（旧・残置）。
-    // 未指定 → 従来の action-JSON（後方互換）。
+    // body.mode==="intent" → RouteIntent DSL＋記憶封筒 経路（M3）。
     if (req.body.mode === "intent") {
-      const result = await callOpenAIIntent(key, message, req.body.context);
-      if ("error" in result) {
-        sendError(res, result.status, result.error);
-        return;
-      }
-      res.setHeader("Cache-Control", "no-store");
-      res.json(result);
+      await handleIntentMode(req, res, key, message);
       return;
     }
+    // "tools" → 差分ツール（旧・残置）。未指定 → 従来の action-JSON（後方互換）。
     const useTools = req.body.mode === "tools";
     const result = useTools ? await callOpenAITools(key, message, req.body.context) : await callOpenAI(key, message, req.body.context);
     if ("error" in result) {

@@ -1070,6 +1070,13 @@ function handleInput(raw){
   _lastSubmit={text:t, at:now};
   flushTts();   // 新しいユーザー発話 → 進行中の読み上げを止めキューを空に（重なり防止）
   addMsg(t,"user"); $("text").value="";
+  // 記憶の削除確認中（item6: 削除は必ず声で確認）
+  if(S.pendingForget){
+    const d=classifyConfirm(t);
+    if(d==="yes"){ const key=S.pendingForget.key; S.pendingForget=null; confirmForget(key); return; }
+    if(d==="no"||d==="cancel"){ S.pendingForget=null; botSay(S.lang==="ja"?"消すのはやめました。":"Kept it."); return; }
+    S.pendingForget=null;   // それ以外は破棄して通常処理へ
+  }
   // 高速（有料道路）を使うかの確認中は最優先で解釈
   if(S.pendingRoad){
     const r=classifyRoad(t);
@@ -1140,8 +1147,13 @@ async function navChatReply(userText, fallbackType){
       console.log("[MulmoNavi] path=intent");
       const res=await post({ mode:"intent" });
       if(!res.ok) throw new Error("http "+res.status);
-      const data=await res.json();
-      if(data && data.intent){ await applyRouteIntent(data.intent); return; }
+      const data=await res.json();   // 封筒 {intent, actions, say}（後方互換: intent のみでも可）
+      if(data && (data.intent || data.actions)){
+        if(data.actions) dispatchActions(data.actions);       // 経路以外（記憶/音楽/削除確認）
+        if(data.intent) await applyRouteIntent(data.intent);  // 経路＋say読み上げ
+        else if(data.say) botSay(String(data.say));
+        return;
+      }
       botSay(cannedFor(fallbackType)); return;
     }
     // ── 旧経路（差分ツール／ストリーミング）残置（USE_INTENT=false で有効・ロールバック用）──
@@ -1307,6 +1319,37 @@ async function applyRouteIntent(intent){
     console.log("[MulmoNavi INTENT] resolve error", e&&e.message);
     botSay(say||cannedFor("chat"));
   }
+}
+/* ============================ M3: アクション ディスパッチャ ============================
+   封筒(envelope)の actions を type ごとに振り分ける。記憶(remember/recall)はサーバーで
+   実行済み・say に反映済みなのでログのみ。forget は声で確認してから削除（item6）。
+   未知の type は無視してログに残す（LLMが将来別typeを返しても壊れない・item2/7）。 */
+function dispatchActions(actions){
+  if(!Array.isArray(actions)) return;
+  for(const a of actions){
+    if(!a || typeof a.type!=="string"){ console.log("[MulmoNavi ACTION] degraded", {type:a&&a.type, reason:"no type"}); continue; }
+    switch(a.type){
+      case "remember":   console.log("[MulmoNavi ACTION] remember (saved server-side)", {key:a.key}); break;
+      case "recall":     console.log("[MulmoNavi ACTION] recall (in say)", {count:a.count}); break;
+      case "forget":     S.pendingForget={ key:a.key }; console.log("[MulmoNavi ACTION] forget → 声で確認", {key:a.key}); break;  // item6: 削除は確認
+      case "forget_done":console.log("[MulmoNavi ACTION] forget_done", {removed:a.removed}); S.pendingForget=null; break;
+      case "play_music": if(a.mood) toast((S.lang==="ja"?"🎵 音楽（準備中）：":"🎵 Music (coming soon): ")+a.mood); console.log("[MulmoNavi ACTION] play_music", {mood:a.mood}); break;
+      default:           console.log("[MulmoNavi ACTION] degraded", {type:a.type, reason:"unknown type"});  // item7
+    }
+  }
+}
+// item6: 削除は声で確認済み → confirmForget を送りサーバーで実行。
+async function confirmForget(key){
+  if(!S.navChatToken || !S.navChatUrl){ botSay(cannedFor("chat")); return; }
+  try{
+    const res=await fetch(S.navChatUrl,{ method:"POST",
+      headers:{ "Authorization":"Bearer "+S.navChatToken, "Content-Type":"application/json" },
+      body: JSON.stringify({ message:"はい", mode:"intent", confirmForget:key, context: buildNavContext() }) });
+    if(!res.ok) throw new Error("http "+res.status);
+    const data=await res.json();
+    if(data.actions) dispatchActions(data.actions);
+    if(data.intent) await applyRouteIntent(data.intent); else if(data.say) botSay(String(data.say));
+  }catch(e){ botSay(cannedFor("chat")); }
 }
 // item7: #sheet に出発地を表示。"current" は「現在地」。
 function updateOriginUI(){
