@@ -1205,30 +1205,40 @@ function isCategoryQuery(query){
   for(const c of CATEGORIES){ if(c.re.test(s)) return true; }   // コンビニ/GS/トイレ/カフェ 等
   return false;
 }
-// 認識結果を {loc,name} に。失敗時は geocoder フォールバック。
-function _placeFromResult(res,st,query,resolve){
-  if(st===google.maps.places.PlacesServiceStatus.OK && res && res[0] && res[0].geometry && res[0].geometry.location){
-    resolve({loc:res[0].geometry.location, name:res[0].name||query}); return;
-  }
-  if(S.geocoder){ S.geocoder.geocode({address:String(query)},(gr,gs)=>{
-    resolve((gs==="OK"&&gr&&gr[0])?{loc:gr[0].geometry.location, name:query}:null);
-  }); } else resolve(null);
+const PLACE_TIMEOUT_MS = 10000;
+// 認識結果を {loc,name} に。1次検索が空/失敗なら geocoder フォールバック。全経路で必ず
+// finish(=resolve) を呼び、失敗時は [MulmoNavi ORIGIN] FAILED を出す（無言終了を残さない）。
+function _placeFromResult(res, st, query, finish){
+  try{
+    if(st===google.maps.places.PlacesServiceStatus.OK && res && res[0] && res[0].geometry && res[0].geometry.location){
+      finish({loc:res[0].geometry.location, name:res[0].name||query}); return;
+    }
+    if(S.geocoder){
+      S.geocoder.geocode({address:String(query)},(gr,gs)=>{
+        if(gs==="OK" && gr && gr[0]){ finish({loc:gr[0].geometry.location, name:query}); }
+        else { console.log("[MulmoNavi ORIGIN] FAILED", { query, status:String(st)+"/"+String(gs), error:"no result (place+geocode)" }); finish(null); }
+      });
+    }else{ console.log("[MulmoNavi ORIGIN] FAILED", { query, status:String(st), error:"no geocoder" }); finish(null); }
+  }catch(e){ console.log("[MulmoNavi ORIGIN] FAILED", { query, status:"THROW", error:(e&&e.message)||String(e) }); finish(null); }
 }
-// 地名→latlng の共通解決（origin/destination/via 共通・片方だけ直さない）。
-// 問題1修正: 固有名詞（駅名・施設名）は findPlaceFromQuery（locationBias無し＝遠方の駅も正解）。
-//            カテゴリ（近くのコンビニ等）は従来の textSearch＋現在地バイアス（既存挙動を維持）。
+// 地名→latlng の共通解決（origin/destination/via 共通）。
+// 問題1: 固有名詞→findPlaceFromQuery（bias無し）、カテゴリ→textSearch＋現在地バイアス。
+// 緊急修正: タイムアウト＋例外捕捉。コールバック不発でもハングせず必ず結果/失敗をログ。
 function resolvePlace(query){
   return new Promise((resolve)=>{
-    if(!S.places || !query){ resolve(null); return; }
+    if(!S.places || !query){ console.log("[MulmoNavi ORIGIN] FAILED", { query, status:"NO_PLACES", error:"places/query missing" }); resolve(null); return; }
+    let done=false; let timer=null;
+    const finish=(v)=>{ if(done)return; done=true; if(timer)clearTimeout(timer); resolve(v); };
+    timer=setTimeout(()=>{ console.log("[MulmoNavi ORIGIN] FAILED", { query, status:"TIMEOUT", error:"no callback in "+PLACE_TIMEOUT_MS+"ms" }); finish(null); }, PLACE_TIMEOUT_MS);
+    const cb=(res,st)=>_placeFromResult(res, st, query, finish);
     try{
       if(isCategoryQuery(query)){
         const req={ query:String(query) }; if(S.me){ req.location=S.me; req.radius=30000; }   // カテゴリ=現在地バイアス
-        S.places.textSearch(req,(res,st)=>_placeFromResult(res,st,query,resolve));
+        S.places.textSearch(req, cb);
       }else{
-        // 固有名詞: locationBias を付けずに検索（現在地が遠くても正しい駅/施設を返す）
-        S.places.findPlaceFromQuery({ query:String(query), fields:["name","geometry"] },(res,st)=>_placeFromResult(res,st,query,resolve));
+        S.places.findPlaceFromQuery({ query:String(query), fields:["name","geometry"] }, cb);   // 固有名詞=bias無し
       }
-    }catch(e){ resolve(null); }
+    }catch(e){ console.log("[MulmoNavi ORIGIN] FAILED", { query, status:"THROW", error:(e&&e.message)||String(e) }); finish(null); }
   });
 }
 // マージ後Intentを実状態(S.destination/originOverride/waypoints/prefer)へ解決。gen で後勝ち。
@@ -1292,7 +1302,7 @@ async function applyRouteIntent(intent){
       }
     }
     console.log("[MulmoNavi INTENT] action=buildRoutePair gen", gen);
-    buildRoutePair(gen, say);   // 高速/下道 2本を並列計算→描画＋比較アナウンス（item1-8）
+    await buildRoutePair(gen, say);   // await: 内部throwを握りつぶさず下のcatchで拾う
   }catch(e){
     console.log("[MulmoNavi INTENT] resolve error", e&&e.message);
     botSay(say||cannedFor("chat"));
@@ -1774,47 +1784,61 @@ function updateCompareUI(){
     + row(ja?"高速":"Hwy", c.hwy, !preferLocal) + row(ja?"下道":"Local", c.local, preferLocal);
   el.style.display="block";
 }
-// 1本を Promise で発行（並列化用）。成功=res, 失敗=null。
-function _routeOnce(baseReq, avoidHighways){
+const ROUTE_ONCE_TIMEOUT_MS = 12000;
+// 1本を Promise で発行（並列化用）。成功=res, 失敗=null（reject しない）。コールバック不発は
+// タイムアウトで null 化し、失敗は [MulmoNavi PAIR] FAILED{which,status,error} を必ずログ。
+function _routeOnce(baseReq, avoidHighways, which){
   return new Promise((resolve)=>{
-    try{ S.dirService.route(Object.assign({}, baseReq, {avoidHighways}), (res,status)=> resolve(status==="OK"?res:null)); }
-    catch(e){ resolve(null); }
+    let done=false; let timer=null;
+    const finish=(v)=>{ if(done)return; done=true; if(timer)clearTimeout(timer); resolve(v); };
+    timer=setTimeout(()=>{ console.log("[MulmoNavi PAIR] FAILED", { which, status:"TIMEOUT", error:"no callback in "+ROUTE_ONCE_TIMEOUT_MS+"ms" }); finish(null); }, ROUTE_ONCE_TIMEOUT_MS);
+    try{
+      S.dirService.route(Object.assign({}, baseReq, {avoidHighways}), (res,status)=>{
+        if(status==="OK" && res){ finish(res); }
+        else { console.log("[MulmoNavi PAIR] FAILED", { which, status:String(status), error:null }); finish(null); }
+      });
+    }catch(e){ console.log("[MulmoNavi PAIR] FAILED", { which, status:"THROW", error:(e&&e.message)||String(e) }); finish(null); }
   });
 }
 async function buildRoutePair(intentGen, sayFallback){
-  if(!S.destination){ botSay(T().needDest); return; }
-  const originLatLng = S.originOverride || (S.me ? {lat:S.me.lat,lng:S.me.lng} : S.map.getCenter().toJSON());
-  const pairSeq = (S.routeSeq = (S.routeSeq||0) + 1);   // item2: ペアで共有する世代番号
-  const isDriving = (S.travelMode==="DRIVING");
-  const baseReq = {
-    origin:originLatLng, destination:S.destination,
-    waypoints:S.waypoints.map(w=>({location:w.loc,stopover:true})),
-    travelMode:google.maps.TravelMode[S.travelMode],
-    avoidTolls:!!S.avoidTolls, optimizeWaypoints:false
-  };
-  if(isDriving) baseReq.drivingOptions={ departureTime:new Date(), trafficModel:"bestguess" };   // item3
-  const t0=performance.now();
-  // 徒歩は高速/下道の区別が無いので1本のみ（比較UIは出さない）
-  const pair = isDriving ? await Promise.all([ _routeOnce(baseReq,false), _routeOnce(baseReq,true) ])
-                         : [ await _routeOnce(baseReq,false), null ];
-  const latMs=Math.round(performance.now()-t0);
-  // item2: 後着Intent/ペアに追い越されていたら破棄（二重ガード）
-  if(intentGen!==S.intentSeq || pairSeq!==S.routeSeq){ console.log("[MulmoNavi PAIR] stale dropped", {intentGen, curIntent:S.intentSeq, pairSeq, curRoute:S.routeSeq}); return; }
-  const iHwy=routeInfo(pair[0]), iLocal=routeInfo(pair[1]);
-  console.log("[MulmoNavi PAIR] result", { latMs, isDriving,
-    hwy: iHwy?{distM:iHwy.dist,durS:iHwy.dur,traffic:iHwy.usedTraffic,src:iHwy.usedTraffic?"duration_in_traffic":"duration"}:null,
-    local: iLocal?{distM:iLocal.dist,durS:iLocal.dur,traffic:iLocal.usedTraffic}:null });
-  if(!iHwy && !iLocal){ console.log("[MulmoNavi PAIR] both failed"); botSay(T().noRoute); return; }   // item6: 両方失敗のみエラー
-  // item5: 描画は prefer.avoidHighways に一致する方（無ければ成功した方）
-  const preferLocal=!!S.avoidHighways;
-  const chosen = preferLocal ? (iLocal||iHwy) : (iHwy||iLocal);
-  try{ S.dirRenderer.setDirections(chosen.res); }catch(e){ console.log("[MulmoNavi PAIR] setDirections threw", e&&e.message); }
-  S.route=chosen.res.routes[0];
-  S.steps=S.route.legs.flatMap(l=>l.steps);
-  S.curStep=0; S.lastSpokenStep=-1; renderSteps();
-  S.compare={ hwy:iHwy, local:iLocal };
-  updateCompareUI();
-  announceCompare(iHwy, iLocal, sayFallback);   // item8: 片道で両方の数字
+  try{
+    if(!S.destination){ botSay(T().needDest); return; }
+    const originLatLng = S.originOverride || (S.me ? {lat:S.me.lat,lng:S.me.lng} : S.map.getCenter().toJSON());
+    const pairSeq = (S.routeSeq = (S.routeSeq||0) + 1);   // item2: ペアで共有する世代番号
+    const isDriving = (S.travelMode==="DRIVING");
+    const baseReq = {
+      origin:originLatLng, destination:S.destination,
+      waypoints:S.waypoints.map(w=>({location:w.loc,stopover:true})),
+      travelMode:google.maps.TravelMode[S.travelMode],
+      avoidTolls:!!S.avoidTolls, optimizeWaypoints:false
+    };
+    if(isDriving) baseReq.drivingOptions={ departureTime:new Date(), trafficModel:"bestguess" };   // item3
+    const t0=performance.now();
+    // 徒歩は高速/下道の区別が無いので1本のみ（比較UIは出さない）。各Promiseは reject しない。
+    const pair = isDriving ? await Promise.all([ _routeOnce(baseReq,false,"hwy"), _routeOnce(baseReq,true,"local") ])
+                           : [ await _routeOnce(baseReq,false,"hwy"), null ];
+    const latMs=Math.round(performance.now()-t0);
+    // item2: 後着Intent/ペアに追い越されていたら破棄（二重ガード）
+    if(intentGen!==S.intentSeq || pairSeq!==S.routeSeq){ console.log("[MulmoNavi PAIR] stale dropped", {intentGen, curIntent:S.intentSeq, pairSeq, curRoute:S.routeSeq}); return; }
+    const iHwy=routeInfo(pair[0]), iLocal=routeInfo(pair[1]);
+    console.log("[MulmoNavi PAIR] result", { latMs, isDriving,
+      hwy: iHwy?{distM:iHwy.dist,durS:iHwy.dur,traffic:iHwy.usedTraffic,src:iHwy.usedTraffic?"duration_in_traffic":"duration"}:null,
+      local: iLocal?{distM:iLocal.dist,durS:iLocal.dur,traffic:iLocal.usedTraffic}:null });
+    if(!iHwy && !iLocal){ console.log("[MulmoNavi PAIR] both failed"); botSay(sayFallback||T().noRoute); return; }   // item6: 両方失敗のみエラー
+    // item5: 描画は prefer.avoidHighways に一致する方（無ければ成功した方）
+    const preferLocal=!!S.avoidHighways;
+    const chosen = preferLocal ? (iLocal||iHwy) : (iHwy||iLocal);
+    try{ S.dirRenderer.setDirections(chosen.res); }catch(e){ console.log("[MulmoNavi PAIR] setDirections threw", e&&e.message); }
+    S.route=chosen.res.routes[0];
+    S.steps=S.route.legs.flatMap(l=>l.steps);
+    S.curStep=0; S.lastSpokenStep=-1; renderSteps();
+    S.compare={ hwy:iHwy, local:iLocal };
+    updateCompareUI();
+    announceCompare(iHwy, iLocal, sayFallback);   // item8: 片道で両方の数字
+  }catch(e){
+    console.log("[MulmoNavi PAIR] FAILED", { which:"pair", status:"THROW", error:(e&&e.message)||String(e) });
+    botSay(sayFallback || T().noRoute);   // 沈黙で終わらせない
+  }
 }
 function fmtDuration(sec){
   const m=Math.round(sec/60);

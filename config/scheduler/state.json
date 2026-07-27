@@ -1,42 +1,42 @@
 {
   "system:journal": {
     "taskId": "system:journal",
-    "lastRunAt": "2026-07-27T13:00:00.000Z",
+    "lastRunAt": "2026-07-27T21:00:00.000Z",
     "lastRunResult": "success",
-    "lastRunDurationMs": 2,
+    "lastRunDurationMs": 5,
     "lastErrorMessage": null,
     "consecutiveFailures": 0,
-    "totalRuns": 211,
-    "nextScheduledAt": "2026-07-27T14:00:00.000Z"
+    "totalRuns": 218,
+    "nextScheduledAt": "2026-07-27T22:00:00.000Z"
   },
   "system:feed-refresh": {
     "taskId": "system:feed-refresh",
-    "lastRunAt": "2026-07-27T13:00:00.000Z",
+    "lastRunAt": "2026-07-27T21:00:00.000Z",
     "lastRunResult": "success",
-    "lastRunDurationMs": 11,
+    "lastRunDurationMs": 18,
     "lastErrorMessage": null,
     "consecutiveFailures": 0,
-    "totalRuns": 211,
-    "nextScheduledAt": "2026-07-27T14:00:00.000Z"
+    "totalRuns": 218,
+    "nextScheduledAt": "2026-07-27T22:00:00.000Z"
   },
   "system:chat-index": {
     "taskId": "system:chat-index",
-    "lastRunAt": "2026-07-27T12:00:00.000Z",
+    "lastRunAt": "2026-07-27T18:00:00.000Z",
     "lastRunResult": "success",
-    "lastRunDurationMs": 3,
+    "lastRunDurationMs": 6,
     "lastErrorMessage": null,
     "consecutiveFailures": 0,
-    "totalRuns": 42,
-    "nextScheduledAt": "2026-07-27T18:00:00.000Z"
+    "totalRuns": 43,
+    "nextScheduledAt": "2026-07-28T00:00:00.000Z"
   },
   "system:google-calendar-sync": {
     "taskId": "system:google-calendar-sync",
-    "lastRunAt": "2026-07-27T13:00:00.000Z",
+    "lastRunAt": "2026-07-27T21:00:00.000Z",
     "lastRunResult": "success",
-    "lastRunDurationMs": 49,
+    "lastRunDurationMs": 18,
     "lastErrorMessage": null,
     "consecutiveFailures": 0,
-    "totalRuns": 28,
-    "nextScheduledAt": "2026-07-27T14:00:00.000Z"
+    "totalRuns": 35,
+    "nextScheduledAt": "2026-07-27T22:00:00.000Z"
   }
 }
