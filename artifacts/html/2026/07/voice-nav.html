@@ -1185,20 +1185,36 @@ function diffIntent(a,b){
   if(JSON.stringify(a.prefer)!==JSON.stringify(b.prefer)) d.push("prefer");
   return d;
 }
-// 地名→latlng の共通解決（item4）: textSearch → geocoder フォールバック。先頭候補を採用。
+// 「近くの〜/コンビニ/トイレ」等のカテゴリ検索か（＝現在地バイアスが正しいもの）を判定。
+function isCategoryQuery(query){
+  const s=String(query||"");
+  if(/近く|ちかく|周辺|近隣|この先|nearby|nearest|closest|around/i.test(s)) return true;
+  for(const c of CATEGORIES){ if(c.re.test(s)) return true; }   // コンビニ/GS/トイレ/カフェ 等
+  return false;
+}
+// 認識結果を {loc,name} に。失敗時は geocoder フォールバック。
+function _placeFromResult(res,st,query,resolve){
+  if(st===google.maps.places.PlacesServiceStatus.OK && res && res[0] && res[0].geometry && res[0].geometry.location){
+    resolve({loc:res[0].geometry.location, name:res[0].name||query}); return;
+  }
+  if(S.geocoder){ S.geocoder.geocode({address:String(query)},(gr,gs)=>{
+    resolve((gs==="OK"&&gr&&gr[0])?{loc:gr[0].geometry.location, name:query}:null);
+  }); } else resolve(null);
+}
+// 地名→latlng の共通解決（origin/destination/via 共通・片方だけ直さない）。
+// 問題1修正: 固有名詞（駅名・施設名）は findPlaceFromQuery（locationBias無し＝遠方の駅も正解）。
+//            カテゴリ（近くのコンビニ等）は従来の textSearch＋現在地バイアス（既存挙動を維持）。
 function resolvePlace(query){
   return new Promise((resolve)=>{
     if(!S.places || !query){ resolve(null); return; }
-    const req={ query }; if(S.me){ req.location=S.me; req.radius=30000; }
     try{
-      S.places.textSearch(req,(res,st)=>{
-        if(st===google.maps.places.PlacesServiceStatus.OK && res && res[0] && res[0].geometry && res[0].geometry.location){
-          resolve({loc:res[0].geometry.location, name:res[0].name||query}); return;
-        }
-        if(S.geocoder){ S.geocoder.geocode({address:query},(gr,gs)=>{
-          resolve((gs==="OK"&&gr&&gr[0])?{loc:gr[0].geometry.location, name:query}:null);
-        }); } else resolve(null);
-      });
+      if(isCategoryQuery(query)){
+        const req={ query:String(query) }; if(S.me){ req.location=S.me; req.radius=30000; }   // カテゴリ=現在地バイアス
+        S.places.textSearch(req,(res,st)=>_placeFromResult(res,st,query,resolve));
+      }else{
+        // 固有名詞: locationBias を付けずに検索（現在地が遠くても正しい駅/施設を返す）
+        S.places.findPlaceFromQuery({ query:String(query), fields:["name","geometry"] },(res,st)=>_placeFromResult(res,st,query,resolve));
+      }
     }catch(e){ resolve(null); }
   });
 }
@@ -1623,6 +1639,8 @@ function buildRoute(cb){
   // item4-3: origin = 明示出発地(originOverride) ?? 現在地(S.me) ?? 地図中心。
   // "current" のときは originOverride=null なので現在地が使われる（走行追従は S.me 基準のまま）。
   const originLatLng = S.originOverride || (S.me ? { lat:S.me.lat, lng:S.me.lng } : S.map.getCenter().toJSON());
+  // 問題3: reroute判定は「既存ルートの有無」で決める（cbの有無とは分離）。
+  const wasReroute = !!S.route;
   // 後勝ち世代ガード: 連続でルート条件を変えると DirectionsService のコールバックが
   // 前後することがある。最新世代(mySeq===S.routeSeq)の結果だけを適用・読み上げし、
   // 追い越された古い結果は破棄する（古いリルートが後から上書きする競合を防ぐ）。
@@ -1667,14 +1685,18 @@ function buildRoute(cb){
           });
         }catch(e){ console.log("[MulmoNavi MAP] container@setDirections err", e&&e.message); }
       }
-      // [ROUTE-DIAG] 実機用診断: routes件数/採用index/距離/所要/回避設定/setDirections有無/renderer.getMap
+      // [ROUTE-DIAG] 実機用診断: routes/距離/所要/回避/描画 ＋ 出発地・目的地の実座標（問題2）
+      const _ll=(x)=>{ if(!x)return {lat:null,lng:null}; try{ return {lat: typeof x.lat==="function"?x.lat():x.lat, lng: typeof x.lng==="function"?x.lng():x.lng}; }catch(e){ return {lat:"err",lng:"err"}; } };
+      const _o=_ll(originLatLng), _d=_ll(S.destination);
       console.log("[MulmoNavi ROUTE] applied", {
         seq:mySeq, status, routes:routes.length, index:0,
         distM:totalDist, timeS:totalTime,
         avoidHighways:!!S.avoidHighways, avoidTolls:!!S.avoidTolls,
         setDirections:setOk, rendererHasMap:hadMap,
         rendererMapIsAppMap: (function(){try{return S.dirRenderer.getMap()===S.map;}catch(e){return "err";}})(),
-        navOn:S.navOn, reroute:!!cb, destName:S.destName
+        navOn:S.navOn, reroute:wasReroute, destName:S.destName,
+        originIsCurrent: !S.originOverride, originName: S.originOverride ? (S.originName||null) : "current",
+        originLat:_o.lat, originLng:_o.lng, destLat:_d.lat, destLng:_d.lng
       });
       S.route=routes[0];
       S.steps = leg.flatMap(l=>l.steps);
