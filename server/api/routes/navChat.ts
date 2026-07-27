@@ -544,6 +544,128 @@ async function streamTools(req: Request<object, unknown, NavChatBody>, res: Resp
   }
 }
 
+// ── RouteIntent DSL 経路（mode:"intent"）─────────────────────────────
+// 差分ツール(navigate/change_route…)を1個の「経路要求(RouteIntent)」に置換。
+// LLM は route_intent を1回呼び、変更した項目のみ（可能なら維持項目も）返す。
+// 未指定は前回値維持（マージ）はクライアント(applyRouteIntent)側で行う。
+const INTENT_SYSTEM_PROMPT = [
+  "あなたはカーナビ「MulmoNavi」の音声アシスタント。運転中のドライバーの発話から経路要求(RouteIntent)を1個組み立てる。",
+  "",
+  "必ず route_intent ツールを1回だけ呼ぶ（雑談のみの時は say だけ埋め、他は省略）。各項目:",
+  "- origin: 出発地。'current'=現在地、または地名。『今いる場所から』は 'current'。変更が無ければ省略。",
+  "- destination: 目的地の地名。変更が無ければ省略。『出発地を〜』は destination ではなく origin に入れる。",
+  "- via: 経由地の『完全な配列』。変更する時は残す経由地も含めた全件を返す。全消去は空配列 []。変更が無ければ省略。",
+  "- avoidHighways / avoidTolls: 道種。『下道/一般道』→ avoidHighways=true。変更が無ければ省略。",
+  "- say: ドライバーへの短い一言（context.lang の言語, 記号なし, 1文）。",
+  "",
+  "重要: 変更していない項目も可能な限りそのまま含めて返すこと（返し漏れ防止）。不明な項目のみ省略してよい。",
+  "例: 『出発地を新宿駅にして』→ origin:'新宿駅'（destination省略＝維持）",
+  "例: 『新宿駅から東京駅まで』→ origin:'新宿駅', destination:'東京駅'",
+  "例: 『今いる場所から』→ origin:'current'",
+  "例: 『下道で』→ avoidHighways:true（destination省略＝維持）",
+  "例: 経由が新橋と品川で『新橋は外して』→ via:['品川']（残すものを全部返す）",
+].join("\n");
+
+const ROUTE_INTENT_TOOL = {
+  type: "function",
+  function: {
+    name: "route_intent",
+    description: "経路要求を1個返す。変更が無い項目は省略すること（前回値が維持される）。",
+    parameters: {
+      type: "object",
+      properties: {
+        origin: { type: "string", description: "'current'（現在地）または出発地の地名。変更が無ければ省略" },
+        destination: { type: "string", description: "目的地の地名。変更が無ければ省略" },
+        via: { type: "array", items: { type: "string" }, description: "経由地の完全な配列。全消去は []。変更が無ければ省略" },
+        avoidHighways: { type: "boolean", description: "下道/一般道なら true" },
+        avoidTolls: { type: "boolean" },
+        say: { type: "string", description: "ドライバーへの短い一言（1文）" },
+      },
+    },
+  },
+} as const;
+
+const PLACE_MAX = 120;
+const CURRENT_ALIASES = new Set(["current", "現在地", "今いる場所", "今の場所", "いまいる場所"]);
+
+/** Normalize the LLM's flat route_intent args into the RouteIntent wire shape,
+ *  INCLUDING ONLY the fields the model actually supplied (absent = maintain on
+ *  the client). `via: []` is kept (explicit clear). */
+function normalizeRouteIntent(args: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (typeof args.origin === "string" && args.origin.trim()) {
+    const originStr = args.origin.trim();
+    out.origin = CURRENT_ALIASES.has(originStr) ? "current" : { query: originStr.slice(0, PLACE_MAX) };
+  }
+  if (typeof args.destination === "string" && args.destination.trim()) {
+    out.destination = { query: args.destination.trim().slice(0, PLACE_MAX) };
+  }
+  if (Array.isArray(args.via)) {
+    out.via = args.via
+      .filter((place): place is string => typeof place === "string" && place.trim().length > 0)
+      .map((place) => ({ query: place.trim().slice(0, PLACE_MAX) }));
+  }
+  const prefer: Record<string, boolean> = {};
+  if (typeof args.avoidHighways === "boolean") prefer.avoidHighways = args.avoidHighways;
+  if (typeof args.avoidTolls === "boolean") prefer.avoidTolls = args.avoidTolls;
+  if (Object.keys(prefer).length) out.prefer = prefer;
+  if (typeof args.say === "string" && args.say.trim()) out.say = args.say.trim().slice(0, 200);
+  return out;
+}
+
+/** Call OpenAI to produce a single RouteIntent. Chat-only replies (no tool call)
+ *  come back as `{ intent: { say } }` so the client path is uniform. */
+async function callOpenAIIntent(
+  key: string,
+  message: string,
+  context: unknown,
+): Promise<{ intent: Record<string, unknown> } | { error: string; status: number }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const upstream = await fetch(OPENAI_CHAT_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: MAX_TOKENS,
+        temperature: 0.3,
+        tools: [ROUTE_INTENT_TOOL],
+        tool_choice: "auto",
+        messages: [
+          { role: "system", content: INTENT_SYSTEM_PROMPT },
+          { role: "user", content: buildUserContent(message, context) },
+        ],
+      }),
+      signal: controller.signal,
+    });
+    if (!upstream.ok) {
+      const detail = await upstream.text().catch(() => "");
+      log.warn("nav-chat", "openai intent request failed", { status: upstream.status });
+      return { error: `OpenAI chat failed (${upstream.status}): ${detail.slice(0, 200)}`, status: 502 };
+    }
+    const data = (await upstream.json()) as {
+      choices?: { message?: { content?: unknown; tool_calls?: { function?: { name?: string; arguments?: string } }[] } }[];
+    };
+    const msg = data.choices?.[0]?.message;
+    const call = msg?.tool_calls?.[0]?.function;
+    if (call?.name === "route_intent") {
+      let parsed: Record<string, unknown> = {};
+      try {
+        parsed = JSON.parse(call.arguments ?? "{}") as Record<string, unknown>;
+      } catch {
+        parsed = {};
+      }
+      return { intent: normalizeRouteIntent(parsed) };
+    }
+    const content = msg?.content;
+    if (typeof content === "string" && content.trim()) return { intent: { say: content.trim().slice(0, 200) } };
+    return { error: "OpenAI returned neither an intent nor a reply", status: 502 };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 router.post(API_ROUTES.navChat.chat, requireNavChatToken(), async (req: Request<object, unknown, NavChatBody>, res: Response) => {
   const key = env.openaiApiKey;
   if (!key) {
@@ -562,7 +684,18 @@ router.post(API_ROUTES.navChat.chat, requireNavChatToken(), async (req: Request<
     return;
   }
   try {
-    // body.mode==="tools" → AI-native 経路。未指定なら従来の action-JSON 経路（後方互換）。
+    // body.mode==="intent" → RouteIntent DSL 経路（新）。"tools" → 差分ツール（旧・残置）。
+    // 未指定 → 従来の action-JSON（後方互換）。
+    if (req.body.mode === "intent") {
+      const result = await callOpenAIIntent(key, message, req.body.context);
+      if ("error" in result) {
+        sendError(res, result.status, result.error);
+        return;
+      }
+      res.setHeader("Cache-Control", "no-store");
+      res.json(result);
+      return;
+    }
     const useTools = req.body.mode === "tools";
     const result = useTools ? await callOpenAITools(key, message, req.body.context) : await callOpenAI(key, message, req.body.context);
     if ("error" in result) {

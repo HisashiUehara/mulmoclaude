@@ -49,6 +49,9 @@
   #sheet{background:var(--panel);border-top:1px solid var(--line);border-radius:20px 20px 0 0;
     display:flex;flex-direction:column;max-height:var(--sheet-h);z-index:15;box-shadow:0 -8px 30px rgba(0,0,0,.4)}
   .grab{width:44px;height:5px;border-radius:3px;background:#333a48;margin:8px auto 4px}
+  #originBar{display:flex;align-items:center;gap:6px;padding:2px 14px 6px;font-size:12.5px;color:var(--muted)}
+  #originBar .ob-ic{font-size:13px}
+  #originBar b{color:var(--txt);font-weight:600}
   .log{flex:1;overflow-y:auto;padding:6px 14px 4px;display:flex;flex-direction:column;gap:8px;min-height:80px}
   .msg{max-width:86%;padding:9px 12px;border-radius:14px;font-size:14px;line-height:1.4;white-space:pre-wrap}
   .msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
@@ -142,6 +145,7 @@
 
   <div id="sheet">
     <div class="grab"></div>
+    <div id="originBar" title="出発地"><span class="ob-ic">🚩</span><span id="originText">現在地</span></div>
     <div class="log" id="log"></div>
     <div class="chips" id="chips"></div>
     <div id="steps"></div>
@@ -195,6 +199,11 @@ const S = {
   route:null, steps:[], curStep:0, navOn:false, watchId:null, lastSpokenStep:-1,
   travelMode:"DRIVING",
   avoidTolls:false, avoidHighways:false,  // 有料道路/高速を避けるか
+  // ── RouteIntent DSL 状態 ──
+  routeIntent:{ origin:"current", destination:null, via:[], prefer:{avoidHighways:false, avoidTolls:false} },
+  originOverride:null,  // 明示出発地の解決済み latlng（null = 現在地"current"）
+  originName:null,      // 出発地の表示名（null = 現在地）
+  intentSeq:0,          // applyRouteIntent の後勝ち世代ガード
   pendingRoad:false,  // 高速を使うか確認待ち
   pending:null,   // 目的地確認中の候補 { cands, idx, markers, timer }
   navChatToken:null, navChatUrl:null,  // 第2層(LLM会話)のview-token + エンドポイント
@@ -1071,6 +1080,7 @@ function handleInput(raw){
   // 会話かを判断する。これで「高速やめて下道で」等の言い回しの誤爆が無くなる。
   const safe = layer1Safety(t);
   if(safe==="stopNav"){ stopNav(); return; }
+  if(safe==="startNav"){ startNav(); return; }
   if(safe==="mute"){ muteTts(); return; }
   if(safe==="repeat"){ repeatStep(); return; }
   navChatReply(t, fallbackKind(t));
@@ -1080,6 +1090,8 @@ function handleInput(raw){
 function layer1Safety(t){
   const s=(t||"").trim();
   if(/^(?:(?:ナビ|案内)?\s*を?\s*(?:やめて|やめる|止めて|停止|終了|ストップ|キャンセル)|stop|cancel|end nav|quit)[\s。.．！!]*$/i.test(s)) return "stopNav";
+  // ナビ開始（route操作ではないので DSL でなくローカル即応）。RouteIntent には含めない。
+  if(/^(?:ナビ(?:を)?(?:開始|スタート)|案内(?:して|開始|スタート|お願い)|出発(?:して|しよう|しましょう)?|しゅっぱつ|go\b|start(?:\s*nav(?:igation)?)?|let'?s go)[\s。.．！!]*$/i.test(s)) return "startNav";
   if(/^(?:(?:ミュート|消音)(?:に)?(?:して)?|静かに(?:して)?|しずかに(?:して)?|黙(?:って|る)|mute|quiet|be quiet|shut up)[\s。.．！!]*$/i.test(s)) return "mute";
   if(/^(?:次どっち|次はどっち|次どこ|もう一回|もういちど|もう一度|どっちだっけ|repeat|again|say again)[\s。.．？?！!]*$/i.test(s)) return "repeat";
   return null;
@@ -1099,6 +1111,8 @@ $("mic").onclick=toggleMic;
 /* ============================ 第2層：LLM会話（/api/nav-chat） ============================ */
 // 第1層で会話系に落ちた発話をサーバー経由でLLMに投げ、短い相棒応答／操作アクションを得る。
 // トークン未取得・失敗・タイムアウト時は定型文にフォールバック（会話を止めない）。
+// true=RouteIntent DSL経路（新）／false=差分ツール経路（旧・ロールバック用・残置）。
+const USE_INTENT = true;
 async function navChatReply(userText, fallbackType){
   if(!S.navChatToken || !S.navChatUrl){ botSay(cannedFor(fallbackType)); return; }
   const ctrl=new AbortController();
@@ -1107,23 +1121,30 @@ async function navChatReply(userText, fallbackType){
   const tReq=performance.now();
   const post=(extra)=>fetch(S.navChatUrl,{ method:"POST",
     headers:{ "Authorization":"Bearer "+S.navChatToken, "Content-Type":"application/json" },
-    body: JSON.stringify(Object.assign({ message:userText, mode:"tools", context: buildNavContext() }, extra)), signal: ctrl.signal });
+    body: JSON.stringify(Object.assign({ message:userText, context: buildNavContext() }, extra)), signal: ctrl.signal });
   try{
-    // 1) まずストリーミングを試す（応答を文確定ごとにTTS開始＝第1文で声が出る）。
-    let res=await post({ stream:true });
+    if(USE_INTENT){
+      console.log("[MulmoNavi] path=intent");
+      const res=await post({ mode:"intent" });
+      if(!res.ok) throw new Error("http "+res.status);
+      const data=await res.json();
+      if(data && data.intent){ await applyRouteIntent(data.intent); return; }
+      botSay(cannedFor(fallbackType)); return;
+    }
+    // ── 旧経路（差分ツール／ストリーミング）残置（USE_INTENT=false で有効・ロールバック用）──
+    console.log("[MulmoNavi] path=tools");
+    let res=await post({ mode:"tools", stream:true });
     const ct=(res.headers.get("content-type")||"");
     if(res.ok && res.body && ct.includes("text/event-stream")){
       await consumeNavStream(res, tReq, fallbackType); return;
     }
-    // 2) ストリーム不可 → 非ストリーム経路へ堅牢フォールバック
-    //    （サーバ未再起動でstreamTools無し / Viteプロキシが SSE を502で落とす 等でもここで動く）
     console.log("[MulmoNavi] stream unavailable (status="+res.status+", ct="+ct+") → non-stream fallback");
-    if(!(res.ok && ct.includes("application/json"))) res=await post({});   // 502等なら非streamで取り直し
+    if(!(res.ok && ct.includes("application/json"))) res=await post({ mode:"tools" });
     if(!res.ok) throw new Error("http "+res.status);
     const data=await res.json();
     const tRecv=performance.now();
     if(data && typeof data.tool==="string"){ handleToolCall(data); return; }
-    if(data && typeof data.action==="string"){ handleLLMAction(data); return; }   // 旧経路（防御的）
+    if(data && typeof data.action==="string"){ handleLLMAction(data); return; }
     if(data && typeof data.reply==="string" && data.reply.trim()){ botSay(data.reply.trim(), true, { cache:false, sinceRecv:tRecv }); return; }
     botSay(cannedFor(fallbackType));
   }catch(e){
@@ -1133,6 +1154,114 @@ async function navChatReply(userText, fallbackType){
     clearTimeout(to);
     if(S.navAbort===ctrl) S.navAbort=null;
   }
+}
+
+/* ============================ RouteIntent DSL エンジン ============================
+   nav-chat(mode:"intent")が返す部分的な RouteIntent を、前回状態にマージ→差分判定→
+   変化があれば地名解決→buildRoute。未指定は前回値維持（返し漏れ耐性）。 */
+function cloneIntent(x){ return { origin:x.origin, destination:x.destination?{query:x.destination.query}:null,
+  via:(x.via||[]).map(v=>({query:v.query})), prefer:{avoidHighways:!!x.prefer.avoidHighways, avoidTolls:!!x.prefer.avoidTolls} }; }
+// 受信の部分Intentを前回状態にマージ（item3/9: 未指定=維持, via=完全配列, prefer=サブ項目維持）
+function mergeIntent(prev, inc){
+  inc = inc || {};
+  const m = cloneIntent(prev);
+  if(inc.origin==="current") m.origin="current";
+  else if(inc.origin && typeof inc.origin==="object" && inc.origin.query) m.origin={query:String(inc.origin.query)};
+  else if(typeof inc.origin==="string" && inc.origin.trim()) m.origin = (inc.origin==="current"?"current":{query:inc.origin.trim()});
+  if(inc.destination && typeof inc.destination==="object" && inc.destination.query) m.destination={query:String(inc.destination.query)};
+  else if(typeof inc.destination==="string" && inc.destination.trim()) m.destination={query:inc.destination.trim()};
+  if(Array.isArray(inc.via)) m.via = inc.via.map(v=> typeof v==="string"?{query:v}:(v&&v.query?{query:String(v.query)}:null)).filter(Boolean);
+  if(inc.prefer && typeof inc.prefer==="object"){
+    if(typeof inc.prefer.avoidHighways==="boolean") m.prefer.avoidHighways=inc.prefer.avoidHighways;
+    if(typeof inc.prefer.avoidTolls==="boolean") m.prefer.avoidTolls=inc.prefer.avoidTolls;
+  }
+  return m;
+}
+function diffIntent(a,b){
+  const d=[];
+  if(JSON.stringify(a.origin)!==JSON.stringify(b.origin)) d.push("origin");
+  if(JSON.stringify(a.destination)!==JSON.stringify(b.destination)) d.push("destination");
+  if(JSON.stringify(a.via)!==JSON.stringify(b.via)) d.push("via");
+  if(JSON.stringify(a.prefer)!==JSON.stringify(b.prefer)) d.push("prefer");
+  return d;
+}
+// 地名→latlng の共通解決（item4）: textSearch → geocoder フォールバック。先頭候補を採用。
+function resolvePlace(query){
+  return new Promise((resolve)=>{
+    if(!S.places || !query){ resolve(null); return; }
+    const req={ query }; if(S.me){ req.location=S.me; req.radius=30000; }
+    try{
+      S.places.textSearch(req,(res,st)=>{
+        if(st===google.maps.places.PlacesServiceStatus.OK && res && res[0] && res[0].geometry && res[0].geometry.location){
+          resolve({loc:res[0].geometry.location, name:res[0].name||query}); return;
+        }
+        if(S.geocoder){ S.geocoder.geocode({address:query},(gr,gs)=>{
+          resolve((gs==="OK"&&gr&&gr[0])?{loc:gr[0].geometry.location, name:query}:null);
+        }); } else resolve(null);
+      });
+    }catch(e){ resolve(null); }
+  });
+}
+// マージ後Intentを実状態(S.destination/originOverride/waypoints/prefer)へ解決。gen で後勝ち。
+async function resolveIntentToState(m, gen, changedPrefer){
+  if(m.origin==="current"){ S.originOverride=null; S.originName=null; }
+  else if(m.origin && m.origin.query){
+    const r=await resolvePlace(m.origin.query); if(gen!==S.intentSeq) return;
+    if(r){ S.originOverride=r.loc; S.originName=r.name; }
+  }
+  if(m.destination && m.destination.query){
+    const r=await resolvePlace(m.destination.query); if(gen!==S.intentSeq) return;
+    if(r){ S.destination=r.loc; S.destName=r.name; }
+  }
+  const via=[];
+  for(const v of (m.via||[])){ const r=await resolvePlace(v.query); if(gen!==S.intentSeq) return; if(r) via.push({loc:r.loc, name:r.name}); }
+  S.waypoints = via;
+  S.avoidHighways=!!m.prefer.avoidHighways; S.avoidTolls=!!m.prefer.avoidTolls;
+  if(changedPrefer) S.roadChosen=true;   // 道種は決定済み扱い（以後高速確認しない）
+  const isCurrent = (m.origin==="current");
+  console.log("[MulmoNavi ORIGIN] resolved", {
+    name: isCurrent?"current":(S.originName||null), isCurrent,
+    lat: isCurrent?(S.me?S.me.lat:null):(S.originOverride&&S.originOverride.lat&&S.originOverride.lat()),
+    lng: isCurrent?(S.me?S.me.lng:null):(S.originOverride&&S.originOverride.lng&&S.originOverride.lng())
+  });
+}
+// 経路要求を適用。未指定維持マージ→差分→（nav変化あれば）解決→buildRoute。後勝ち世代ガード付き。
+async function applyRouteIntent(intent){
+  const gen = ++S.intentSeq;
+  console.log("[MulmoNavi INTENT] received", JSON.stringify(intent||{}), "gen", gen);
+  if(!intent || typeof intent!=="object"){ console.log("[MulmoNavi INTENT] invalid → keep prev, noop", gen); return; }
+  const prev = S.routeIntent;
+  const merged = mergeIntent(prev, intent);
+  const diff = diffIntent(prev, merged);
+  S.routeIntent = merged;
+  console.log("[MulmoNavi INTENT] merged", JSON.stringify(merged), "diff", JSON.stringify(diff), "gen", gen);
+  const say = (intent && typeof intent.say==="string") ? intent.say.trim() : "";
+  const navChanged = diff.length>0;
+  if(!navChanged){
+    console.log("[MulmoNavi INTENT] action=noop gen", gen);
+    if(say) botSay(say);
+    updateOriginUI();
+    return;
+  }
+  try{
+    await resolveIntentToState(merged, gen, diff.indexOf("prefer")>=0);
+    if(gen!==S.intentSeq){ console.log("[MulmoNavi INTENT] superseded gen", gen); return; }   // item8 後勝ち
+    updateOriginUI();
+    if(!S.destination){ console.log("[MulmoNavi INTENT] action=noop(no destination) gen", gen); botSay(say||T().needDest); return; }
+    console.log("[MulmoNavi INTENT] action=buildRoute gen", gen);
+    if(say) botSay(say, true);                 // LLMの一言を即読み上げ
+    buildRoute(say ? (function(){}) : undefined);  // say がある時は routeReady と二重にしない
+  }catch(e){
+    console.log("[MulmoNavi INTENT] resolve error", e&&e.message);
+    botSay(say||cannedFor("chat"));
+  }
+}
+// item7: #sheet に出発地を表示。"current" は「現在地」。
+function updateOriginUI(){
+  const el=$("originText"); if(!el) return;
+  const isCurrent = (S.routeIntent.origin==="current") || !S.originName;
+  el.innerHTML = isCurrent ? (S.lang==="ja"?"現在地":"Current location")
+                           : ("<b>"+String(S.originName).replace(/[&<>]/g,"")+"</b>"+(S.lang==="ja"?" から":" (start)"));
 }
 // 文末（。．！？.!?改行）で完全な文を切り出す。末尾の未完部分は rest に残す。
 function extractSentences(text){
@@ -1491,13 +1620,15 @@ function pickLatLngAsDestination(latLng){
 /* ============================ ルート構築 ============================ */
 function buildRoute(cb){
   if(!S.destination){ botSay(T().needDest); return; }
-  if(!S.origin){ S.origin = S.map.getCenter().toJSON(); }
+  // item4-3: origin = 明示出発地(originOverride) ?? 現在地(S.me) ?? 地図中心。
+  // "current" のときは originOverride=null なので現在地が使われる（走行追従は S.me 基準のまま）。
+  const originLatLng = S.originOverride || (S.me ? { lat:S.me.lat, lng:S.me.lng } : S.map.getCenter().toJSON());
   // 後勝ち世代ガード: 連続でルート条件を変えると DirectionsService のコールバックが
   // 前後することがある。最新世代(mySeq===S.routeSeq)の結果だけを適用・読み上げし、
   // 追い越された古い結果は破棄する（古いリルートが後から上書きする競合を防ぐ）。
   const mySeq = (S.routeSeq = (S.routeSeq||0) + 1);
   const req={
-    origin:S.origin, destination:S.destination,
+    origin:originLatLng, destination:S.destination,
     waypoints:S.waypoints.map(w=>({location:w.loc,stopover:true})),
     travelMode:google.maps.TravelMode[S.travelMode],
     avoidTolls:!!S.avoidTolls,
@@ -1588,6 +1719,20 @@ function addDetour(cat){
 
 /* ============================ ナビ制御 ============================ */
 function startNav(){
+  if(!S.route && !S.destination){ botSay(T().needDest); return; }
+  // item4-3: ナビ開始時は origin を "current" に戻す（現在地からの経路にする）。
+  const wasExplicit = !!S.originOverride;
+  S.routeIntent.origin="current"; S.originOverride=null; S.originName=null; updateOriginUI();
+  console.log("[MulmoNavi ORIGIN] resolved", { name:"current", isCurrent:true, lat:S.me?S.me.lat:null, lng:S.me?S.me.lng:null });
+  if(wasExplicit && S.destination){
+    // 出発地が明示されていた → 現在地から引き直してからナビ開始
+    buildRoute(()=>_startNavLoop());
+  }else{
+    _startNavLoop();
+  }
+}
+// 実際のナビ開始処理（追従・再計算・到着判定は現在地基準のまま＝従来通り）。
+function _startNavLoop(){
   if(!S.route){ botSay(T().needDest); return; }
   S.navOn=true; S.curStep=0; S.lastSpokenStep=-1;
   unlockAudioOnce();           // 「ナビ開始」タップを使って確実に音声を解錠（スマホ対策）
@@ -1608,6 +1753,20 @@ function stopNav(){
   $("banner").classList.remove("show");
   S.map.setTilt?.(0);
   botSay(T().navStop);
+  resetNavState();   // item5: 経路状態を全クリア（次の目的地で高速確認が再度出る＝B-2の副作用解消）
+}
+// item5: origin/destination/via/prefer/route/roadChosen/pendingRoad をまとめてクリア。
+// origin は "current" に戻す（前回の出発地を引き継がない）。stopNav と到着時から呼ぶ。
+// フラグ追加時もここに1箇所足すだけでリセット漏れが起きない構造。
+function resetNavState(){
+  S.routeIntent = { origin:"current", destination:null, via:[], prefer:{avoidHighways:false, avoidTolls:false} };
+  S.originOverride=null; S.originName=null;
+  S.destination=null; S.destName=""; S.waypoints=[];
+  S.avoidHighways=false; S.avoidTolls=false;
+  S.route=null; S.roadChosen=false; S.pendingRoad=false;
+  updateOriginUI();
+  if(typeof renderSteps==="function") renderSteps();
+  console.log("[MulmoNavi INTENT] resetNavState (cleared)");
 }
 
 /* Screen Wake Lock — スマホを車載してナビ中に画面が消えるのを防ぐ。非対応環境や
@@ -1737,6 +1896,7 @@ function applyLang(){
   });
   $("langLbl").textContent=T().langLbl;
   renderChips();
+  if(typeof updateOriginUI==="function") updateOriginUI();
   if(typeof updateMicUI==="function") updateMicUI();
   if(typeof applyRecogLang==="function") applyRecogLang();
 }
