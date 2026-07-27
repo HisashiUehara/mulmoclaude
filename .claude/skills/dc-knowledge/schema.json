@@ -1,0 +1,98 @@
+{
+  "title": "データセンター知識ベース",
+  "icon": "dns",
+  "dataPath": "data/dc-knowledge/items",
+  "primaryKey": "id",
+  "fields": {
+    "id": {
+      "type": "string",
+      "label": "ID",
+      "primary": true,
+      "required": true
+    },
+    "title": {
+      "type": "string",
+      "label": "タイトル",
+      "required": true
+    },
+    "category": {
+      "type": "enum",
+      "label": "カテゴリ（分野）",
+      "required": true,
+      "values": [
+        "電気設備",
+        "空調・冷却",
+        "建築・構造",
+        "ネットワーク・IT基盤",
+        "消防・防災",
+        "物理セキュリティ",
+        "監視・制御(BMS/DCIM)",
+        "運用・保守",
+        "設計・計画",
+        "プロジェクトマネジメント・工程",
+        "コミッショニング・試験",
+        "レビュー・品質保証",
+        "規格・認証",
+        "省エネ・環境",
+        "契約・調達",
+        "その他"
+      ]
+    },
+    "phase": {
+      "type": "enum",
+      "label": "フェーズ",
+      "values": [
+        "企画・構想",
+        "設計",
+        "調達・施工",
+        "コミッショニング",
+        "運用・保守",
+        "全般"
+      ]
+    },
+    "summary": {
+      "type": "text",
+      "label": "要約（1〜2行）"
+    },
+    "detail": {
+      "type": "markdown",
+      "label": "詳細・メモ"
+    },
+    "tags": {
+      "type": "string",
+      "label": "タグ（カンマ区切り）"
+    },
+    "keywords": {
+      "type": "string",
+      "label": "検索キーワード・別名"
+    },
+    "importance": {
+      "type": "enum",
+      "label": "重要度",
+      "values": [
+        "高",
+        "中",
+        "低"
+      ]
+    },
+    "status": {
+      "type": "enum",
+      "label": "ステータス",
+      "values": [
+        "下書き",
+        "確認済み"
+      ]
+    },
+    "source": {
+      "type": "string",
+      "label": "出典・参照"
+    },
+    "createdAt": {
+      "type": "date",
+      "label": "登録日"
+    }
+  },
+  "displayField": "title",
+  "calendarField": "createdAt",
+  "kanbanField": "category"
+}

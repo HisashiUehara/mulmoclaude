@@ -1,0 +1,209 @@
+{
+  "id": "fit-out-schedule",
+  "title": "Fit out Schedule",
+  "category": "内装・建築",
+  "status": "作業中",
+  "startDate": "2026-07-06",
+  "finishDate": "2026-12-03",
+  "workingDays": 108,
+  "taskCount": 18,
+  "milestoneCount": 1,
+  "hoursPerDay": 8,
+  "app": "artifacts/html/2026/07/msp-studio.html",
+  "notes": "オフィス内装工事の標準工程サンプル。企画→設計→調達→施工→引渡しの5フェーズ、24行(サマリー含む)。クリティカルパスは 設計→調達→施工の主系列。カードをクリックするとこの内容がビルダーに読み込まれた状態で開きます。",
+  "updatedAt": "2026-07-05",
+  "tasks": [
+    {
+      "tid": 1,
+      "name": "Fit-out Project",
+      "level": 1,
+      "days": 0,
+      "preds": "",
+      "res": ""
+    },
+    {
+      "tid": 2,
+      "name": "Initiation & Briefing",
+      "level": 2,
+      "days": 0,
+      "preds": "",
+      "res": ""
+    },
+    {
+      "tid": 3,
+      "name": "Confirm requirements & budget",
+      "level": 3,
+      "days": 5,
+      "preds": "",
+      "res": "Project Manager"
+    },
+    {
+      "tid": 4,
+      "name": "Landlord approval / License to Alter",
+      "level": 3,
+      "days": 10,
+      "preds": "3",
+      "res": "PM / Legal"
+    },
+    {
+      "tid": 5,
+      "name": "Design",
+      "level": 2,
+      "days": 0,
+      "preds": "",
+      "res": ""
+    },
+    {
+      "tid": 6,
+      "name": "Space planning / Test fit",
+      "level": 3,
+      "days": 8,
+      "preds": "4",
+      "res": "Architect"
+    },
+    {
+      "tid": 7,
+      "name": "Detailed design (M&E, FF&E)",
+      "level": 3,
+      "days": 15,
+      "preds": "6",
+      "res": "Design Team"
+    },
+    {
+      "tid": 8,
+      "name": "Tender documentation",
+      "level": 3,
+      "days": 7,
+      "preds": "7",
+      "res": "Cost Manager"
+    },
+    {
+      "tid": 9,
+      "name": "Procurement",
+      "level": 2,
+      "days": 0,
+      "preds": "",
+      "res": ""
+    },
+    {
+      "tid": 10,
+      "name": "Tender & contractor selection",
+      "level": 3,
+      "days": 15,
+      "preds": "8",
+      "res": "Cost Manager"
+    },
+    {
+      "tid": 11,
+      "name": "Order long-lead items",
+      "level": 3,
+      "days": 5,
+      "preds": "10",
+      "res": "Contractor"
+    },
+    {
+      "tid": 12,
+      "name": "Construction / Fit-out",
+      "level": 2,
+      "days": 0,
+      "preds": "",
+      "res": ""
+    },
+    {
+      "tid": 13,
+      "name": "Site setup & protection",
+      "level": 3,
+      "days": 3,
+      "preds": "10",
+      "res": "Main Contractor"
+    },
+    {
+      "tid": 14,
+      "name": "Demolition & strip-out",
+      "level": 3,
+      "days": 5,
+      "preds": "13",
+      "res": "Main Contractor"
+    },
+    {
+      "tid": 15,
+      "name": "Partitions & ceilings",
+      "level": 3,
+      "days": 10,
+      "preds": "14",
+      "res": "Main Contractor"
+    },
+    {
+      "tid": 16,
+      "name": "M&E first fix",
+      "level": 3,
+      "days": 10,
+      "preds": "14",
+      "res": "M&E Sub"
+    },
+    {
+      "tid": 17,
+      "name": "Flooring & decoration",
+      "level": 3,
+      "days": 8,
+      "preds": "15,16",
+      "res": "Fit-out Sub"
+    },
+    {
+      "tid": 18,
+      "name": "M&E second fix",
+      "level": 3,
+      "days": 6,
+      "preds": "17",
+      "res": "M&E Sub"
+    },
+    {
+      "tid": 19,
+      "name": "Joinery & FF&E install",
+      "level": 3,
+      "days": 7,
+      "preds": "18,11",
+      "res": "Fit-out Sub"
+    },
+    {
+      "tid": 20,
+      "name": "IT & AV installation",
+      "level": 3,
+      "days": 5,
+      "preds": "18",
+      "res": "IT Vendor"
+    },
+    {
+      "tid": 21,
+      "name": "Completion & Handover",
+      "level": 2,
+      "days": 0,
+      "preds": "",
+      "res": ""
+    },
+    {
+      "tid": 22,
+      "name": "Snagging & defects",
+      "level": 3,
+      "days": 5,
+      "preds": "19,20",
+      "res": "PM / Contractor"
+    },
+    {
+      "tid": 23,
+      "name": "Commissioning & O&M handover",
+      "level": 3,
+      "days": 4,
+      "preds": "22",
+      "res": "M&E Sub"
+    },
+    {
+      "tid": 24,
+      "name": "Occupation / Move-in",
+      "level": 3,
+      "days": 0,
+      "preds": "23",
+      "res": "Client"
+    }
+  ]
+}

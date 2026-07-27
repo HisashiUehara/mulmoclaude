@@ -1,0 +1,32 @@
+{
+  "title": "サブスク断捨離",
+  "icon": "savings",
+  "dataPath": "data/subscriptions/items",
+  "primaryKey": "id",
+  "fields": {
+    "id": { "type": "string", "label": "ID", "primary": true, "required": true },
+    "name": { "type": "string", "label": "サービス名", "required": true },
+    "group": { "type": "enum", "label": "分類", "required": true, "values": ["AI系", "エンタメ・生活"] },
+    "status": { "type": "enum", "label": "ステータス", "required": true, "values": ["継続", "解約予定", "解約済み"] },
+    "done": { "type": "toggle", "label": "解約完了", "field": "status", "onValue": "解約済み", "offValue": "解約予定" },
+    "monthlyCost": { "type": "money", "currency": "JPY", "label": "月額(円)", "required": true },
+    "annualCost": { "type": "derived", "formula": "monthlyCost * 12", "display": "money", "currency": "JPY", "label": "年額(円)" },
+    "billing": { "type": "string", "label": "課金サイクル" },
+    "rawCost": { "type": "string", "label": "元の課金表記" },
+    "howto": { "type": "text", "label": "解約手順・メモ" }
+  },
+  "displayField": "name",
+  "kanbanField": "status",
+  "completionField": "status",
+  "completionDoneValues": ["解約済み"],
+  "notifyWhen": { "field": "status", "in": ["解約予定"] },
+  "views": [
+    {
+      "id": "savings",
+      "label": "節約ダッシュボード",
+      "icon": "savings",
+      "file": "views/savings.html",
+      "capabilities": ["read", "write"]
+    }
+  ]
+}

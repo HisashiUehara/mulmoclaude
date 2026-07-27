@@ -1,0 +1,16 @@
+{
+  "id": "k-e001-20260717",
+  "employeeId": "e001",
+  "employeeName": "佐藤 花子",
+  "date": "2026-07-17",
+  "workType": "出勤",
+  "businessTrip": true,
+  "workedMinutes": 0,
+  "status": "申請中",
+  "note": "現地サイト",
+  "startTime": "",
+  "endTime": "",
+  "breakMinutes": 60,
+  "submittedTo": "e004",
+  "rejectReason": ""
+}

@@ -1,0 +1,14 @@
+{
+  "id": "onsite-power-system",
+  "title": "構内電源系統の正しい構造（Y字合流）",
+  "category": "電気設備",
+  "phase": "設計",
+  "importance": "高",
+  "status": "確認済み",
+  "summary": "系統は直列ではなくY字合流:商用(Normal)と発電機群(Emergency)がATSで合流→UPS→LV盤→PDU/Busway→サーバー。MV Switchgear/ATS/パラレリングの役割整理。",
+  "detail": "## 系統は1本の直列ではなくY字合流\n\n```\n商用電源（Normal）────┐\n                      ├─ ATS → UPS → LV盤 → PDU/Busway → サーバー\n発電機群─並列盤────┘（Emergency）\n```\n\n## MV Switchgear（中電圧の列盤, 6.6〜22kV級）\n\n構内電力網の交差点＋防護壁。役割は3つ:\n\n- **受ける**\n- **守る** — 保護リレー＋VCBで瞬時遮断\n- **分ける** — UPS系／機械系へ振り分け\n\n## ATS（Automatic Transfer Switch）\n\n入力2つ（商用／発電機）・出力1つ。\n\n停電検知 → 発電機へ始動指令 → 定格到達で切替 → 復電で切り戻し。\n\n**始動までの10〜30秒はUPSが穴埋め**する（だからUPSとATSはセット）。\n\n## パラレリング・スイッチギア\n\n発電機が複数台の場合、**同期・並列投入・負荷再配分**を担う。ATSはその下流に置かれる。",
+  "tags": "Y字,ATS,UPS,MVスイッチギア,パラレリング,冗長",
+  "keywords": "ATS, Automatic Transfer Switch, MV Switchgear, 中電圧, 保護リレー, VCB, パラレリングスイッチギア, LV盤, PDU, Busway",
+  "source": "",
+  "createdAt": "2026-07-11"
+}

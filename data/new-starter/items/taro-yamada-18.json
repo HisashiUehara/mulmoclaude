@@ -1,0 +1,15 @@
+{
+  "id": "taro-yamada-18",
+  "starter": "山田 太郎",
+  "startDate": "2026-08-01",
+  "phase": "最初の1週間〜1ヶ月",
+  "category": "研修・フォロー",
+  "task": "必須研修（安全衛生、情報セキュリティ、コンプライアンス）",
+  "owner": "人事研修担当",
+  "status": "未着手",
+  "dueDate": "2026-08-08",
+  "templateTaskId": "tpl-18",
+  "templateVersion": 1,
+  "overridden": false,
+  "templateSyncState": "同期済"
+}

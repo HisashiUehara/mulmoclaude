@@ -1,0 +1,10 @@
+{
+  "shortcuts": [
+    {
+      "kind": "collection",
+      "slug": "voice-nav",
+      "title": "MulmoNavi",
+      "icon": "navigation"
+    }
+  ]
+}

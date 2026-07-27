@@ -1,0 +1,8 @@
+{
+  "roleId": "general",
+  "startedAt": "2026-07-04T15:30:25.377Z",
+  "firstUserMessage": "I want to add a custom view to the \"社内マニュアルFAQ\" collection. Ask me what I want to see or edit, then author the HTML view file at data/skills/manual-faq/views/your-view.html and register it in data/skills/manual-faq/schema.json under `views[]` (capabilities [\"read\"] for a read-only view, [\"read\",\"write\"] if it edits records). Follow the custom-view help for the data contract.",
+  "userQueryCount": 1,
+  "claudeSessionId": "1ec28373-496c-4de6-a3d4-aa9ee8c4a3f5",
+  "hasUnread": false
+}

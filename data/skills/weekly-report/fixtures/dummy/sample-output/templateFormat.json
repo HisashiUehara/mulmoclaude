@@ -1,0 +1,438 @@
+{
+  "_meta": {
+    "stage": "S2-format",
+    "purpose": "テンプレート書式抽出(流し込み先の定義)"
+  },
+  "source": {
+    "path": "/Users/ueharahisashi/mulmoclaude/data/skills/weekly-report/fixtures/dummy/tenant-template.xlsx",
+    "kind": "xlsx"
+  },
+  "structure": {
+    "sheets": [
+      {
+        "name": "Report",
+        "dims": "A1:C26",
+        "merged": [
+          "A1:C1"
+        ]
+      }
+    ]
+  },
+  "elements": [
+    {
+      "loc": "Report/A1",
+      "text": "{{001}}",
+      "font": {
+        "name": "Arial",
+        "size": 16.0,
+        "bold": true,
+        "italic": false
+      },
+      "align": {
+        "h": "center",
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": true,
+      "is_placeholder": true,
+      "placeholder_id": "001"
+    },
+    {
+      "loc": "Report/A3",
+      "text": "Project:",
+      "font": {
+        "name": "Arial",
+        "size": 11.0,
+        "bold": true,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": true,
+      "is_placeholder": false,
+      "placeholder_id": null
+    },
+    {
+      "loc": "Report/B3",
+      "text": "{{002}}",
+      "font": {
+        "name": "Arial",
+        "size": 11.0,
+        "bold": false,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": false,
+      "is_placeholder": true,
+      "placeholder_id": "002"
+    },
+    {
+      "loc": "Report/A4",
+      "text": "Reporting week:",
+      "font": {
+        "name": "Arial",
+        "size": 11.0,
+        "bold": true,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": true,
+      "is_placeholder": false,
+      "placeholder_id": null
+    },
+    {
+      "loc": "Report/B4",
+      "text": "{{003}}",
+      "font": {
+        "name": "Arial",
+        "size": 11.0,
+        "bold": false,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": false,
+      "is_placeholder": true,
+      "placeholder_id": "003"
+    },
+    {
+      "loc": "Report/A5",
+      "text": "Contractor:",
+      "font": {
+        "name": "Arial",
+        "size": 11.0,
+        "bold": true,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": true,
+      "is_placeholder": false,
+      "placeholder_id": null
+    },
+    {
+      "loc": "Report/B5",
+      "text": "{{004}}",
+      "font": {
+        "name": "Arial",
+        "size": 11.0,
+        "bold": false,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": false,
+      "is_placeholder": true,
+      "placeholder_id": "004"
+    },
+    {
+      "loc": "Report/A7",
+      "text": "1. Overall Progress",
+      "font": {
+        "name": "Arial",
+        "size": 12.0,
+        "bold": true,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": true,
+      "is_placeholder": false,
+      "placeholder_id": null
+    },
+    {
+      "loc": "Report/A8",
+      "text": "{{005}}",
+      "font": {
+        "name": "Arial",
+        "size": 11.0,
+        "bold": false,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": false,
+      "is_placeholder": true,
+      "placeholder_id": "005"
+    },
+    {
+      "loc": "Report/A10",
+      "text": "2. Progress by Area",
+      "font": {
+        "name": "Arial",
+        "size": 12.0,
+        "bold": true,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": true,
+      "is_placeholder": false,
+      "placeholder_id": null
+    },
+    {
+      "loc": "Report/A11",
+      "text": "Area / This Week",
+      "font": {
+        "name": "Arial",
+        "size": 11.0,
+        "bold": true,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": true,
+      "is_placeholder": false,
+      "placeholder_id": null
+    },
+    {
+      "loc": "Report/A12",
+      "text": "{{006}}",
+      "font": {
+        "name": "Arial",
+        "size": 11.0,
+        "bold": false,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": false,
+      "is_placeholder": true,
+      "placeholder_id": "006"
+    },
+    {
+      "loc": "Report/A13",
+      "text": "{{007}}",
+      "font": {
+        "name": "Arial",
+        "size": 11.0,
+        "bold": false,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": false,
+      "is_placeholder": true,
+      "placeholder_id": "007"
+    },
+    {
+      "loc": "Report/A14",
+      "text": "{{008}}",
+      "font": {
+        "name": "Arial",
+        "size": 11.0,
+        "bold": false,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": false,
+      "is_placeholder": true,
+      "placeholder_id": "008"
+    },
+    {
+      "loc": "Report/A16",
+      "text": "3. Plan for Next Week",
+      "font": {
+        "name": "Arial",
+        "size": 12.0,
+        "bold": true,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": true,
+      "is_placeholder": false,
+      "placeholder_id": null
+    },
+    {
+      "loc": "Report/A17",
+      "text": "{{009}}",
+      "font": {
+        "name": "Arial",
+        "size": 11.0,
+        "bold": false,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": false,
+      "is_placeholder": true,
+      "placeholder_id": "009"
+    },
+    {
+      "loc": "Report/A19",
+      "text": "4. Issues",
+      "font": {
+        "name": "Arial",
+        "size": 12.0,
+        "bold": true,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": true,
+      "is_placeholder": false,
+      "placeholder_id": null
+    },
+    {
+      "loc": "Report/A20",
+      "text": "{{010}}",
+      "font": {
+        "name": "Arial",
+        "size": 11.0,
+        "bold": false,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": false,
+      "is_placeholder": true,
+      "placeholder_id": "010"
+    },
+    {
+      "loc": "Report/A22",
+      "text": "5. Safety",
+      "font": {
+        "name": "Arial",
+        "size": 12.0,
+        "bold": true,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": true,
+      "is_placeholder": false,
+      "placeholder_id": null
+    },
+    {
+      "loc": "Report/A23",
+      "text": "{{011}}",
+      "font": {
+        "name": "Arial",
+        "size": 11.0,
+        "bold": false,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": false,
+      "is_placeholder": true,
+      "placeholder_id": "011"
+    },
+    {
+      "loc": "Report/A25",
+      "text": "6. Notes",
+      "font": {
+        "name": "Arial",
+        "size": 12.0,
+        "bold": true,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": true,
+      "is_placeholder": false,
+      "placeholder_id": null
+    },
+    {
+      "loc": "Report/A26",
+      "text": "{{012}}",
+      "font": {
+        "name": "Arial",
+        "size": 11.0,
+        "bold": false,
+        "italic": false
+      },
+      "align": {
+        "h": null,
+        "v": null
+      },
+      "number_format": "General",
+      "is_heading": false,
+      "is_placeholder": true,
+      "placeholder_id": "012"
+    }
+  ],
+  "placeholders": {
+    "001": "Report/A1",
+    "002": "Report/B3",
+    "003": "Report/B4",
+    "004": "Report/B5",
+    "005": "Report/A8",
+    "006": "Report/A12",
+    "007": "Report/A13",
+    "008": "Report/A14",
+    "009": "Report/A17",
+    "010": "Report/A20",
+    "011": "Report/A23",
+    "012": "Report/A26"
+  },
+  "assets": {
+    "images": [],
+    "embedded_objects": [],
+    "headers_footers": []
+  }
+}

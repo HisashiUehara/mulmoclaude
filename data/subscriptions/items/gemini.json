@@ -1,0 +1,10 @@
+{
+  "id": "gemini",
+  "name": "Gemini",
+  "group": "AI系",
+  "status": "継続",
+  "monthlyCost": 0,
+  "billing": "課金なし",
+  "rawCost": "課金なし（確認済み）",
+  "howto": "無料利用のみ。課金なしを確認済み。"
+}

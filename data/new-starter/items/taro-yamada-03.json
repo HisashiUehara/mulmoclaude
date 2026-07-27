@@ -1,0 +1,39 @@
+{
+  "id": "taro-yamada-03",
+  "starter": "山田 太郎",
+  "startDate": "2026-08-01",
+  "phase": "入社前",
+  "category": "アカウント・IT関係",
+  "task": "配布グループ・Teamsチャネルへの追加",
+  "owner": "佐藤 花子",
+  "requestTo": "IT部門",
+  "status": "未着手",
+  "dueDate": "2026-07-24",
+  "templateTaskId": "tpl-03",
+  "templateVersion": 1,
+  "overridden": false,
+  "templateSyncState": "同期済",
+  "history": [
+    {
+      "at": "2026-07-18T10:00",
+      "actor": "Office Manager",
+      "field": "status",
+      "from": "未着手",
+      "to": "対応中"
+    },
+    {
+      "at": "2026-07-18T10:05",
+      "actor": "Office Manager",
+      "field": "status",
+      "from": "対応中",
+      "to": "完了"
+    },
+    {
+      "at": "2026-07-18T10:10",
+      "actor": "佐藤 花子",
+      "field": "owner",
+      "from": "佐藤 花子",
+      "to": "鈴木 次郎"
+    }
+  ]
+}

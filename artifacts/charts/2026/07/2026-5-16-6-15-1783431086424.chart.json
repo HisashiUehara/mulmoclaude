@@ -1,0 +1,290 @@
+{
+  "title": "先月の支払い内訳 — 合計 ¥239,106（2026/5/16〜6/15・127件）",
+  "charts": [
+    {
+      "title": "カテゴリ別シェア",
+      "type": "pie",
+      "option": {
+        "tooltip": {
+          "trigger": "item",
+          "formatter": "{b}: ¥{c} ({d}%)"
+        },
+        "legend": {
+          "type": "scroll",
+          "bottom": 0,
+          "textStyle": {
+            "fontSize": 11
+          }
+        },
+        "title": {
+          "text": "合計 ¥239,106",
+          "subtext": "2026/5/16〜6/15",
+          "left": "center",
+          "top": "38%",
+          "textStyle": {
+            "fontSize": 20,
+            "fontWeight": "bold"
+          },
+          "subtextStyle": {
+            "fontSize": 11
+          }
+        },
+        "series": [
+          {
+            "name": "支払い内訳",
+            "type": "pie",
+            "radius": [
+              "42%",
+              "70%"
+            ],
+            "center": [
+              "50%",
+              "46%"
+            ],
+            "avoidLabelOverlap": true,
+            "itemStyle": {
+              "borderColor": "#fff",
+              "borderWidth": 2
+            },
+            "label": {
+              "formatter": "{b}\n¥{c}",
+              "fontSize": 10
+            },
+            "data": [
+              {
+                "name": "Suicaチャージ",
+                "value": 44000,
+                "itemStyle": {
+                  "color": "#2563eb"
+                }
+              },
+              {
+                "name": "外食・カフェ",
+                "value": 40874,
+                "itemStyle": {
+                  "color": "#ea580c"
+                }
+              },
+              {
+                "name": "サブスク・デジタル",
+                "value": 30840,
+                "itemStyle": {
+                  "color": "#7c3aed"
+                }
+              },
+              {
+                "name": "衣料・雑貨",
+                "value": 25570,
+                "itemStyle": {
+                  "color": "#db2777"
+                }
+              },
+              {
+                "name": "スーパー",
+                "value": 24404,
+                "itemStyle": {
+                  "color": "#16a34a"
+                }
+              },
+              {
+                "name": "ドラッグストア",
+                "value": 19002,
+                "itemStyle": {
+                  "color": "#0d9488"
+                }
+              },
+              {
+                "name": "Amazon通販",
+                "value": 14844,
+                "itemStyle": {
+                  "color": "#f59e0b"
+                }
+              },
+              {
+                "name": "JR東日本(駅ビル物販)",
+                "value": 11339,
+                "itemStyle": {
+                  "color": "#0891b2"
+                }
+              },
+              {
+                "name": "コンビニ",
+                "value": 9894,
+                "itemStyle": {
+                  "color": "#65a30d"
+                }
+              },
+              {
+                "name": "美容",
+                "value": 5500,
+                "itemStyle": {
+                  "color": "#f472b6"
+                }
+              },
+              {
+                "name": "医療",
+                "value": 5160,
+                "itemStyle": {
+                  "color": "#dc2626"
+                }
+              },
+              {
+                "name": "分割払い",
+                "value": 4401,
+                "itemStyle": {
+                  "color": "#64748b"
+                }
+              },
+              {
+                "name": "chocoZAP",
+                "value": 3278,
+                "itemStyle": {
+                  "color": "#a16207"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "title": "カテゴリ別ランキング",
+      "type": "bar",
+      "option": {
+        "grid": {
+          "left": 130,
+          "right": 70,
+          "top": 20,
+          "bottom": 20
+        },
+        "tooltip": {
+          "trigger": "axis",
+          "axisPointer": {
+            "type": "shadow"
+          },
+          "formatter": "{b}: ¥{c}"
+        },
+        "xAxis": {
+          "type": "value",
+          "axisLabel": {
+            "formatter": "¥{value}"
+          }
+        },
+        "yAxis": {
+          "type": "category",
+          "inverse": true,
+          "data": [
+            "Suicaチャージ",
+            "外食・カフェ",
+            "サブスク・デジタル",
+            "衣料・雑貨",
+            "スーパー",
+            "ドラッグストア",
+            "Amazon通販",
+            "JR東日本(駅ビル物販)",
+            "コンビニ",
+            "美容",
+            "医療",
+            "分割払い",
+            "chocoZAP"
+          ],
+          "axisLabel": {
+            "fontSize": 11
+          }
+        },
+        "series": [
+          {
+            "type": "bar",
+            "barWidth": "62%",
+            "label": {
+              "show": true,
+              "position": "right",
+              "formatter": "¥{c}",
+              "fontSize": 10
+            },
+            "data": [
+              {
+                "value": 44000,
+                "itemStyle": {
+                  "color": "#2563eb"
+                }
+              },
+              {
+                "value": 40874,
+                "itemStyle": {
+                  "color": "#ea580c"
+                }
+              },
+              {
+                "value": 30840,
+                "itemStyle": {
+                  "color": "#7c3aed"
+                }
+              },
+              {
+                "value": 25570,
+                "itemStyle": {
+                  "color": "#db2777"
+                }
+              },
+              {
+                "value": 24404,
+                "itemStyle": {
+                  "color": "#16a34a"
+                }
+              },
+              {
+                "value": 19002,
+                "itemStyle": {
+                  "color": "#0d9488"
+                }
+              },
+              {
+                "value": 14844,
+                "itemStyle": {
+                  "color": "#f59e0b"
+                }
+              },
+              {
+                "value": 11339,
+                "itemStyle": {
+                  "color": "#0891b2"
+                }
+              },
+              {
+                "value": 9894,
+                "itemStyle": {
+                  "color": "#65a30d"
+                }
+              },
+              {
+                "value": 5500,
+                "itemStyle": {
+                  "color": "#f472b6"
+                }
+              },
+              {
+                "value": 5160,
+                "itemStyle": {
+                  "color": "#dc2626"
+                }
+              },
+              {
+                "value": 4401,
+                "itemStyle": {
+                  "color": "#64748b"
+                }
+              },
+              {
+                "value": 3278,
+                "itemStyle": {
+                  "color": "#a16207"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

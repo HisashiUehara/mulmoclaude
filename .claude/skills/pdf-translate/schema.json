@@ -1,0 +1,71 @@
+{
+  "title": "図面英訳ジョブ",
+  "icon": "translate",
+  "dataPath": "data/pdf-translate/items",
+  "primaryKey": "id",
+  "displayField": "title",
+  "kanbanField": "status",
+  "fields": {
+    "id": {
+      "type": "string",
+      "label": "ID",
+      "primary": true,
+      "required": true
+    },
+    "title": {
+      "type": "string",
+      "label": "図面名 / ラベル",
+      "required": true
+    },
+    "status": {
+      "type": "enum",
+      "label": "状態",
+      "values": ["作業中", "レビュー", "完了"],
+      "required": true
+    },
+    "sourcePdf": {
+      "type": "file",
+      "label": "元PDF"
+    },
+    "outputPdf": {
+      "type": "file",
+      "label": "英訳オーバーレイPDF"
+    },
+    "annotationCount": {
+      "type": "number",
+      "label": "注釈数"
+    },
+    "pageCount": {
+      "type": "number",
+      "label": "ページ数"
+    },
+    "notes": {
+      "type": "text",
+      "label": "メモ"
+    },
+    "updatedAt": {
+      "type": "date",
+      "label": "更新日"
+    }
+  },
+  "actions": [
+    {
+      "id": "edit-job",
+      "label": "追記・修正を依頼",
+      "icon": "edit_note",
+      "kind": "chat",
+      "role": "office",
+      "template": "templates/edit-job.md"
+    }
+  ],
+  "collectionActions": [
+    {
+      "id": "new-job",
+      "label": "新しい図面を英訳",
+      "icon": "add_photo_alternate",
+      "kind": "chat",
+      "role": "office",
+      "template": "templates/new-job.md"
+    }
+  ]
+}

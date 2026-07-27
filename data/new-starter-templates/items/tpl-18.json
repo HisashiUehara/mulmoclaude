@@ -1,0 +1,11 @@
+{
+  "id": "tpl-18",
+  "seq": 18,
+  "phase": "最初の1週間〜1ヶ月",
+  "category": "研修・フォロー",
+  "task": "必須研修（安全衛生、情報セキュリティ、コンプライアンス）",
+  "defaultOwnerRole": "人事研修担当",
+  "dueOffsetDays": 7,
+  "version": 1,
+  "active": "有効"
+}

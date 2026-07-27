@@ -1,0 +1,10 @@
+{
+  "id": "claude-api",
+  "name": "Claude APIクレジット",
+  "group": "AI系",
+  "status": "解約済み",
+  "monthlyCost": 17050,
+  "billing": "従量",
+  "rawCost": "API込み時 約17,050円/月",
+  "howto": "認証切替でAPI購入を停止。（1）claude logout →（2）claude login →（3）subscriptionを選択 →（4）環境変数 ANTHROPIC_API_KEY を削除。残高$100はMulmoClaude自動化用に温存。"
+}

@@ -1,0 +1,15 @@
+{
+  "id": "k-e002-20260715",
+  "employeeId": "e002",
+  "employeeName": "鈴木 一郎",
+  "date": "2026-07-15",
+  "workType": "出勤",
+  "businessTrip": true,
+  "startTime": "09:00",
+  "endTime": "20:00",
+  "breakMinutes": 60,
+  "workedMinutes": 600,
+  "status": "承認済",
+  "submittedTo": "e004",
+  "note": "大阪出張"
+}

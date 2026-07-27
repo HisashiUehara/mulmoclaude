@@ -1,0 +1,11 @@
+{
+  "id": "giant-msp-abc-thunder",
+  "title": "Giant MSP – ABC / Thunder(DH503) 施工工程表",
+  "category": "内装・建築",
+  "status": "下書き",
+  "startDate": "2026-07-13",
+  "hoursPerDay": 8,
+  "app": "artifacts/html/2026/07/msp-studio.html",
+  "notes": "GiantのMSP工程表にABCとThunder（DH503）の施工工程表を追加するためのドラフト。Task一覧表 task-20260710-004 に対応。ビルダーでWBSを入力→XML書き出し。",
+  "updatedAt": "2026-07-10"
+}

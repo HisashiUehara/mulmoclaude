@@ -1,0 +1,11 @@
+{
+  "id": "tpl-09",
+  "seq": 9,
+  "phase": "入社前",
+  "category": "物品",
+  "task": "入館証・セキュリティカード",
+  "defaultOwnerRole": "総務担当",
+  "dueOffsetDays": -2,
+  "version": 1,
+  "active": "有効"
+}

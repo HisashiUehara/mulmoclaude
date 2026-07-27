@@ -1,0 +1,8 @@
+{
+  "roleId": "general",
+  "startedAt": "2026-07-11T03:33:47.807Z",
+  "firstUserMessage": "MulmoConfirm という Collection を作ってください。\n目的\n確認作業(照合・検証・レビュー)を汎用的に扱う「Confirmation OS」の第一弾。私の仕事(データセンター建設PM)で発生する IST 試験成績書の確認と、単線結線図の As-built 差分確認にまず使うが、確認対象は限定しない。\n思想\n確認作業は必ず次の 6 要素で構成される:\n\n目的(何のために確認するか)\n基準(何と照らすか、出典つき)\n対象(確認するファイル群)\n照合(AI が実行、根拠箇所つき)\n判断(人間だけが行う。AI は候補までしか出せない)\n証跡(全プロセスを記録として残す)\n\nこの 6 要素を Confirmation DSL として定義し、AI が DSL を生成 → 人間が承認 → エンジンが照合を実行する。判断は必ず人間に残す(Vibe Approving)。\n動作フロー\n\nユーザーが自然言語で依頼+ファイルを渡す\nAI が確認計画(目的・基準・対象)を起案し、人間が承認\n承認後に照合を実行。判定は pass / fail / unclear の 3 値で、根拠のないものは必ず unclear\n結果は fail → unclear → pass の順で表示し、人間が最終判断して証跡を確定\n\n最初のUI\n差分テーブル(基準/期待値/実測値/判定/根拠箇所)の 1 種類だけでよい。図面系は後で拡張する。\n禁止事項\nAI が最終判断を確定させること。根拠箇所なしの pass。unclear の握りつぶし。",
+  "userQueryCount": 1,
+  "claudeSessionId": "cda6dc03-7a27-4931-88e6-d0d17a4cf009",
+  "hasUnread": false
+}

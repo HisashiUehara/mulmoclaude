@@ -1,0 +1,37 @@
+{
+  "title": "社内マニュアルFAQ",
+  "icon": "quiz",
+  "dataPath": "data/manual-faq/items",
+  "primaryKey": "id",
+  "displayField": "question",
+  "fields": {
+    "id": { "type": "string", "label": "ID", "primary": true, "required": true },
+    "question": { "type": "string", "label": "質問", "required": true },
+    "category": {
+      "type": "enum",
+      "label": "カテゴリ",
+      "values": ["勤怠", "経費", "出張", "設備・予約", "IT・システム", "その他"],
+      "required": true
+    },
+    "answer": { "type": "markdown", "label": "回答", "required": true },
+    "keywords": { "type": "string", "label": "検索キーワード（別名・言い換え）" },
+    "owner": { "type": "string", "label": "担当部署・問い合わせ先" },
+    "status": {
+      "type": "enum",
+      "label": "公開状態",
+      "values": ["公開", "下書き"],
+      "required": true
+    },
+    "updatedAt": { "type": "date", "label": "最終更新日" }
+  },
+  "kanbanField": "category",
+  "views": [
+    {
+      "id": "helpdesk",
+      "label": "ヘルプデスク",
+      "icon": "support_agent",
+      "file": "views/helpdesk.html",
+      "capabilities": ["read"]
+    }
+  ]
+}

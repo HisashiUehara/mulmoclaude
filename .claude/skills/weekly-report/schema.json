@@ -1,0 +1,69 @@
+{
+  "title": "WeeklyReport",
+  "icon": "translate",
+  "dataPath": "data/weekly-report/items",
+  "primaryKey": "id",
+  "fields": {
+    "id": { "type": "string", "label": "ID", "primary": true, "required": true },
+    "title": { "type": "string", "label": "案件名", "required": true },
+    "status": {
+      "type": "enum",
+      "label": "ステータス",
+      "required": true,
+      "values": ["入力待ち", "抽出済", "翻訳済", "承認待ち", "承認済", "完成"]
+    },
+    "contractorReport": {
+      "type": "file",
+      "label": "業者レポート（原文・日本語）"
+    },
+    "templateFile": {
+      "type": "file",
+      "label": "テナント用テンプレート"
+    },
+    "templateFormat": {
+      "type": "text",
+      "label": "抽出フォーマット（フォント/サイズ/配置のJSON）",
+      "when": { "field": "status", "in": ["抽出済", "翻訳済", "承認待ち", "承認済", "完成"] }
+    },
+    "items": {
+      "type": "table",
+      "label": "翻訳DSL（原文↔訳文）",
+      "of": {
+        "itemId": { "type": "string", "label": "項目ID" },
+        "source_location": { "type": "string", "label": "参照元（シート/セル・ページ/要素）" },
+        "原文": { "type": "text", "label": "原文（日本語）" },
+        "訳文": { "type": "text", "label": "訳文（英語）" },
+        "confidence": { "type": "enum", "label": "確信度", "values": ["high", "low"] }
+      }
+    },
+    "approvedBy": {
+      "type": "string",
+      "label": "承認者（人間）",
+      "when": { "field": "status", "in": ["承認済", "完成"] }
+    },
+    "approvedAt": {
+      "type": "date",
+      "label": "承認日",
+      "when": { "field": "status", "in": ["承認済", "完成"] }
+    },
+    "outputFile": {
+      "type": "file",
+      "label": "完成ファイル（英文レポート）",
+      "when": { "field": "status", "in": ["完成"] }
+    },
+    "auditLog": {
+      "type": "table",
+      "label": "証跡（全プロセスの記録）",
+      "of": {
+        "when": { "type": "string", "label": "日時" },
+        "who": { "type": "string", "label": "実行者" },
+        "stage": { "type": "string", "label": "ステップ" },
+        "detail": { "type": "string", "label": "内容" }
+      }
+    }
+  },
+  "displayField": "title",
+  "kanbanField": "status",
+  "completionField": "status",
+  "completionDoneValues": ["完成"]
+}

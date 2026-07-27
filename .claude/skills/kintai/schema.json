@@ -1,0 +1,32 @@
+{
+  "title": "勤怠管理",
+  "icon": "schedule",
+  "dataPath": "data/kintai/items",
+  "primaryKey": "id",
+  "displayField": "employeeName",
+  "kanbanField": "status",
+  "calendarField": "date",
+  "fields": {
+    "id": { "type": "string", "label": "ID", "primary": true, "required": true },
+    "employeeId": { "type": "ref", "to": "employees", "label": "従業員" },
+    "employeeName": { "type": "string", "label": "氏名" },
+    "date": { "type": "date", "label": "勤務日", "required": true },
+    "workType": { "type": "enum", "label": "勤務区分", "values": ["出勤", "有給休暇", "欠勤", "休日"], "required": true },
+    "businessTrip": { "type": "boolean", "label": "出張" },
+    "startTime": { "type": "string", "label": "始業", "when": { "field": "workType", "in": ["出勤"] } },
+    "endTime": { "type": "string", "label": "終業", "when": { "field": "workType", "in": ["出勤"] } },
+    "breakMinutes": { "type": "number", "label": "休憩(分)", "when": { "field": "workType", "in": ["出勤"] } },
+    "workedMinutes": { "type": "number", "label": "実働(分)" },
+    "workedHours": { "type": "derived", "label": "実働(時間)", "formula": "workedMinutes / 60", "display": "number" },
+    "dailyPay": { "type": "derived", "label": "日額賃金", "formula": "workedMinutes / 60 * employeeId.hourlyWage", "display": "money", "currency": "JPY" },
+    "status": { "type": "enum", "label": "承認状況", "values": ["下書き", "申請中", "承認済", "否認"], "required": true },
+    "submittedTo": { "type": "ref", "to": "employees", "label": "承認申請先(上司)" },
+    "approvedBy": { "type": "string", "label": "承認者" },
+    "rejectReason": { "type": "string", "label": "否認理由", "when": { "field": "status", "in": ["否認"] } },
+    "note": { "type": "string", "label": "備考" }
+  },
+  "views": [
+    { "id": "app", "label": "勤怠アプリ", "icon": "apps", "file": "views/app.html", "capabilities": ["read", "write"] },
+    { "id": "summary-chart", "label": "集計グラフ", "icon": "bar_chart", "file": "views/summary-chart.html", "capabilities": ["read", "write"] }
+  ]
+}

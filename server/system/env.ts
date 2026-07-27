@@ -93,6 +93,10 @@ export const env = Object.freeze({
 
   // API credentials (undefined when not configured)
   geminiApiKey: process.env.GEMINI_API_KEY,
+  // OpenAI key for the /api/tts text-to-speech proxy (voice-nav). Undefined
+  // when unset → the endpoint returns 503 and the client falls back to the
+  // browser's Web Speech API. See server/api/routes/tts.ts.
+  openaiApiKey: process.env.OPENAI_API_KEY,
   xBearerToken: process.env.X_BEARER_TOKEN,
 
   // Bearer auth token (#272, #316): if set, the server uses this

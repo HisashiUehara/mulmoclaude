@@ -1,0 +1,68 @@
+{
+  "title": "オンボーディング監査ログ",
+  "icon": "history",
+  "dataPath": "data/onboarding-audit/items",
+  "primaryKey": "id",
+  "fields": {
+    "id": {
+      "type": "string",
+      "label": "ID",
+      "primary": true,
+      "required": true
+    },
+    "at": {
+      "type": "datetime",
+      "label": "日時",
+      "required": true
+    },
+    "actor": {
+      "type": "string",
+      "label": "操作者"
+    },
+    "starter": {
+      "type": "string",
+      "label": "新入社員"
+    },
+    "taskId": {
+      "type": "ref",
+      "label": "タスク",
+      "to": "new-starter"
+    },
+    "taskName": {
+      "type": "string",
+      "label": "タスク名"
+    },
+    "templateTaskId": {
+      "type": "string",
+      "label": "テンプレ由来"
+    },
+    "field": {
+      "type": "enum",
+      "label": "項目",
+      "required": true,
+      "values": [
+        "status",
+        "owner",
+        "dueDate",
+        "template"
+      ]
+    },
+    "fromValue": {
+      "type": "string",
+      "label": "変更前"
+    },
+    "toValue": {
+      "type": "string",
+      "label": "変更後"
+    }
+  },
+  "displayField": "taskName",
+  "calendarField": "at",
+  "kanbanField": "field",
+  "ingest": {
+    "kind": "agent",
+    "schedule": "on-demand",
+    "role": "office",
+    "template": "templates/sync-audit.md"
+  }
+}

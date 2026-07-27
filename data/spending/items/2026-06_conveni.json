@@ -1,0 +1,21 @@
+{
+  "id": "2026-06_conveni",
+  "month": "2026-06",
+  "periodLabel": "5/16〜6/15",
+  "category": "コンビニ",
+  "amount": 9894,
+  "merchants": [
+    {
+      "name": "セブン-イレブン",
+      "amount": 5944
+    },
+    {
+      "name": "ファミリーマート",
+      "amount": 2374
+    },
+    {
+      "name": "ローソン",
+      "amount": 1576
+    }
+  ]
+}

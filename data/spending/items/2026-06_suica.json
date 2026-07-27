@@ -1,0 +1,15 @@
+{
+  "id": "2026-06_suica",
+  "month": "2026-06",
+  "periodLabel": "5/16〜6/15",
+  "category": "Suicaチャージ",
+  "amount": 44000,
+  "count": 22,
+  "merchants": [
+    {
+      "name": "オートチャージ ¥2,000×22回",
+      "amount": 44000,
+      "count": 22
+    }
+  ]
+}

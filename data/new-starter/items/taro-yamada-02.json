@@ -1,0 +1,18 @@
+{
+  "id": "taro-yamada-02",
+  "starter": "山田 太郎",
+  "startDate": "2026-08-01",
+  "phase": "入社前",
+  "category": "アカウント・IT関係",
+  "task": "全社共通SharePointサイトへのアクセス確認",
+  "detail": "各Projectサイトへはここから遷移。必要なProjectサイトの権限付与も併せて依頼",
+  "owner": "佐藤 花子",
+  "requestTo": "IT部門",
+  "status": "対応中",
+  "dueDate": "2026-07-22",
+  "memo": "配属PJ未確定。確定次第、権限依頼追記",
+  "templateTaskId": "tpl-02",
+  "templateVersion": 1,
+  "overridden": false,
+  "templateSyncState": "同期済"
+}

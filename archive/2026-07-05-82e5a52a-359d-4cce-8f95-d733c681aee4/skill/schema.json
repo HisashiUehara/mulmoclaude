@@ -1,0 +1,74 @@
+{
+  "title": "ほしい物リスト（Hisashi）",
+  "icon": "redeem",
+  "dataPath": "data/wishlist/items",
+  "primaryKey": "id",
+  "fields": {
+    "id": {
+      "type": "string",
+      "label": "ID",
+      "primary": true,
+      "required": true
+    },
+    "name": {
+      "type": "string",
+      "label": "品名",
+      "required": true
+    },
+    "category": {
+      "type": "enum",
+      "label": "カテゴリ",
+      "values": [
+        "PC・家電",
+        "バッグ",
+        "ファッション小物",
+        "その他"
+      ]
+    },
+    "priority": {
+      "type": "enum",
+      "label": "優先度",
+      "values": [
+        "高",
+        "中",
+        "低"
+      ]
+    },
+    "price": {
+      "type": "money",
+      "label": "価格(概算)",
+      "currency": "JPY"
+    },
+    "status": {
+      "type": "enum",
+      "label": "ステータス",
+      "required": true,
+      "values": [
+        "ほしい",
+        "検討中",
+        "購入済み"
+      ]
+    },
+    "purchased": {
+      "type": "toggle",
+      "label": "購入済み",
+      "field": "status",
+      "onValue": "購入済み",
+      "offValue": "ほしい"
+    },
+    "url": {
+      "type": "string",
+      "label": "商品URL/リンク"
+    },
+    "notes": {
+      "type": "text",
+      "label": "メモ"
+    }
+  },
+  "completionField": "status",
+  "completionDoneValues": [
+    "購入済み"
+  ],
+  "displayField": "name",
+  "kanbanField": "status"
+}

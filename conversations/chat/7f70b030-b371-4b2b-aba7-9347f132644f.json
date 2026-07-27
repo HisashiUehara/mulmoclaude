@@ -1,0 +1,8 @@
+{
+  "roleId": "general",
+  "startedAt": "2026-07-06T11:40:03.951Z",
+  "firstUserMessage": "I want to add a custom view to the \"音声ナビ\" collection. Ask me what I want to see or edit, then author the HTML view file at data/skills/voice-nav/views/your-view.html and register it in data/skills/voice-nav/schema.json under `views[]` (capabilities [\"read\"] for a read-only view, [\"read\",\"write\"] if it edits records). Follow the custom-view help for the data contract.",
+  "userQueryCount": 7,
+  "claudeSessionId": "0b203f76-c388-4c63-a7a8-86cd073c3330",
+  "hasUnread": false
+}

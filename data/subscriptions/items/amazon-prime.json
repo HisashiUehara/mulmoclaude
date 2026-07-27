@@ -1,0 +1,9 @@
+{
+  "id": "amazon-prime",
+  "name": "Amazonプライム",
+  "group": "エンタメ・生活",
+  "status": "解約予定",
+  "monthlyCost": 600,
+  "billing": "月払",
+  "howto": "Amazonのアカウントサービスから解約。"
+}

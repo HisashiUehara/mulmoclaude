@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+        margin: 0;
+        padding: 0;
+        color: #0f172a;
+        background: #f8fafc;
+      }
+      .wrap { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
+      header.hero {
+        text-align: center;
+        padding: 20px 0 8px;
+      }
+      header.hero h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: .02em; }
+      header.hero p { margin: 0; color: #64748b; font-size: 13px; }
+      .searchbar {
+        position: sticky; top: 0; z-index: 5;
+        background: #f8fafc; padding: 16px 0 10px;
+      }
+      .searchbox {
+        display: flex; align-items: center; gap: 8px;
+        background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+        padding: 12px 16px; box-shadow: 0 1px 3px rgba(15,23,42,.06);
+      }
+      .searchbox:focus-within { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.15); }
+      .searchbox svg { flex: none; width: 20px; height: 20px; fill: #94a3b8; }
+      .searchbox input {
+        border: none; outline: none; font-size: 16px; width: 100%; background: transparent; color: #0f172a;
+      }
+      .clearbtn {
+        border: none; background: #f1f5f9; color: #64748b; cursor: pointer;
+        border-radius: 8px; padding: 4px 8px; font-size: 12px; display: none;
+      }
+      .cats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+      .cat {
+        border: 1px solid #e2e8f0; background: #fff; color: #475569;
+        border-radius: 999px; padding: 6px 14px; font-size: 13px; cursor: pointer;
+        transition: all .12s; user-select: none;
+      }
+      .cat:hover { border-color: #cbd5e1; }
+      .cat.active { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+      .cat .n { opacity: .65; font-size: 11px; margin-left: 4px; }
+      .meta { color: #94a3b8; font-size: 12px; margin: 14px 2px 8px; }
+      .list { display: flex; flex-direction: column; gap: 10px; }
+      details.card {
+        background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+        overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,42,.04);
+      }
+      details.card[open] { border-color: #c7d2fe; box-shadow: 0 4px 14px rgba(79,70,229,.08); }
+      summary {
+        list-style: none; cursor: pointer; padding: 15px 18px;
+        display: flex; align-items: flex-start; gap: 12px;
+      }
+      summary::-webkit-details-marker { display: none; }
+      .qtext { flex: 1; font-size: 15px; font-weight: 600; line-height: 1.5; }
+      .badge {
+        flex: none; font-size: 11px; font-weight: 600; padding: 3px 9px;
+        border-radius: 999px; white-space: nowrap; margin-top: 1px;
+      }
+      .chev { flex: none; width: 18px; height: 18px; fill: #94a3b8; margin-top: 3px; transition: transform .15s; }
+      details[open] .chev { transform: rotate(180deg); }
+      .answer {
+        padding: 2px 18px 18px 18px; color: #334155; font-size: 14px; line-height: 1.75;
+        border-top: 1px dashed #eef2f7;
+      }
+      .answer h1,.answer h2,.answer h3 { font-size: 15px; margin: 14px 0 6px; }
+      .answer ol,.answer ul { padding-left: 22px; margin: 8px 0; }
+      .answer li { margin: 4px 0; }
+      .answer code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+      .answer p { margin: 8px 0; }
+      .owner { margin-top: 14px; font-size: 12px; color: #64748b; }
+      .owner b { color: #475569; }
+      .draftflag { color: #b45309; background: #fef3c7; }
+      .actions { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+      .askbtn {
+        border: 1px solid #4f46e5; background: #4f46e5; color: #fff; cursor: pointer;
+        border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600;
+      }
+      .askbtn.ghost { background: #fff; color: #4f46e5; }
+      .empty {
+        text-align: center; color: #94a3b8; padding: 50px 20px; font-size: 14px;
+      }
+      .empty .ask {
+        margin-top: 14px;
+      }
+      mark { background: #fef08a; color: inherit; border-radius: 3px; padding: 0 1px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <h1>Turner &amp; Townsend KK ヘルプデスク</h1>
+        <p>マニュアルの疑問を検索、またはカテゴリから探せます</p>
+      </header>
+
+      <div class="searchbar">
+        <div class="searchbox">
+          <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z"/></svg>
+          <input id="q" type="text" placeholder="例: 経費申請 / 有給 / プリンター 設定 …" autocomplete="off" />
+          <button class="clearbtn" id="clear">クリア</button>
+        </div>
+        <div class="cats" id="cats"></div>
+      </div>
+
+      <div class="meta" id="meta"></div>
+      <div class="list" id="list"></div>
+    </div>
+
+    <script>
+      const CAT_COLORS = {
+        "勤怠": "#0369a1|#e0f2fe",
+        "経費": "#15803d|#dcfce7",
+        "出張": "#b45309|#fef3c7",
+        "設備・予約": "#7c3aed|#ede9fe",
+        "IT・システム": "#0e7490|#cffafe",
+        "その他": "#475569|#f1f5f9",
+      };
+      const state = { all: [], cat: "すべて", q: "" };
+
+      function esc(s) {
+        return String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      }
+      // Minimal, safe markdown → HTML for answers (headings, lists, bold, code).
+      function md(src) {
+        const lines = String(src || "").split(/\r?\n/);
+        let html = "", inOl = false, inUl = false;
+        const closeLists = () => { if (inOl) { html += "</ol>"; inOl = false; } if (inUl) { html += "</ul>"; inUl = false; } };
+        const inline = (t) => esc(t)
+          .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+          .replace(/`([^`]+)`/g, "<code>$1</code>");
+        for (const raw of lines) {
+          const line = raw.trimEnd();
+          let m;
+          if ((m = line.match(/^\s*#{1,3}\s+(.*)$/))) { closeLists(); html += "<h3>" + inline(m[1]) + "</h3>"; }
+          else if ((m = line.match(/^\s*\d+\.\s+(.*)$/))) { if (!inOl) { closeLists(); html += "<ol>"; inOl = true; } html += "<li>" + inline(m[1]) + "</li>"; }
+          else if ((m = line.match(/^\s*[-*]\s+(.*)$/))) { if (!inUl) { closeLists(); html += "<ul>"; inUl = true; } html += "<li>" + inline(m[1]) + "</li>"; }
+          else if (line === "") { closeLists(); }
+          else { closeLists(); html += "<p>" + inline(line) + "</p>"; }
+        }
+        closeLists();
+        return html;
+      }
+      function highlight(text, q) {
+        if (!q) return esc(text);
+        const terms = q.split(/\s+/).filter(Boolean).map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+        if (!terms.length) return esc(text);
+        return esc(text).replace(new RegExp("(" + terms.join("|") + ")", "gi"), "<mark>$1</mark>");
+      }
+      function matches(rec, q) {
+        if (!q) return true;
+        const hay = (rec.question + " " + (rec.keywords || "") + " " + (rec.answer || "") + " " + rec.category).toLowerCase();
+        return q.toLowerCase().split(/\s+/).filter(Boolean).every((t) => hay.includes(t));
+      }
+      function badge(cat) {
+        const [fg, bg] = (CAT_COLORS[cat] || "#475569|#f1f5f9").split("|");
+        return '<span class="badge" style="color:' + fg + ";background:" + bg + '">' + esc(cat) + "</span>";
+      }
+
+      function renderCats() {
+        const counts = {};
+        for (const r of state.all) counts[r.category] = (counts[r.category] || 0) + 1;
+        const cats = ["すべて", ...Object.keys(CAT_COLORS).filter((c) => counts[c])];
+        document.getElementById("cats").innerHTML = cats
+          .map((c) => {
+            const n = c === "すべて" ? state.all.length : counts[c] || 0;
+            return '<div class="cat' + (state.cat === c ? " active" : "") + '" data-cat="' + esc(c) + '">' + esc(c) + '<span class="n">' + n + "</span></div>";
+          })
+          .join("");
+      }
+
+      function render() {
+        const q = state.q.trim();
+        let rows = state.all.filter((r) => (state.cat === "すべて" || r.category === state.cat) && matches(r, q));
+        document.getElementById("meta").textContent = rows.length + " 件" + (q ? "（「" + q + "」）" : "");
+        const list = document.getElementById("list");
+        if (!rows.length) {
+          list.innerHTML =
+            '<div class="empty">該当するFAQが見つかりませんでした。<div class="ask">' +
+            '<button class="askbtn" id="askNew">この質問を担当者に聞く</button></div></div>';
+          const b = document.getElementById("askNew");
+          if (b) b.onclick = () => askDesk(q || "（質問内容を記入してください）");
+          return;
+        }
+        list.innerHTML = rows
+          .map((r) => {
+            const draft = r.status === "下書き" ? '<span class="badge draftflag">下書き</span> ' : "";
+            const owner = r.owner ? '<div class="owner"><b>問い合わせ先:</b> ' + esc(r.owner) + "</div>" : "";
+            return (
+              '<details class="card"><summary>' +
+              '<span class="qtext">' + highlight(r.question, q) + "</span>" +
+              draft + badge(r.category) +
+              '<svg class="chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>' +
+              "</summary><div class=\"answer\">" +
+              md(r.answer) + owner +
+              '<div class="actions"><button class="askbtn ghost" data-ask="' + esc(r.question) + '">解決しない・担当者に聞く</button></div>' +
+              "</div></details>"
+            );
+          })
+          .join("");
+        list.querySelectorAll("[data-ask]").forEach((btn) => {
+          btn.onclick = (e) => { e.preventDefault(); askDesk(btn.getAttribute("data-ask")); };
+        });
+      }
+
+      function askDesk(question) {
+        const prompt =
+          "社内マニュアルFAQ（manual-faq コレクション）を確認しましたが、以下の質問の答えが見つかりませんでした。" +
+          "回答を教えてください。もし新しいFAQとして登録すべき内容なら、manual-faq コレクションに追加してください。\n\n" +
+          "質問: " + question;
+        if (window.__MC_VIEW && window.__MC_VIEW.startChat) window.__MC_VIEW.startChat(prompt, "office");
+      }
+
+      async function load() {
+        const { token, dataUrl } = window.__MC_VIEW;
+        const url = dataUrl + "?fields=" + encodeURIComponent("question,category,answer,keywords,owner,status");
+        const res = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+        if (!res.ok) {
+          document.getElementById("list").innerHTML = '<div class="empty">読み込みに失敗しました (' + res.status + "): " + esc(await res.text()) + "</div>";
+          return;
+        }
+        const { items } = await res.json();
+        // Show published first; drafts still visible but flagged.
+        state.all = items.sort((a, b) => (a.status === b.status ? 0 : a.status === "公開" ? -1 : 1));
+        renderCats();
+        render();
+      }
+
+      document.getElementById("q").addEventListener("input", (e) => {
+        state.q = e.target.value;
+        document.getElementById("clear").style.display = state.q ? "block" : "none";
+        render();
+      });
+      document.getElementById("clear").onclick = () => {
+        state.q = "";
+        document.getElementById("q").value = "";
+        document.getElementById("clear").style.display = "none";
+        render();
+      };
+      document.getElementById("cats").addEventListener("click", (e) => {
+        const el = e.target.closest(".cat");
+        if (!el) return;
+        state.cat = el.getAttribute("data-cat");
+        renderCats();
+        render();
+      });
+
+      load().catch((e) => {
+        document.getElementById("list").innerHTML = '<div class="empty">エラー: ' + esc(e.message) + "</div>";
+      });
+      if (window.__MC_VIEW && window.__MC_VIEW.onChange) window.__MC_VIEW.onChange(() => load().catch(() => {}));
+    </script>
+  </body>
+</html>

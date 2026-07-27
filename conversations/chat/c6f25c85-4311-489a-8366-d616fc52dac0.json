@@ -1,0 +1,9 @@
+{
+  "roleId": "general",
+  "startedAt": "2026-07-22T22:23:35.421Z",
+  "firstUserMessage": "/voice-nav 現状の開発状況を教えて",
+  "origin": "skill",
+  "userQueryCount": 1,
+  "claudeSessionId": "4ef19085-363e-4a48-b526-d24e1acfb68a",
+  "hasUnread": true
+}

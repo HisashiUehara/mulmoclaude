@@ -1,0 +1,14 @@
+{
+  "id": "commissioning-5-levels",
+  "title": "コミッショニングの5レベル",
+  "category": "コミッショニング・試験",
+  "phase": "コミッショニング",
+  "importance": "高",
+  "status": "確認済み",
+  "summary": "①工場立会(FAT)→②搬入据付→③起動・機能前試験→④機能性能試験→⑤IST(統合システム試験, 実運用シナリオのE2E検証)。",
+  "detail": "## 5レベル\n\n1. **工場立会（FAT）** — Factory Acceptance Test\n2. **搬入据付**\n3. **起動・機能前試験**\n4. **機能性能試験**\n5. **IST（統合システム試験）** — 実運用シナリオでのエンドツーエンド検証\n\n段階的に「単体→統合」へ検証範囲を広げ、最終のISTで実負荷・障害シナリオを通す。（→ 別レコード「IST（統合稼働試験）」参照）",
+  "tags": "Cx,FAT,IST,試験,検収",
+  "keywords": "コミッショニング, Commissioning, FAT, Factory Acceptance Test, IST, 統合システム試験, L1 L5",
+  "source": "",
+  "createdAt": "2026-07-11"
+}

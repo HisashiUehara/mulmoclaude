@@ -1,0 +1,11 @@
+{
+  "id": "tpl-17",
+  "seq": 17,
+  "phase": "初日",
+  "category": "初日オリエン",
+  "task": "チーム紹介、オフィスツアー、緊急連絡先の共有",
+  "defaultOwnerRole": "配属PJマネージャー",
+  "dueOffsetDays": 0,
+  "version": 1,
+  "active": "有効"
+}

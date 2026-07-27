@@ -1,0 +1,8 @@
+{
+  "roleId": "general",
+  "startedAt": "2026-07-04T06:29:16.970Z",
+  "firstUserMessage": "Help me create a new collection. First read `config/helps/collection-skills.md` for the schema-driven collection conventions. Then use the `presentForm` tool (do not use AskUserQuestion) to ask me what kind of data I want to track, and author the schema.json and SKILL.md from my answers.",
+  "userQueryCount": 1,
+  "claudeSessionId": "1dddd1a0-8cb2-4b79-960c-90d7753e4bf0",
+  "hasUnread": false
+}

@@ -1,0 +1,13 @@
+{
+  "id": "2026-06_chocozap",
+  "month": "2026-06",
+  "periodLabel": "5/16〜6/15",
+  "category": "chocoZAP",
+  "amount": 3278,
+  "merchants": [
+    {
+      "name": "chocoZAP",
+      "amount": 3278
+    }
+  ]
+}

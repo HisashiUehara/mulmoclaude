@@ -1,0 +1,16 @@
+{
+  "id": "taro-yamada-09",
+  "starter": "山田 太郎",
+  "startDate": "2026-08-01",
+  "phase": "入社前",
+  "category": "物品",
+  "task": "入館証・セキュリティカード",
+  "owner": "田中 一郎",
+  "requestTo": "総務",
+  "status": "未着手",
+  "dueDate": "2026-07-30",
+  "templateTaskId": "tpl-09",
+  "templateVersion": 1,
+  "overridden": false,
+  "templateSyncState": "同期済"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "claude-max",
+  "name": "Claude Max 5x",
+  "group": "AI系",
+  "status": "継続",
+  "monthlyCost": 17050,
+  "billing": "月払",
+  "rawCost": "$110 ≒ 17,050円",
+  "howto": "継続利用。MulmoClaudeの主力。"
+}

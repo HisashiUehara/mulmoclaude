@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --ink: #0f172a;
+        --muted: #64748b;
+        --line: #e2e8f0;
+      }
+      * { box-sizing: border-box; }
+      body {
+        font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      h1 { font-size: 18px; margin: 0 0 2px; }
+      .sub { font-size: 12px; color: var(--muted); margin: 0 0 16px; }
+      .bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .bar label { font-size: 13px; color: var(--muted); }
+      select {
+        font-size: 14px;
+        padding: 6px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--ink);
+      }
+      .total {
+        margin-left: auto;
+        text-align: right;
+      }
+      .total .n { font-size: 22px; font-weight: 700; }
+      .total .l { font-size: 11px; color: var(--muted); }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 18px;
+        margin-bottom: 18px;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      }
+      .card h2 { font-size: 14px; margin: 0 0 14px; }
+      .pie-wrap {
+        display: grid;
+        grid-template-columns: minmax(220px, 320px) 1fr;
+        gap: 20px;
+        align-items: center;
+      }
+      @media (max-width: 640px) { .pie-wrap { grid-template-columns: 1fr; } }
+      .canvas-box { position: relative; height: 300px; }
+      .legend { list-style: none; margin: 0; padding: 0; }
+      .legend li {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 0;
+        font-size: 13px;
+        border-bottom: 1px dashed var(--line);
+      }
+      .dot { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+      .legend .cat { flex: 1; }
+      .legend .amt { font-variant-numeric: tabular-nums; font-weight: 600; }
+      .legend .pct { color: var(--muted); width: 46px; text-align: right; font-size: 12px; }
+      .legend .cnt { color: var(--muted); width: 44px; text-align: right; font-size: 12px; }
+      .legend .row { display: flex; align-items: center; gap: 8px; width: 100%; cursor: pointer; }
+      .legend .row .caret { width: 12px; color: var(--muted); font-size: 10px; transition: transform 0.15s; }
+      .legend li.open .caret { transform: rotate(90deg); }
+      .mlist { list-style: none; margin: 6px 0 2px 20px; padding: 0; display: none; }
+      .legend li.open .mlist { display: block; }
+      .mlist li {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        color: var(--muted);
+        padding: 2px 0;
+        border: none;
+      }
+      .mlist li .m-amt { font-variant-numeric: tabular-nums; color: var(--ink); }
+      .legend li.no-sub .caret { visibility: hidden; }
+      .annual-box { position: relative; height: 340px; }
+      .err { color: #b91c1c; font-size: 13px; }
+      .empty { color: var(--muted); font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <h1>💴 支払い内訳ダッシュボード</h1>
+    <p class="sub" id="sub">読み込み中…</p>
+
+    <div class="bar">
+      <label for="monthSel">対象月</label>
+      <select id="monthSel"></select>
+      <div class="total">
+        <div class="n" id="totalN">—</div>
+        <div class="l" id="totalL">選択月の合計</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>カテゴリ別内訳（円グラフ）</h2>
+      <div class="pie-wrap">
+        <div class="canvas-box"><canvas id="pie"></canvas></div>
+        <ul class="legend" id="legend"></ul>
+      </div>
+      <div class="empty" id="pieEmpty" style="display:none">この月のデータがありません。</div>
+    </div>
+
+    <div class="card">
+      <h2>年間グラフ（月別・カテゴリ積み上げ）</h2>
+      <div class="annual-box"><canvas id="annual"></canvas></div>
+    </div>
+
+    <script>
+      // カテゴリ → 色（円グラフと年間グラフで共通）。未知カテゴリはパレットから自動割当。
+      const COLORS = {
+        "Suicaチャージ": "#2563eb",
+        "外食・カフェ": "#ea580c",
+        "サブスク・デジタル": "#7c3aed",
+        "衣料・雑貨": "#db2777",
+        "スーパー": "#16a34a",
+        "ドラッグストア": "#0d9488",
+        "Amazon通販": "#f59e0b",
+        "JR東日本(駅ビル物販)": "#0891b2",
+        "コンビニ": "#65a30d",
+        "美容": "#f472b6",
+        "医療": "#dc2626",
+        "分割払い": "#64748b",
+        "chocoZAP": "#a16207",
+      };
+      const FALLBACK = ["#4f46e5", "#059669", "#d97706", "#be123c", "#0284c7", "#9333ea", "#ca8a04", "#475569"];
+      function colorFor(cat, i) { return COLORS[cat] || FALLBACK[i % FALLBACK.length]; }
+
+      const yen = (n) => "¥" + Math.round(n).toLocaleString("ja-JP");
+      const { token, dataUrl } = window.__MC_VIEW;
+      const readUrl = dataUrl + "?fields=" + encodeURIComponent("month,periodLabel,category,amount,count,merchants");
+
+      let pieChart = null;
+      let annualChart = null;
+      let rows = [];
+
+      async function load() {
+        const res = await fetch(readUrl, { headers: { Authorization: "Bearer " + token } });
+        if (!res.ok) throw new Error("HTTP " + res.status + ": " + (await res.text()));
+        rows = (await res.json()).items || [];
+      }
+
+      function months() {
+        return [...new Set(rows.map((r) => r.month).filter(Boolean))].sort();
+      }
+      function categoriesOrder() {
+        // 全期間の合計が大きい順に安定した並び
+        const sum = {};
+        for (const r of rows) sum[r.category] = (sum[r.category] || 0) + (Number(r.amount) || 0);
+        return Object.keys(sum).sort((a, b) => sum[b] - sum[a]);
+      }
+
+      function renderPie(month) {
+        const box = document.getElementById("pieEmpty");
+        const monthRows = rows.filter((r) => r.month === month && Number(r.amount) > 0);
+        monthRows.sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0));
+
+        const total = monthRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+        const cnt = monthRows.reduce((s, r) => s + (Number(r.count) || 0), 0);
+        const period = (monthRows.find((r) => r.periodLabel) || {}).periodLabel;
+
+        document.getElementById("totalN").textContent = total ? yen(total) : "—";
+        document.getElementById("totalL").textContent =
+          "選択月の合計" + (cnt ? "・" + cnt + "件" : "") + (period ? "（" + period + "）" : "");
+
+        const labels = monthRows.map((r) => r.category);
+        const data = monthRows.map((r) => Number(r.amount) || 0);
+        const bg = monthRows.map((r, i) => colorFor(r.category, i));
+
+        box.style.display = monthRows.length ? "none" : "block";
+
+        const cfg = {
+          type: "doughnut",
+          data: { labels, datasets: [{ data, backgroundColor: bg, borderColor: "#fff", borderWidth: 2 }] },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: "58%",
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (c) => {
+                    const v = c.parsed;
+                    const p = total ? ((v / total) * 100).toFixed(1) : 0;
+                    return " " + c.label + ": " + yen(v) + " (" + p + "%)";
+                  },
+                },
+              },
+            },
+          },
+        };
+        if (pieChart) { pieChart.data = cfg.data; pieChart.update(); }
+        else pieChart = new Chart(document.getElementById("pie"), cfg);
+
+        const leg = document.getElementById("legend");
+        leg.innerHTML = monthRows
+          .map((r, i) => {
+            const v = Number(r.amount) || 0;
+            const p = total ? ((v / total) * 100).toFixed(1) : 0;
+            const c = Number(r.count) || 0;
+            const ms = Array.isArray(r.merchants) ? r.merchants.filter((m) => m && m.name) : [];
+            const hasSub = ms.length > 1 || (ms.length === 1 && ms[0].name !== r.category);
+            const subHtml = ms
+              .slice()
+              .sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0))
+              .map(
+                (m) =>
+                  "<li><span>" + esc(m.name) +
+                  (m.count ? " (" + m.count + "件)" : "") +
+                  '</span><span class="m-amt">' + yen(Number(m.amount) || 0) + "</span></li>",
+              )
+              .join("");
+            return (
+              '<li class="' + (hasSub ? "" : "no-sub") + '">' +
+              '<div class="row">' +
+              '<span class="caret">▶</span>' +
+              '<span class="dot" style="background:' + colorFor(r.category, i) + '"></span>' +
+              '<span class="cat">' + esc(r.category) + "</span>" +
+              '<span class="amt">' + yen(v) + "</span>" +
+              '<span class="pct">' + p + "%</span>" +
+              '<span class="cnt">' + (c ? c + "件" : "") + "</span></div>" +
+              (hasSub ? '<ul class="mlist">' + subHtml + "</ul>" : "") +
+              "</li>"
+            );
+          })
+          .join("");
+        leg.onclick = (e) => {
+          const li = e.target.closest("li");
+          if (li && !li.classList.contains("no-sub")) li.classList.toggle("open");
+        };
+      }
+      function esc(s) {
+        return String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
+          ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
+        );
+      }
+
+      function renderAnnual(selMonth) {
+        const year = (selMonth || months().slice(-1)[0] || "").slice(0, 4);
+        const labels = Array.from({ length: 12 }, (_, i) => (i + 1) + "月");
+        const cats = categoriesOrder();
+
+        const datasets = cats.map((cat, i) => {
+          const arr = Array(12).fill(0);
+          for (const r of rows) {
+            if (r.category !== cat || !r.month) continue;
+            if (r.month.slice(0, 4) !== year) continue;
+            const m = parseInt(r.month.slice(5, 7), 10);
+            if (m >= 1 && m <= 12) arr[m - 1] += Number(r.amount) || 0;
+          }
+          return { label: cat, data: arr, backgroundColor: colorFor(cat, i), stack: "s", borderWidth: 0 };
+        });
+
+        document.getElementById("sub").textContent =
+          year + "年の月別推移（積み上げ）。月を追加すると自動で更新されます。";
+
+        const cfg = {
+          type: "bar",
+          data: { labels, datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
+            scales: {
+              x: { stacked: true, grid: { display: false } },
+              y: {
+                stacked: true,
+                ticks: { callback: (v) => "¥" + (v / 1000).toLocaleString("ja-JP") + "k" },
+              },
+            },
+            plugins: {
+              legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 } } },
+              tooltip: {
+                callbacks: {
+                  label: (c) => (c.parsed.y ? " " + c.dataset.label + ": " + yen(c.parsed.y) : null),
+                  footer: (items) => "合計 " + yen(items.reduce((s, it) => s + (it.parsed.y || 0), 0)),
+                },
+              },
+            },
+          },
+        };
+        if (annualChart) { annualChart.data = cfg.data; annualChart.update(); }
+        else annualChart = new Chart(document.getElementById("annual"), cfg);
+      }
+
+      function fillSelect(keepValue) {
+        const sel = document.getElementById("monthSel");
+        const ms = months();
+        const prev = keepValue || sel.value;
+        sel.innerHTML = ms
+          .map((m) => '<option value="' + m + '">' + m.replace("-", "年") + "月</option>")
+          .join("");
+        sel.value = ms.includes(prev) ? prev : ms.slice(-1)[0] || "";
+        return sel.value;
+      }
+
+      function paint(keepValue) {
+        const m = fillSelect(keepValue);
+        if (!m) {
+          document.getElementById("sub").textContent = "まだデータがありません。チャットで「今月の内訳を追加して」と伝えてください。";
+          document.getElementById("pieEmpty").style.display = "block";
+          return;
+        }
+        renderPie(m);
+        renderAnnual(m);
+      }
+
+      async function main() {
+        await load();
+        paint();
+        document.getElementById("monthSel").onchange = (e) => {
+          renderPie(e.target.value);
+          renderAnnual(e.target.value);
+        };
+      }
+
+      main().catch((e) => {
+        document.getElementById("sub").innerHTML = '<span class="err">読み込みに失敗しました: ' + e.message + "</span>";
+      });
+
+      // ライブ更新：レコード変更のたび再取得して再描画（選択月は維持）
+      window.__MC_VIEW.onChange(() => {
+        const keep = document.getElementById("monthSel").value;
+        load().then(() => paint(keep)).catch(() => {});
+      });
+    </script>
+  </body>
+</html>

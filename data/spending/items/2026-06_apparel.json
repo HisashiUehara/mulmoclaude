@@ -1,0 +1,25 @@
+{
+  "id": "2026-06_apparel",
+  "month": "2026-06",
+  "periodLabel": "5/16〜6/15",
+  "category": "衣料・雑貨",
+  "amount": 25570,
+  "merchants": [
+    {
+      "name": "ABC-MART",
+      "amount": 15730
+    },
+    {
+      "name": "ユニクロ",
+      "amount": 8000
+    },
+    {
+      "name": "無印良品",
+      "amount": 1730
+    },
+    {
+      "name": "キャンドゥ",
+      "amount": 110
+    }
+  ]
+}

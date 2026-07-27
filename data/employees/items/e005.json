@@ -1,0 +1,9 @@
+{
+  "id": "e005",
+  "name": "伊藤 直樹",
+  "department": "営業部",
+  "role": "上司",
+  "supervisorId": "e006",
+  "hourlyWage": 3700,
+  "email": "ito@example.co.jp"
+}

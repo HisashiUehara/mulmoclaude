@@ -1,0 +1,14 @@
+{
+  "id": "uptime-tier",
+  "title": "Uptime Institute Tier分類（TierⅠ〜Ⅳ）",
+  "category": "規格・認証",
+  "phase": "設計",
+  "summary": "DCの可用性・冗長性を4段階で格付けする国際的な認証制度。",
+  "detail": "## Tier分類\n\n- **TierⅠ**: 基本構成、冗長なし（可用性 約99.671%）\n- **TierⅡ**: 冗長コンポーネント（N+1相当）\n- **TierⅢ**: 無停止保守が可能（Concurrently Maintainable）\n- **TierⅣ**: フォールトトレラント（2N、単一障害で停止しない）\n\n設計時の冗長方針（N+1 / 2N）と直結する。",
+  "tags": "可用性,冗長,認証",
+  "keywords": "Tier, Uptime Institute, 可用性, レジリエンス",
+  "importance": "高",
+  "status": "確認済み",
+  "source": "Uptime Institute",
+  "createdAt": "2026-07-11"
+}

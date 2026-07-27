@@ -25,3 +25,6 @@ test-results-live/
 
 # V8 heap snapshots written by the dev server on near-OOM (scripts/dev-server.mjs)
 *.heapsnapshot
+github/
+.session-token
+.server-port

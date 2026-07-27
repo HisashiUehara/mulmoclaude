@@ -1,0 +1,9 @@
+{
+  "id": "e004",
+  "name": "田中 健太",
+  "department": "開発部",
+  "role": "上司",
+  "supervisorId": "e006",
+  "hourlyWage": 3800,
+  "email": "tanaka@example.co.jp"
+}

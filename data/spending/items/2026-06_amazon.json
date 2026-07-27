@@ -1,0 +1,15 @@
+{
+  "id": "2026-06_amazon",
+  "month": "2026-06",
+  "periodLabel": "5/16〜6/15",
+  "category": "Amazon通販",
+  "amount": 14844,
+  "count": 3,
+  "merchants": [
+    {
+      "name": "Amazon 通販",
+      "amount": 14844,
+      "count": 3
+    }
+  ]
+}

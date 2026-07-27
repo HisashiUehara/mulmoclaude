@@ -1,0 +1,16 @@
+{
+  "id": "k-e003-20260714",
+  "employeeId": "e003",
+  "employeeName": "高橋 美咲",
+  "date": "2026-07-14",
+  "workType": "出勤",
+  "businessTrip": true,
+  "startTime": "08:00",
+  "endTime": "21:00",
+  "breakMinutes": 60,
+  "workedMinutes": 720,
+  "status": "承認済",
+  "submittedTo": "e005",
+  "approvedBy": "伊藤 直樹",
+  "note": "名古屋出張・顧客訪問"
+}

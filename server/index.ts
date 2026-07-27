@@ -17,6 +17,8 @@ import pluginsRoutes from "./api/routes/plugins.js";
 import imageRoutes from "./api/routes/image.js";
 import attachmentRoutes from "./api/routes/attachment.js";
 import transcribeRoutes from "./api/routes/transcribe.js";
+import ttsRoutes from "./api/routes/tts.js";
+import navChatRoutes from "./api/routes/navChat.js";
 import presentHtmlRoutes from "./api/routes/presentHtml.js";
 import shareRoutes from "./api/routes/share.js";
 import remoteHostRoutes from "./api/routes/remoteHost.js";
@@ -119,7 +121,7 @@ import type { IPubSub } from "./events/pub-sub/index.js";
 import { connectRelay } from "./events/relay-client.js";
 import { requireSameOrigin } from "./api/csrfGuard.js";
 import { bearerAuth } from "./api/auth/bearerAuth.js";
-import { isViewDataPath } from "./api/auth/viewToken.js";
+import { isViewDataPath, isTtsAuthPath, isNavChatAuthPath, isNavViewTokensPath } from "./api/auth/viewToken.js";
 import { deleteTokenFile, generateAndWriteToken, getCurrentToken } from "./api/auth/token.js";
 import { log } from "./system/logger/index.js";
 import { logBackgroundError } from "./utils/logBackgroundError.js";
@@ -268,7 +270,12 @@ app.use(express.json({ limit: "50mb" }));
 // carry IS the anti-CSRF property an attacker page can't satisfy. They are
 // guarded by `requireViewToken` instead. See server/api/auth/viewToken.ts.
 app.use((req, res, next) => {
-  if (isViewDataPath(req.path)) {
+  // The TTS + nav-chat proxies and their token-mint paths carry a scoped token
+  // (not the global bearer); the mint calls also arrive from a sandboxed
+  // `Origin: null` iframe, so — like view-data — the unguessable token is the
+  // anti-CSRF property. (`/api/nav-view-tokens` is deliberately NOT here: it
+  // must stay under this same-origin guard so only a loopback page self-mints.)
+  if (isViewDataPath(req.path) || isTtsAuthPath(req.path) || isNavChatAuthPath(req.path)) {
     next();
     return;
   }
@@ -308,8 +315,12 @@ app.use("/api", (req, res, next) => {
   }
   // Custom-view data endpoints carry a scoped capability token, not the
   // global bearer (the sandboxed iframe can't read it). `requireViewToken`
-  // guards them instead. See server/api/auth/viewToken.ts.
-  if (isViewDataPath(req.path)) {
+  // guards them instead. See server/api/auth/viewToken.ts. The /api/tts and
+  // /api/nav-chat proxies + their token-mint paths are the same shape
+  // (audience-scoped token via `requireTtsToken` / `requireNavChatToken`), so
+  // they are bearer-exempt too. `/api/nav-view-tokens` is bearer-exempt as well
+  // (the tab has no bearer) but stays under the same-origin guard above.
+  if (isViewDataPath(req.path) || isTtsAuthPath(req.path) || isNavChatAuthPath(req.path) || isNavViewTokensPath(req.path)) {
     next();
     return;
   }
@@ -457,8 +468,22 @@ app.use(
     }
     if (HTML_DOCUMENT_EXT_RE.test(req.path)) {
       const origin = browserVisibleOrigin(req);
-      res.setHeader("Content-Security-Policy", buildHtmlPreviewCsp(origin, undefined, readCspExtraSync()));
+      // `connect-src 'self'` is added ONLY on this /artifacts/html document
+      // header — so a served page (e.g. the voice-nav app) can fetch the
+      // same-origin /api/tts + /api/nav-chat proxies. It stays same-origin only
+      // (no third-party host, and preview `img-src` is CDN-only), so no
+      // off-origin exfil path opens. `media-src blob: data:` is likewise scoped
+      // to this document so a served page can PLAY audio it built locally
+      // (voice-nav plays the OpenAI-TTS mp3 from /api/tts via a blob: URL) —
+      // inline/same-origin only, no https host, so no exfil channel. The print
+      // CSP (`buildPrintCspContent`) and the srcdoc-wrap preview CSP
+      // (`wrapHtmlWithPreviewCsp`) keep both locked at the `'none'`/"" defaults.
+      res.setHeader("Content-Security-Policy", buildHtmlPreviewCsp(origin, undefined, readCspExtraSync(), "'self'", "blob: data:"));
       res.setHeader("X-Content-Type-Options", "nosniff");
+      // Force revalidation so an edited HTML artifact (e.g. the voice-nav app)
+      // is never served stale from the browser cache — the ETag still yields a
+      // cheap 304 when unchanged, but a changed file is always re-fetched.
+      res.setHeader("Cache-Control", "no-cache");
       const spliced = await readAndInjectHtmlArtifact(root, relPath);
       if (spliced === null) {
         res.status(404).end();
@@ -618,6 +643,8 @@ app.use(pluginsRoutes);
 app.use(imageRoutes);
 app.use(attachmentRoutes);
 app.use(transcribeRoutes);
+app.use(ttsRoutes);
+app.use(navChatRoutes);
 app.use(presentHtmlRoutes);
 app.use(shareRoutes);
 app.use(remoteHostRoutes);

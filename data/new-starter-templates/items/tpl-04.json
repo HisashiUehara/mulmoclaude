@@ -1,0 +1,13 @@
+{
+  "id": "tpl-04",
+  "seq": 4,
+  "phase": "入社前",
+  "category": "アカウント・IT関係",
+  "task": "PC・携帯のキッティング依頼",
+  "detail": "納期があるので早めに",
+  "defaultOwnerRole": "人事担当",
+  "requestTo": "IT部門",
+  "dueOffsetDays": -18,
+  "version": 1,
+  "active": "有効"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "tpl-14",
+  "seq": 14,
+  "phase": "初日",
+  "category": "初日オリエン",
+  "task": "管理アプリの使い方説明",
+  "detail": "勤怠の打刻方法、経費・出張申請のフロー、承認者が誰か",
+  "defaultOwnerRole": "人事担当",
+  "dueOffsetDays": 0,
+  "version": 2,
+  "active": "有効"
+}

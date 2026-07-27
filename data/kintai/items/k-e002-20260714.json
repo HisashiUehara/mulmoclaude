@@ -1,0 +1,13 @@
+{
+  "id": "k-e002-20260714",
+  "employeeId": "e002",
+  "employeeName": "鈴木 一郎",
+  "date": "2026-07-14",
+  "workType": "有給休暇",
+  "businessTrip": false,
+  "workedMinutes": 0,
+  "status": "承認済",
+  "submittedTo": "e004",
+  "approvedBy": "田中 健太",
+  "note": "有給取得"
+}

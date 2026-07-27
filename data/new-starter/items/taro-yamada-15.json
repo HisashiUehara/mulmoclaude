@@ -1,0 +1,17 @@
+{
+  "id": "taro-yamada-15",
+  "starter": "山田 太郎",
+  "startDate": "2026-08-01",
+  "phase": "初日",
+  "category": "初日オリエン",
+  "task": "座席予約アプリの使い方説明",
+  "detail": "初日の座席は事前に予約しておく",
+  "owner": "佐藤 花子",
+  "status": "未着手",
+  "dueDate": "2026-08-01",
+  "memo": "初日座席は7/31までに予約する",
+  "templateTaskId": "tpl-15",
+  "templateVersion": 1,
+  "overridden": false,
+  "templateSyncState": "同期済"
+}

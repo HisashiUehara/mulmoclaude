@@ -1,0 +1,8 @@
+{
+  "roleId": "general",
+  "startedAt": "2026-07-10T13:44:28.051Z",
+  "firstUserMessage": "# Task一覧表 Collection を作成してください\n\n## 目的\nEmailなどの文章を貼り付けると、Taskを自動抽出し、一覧表として管理できるapp。\n\n## 入力\n- ユーザーがEmail本文や議事録などの文章をテキストで貼り付ける\n- 複数回の貼り付けに対応(追加するたびにTaskが横に追加される)\n\n## 処理(AI→DSL→engine パターン)\n1. LLMが文章からTaskを抽出し、以下のJSONスキーマに変換する:\n   {\n     \"task\": \"task_extract\",\n     \"context\": { \"source\": \"email\", \"received_date\": \"...\" },\n     \"payload\": {\n       \"tasks\": [\n         {\n           \"id\": \"...\",\n           \"title\": \"Task名(要約)\",\n           \"summary\": \"元文章の要約\",\n           \"category\": \"カテゴリ(submittal / RFI / drawing / vendor / report / other)\",\n           \"assignee\": \"担当者(文章から推定、不明ならnull)\",\n           \"due_date\": \"期限(文章から推定、不明ならnull)\",\n           \"priority\": \"high / mid / low\",\n           \"status\": \"open\"\n         }\n       ]\n     }\n   }\n2. engineはこのJSONをバリデーションし、既存Task一覧にマージする\n\n## UI\n- ExcelライクなシンプルなTable view(列: title / category / assignee / due_date / priority / status)\n- 文章を追加するたびに新しいTaskが表に追加される\n- statusはユーザーがクリックで変更可能(open / in progress / done)— 判断は人間に残す\n- カテゴリ別・担当者別の集計Graph(棒グラフ)を表示するタブ\n\n## データ保持\n- Task一覧はローカルにJSON保存し、次回起動時も継続\n\n## 制約\n- LLMはスキーマを埋めるだけ。集計・マージ・描画はすべてdeterministicなengine側で行う\n- 承認フロー: 抽出されたTaskは「候補」として表示し、ユーザーが承認したものだけ一覧に反映する(候補→承認→反映)",
+  "userQueryCount": 4,
+  "claudeSessionId": "6315fa29-ac68-4a25-9c97-19fb000429f1",
+  "hasUnread": false
+}

@@ -1,0 +1,88 @@
+{
+  "title": "支出内訳",
+  "icon": "pie_chart",
+  "dataPath": "data/spending/items",
+  "primaryKey": "id",
+  "fields": {
+    "id": {
+      "type": "string",
+      "label": "ID",
+      "primary": true,
+      "required": true
+    },
+    "month": {
+      "type": "string",
+      "label": "対象月 (YYYY-MM)",
+      "required": true
+    },
+    "periodLabel": {
+      "type": "string",
+      "label": "請求期間"
+    },
+    "category": {
+      "type": "enum",
+      "label": "カテゴリ",
+      "required": true,
+      "values": [
+        "Suicaチャージ",
+        "外食・カフェ",
+        "サブスク・デジタル",
+        "衣料・雑貨",
+        "スーパー",
+        "ドラッグストア",
+        "Amazon通販",
+        "JR東日本(駅ビル物販)",
+        "コンビニ",
+        "美容",
+        "医療",
+        "分割払い",
+        "chocoZAP"
+      ]
+    },
+    "amount": {
+      "type": "money",
+      "label": "金額",
+      "required": true,
+      "currency": "JPY"
+    },
+    "count": {
+      "type": "number",
+      "label": "件数"
+    },
+    "merchants": {
+      "type": "table",
+      "label": "店舗別内訳",
+      "of": {
+        "name": {
+          "type": "string",
+          "label": "店舗・明細"
+        },
+        "amount": {
+          "type": "money",
+          "label": "金額",
+          "currency": "JPY"
+        },
+        "count": {
+          "type": "number",
+          "label": "件数"
+        }
+      }
+    },
+    "note": {
+      "type": "text",
+      "label": "メモ"
+    }
+  },
+  "displayField": "category",
+  "views": [
+    {
+      "id": "dashboard",
+      "label": "内訳ダッシュボード",
+      "icon": "insights",
+      "file": "views/dashboard.html",
+      "capabilities": [
+        "read"
+      ]
+    }
+  ]
+}

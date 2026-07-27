@@ -1,0 +1,32 @@
+{
+  "title": "🌵 不毛会議ログ",
+  "icon": "forum",
+  "dataPath": "data/fumou-meeting-bot/items",
+  "primaryKey": "id",
+  "displayField": "topic",
+  "kanbanField": "outcome",
+  "calendarField": "heldOn",
+  "fields": {
+    "id": { "type": "string", "label": "ID", "primary": true, "required": true },
+    "topic": { "type": "string", "label": "議題", "required": true },
+    "participants": { "type": "string", "label": "参加者" },
+    "durationMin": { "type": "number", "label": "会議時間(分)" },
+    "fruitlessness": { "type": "number", "label": "不毛度(%)" },
+    "outcome": {
+      "type": "enum",
+      "label": "決定事項",
+      "values": ["継続審議", "持ち帰り", "次回再検討", "迷宮入り", "特になし"]
+    },
+    "heldOn": { "type": "date", "label": "開催日" },
+    "notes": { "type": "text", "label": "議事メモ" }
+  },
+  "views": [
+    {
+      "id": "room",
+      "label": "不毛会議室（Bot起動）",
+      "icon": "smart_toy",
+      "file": "views/room.html",
+      "capabilities": ["read"]
+    }
+  ]
+}

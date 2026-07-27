@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a;
+    --txt:#e7ecf3; --muted:#93a0b4; --accent:#4c8dff; --accent2:#2ee6a6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif;
+    padding:20px;min-height:100vh}
+  .wrap{max-width:760px;margin:0 auto}
+  .hero{background:linear-gradient(135deg,#1b3a68,#12233f);border:1px solid #2b4c86;
+    border-radius:18px;padding:22px 22px 20px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .hero .row{display:flex;align-items:center;gap:14px}
+  .hero .icon{width:56px;height:56px;flex:0 0 auto;border-radius:14px;background:#0e1b31;
+    display:grid;place-items:center;font-size:30px}
+  .hero h1{margin:0;font-size:22px}
+  .hero p{margin:6px 0 0;color:#a9c2ec;font-size:13px;line-height:1.5}
+  .launch{margin-top:16px;width:100%;border:none;cursor:pointer;
+    background:var(--accent2);color:#04231a;font-weight:800;font-size:16px;
+    border-radius:12px;padding:15px;display:flex;align-items:center;justify-content:center;gap:8px}
+  .launch:active{transform:scale(.98)}
+  .launch:disabled{opacity:.55;cursor:progress;transform:none}
+  body.gating #list{opacity:.5;pointer-events:none}
+  .hint{color:var(--muted);font-size:12px;margin:10px 2px 0;line-height:1.5}
+
+  .sec{margin-top:24px}
+  .sec h2{font-size:14px;color:var(--muted);margin:0 0 10px;font-weight:600;letter-spacing:.02em}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 14px;
+    display:flex;flex-direction:column;gap:6px;cursor:pointer;transition:.15s}
+  .card:hover{border-color:var(--accent);background:var(--panel2)}
+  .card .top{display:flex;align-items:center;gap:8px}
+  .card .nm{font-weight:700;font-size:15px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .card .go{font-size:18px;color:var(--accent2)}
+  .card .meta{display:flex;flex-wrap:wrap;gap:6px}
+  .tag{font-size:11px;border-radius:999px;padding:2px 8px;background:var(--panel2);
+    border:1px solid var(--line);color:var(--muted)}
+  .tag.cat{color:#a9c2ec;border-color:#2b4c86}
+  .card .area{color:var(--muted);font-size:12px}
+  .empty{color:var(--muted);font-size:13px;border:1px dashed var(--line);border-radius:12px;
+    padding:18px;text-align:center;line-height:1.6}
+  .err{color:#ff8fa3;font-size:13px}
+  .edit{margin-left:auto;font-size:11px;color:var(--muted);border:1px solid var(--line);
+    border-radius:8px;padding:3px 8px;background:transparent;cursor:pointer}
+  .edit:hover{color:var(--txt);border-color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div class="row">
+      <div class="icon">🧭</div>
+      <div>
+        <h1>MulmoNavi</h1>
+        <p>「◯◯まで案内して」と話すか入力すると、経路を引いてターンバイターンで読み上げ案内します。徒歩/車・日本語/英語対応。</p>
+      </div>
+    </div>
+    <button class="launch" id="openApp">🎤 MulmoNavi を開く（新しいタブ）</button>
+    <div class="hint">地図表示には Google Maps が必要なため、本体は新しいタブで開きます。下の保存済みの行き先をクリックすると、その目的地へ直行した状態で開きます。</div>
+  </div>
+
+  <div class="sec">
+    <h2>保存した行き先</h2>
+    <div id="list"><div class="empty">読み込み中…</div></div>
+  </div>
+</div>
+
+<script>
+const APP_PATH = "/artifacts/html/2026/07/voice-nav.html";
+const { token, dataUrl } = window.__MC_VIEW;
+
+// Pre-mint a TTS-scoped token so the app tab can call /api/tts (OpenAI voice).
+// It authorizes ONLY /api/tts (never this collection's data), 1 h TTL. We fetch
+// it once on load and pass it to the opened tab via URL *fragment* (`#mcvt=`) —
+// fragments are never sent to the server, are stripped from the Referer header,
+// and the app strips it from its address bar immediately on load. If minting
+// fails, the app simply falls back to the browser's Web Speech voice.
+let ttsToken = null;
+// Also pre-mint a nav-chat-scoped token (aud:"nav-chat") so the app tab can call
+// /api/nav-chat (LLM conversation). Same handoff/fallback as the TTS token: it
+// authorizes ONLY /api/nav-chat, 1 h TTL, passed via URL fragment (`#mcnav=`).
+// If minting fails, the app falls back to its built-in canned phrases.
+let navToken = null;
+async function mint(pathSeg) {
+  try {
+    const url = dataUrl.replace(/\/view-data(\?.*)?$/, "/" + pathSeg);
+    const res = await fetch(url, { method: "POST", headers: { Authorization: "Bearer " + token } });
+    if (res.ok) return (await res.json()).token || null;
+  } catch (_) { /* fall back in the app */ }
+  return null;
+}
+// レース対策: 発行が終わるまで起動を無効化する（mintsReady gate）。ローカルのmintは
+// 数msなので体感はほぼゼロ。発行に失敗（null）してもゲートは解除し、アプリ側が
+// 「ランチャーから開き直して」の案内を出す（トークン未受領のフォールバック）。
+let mintsDone = false;
+const mintsReady = Promise.all([mint("tts-token"), mint("nav-chat-token")]).then(([t, n]) => {
+  ttsToken = t; navToken = n; mintsDone = true; enableLaunch();
+});
+function enableLaunch(){
+  const b = document.getElementById("openApp");
+  if(b){ b.disabled = false; if(b.dataset.label) b.textContent = b.dataset.label; }
+  document.body.classList.remove("gating");
+}
+
+function appUrl(item){
+  const base = new URL(APP_PATH, dataUrl).href;
+  const params = new URLSearchParams();
+  if(item){
+    const q = (item.query && item.query.trim()) ? item.query.trim() : (item.name||"");
+    if(q) params.set("to", q);
+    if(item.mode==="徒歩") params.set("mode","walk");
+  }
+  const s = params.toString();
+  let url = s ? base+"?"+s : base;
+  const frag = [];
+  if(ttsToken) frag.push("mcvt=" + encodeURIComponent(ttsToken));
+  if(navToken) frag.push("mcnav=" + encodeURIComponent(navToken));
+  if(frag.length) url += "#" + frag.join("&");
+  return url;
+}
+function openApp(item){
+  if(!mintsDone) return;   // 発行完了前はゲート（ボタンはdisabled、カードはここで無効）
+  window.open(appUrl(item), "_blank", "noopener");
+}
+
+// 起動ボタンは発行完了まで無効化（クリックのユーザー操作コンテキストを失わないため
+// awaitではなくdisabledでゲート）。
+(function initLaunchGate(){
+  const b = document.getElementById("openApp");
+  document.body.classList.add("gating");
+  b.disabled = true;
+  b.dataset.label = b.textContent;
+  b.textContent = "準備中…";
+  b.onclick = ()=>openApp(null);
+})();
+
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+function cardHtml(it){
+  const tags=[];
+  if(it.category) tags.push('<span class="tag cat">'+esc(it.category)+'</span>');
+  if(it.mode) tags.push('<span class="tag">'+esc(it.mode)+'</span>');
+  if(it.distance) tags.push('<span class="tag">'+esc(it.distance)+'</span>');
+  if(it.duration) tags.push('<span class="tag">'+esc(it.duration)+'</span>');
+  return '<div class="card" data-id="'+esc(it.id)+'">'
+    + '<div class="top"><span class="nm">'+esc(it.name||it.id)+'</span>'
+    + '<button class="edit" data-edit="'+esc(it.id)+'">詳細</button>'
+    + '<span class="go">➜</span></div>'
+    + (it.area?'<div class="area">'+esc(it.area)+'</div>':'')
+    + (tags.length?'<div class="meta">'+tags.join('')+'</div>':'')
+    + '</div>';
+}
+
+async function render(){
+  const box=document.getElementById("list");
+  try{
+    const url = dataUrl + "?fields=" + encodeURIComponent("name,query,category,mode,area,distance,duration,lastUsed");
+    const res = await fetch(url, { headers:{ Authorization:"Bearer "+token } });
+    if(!res.ok){ const d=await res.text(); throw new Error("HTTP "+res.status+": "+d); }
+    const { items } = await res.json();
+    if(!items || !items.length){
+      box.innerHTML = '<div class="empty">まだ保存された行き先はありません。<br>チャットで「◯◯を行き先に保存して」と頼むとここに追加されます。</div>';
+      return;
+    }
+    const order={ "お気に入り":0,"自宅・職場":1,"登山・アウトドア":2,"履歴":3,"その他":4 };
+    items.sort((a,b)=>(order[a.category]??9)-(order[b.category]??9) || String(a.name||"").localeCompare(String(b.name||""),"ja"));
+    box.className="grid";
+    box.innerHTML = items.map(cardHtml).join("");
+    box.querySelectorAll(".card").forEach(el=>{
+      el.addEventListener("click",e=>{
+        if(e.target.closest("[data-edit]")) return;
+        const it = items.find(x=>x.id===el.dataset.id);
+        if(it) openApp(it);
+      });
+    });
+    box.querySelectorAll("[data-edit]").forEach(b=>{
+      b.addEventListener("click",e=>{ e.stopPropagation(); window.__MC_VIEW.openItem(b.dataset.edit); });
+    });
+  }catch(err){
+    box.className="";
+    box.innerHTML='<div class="err">読み込みに失敗しました: '+esc(err.message)+'</div>';
+  }
+}
+render();
+window.__MC_VIEW.onChange(()=>render());
+</script>
+</body>
+</html>

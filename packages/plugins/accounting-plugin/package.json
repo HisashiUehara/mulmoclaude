@@ -50,13 +50,13 @@
     "express": {
       "optional": true
     },
+    "gui-chat-protocol": {
+      "optional": true
+    },
     "vue": {
       "optional": true
     },
     "vue-i18n": {
-      "optional": true
-    },
-    "gui-chat-protocol": {
       "optional": true
     }
   },

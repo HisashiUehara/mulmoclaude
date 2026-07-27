@@ -1,0 +1,18 @@
+{
+  "id": "taro-yamada-08",
+  "starter": "山田 太郎",
+  "startDate": "2026-08-01",
+  "phase": "入社前",
+  "category": "物品",
+  "task": "PPE（ヘルメット、安全靴、ベスト等）",
+  "detail": "サイズ確認が必要なので事前にヒアリング",
+  "owner": "田中 一郎",
+  "requestTo": "総務",
+  "status": "対応中",
+  "dueDate": "2026-07-25",
+  "memo": "安全靴サイズ本人に確認中（27.0想定）",
+  "templateTaskId": "tpl-08",
+  "templateVersion": 1,
+  "overridden": false,
+  "templateSyncState": "同期済"
+}

@@ -1,0 +1,16 @@
+{
+  "id": "taro-yamada-05",
+  "starter": "山田 太郎",
+  "startDate": "2026-08-01",
+  "phase": "入社前",
+  "category": "アカウント・IT関係",
+  "task": "勤怠・経費・出張申請アプリのアカウント発行とライセンス割当",
+  "owner": "佐藤 花子",
+  "requestTo": "IT部門",
+  "status": "対応中",
+  "dueDate": "2026-07-25",
+  "templateTaskId": "tpl-05",
+  "templateVersion": 2,
+  "overridden": false,
+  "templateSyncState": "同期済"
+}

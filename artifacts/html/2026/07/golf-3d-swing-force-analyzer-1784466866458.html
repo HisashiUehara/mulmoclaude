@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Golf 3D Swing Force Analyzer</title>
+<style>
+  :root{
+    --bg:#0a0e14; --panel:#131a24; --panel2:#1b2430; --line:#26313f;
+    --txt:#e7edf5; --dim:#8ea0b5; --accent:#31e0a5; --accent2:#4aa8ff;
+    --warn:#ffb454; --bad:#ff5d6c; --good:#31e0a5;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:radial-gradient(1200px 700px at 70% -10%,#16202e 0%,var(--bg) 60%);
+    color:var(--txt); font-family:"Segoe UI",system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    display:flex; flex-direction:column; min-height:100%;
+  }
+  header{
+    padding:14px 22px; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    background:linear-gradient(180deg,rgba(20,28,40,.9),rgba(10,14,20,.4));
+    position:sticky; top:0; z-index:20; backdrop-filter:blur(6px);
+  }
+  .logo{display:flex;align-items:center;gap:10px}
+  .logo .mark{width:34px;height:34px;border-radius:9px;
+    background:conic-gradient(from 210deg,var(--accent),var(--accent2),var(--accent));
+    display:grid;place-items:center;font-size:19px;box-shadow:0 0 22px rgba(49,224,165,.35)}
+  h1{font-size:17px;margin:0;letter-spacing:.3px}
+  h1 small{display:block;font-size:11px;color:var(--dim);font-weight:400;letter-spacing:.5px}
+  .spacer{flex:1}
+  .badge{font-size:11px;color:var(--dim);border:1px solid var(--line);padding:5px 10px;border-radius:20px}
+  .badge b{color:var(--accent)}
+
+  main{flex:1;display:grid;grid-template-columns:1.55fr .95fr;gap:16px;padding:16px 22px 30px;align-items:start}
+  @media(max-width:1050px){main{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+  .card h2{font-size:13px;margin:0;padding:12px 16px;border-bottom:1px solid var(--line);
+    color:var(--dim);letter-spacing:.8px;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+  .card h2 .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+  .pad{padding:16px}
+
+  /* Upload / stage */
+  #stage{position:relative;background:#05080c;min-height:340px;display:grid;place-items:center}
+  #dropzone{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:14px;text-align:center;padding:30px;cursor:pointer;transition:.2s;border:2px dashed transparent}
+  #dropzone.drag{background:rgba(49,224,165,.06);border-color:var(--accent)}
+  #dropzone .big{font-size:52px;filter:drop-shadow(0 6px 18px rgba(49,224,165,.4))}
+  #dropzone p{margin:0;color:var(--dim);max-width:420px;line-height:1.6;font-size:13.5px}
+  .btn{border:none;border-radius:10px;padding:11px 20px;font-size:14px;font-weight:600;cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),#25b88a);color:#04120c;transition:.15s;letter-spacing:.3px}
+  .btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+  .btn.ghost{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  .btn:disabled{opacity:.4;cursor:not-allowed;transform:none;filter:none}
+  .btn.sm{padding:8px 14px;font-size:12.5px}
+
+  canvas#view{max-width:100%;display:block}
+  video#vid{display:none}
+  #canvasWrap{position:relative;width:100%;display:none;background:#05080c}
+  #canvasWrap.on{display:block}
+
+  /* progress */
+  #progWrap{position:absolute;inset:0;background:rgba(5,8,12,.86);display:none;flex-direction:column;
+    align-items:center;justify-content:center;gap:16px;z-index:5}
+  #progWrap.on{display:flex}
+  .ring{width:74px;height:74px;border-radius:50%;border:5px solid #1e2a38;border-top-color:var(--accent);
+    animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #progTxt{color:var(--dim);font-size:13px}
+  .bar{width:min(70%,360px);height:8px;background:#182230;border-radius:6px;overflow:hidden}
+  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .1s}
+
+  /* controls */
+  #transport{display:none;padding:12px 16px;border-top:1px solid var(--line);gap:12px;align-items:center;flex-wrap:wrap}
+  #transport.on{display:flex}
+  #scrub{flex:1;min-width:180px;accent-color:var(--accent)}
+  .tbtn{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);
+    color:var(--txt);font-size:16px;cursor:pointer;display:grid;place-items:center}
+  .tbtn:hover{border-color:var(--accent)}
+  .phasechip{font-size:12px;padding:5px 11px;border-radius:20px;font-weight:600;letter-spacing:.4px}
+
+  /* sliders panel */
+  .ctl{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+  .ctl label{font-size:12px;color:var(--dim);display:flex;justify-content:space-between}
+  .ctl label b{color:var(--txt)}
+  input[type=range]{accent-color:var(--accent2);width:100%}
+  .toggle-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .chip{font-size:12px;padding:7px 12px;border-radius:20px;border:1px solid var(--line);background:var(--panel2);
+    color:var(--dim);cursor:pointer;user-select:none}
+  .chip.on{background:rgba(74,168,255,.16);border-color:var(--accent2);color:#cfe6ff}
+
+  /* metrics */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .metric{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .metric .k{font-size:11px;color:var(--dim);letter-spacing:.5px}
+  .metric .v{font-size:23px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+  .metric .v small{font-size:12px;color:var(--dim);font-weight:500;margin-left:3px}
+
+  /* 3d */
+  #three{width:100%;height:260px;background:#05080c;border-radius:12px;display:block;cursor:grab}
+  #three:active{cursor:grabbing}
+
+  /* feedback */
+  .fb{display:flex;gap:11px;padding:11px 12px;border-radius:11px;background:var(--panel2);
+    border:1px solid var(--line);margin-bottom:9px;align-items:flex-start}
+  .fb .ic{font-size:18px;line-height:1.2}
+  .fb .t{font-size:13px;line-height:1.55}
+  .fb .t b{color:var(--txt)}
+  .fb.good{border-left:3px solid var(--good)}
+  .fb.warn{border-left:3px solid var(--warn)}
+  .fb.bad{border-left:3px solid var(--bad)}
+  .muted{color:var(--dim);font-size:12.5px;line-height:1.6}
+
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--dim);padding:10px 16px;border-top:1px solid var(--line)}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .sw{width:22px;height:8px;border-radius:4px;display:inline-block}
+  footer{padding:14px 22px;color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);line-height:1.6}
+  a{color:var(--accent2)}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <div class="mark">⛳</div>
+    <h1>Golf 3D Swing Force Analyzer<small>グリップにかかる三次元の力を可視化して自習する</small></h1>
+  </div>
+  <div class="spacer"></div>
+  <div class="badge">解析エンジン: <b>MediaPipe Pose (3D)</b></div>
+  <div class="badge">処理: <b>ブラウザ内 · 動画は外部送信なし</b></div>
+</header>
+
+<main>
+  <!-- LEFT: video + overlay -->
+  <section class="card" style="grid-column:1/2">
+    <h2><span class="dot"></span> スイング動画 &amp; 3D力ベクトル</h2>
+    <div id="stage">
+      <div id="dropzone">
+        <div class="big">🎥</div>
+        <p><b style="color:var(--txt)">スイング動画をアップロード</b><br>
+        ここにドラッグ＆ドロップ、またはクリックして選択。<br>
+        <b style="color:var(--txt)">正面（Face-on）</b> か <b style="color:var(--txt)">飛球線後方（Down-the-line）</b> から撮影した、全身が映る動画がおすすめです。</p>
+        <button class="btn" id="pickBtn">動画を選ぶ</button>
+        <input type="file" id="file" accept="video/*" class="hidden" />
+      </div>
+
+      <div id="canvasWrap">
+        <canvas id="view"></canvas>
+        <div id="progWrap">
+          <div class="ring"></div>
+          <div id="progTxt">姿勢推定モデルを準備中…</div>
+          <div class="bar"><i id="progBar"></i></div>
+        </div>
+      </div>
+      <video id="vid" playsinline muted></video>
+    </div>
+
+    <div id="transport">
+      <button class="tbtn" id="playBtn" title="再生/停止">▶</button>
+      <input type="range" id="scrub" min="0" max="0" value="0" step="1" />
+      <span id="timeTxt" class="muted" style="min-width:74px;text-align:right">0.00s</span>
+      <span class="phasechip" id="phaseChip" style="background:#22303f;color:var(--dim)">—</span>
+      <button class="btn ghost sm" id="newBtn">別の動画</button>
+    </div>
+
+    <div class="legend">
+      <span><i class="sw" style="background:linear-gradient(90deg,#ff5d6c,#ffb454)"></i> 力ベクトル（手→クラブ）</span>
+      <span><i class="sw" style="background:#4aa8ff"></i> スケルトン</span>
+      <span><i class="sw" style="background:#31e0a5"></i> 推定シャフト</span>
+      <span>🔴 手前向き / 🔵 奥向き（Z方向の奥行き）</span>
+    </div>
+  </section>
+
+  <!-- RIGHT: metrics, 3d, feedback, controls -->
+  <div style="display:flex;flex-direction:column;gap:16px;grid-column:2/3">
+    <section class="card">
+      <h2><span class="dot"></span> このフレームの力</h2>
+      <div class="pad">
+        <div class="grid2">
+          <div class="metric"><div class="k">グリップ速度</div><div class="v" id="mSpeed">–<small>km/h</small></div></div>
+          <div class="metric"><div class="k">グリップ力</div><div class="v" id="mForce">–<small>N</small></div></div>
+          <div class="metric"><div class="k">力の向き</div><div class="v" id="mDir" style="font-size:16px">–</div></div>
+          <div class="metric"><div class="k">奥行き Z</div><div class="v" id="mZ" style="font-size:16px">–</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2><span class="dot"></span> 3D 力ベクトルビュー <span class="muted" style="text-transform:none;letter-spacing:0;margin-left:auto;font-size:11px">ドラッグで回転</span></h2>
+      <div class="pad"><canvas id="three"></canvas></div>
+    </section>
+
+    <section class="card">
+      <h2><span class="dot"></span> スイング診断</h2>
+      <div class="pad">
+        <div class="grid2" style="margin-bottom:14px">
+          <div class="metric"><div class="k">テンポ比 (上げ:下ろし)</div><div class="v" id="mTempo" style="font-size:19px">–</div></div>
+          <div class="metric"><div class="k">最高ヘッド速度換算</div><div class="v" id="mPeak">–<small>km/h</small></div></div>
+        </div>
+        <div id="feedback">
+          <div class="muted">動画を解析すると、テンポ・切り返し・キャスティング（早期リリース）などの自動診断とアドバイスがここに表示されます。</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2><span class="dot"></span> 表示設定</h2>
+      <div class="pad">
+        <div class="toggle-row">
+          <div class="chip on" data-t="skeleton">スケルトン</div>
+          <div class="chip on" data-t="shaft">推定シャフト</div>
+          <div class="chip on" data-t="gravity">重力補償</div>
+          <div class="chip" data-t="trail">グリップ軌道</div>
+        </div>
+        <div class="ctl"><label>矢印スケール <b id="lArrow">1.0×</b></label><input type="range" id="sArrow" min="0.3" max="2.5" step="0.1" value="1"></div>
+        <div class="ctl"><label>推定クラブ+手 実効質量 <b id="lMass">0.6 kg</b></label><input type="range" id="sMass" min="0.2" max="1.5" step="0.05" value="0.6"></div>
+        <div class="ctl"><label>スムージング <b id="lSmooth">中</b></label><input type="range" id="sSmooth" min="0" max="6" step="1" value="3"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <b>仕組み：</b> ブラウザ内で MediaPipe Pose の3D姿勢推定を動画に適用し、両手首の中点＝<b>グリップ</b>の3D位置を毎フレーム追跡します。
+  その3D加速度から <b>F = m·a（＋重力補償）</b> を計算し、手がクラブに与えている力の方向を三次元の矢印として重ねます。
+  単眼動画のため奥行き(Z)と絶対値は推定であり、フォームの傾向を掴む学習用ツールとしてご利用ください。
+</footer>
+
+<script type="module">
+import { PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+
+/* ---------- DOM ---------- */
+const $ = s => document.querySelector(s);
+const dropzone=$("#dropzone"), pickBtn=$("#pickBtn"), fileInput=$("#file");
+const stage=$("#stage"), wrap=$("#canvasWrap"), view=$("#view"), vid=$("#vid");
+const progWrap=$("#progWrap"), progTxt=$("#progTxt"), progBar=$("#progBar");
+const transport=$("#transport"), playBtn=$("#playBtn"), scrub=$("#scrub"), timeTxt=$("#timeTxt");
+const phaseChip=$("#phaseChip"), newBtn=$("#newBtn");
+const ctx=view.getContext("2d");
+
+const opts={ skeleton:true, shaft:true, gravity:true, trail:false,
+  arrow:1, mass:0.6, smooth:3 };
+
+/* ---------- state ---------- */
+let landmarker=null, frames=[], analysis=null, curIdx=0, playing=false, rvfcId=0;
+
+/* ================= Pose model ================= */
+async function ensureModel(){
+  if(landmarker) return landmarker;
+  progTxt.textContent="姿勢推定モデルを準備中…";
+  const fileset=await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+  landmarker=await PoseLandmarker.createFromOptions(fileset,{
+    baseOptions:{ modelAssetPath:
+      "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
+      delegate:"GPU" },
+    runningMode:"VIDEO", numPoses:1 });
+  return landmarker;
+}
+
+/* ================= File handling ================= */
+pickBtn.addEventListener("click",()=>fileInput.click());
+dropzone.addEventListener("click",e=>{ if(e.target===pickBtn) return; fileInput.click(); });
+fileInput.addEventListener("change",e=>{ if(e.target.files[0]) loadVideo(e.target.files[0]); });
+["dragenter","dragover"].forEach(ev=>dropzone.addEventListener(ev,e=>{e.preventDefault();dropzone.classList.add("drag");}));
+["dragleave","drop"].forEach(ev=>dropzone.addEventListener(ev,e=>{e.preventDefault();dropzone.classList.remove("drag");}));
+dropzone.addEventListener("drop",e=>{ const f=e.dataTransfer.files[0]; if(f&&f.type.startsWith("video")) loadVideo(f); });
+newBtn.addEventListener("click",resetAll);
+
+function resetAll(){
+  playing=false; cancelRVFC(); frames=[]; analysis=null;
+  vid.pause(); if(vid.src) URL.revokeObjectURL(vid.src); vid.removeAttribute("src");
+  dropzone.classList.remove("hidden"); wrap.classList.remove("on");
+  transport.classList.remove("on"); progWrap.classList.remove("on");
+  $("#feedback").innerHTML='<div class="muted">動画を解析すると診断がここに表示されます。</div>';
+  ["#mSpeed","#mForce","#mTempo","#mPeak"].forEach(s=>$(s).innerHTML="–");
+  $("#mDir").textContent="–"; $("#mZ").textContent="–";
+}
+
+async function loadVideo(file){
+  resetAll();
+  dropzone.classList.add("hidden"); wrap.classList.add("on"); progWrap.classList.add("on");
+  progBar.style.width="0%";
+  vid.src=URL.createObjectURL(file);
+  await new Promise((res,rej)=>{ vid.onloadedmetadata=res; vid.onerror=()=>rej(new Error("動画を読み込めません")); });
+  // size canvas (cap width for perf)
+  const maxW=960, scale=Math.min(1,maxW/vid.videoWidth);
+  view.width=Math.round(vid.videoWidth*scale);
+  view.height=Math.round(vid.videoHeight*scale);
+  try{ await ensureModel(); }
+  catch(err){ progTxt.textContent="モデル読込に失敗: "+err.message; return; }
+  await analyze();
+}
+
+/* ================= Analysis pass ================= */
+function cancelRVFC(){ if(rvfcId && vid.cancelVideoFrameCallback){ try{vid.cancelVideoFrameCallback(rvfcId);}catch(e){} } rvfcId=0; }
+
+async function analyze(){
+  frames=[]; progTxt.textContent="スイングを解析中…"; progBar.style.width="0%";
+  let lastTs=-1;
+  vid.currentTime=0; vid.playbackRate=1;
+  const supportsRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+
+  await new Promise(resolve=>{
+    const onFrame=(now,meta)=>{
+      const t = meta ? meta.mediaTime : vid.currentTime;
+      let ts=Math.round(t*1000); if(ts<=lastTs) ts=lastTs+1; lastTs=ts;
+      try{
+        const r=landmarker.detectForVideo(vid,ts);
+        pushFrame(t,r);
+      }catch(e){/* skip frame */}
+      progBar.style.width=Math.min(100,(vid.currentTime/vid.duration)*100).toFixed(0)+"%";
+      // live preview during analysis
+      if(frames.length) drawFrame(frames.length-1,true);
+      if(!vid.ended && !vid.paused){ if(supportsRVFC) rvfcId=vid.requestVideoFrameCallback(onFrame); }
+    };
+    vid.onended=()=>{ resolve(); };
+    vid.play().then(()=>{
+      if(supportsRVFC) rvfcId=vid.requestVideoFrameCallback(onFrame);
+      else { // fallback: timer sampling
+        const iv=setInterval(()=>{ if(vid.ended){clearInterval(iv);resolve();return;} onFrame(0,null); },1000/30);
+      }
+    });
+  });
+
+  vid.pause();
+  if(frames.length<8){ progTxt.textContent="姿勢を十分に検出できませんでした。全身が映る明るい動画でお試しください。"; return; }
+  computeAnalysis();
+  progWrap.classList.remove("on");
+  buildTransport();
+  gotoIdx(analysis.impactIdx>0?analysis.impactIdx:0);
+}
+
+function pushFrame(t,r){
+  if(!r || !r.landmarks || !r.landmarks[0]) { return; }
+  const lm=r.landmarks[0];               // normalized image coords (0-1), y down
+  const wl=r.worldLandmarks && r.worldLandmarks[0]; // meters
+  const lw=lm[15], rw=lm[16];            // wrists (image)
+  if(!lw||!rw) return;
+  const gripPx={ x:(lw.x+rw.x)/2, y:(lw.y+rw.y)/2 };
+  // 3D grip (meters). MediaPipe world: y down, z toward-camera negative. Flip to y-up, z-out.
+  let grip3D;
+  if(wl && wl[15] && wl[16]){
+    grip3D={ x:(wl[15].x+wl[16].x)/2, y:-(wl[15].y+wl[16].y)/2, z:-(wl[15].z+wl[16].z)/2 };
+  }else{
+    grip3D={ x:gripPx.x-0.5, y:-(gripPx.y-0.5), z:0 };
+  }
+  // shaft direction estimate from forearm (elbow->wrist), avg both arms, in image space
+  const le=lm[13], re=lm[14];
+  let shaft=null;
+  if(le&&re){
+    const dx=((lw.x-le.x)+(rw.x-re.x))/2, dy=((lw.y-le.y)+(rw.y-re.y))/2;
+    const n=Math.hypot(dx,dy)||1; shaft={x:dx/n,y:dy/n};
+  }
+  frames.push({ t, gripPx, grip3D, shaft, lm });
+}
+
+/* ================= Physics ================= */
+const G=9.81;
+function computeAnalysis(){
+  const n=frames.length;
+  const times=frames.map(f=>f.t);
+  const dt=Math.max(1e-3,(times[n-1]-times[0])/(n-1));
+  // smoothing window
+  const w=opts.smooth;
+  const raw=frames.map(f=>f.grip3D);
+  const pos=smoothVec(raw,w);
+  // velocity & acceleration (central diff)
+  const vel=new Array(n), acc=new Array(n), speed=new Array(n);
+  for(let i=0;i<n;i++){
+    const a=pos[Math.max(0,i-1)], b=pos[Math.min(n-1,i+1)];
+    vel[i]={x:(b.x-a.x)/(2*dt),y:(b.y-a.y)/(2*dt),z:(b.z-a.z)/(2*dt)};
+    speed[i]=Math.hypot(vel[i].x,vel[i].y,vel[i].z);
+  }
+  for(let i=0;i<n;i++){
+    const p0=pos[Math.max(0,i-1)],p1=pos[i],p2=pos[Math.min(n-1,i+1)];
+    acc[i]={x:(p2.x-2*p1.x+p0.x)/(dt*dt),y:(p2.y-2*p1.y+p0.y)/(dt*dt),z:(p2.z-2*p1.z+p0.z)/(dt*dt)};
+  }
+  // Force hands apply to club: F = m*a - m*g  (g = (0,-G,0)) => F = m*a + (0, m*G, 0)
+  const m=opts.mass;
+  const force=acc.map(a=>({ x:m*a.x, y:m*a.y+(opts.gravity?m*G:0), z:m*a.z }));
+  const fmag=force.map(f=>Math.hypot(f.x,f.y,f.z));
+  const peakForce=Math.max(...fmag,1e-3);
+  const peakSpeed=Math.max(...speed);
+  const impactIdx=speed.indexOf(peakSpeed);
+  // top of backswing = min speed before impact (skip first frames)
+  let topIdx=Math.max(2,Math.floor(impactIdx*0.15)), minS=Infinity;
+  for(let i=Math.floor(n*0.05);i<impactIdx;i++){ if(speed[i]<minS){minS=speed[i];topIdx=i;} }
+  const tempo=(times[impactIdx]-times[topIdx])>0 ? (times[topIdx]-times[0])/(times[impactIdx]-times[topIdx]) : 0;
+
+  analysis={ n,times,dt,pos,vel,acc,speed,force,fmag,peakForce,peakSpeed,impactIdx,topIdx,tempo };
+  generateFeedback();
+  // header metrics
+  $("#mTempo").innerHTML = tempo>0 ? tempo.toFixed(1)+' : 1' : '–';
+  // grip peak speed -> rough clubhead speed (~ grip speed * lever factor 2.2)
+  const headKmh=peakSpeed*2.2*3.6;
+  $("#mPeak").innerHTML = headKmh.toFixed(0)+'<small>km/h</small>';
+}
+
+function smoothVec(arr,w){
+  if(w<=0) return arr.slice();
+  const n=arr.length,out=new Array(n);
+  for(let i=0;i<n;i++){
+    let sx=0,sy=0,sz=0,c=0;
+    for(let k=-w;k<=w;k++){ const j=i+k; if(j<0||j>=n)continue; sx+=arr[j].x;sy+=arr[j].y;sz+=arr[j].z;c++; }
+    out[i]={x:sx/c,y:sy/c,z:sz/c};
+  }
+  return out;
+}
+
+/* ================= Feedback ================= */
+function generateFeedback(){
+  const a=analysis, fb=[];
+  // tempo
+  if(a.tempo>0){
+    if(a.tempo>=2.6&&a.tempo<=3.6) fb.push(['good','⏱️',`<b>テンポ良好 (${a.tempo.toFixed(1)}:1)</b> 理想の3:1に近い、切り返しに余裕のあるリズムです。この間合いを維持しましょう。`]);
+    else if(a.tempo<2.6) fb.push(['warn','⏱️',`<b>テンポが速め (${a.tempo.toFixed(1)}:1)</b> トップからの切り返しが急です。バックスイングをもう少しゆっくり、間を作ると再現性が上がります。`]);
+    else fb.push(['warn','⏱️',`<b>テンポが緩やか (${a.tempo.toFixed(1)}:1)</b> ダウンスイングをもう少し積極的に加速させると力が溜まりやすくなります。`]);
+  }
+  // casting / early release: force direction in early downswing should stay "into" the swing (large centripetal, not pointing outward/down too early)
+  const ds0=a.topIdx, ds1=a.impactIdx;
+  if(ds1>ds0+2){
+    const early=Math.floor(ds0+(ds1-ds0)*0.25);
+    // compare force magnitude growth: healthy swing keeps building force to impact
+    const fEarly=a.fmag[early], fImpact=a.fmag[ds1];
+    const buildRatio=fImpact/(fEarly||1e-3);
+    if(buildRatio<1.15) fb.push(['bad','🎯',`<b>早期リリース（キャスティング）の兆候</b> ダウンスイング序盤で力のピークが来て、インパクトに向けて力が増えていません。トップで作った角(タメ)を保ち、体の回転で引き下ろす意識を。`]);
+    else fb.push(['good','🎯',`<b>タメを保てています</b> インパクトに向けてグリップの力が ${buildRatio.toFixed(1)}倍 に増加。パワーを最後まで蓄えられています。`]);
+  }
+  // impact timing
+  const pct=a.impactIdx/(a.n-1);
+  if(pct<0.45) fb.push(['warn','📍',`<b>最高速度が早すぎ</b> インパクト前にスピードのピークが来ています。ボール位置で最速になるよう、リリースのタイミングを少し遅らせましょう。`]);
+  else if(pct>0.8) fb.push(['warn','📍',`<b>加速が遅れ気味</b> フォロー側にピークが寄っています。ダウンスイングでもう一段早く加速を始めると距離が伸びます。`]);
+  else fb.push(['good','📍',`<b>インパクトで最速</b> スピードのピークがボール位置付近。理想的なエネルギーの伝達です。`]);
+  // path smoothness (jerk)
+  let jerk=0; for(let i=1;i<a.n;i++){ jerk+=Math.abs(a.fmag[i]-a.fmag[i-1]); } jerk/=a.n;
+  if(jerk> a.peakForce*0.22) fb.push(['warn','〰️',`<b>力の伝わりに引っかかり</b> 力のカーブがギクシャクしています。手先で操作せず、大きな筋肉（体幹・下半身）で滑らかに振る意識を。`]);
+  else fb.push(['good','〰️',`<b>滑らかな加速</b> 力が途切れなく増えており、効率よくエネルギーを伝えられています。`]);
+  // peak force info
+  fb.push(['good','💪',`<b>推定ピーク力 ${a.peakForce.toFixed(0)} N</b> ・ グリップ最高速 ${(a.peakSpeed*3.6).toFixed(0)} km/h（ヘッド換算 約${(a.peakSpeed*2.2*3.6).toFixed(0)} km/h）。矢印が最も長くなる瞬間がリリースのポイントです。`]);
+
+  $("#feedback").innerHTML=fb.map(([cls,ic,t])=>
+    `<div class="fb ${cls}"><div class="ic">${ic}</div><div class="t">${t}</div></div>`).join("");
+}
+
+/* ================= Phases ================= */
+function phaseOf(i){
+  const a=analysis; if(!a) return {name:'—',col:'#8ea0b5'};
+  if(i<=a.topIdx*0.4) return {name:'アドレス/テークバック',col:'#8ea0b5'};
+  if(i<a.topIdx) return {name:'バックスイング',col:'#4aa8ff'};
+  if(i<a.impactIdx) return {name:'ダウンスイング',col:'#ffb454'};
+  if(i<=a.impactIdx+1) return {name:'インパクト',col:'#ff5d6c'};
+  return {name:'フォロースルー',col:'#31e0a5'};
+}
+
+/* ================= Transport ================= */
+function buildTransport(){
+  transport.classList.add("on");
+  scrub.max=frames.length-1; scrub.value=0;
+}
+scrub.addEventListener("input",()=>{ playing=false; playBtn.textContent="▶"; gotoIdx(+scrub.value); });
+playBtn.addEventListener("click",togglePlay);
+
+function togglePlay(){
+  if(!analysis) return;
+  playing=!playing; playBtn.textContent=playing?"⏸":"▶";
+  if(playing){
+    if(curIdx>=frames.length-1) curIdx=0;
+    playFrom(curIdx);
+  }
+}
+function playFrom(start){
+  const t0=performance.now(), base=frames[start].t;
+  function step(now){
+    if(!playing) return;
+    const elapsed=(now-t0)/1000;
+    let i=start;
+    while(i<frames.length-1 && frames[i].t-base < elapsed) i++;
+    gotoIdx(i);
+    if(i>=frames.length-1){ playing=false; playBtn.textContent="▶"; return; }
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+function gotoIdx(i){
+  curIdx=Math.max(0,Math.min(frames.length-1,i));
+  scrub.value=curIdx;
+  // seek video to frame time so overlay matches
+  if(Math.abs(vid.currentTime-frames[curIdx].t)>0.04){
+    vid.currentTime=frames[curIdx].t;
+    vid.onseeked=()=>{ drawFrame(curIdx,false); };
+  }else{
+    drawFrame(curIdx,false);
+  }
+  updateHUD(curIdx);
+}
+
+/* ================= Drawing ================= */
+const CONN=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],
+  [23,25],[25,27],[24,26],[26,28],[15,17],[16,18],[15,19],[16,20],[27,31],[28,32]];
+
+function drawFrame(i,live){
+  const W=view.width,H=view.height;
+  ctx.drawImage(vid,0,0,W,H);
+  ctx.fillStyle="rgba(5,8,12,0.15)"; ctx.fillRect(0,0,W,H);
+  const f=frames[i];
+  if(opts.trail && analysis) drawTrail(i,W,H);
+  if(opts.skeleton) drawSkeleton(f,W,H);
+  if(opts.shaft) drawShaft(f,W,H);
+  if(analysis && !live) drawForce(i,W,H);
+  else if(analysis && live && analysis.force) drawForce(i,W,H);
+}
+
+function drawSkeleton(f,W,H){
+  ctx.lineWidth=Math.max(2,W/320); ctx.strokeStyle="rgba(74,168,255,.8)";
+  for(const [a,b] of CONN){
+    const p=f.lm[a],q=f.lm[b]; if(!p||!q) continue;
+    if((p.visibility!=null&&p.visibility<0.3)||(q.visibility!=null&&q.visibility<0.3)) continue;
+    ctx.beginPath(); ctx.moveTo(p.x*W,p.y*H); ctx.lineTo(q.x*W,q.y*H); ctx.stroke();
+  }
+  ctx.fillStyle="rgba(74,168,255,.95)";
+  for(const idx of [11,12,13,14,15,16,23,24,25,26]){
+    const p=f.lm[idx]; if(!p) continue;
+    ctx.beginPath(); ctx.arc(p.x*W,p.y*H,Math.max(2.5,W/260),0,7); ctx.fill();
+  }
+}
+function drawShaft(f,W,H){
+  if(!f.shaft) return;
+  const gx=f.gripPx.x*W, gy=f.gripPx.y*H;
+  const len=Math.min(W,H)*0.42;
+  ctx.strokeStyle="rgba(49,224,165,.9)"; ctx.lineWidth=Math.max(3,W/220);
+  ctx.beginPath(); ctx.moveTo(gx,gy); ctx.lineTo(gx+f.shaft.x*len,gy+f.shaft.y*len); ctx.stroke();
+  // clubhead dot
+  ctx.fillStyle="#31e0a5";
+  ctx.beginPath(); ctx.arc(gx+f.shaft.x*len,gy+f.shaft.y*len,Math.max(4,W/150),0,7); ctx.fill();
+}
+function drawTrail(i,W,H){
+  ctx.lineWidth=Math.max(2,W/300);
+  for(let k=1;k<=i;k++){
+    const p=frames[k-1].gripPx,q=frames[k].gripPx;
+    const on=k<=i?1:0; ctx.strokeStyle=`rgba(255,180,84,${0.12+0.5*(k/i)})`;
+    ctx.beginPath(); ctx.moveTo(p.x*W,p.y*H); ctx.lineTo(q.x*W,q.y*H); ctx.stroke();
+  }
+}
+function drawForce(i,W,H){
+  const F=analysis.force[i]; const mag=analysis.fmag[i];
+  const gx=frames[i].gripPx.x*W, gy=frames[i].gripPx.y*H;
+  const norm=mag/analysis.peakForce;
+  const L=Math.min(W,H)*0.5*norm*opts.arrow;
+  if(L<3) return;
+  // screen dir: x right, y down => screen dy = -Fy (physics y up)
+  const dx=F.x, dy=-F.y; const dn=Math.hypot(dx,dy)||1;
+  const ex=gx+dx/dn*L, ey=gy+dy/dn*L;
+  // depth color: z>0 toward camera => warm(red), z<0 away => cool(blue)
+  const zt=Math.max(-1,Math.min(1,F.z/(mag||1)));
+  const warm=[255,93,108], cool=[74,168,255], mid=[255,180,84];
+  const col = zt>=0 ? lerpC(mid,warm,zt) : lerpC(mid,cool,-zt);
+  const rgb=`rgb(${col[0]|0},${col[1]|0},${col[2]|0})`;
+  // glow
+  ctx.save();
+  ctx.shadowColor=rgb; ctx.shadowBlur=18*norm+6;
+  ctx.strokeStyle=rgb; ctx.lineWidth=Math.max(4,W/150)*(0.6+norm);
+  ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(gx,gy); ctx.lineTo(ex,ey); ctx.stroke();
+  // arrowhead (scaled by depth to fake 3D)
+  const ang=Math.atan2(ey-gy,ex-gx);
+  const head=(14+18*norm)*(1+0.4*zt);
+  ctx.fillStyle=rgb; ctx.beginPath();
+  ctx.moveTo(ex,ey);
+  ctx.lineTo(ex-head*Math.cos(ang-0.4),ey-head*Math.sin(ang-0.4));
+  ctx.lineTo(ex-head*Math.cos(ang+0.4),ey-head*Math.sin(ang+0.4));
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+  // grip node
+  ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(gx,gy,Math.max(4,W/170),0,7); ctx.fill();
+}
+function lerpC(a,b,t){return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];}
+
+/* ================= HUD ================= */
+function updateHUD(i){
+  if(!analysis) return;
+  const sp=analysis.speed[i], F=analysis.force[i], mag=analysis.fmag[i];
+  $("#mSpeed").innerHTML=(sp*3.6).toFixed(1)+'<small>km/h</small>';
+  $("#mForce").innerHTML=mag.toFixed(0)+'<small>N</small>';
+  // direction label
+  const up=F.y>0?'上':'下', side=F.x>0?'右':'左';
+  const domXY=Math.abs(F.x)>Math.abs(F.y)?side:up;
+  $("#mDir").textContent=`${domXY}向き · 前後${F.z>0?'手前':'奥'}`;
+  const zt=F.z/(mag||1);
+  $("#mZ").innerHTML=(F.z>=0?'+':'')+F.z.toFixed(0)+'N '+(F.z>0?'(手前)':'(奥)');
+  timeTxt.textContent=frames[i].t.toFixed(2)+'s';
+  const ph=phaseOf(i); phaseChip.textContent=ph.name; phaseChip.style.background=ph.col+'22'; phaseChip.style.color=ph.col;
+  update3D(i);
+}
+
+/* ================= Three.js 3D vector view ================= */
+let scene,cam,renderer,controls,arrow3d,trail3d;
+function initThree(){
+  const c=$("#three"); const w=c.clientWidth||360, h=260;
+  renderer=new THREE.WebGLRenderer({canvas:c,antialias:true,alpha:true});
+  renderer.setPixelRatio(Math.min(2,devicePixelRatio)); renderer.setSize(w,h,false);
+  scene=new THREE.Scene();
+  cam=new THREE.PerspectiveCamera(45,w/h,0.1,100); cam.position.set(2.4,1.6,2.8);
+  controls=new OrbitControls(cam,c); controls.enablePan=false; controls.minDistance=2; controls.maxDistance=8;
+  scene.add(new THREE.AmbientLight(0xffffff,0.7));
+  const d=new THREE.DirectionalLight(0xffffff,0.8); d.position.set(3,5,2); scene.add(d);
+  // ground grid
+  const grid=new THREE.GridHelper(4,8,0x26313f,0x1b2430); grid.position.y=-1; scene.add(grid);
+  // axes
+  scene.add(new THREE.AxesHelper(1.1));
+  // body reference (a simple torso column)
+  const torso=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.16,1.2,16),
+    new THREE.MeshStandardMaterial({color:0x2a3646,transparent:true,opacity:0.5}));
+  torso.position.y=-0.2; scene.add(torso);
+  // grip sphere
+  const grip=new THREE.Mesh(new THREE.SphereGeometry(0.07,20,20),
+    new THREE.MeshStandardMaterial({color:0xffffff,emissive:0x334455})); scene.add(grip);
+  // force arrow
+  arrow3d=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(0,0,0),1,0xff5d6c,0.28,0.16);
+  scene.add(arrow3d);
+  animate();
+}
+function animate(){ requestAnimationFrame(animate); controls&&controls.update(); renderer&&renderer.render(scene,cam); }
+function update3D(i){
+  if(!arrow3d||!analysis) return;
+  const F=analysis.force[i], mag=analysis.fmag[i]||1e-3;
+  const v=new THREE.Vector3(F.x,F.y,F.z);
+  const len=Math.max(0.15,1.7*(mag/analysis.peakForce));
+  v.normalize(); arrow3d.setDirection(v); arrow3d.setLength(len,0.26*len+0.05,0.14*len+0.03);
+  const zt=Math.max(-1,Math.min(1,F.z/mag));
+  const col=zt>=0?lerpC([255,180,84],[255,93,108],zt):lerpC([255,180,84],[74,168,255],-zt);
+  arrow3d.setColor(new THREE.Color(col[0]/255,col[1]/255,col[2]/255));
+}
+
+/* ================= Controls wiring ================= */
+document.querySelectorAll(".chip[data-t]").forEach(ch=>{
+  ch.addEventListener("click",()=>{ ch.classList.toggle("on"); opts[ch.dataset.t]=ch.classList.contains("on");
+    if(analysis) drawFrame(curIdx,false); });
+});
+$("#sArrow").addEventListener("input",e=>{ opts.arrow=+e.target.value; $("#lArrow").textContent=opts.arrow.toFixed(1)+"×"; if(analysis){drawFrame(curIdx,false);update3D(curIdx);} });
+$("#sMass").addEventListener("input",e=>{ opts.mass=+e.target.value; $("#lMass").textContent=opts.mass.toFixed(2)+" kg"; recompute(); });
+$("#sSmooth").addEventListener("input",e=>{ opts.smooth=+e.target.value; $("#lSmooth").textContent=["なし","弱","弱+","中","中+","強","最大"][opts.smooth]; recompute(); });
+function recompute(){ if(frames.length>=8){ computeAnalysis(); drawFrame(curIdx,false); updateHUD(curIdx);} }
+
+/* init 3d after layout */
+window.addEventListener("load",()=>{ try{ initThree(); }catch(e){ console.warn(e);} });
+window.addEventListener("resize",()=>{ if(renderer){ const c=$("#three"); renderer.setSize(c.clientWidth,260,false); cam.aspect=c.clientWidth/260; cam.updateProjectionMatrix(); } });
+</script>
+</body>
+</html>

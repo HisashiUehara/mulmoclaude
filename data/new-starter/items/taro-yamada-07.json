@@ -1,0 +1,17 @@
+{
+  "id": "taro-yamada-07",
+  "starter": "山田 太郎",
+  "startDate": "2026-08-01",
+  "phase": "入社前",
+  "category": "物品",
+  "task": "PC、携帯、充電器",
+  "owner": "田中 一郎",
+  "requestTo": "総務",
+  "status": "未着手",
+  "dueDate": "2026-07-29",
+  "memo": "キッティング完了後に受領",
+  "templateTaskId": "tpl-07",
+  "templateVersion": 1,
+  "overridden": false,
+  "templateSyncState": "同期済"
+}

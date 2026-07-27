@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Golf 3D Swing Lab — スイング力ベクトル解析</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#111a2e; --panel2:#16233f; --line:#22304f;
+    --txt:#e8eefc; --muted:#93a4c6; --accent:#3fb6ff; --accent2:#7c5cff;
+    --good:#37d69a; --warn:#ffcf5c; --bad:#ff6b6b; --force:#ff4d5e;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;}
+  a{color:var(--accent)}
+  .wrap{max-width:1280px;margin:0 auto;padding:18px 16px 60px}
+  header.top{display:flex;align-items:center;gap:14px;margin-bottom:6px;flex-wrap:wrap}
+  header.top h1{font-size:20px;margin:0;letter-spacing:.3px}
+  .badge{font-size:11px;color:var(--muted);border:1px solid var(--line);
+    padding:3px 9px;border-radius:999px}
+  .sub{color:var(--muted);font-size:13px;margin:2px 0 16px;line-height:1.6}
+  .grid{display:grid;grid-template-columns:1fr 380px;gap:16px}
+  @media(max-width:980px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+  .card h2{font-size:13px;margin:0 0 10px;color:var(--muted);text-transform:uppercase;
+    letter-spacing:1px;font-weight:700}
+  .stagewrap{position:relative;width:100%;background:#000;border-radius:10px;overflow:hidden;
+    aspect-ratio:16/9;display:flex;align-items:center;justify-content:center}
+  video#vid{display:none}
+  canvas#overlay{position:absolute;inset:0;width:100%;height:100%}
+  .drop{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:12px;color:var(--muted);text-align:center;padding:20px;
+    border:2px dashed var(--line);border-radius:10px;background:rgba(20,30,55,.6);cursor:pointer;transition:.2s}
+  .drop.drag{border-color:var(--accent);color:var(--txt);background:rgba(63,182,255,.08)}
+  .drop b{color:var(--txt);font-size:15px}
+  .drop small{font-size:12px;max-width:360px;line-height:1.6}
+  .btn{background:linear-gradient(180deg,var(--accent),#2b93e0);color:#04121f;border:none;
+    padding:9px 16px;border-radius:9px;font-weight:700;cursor:pointer;font-size:14px}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--line)}
+  .btn.sm{padding:6px 11px;font-size:12px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .controls{margin-top:10px}
+  input[type=range].scrub{width:100%;accent-color:var(--accent)}
+  .three{width:100%;aspect-ratio:1/1;background:#08101e;border-radius:10px;overflow:hidden}
+  .metric{display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;
+    border-bottom:1px solid var(--line)}
+  .metric:last-child{border-bottom:none}
+  .metric .k{color:var(--muted);font-size:13px}
+  .metric .v{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+  .metric .v small{font-size:11px;color:var(--muted);font-weight:600;margin-left:3px}
+  .pill{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:700}
+  .pill.good{background:rgba(55,214,154,.16);color:var(--good)}
+  .pill.warn{background:rgba(255,207,92,.16);color:var(--warn)}
+  .pill.bad{background:rgba(255,107,107,.16);color:var(--bad)}
+  .tips li{margin:0 0 10px;line-height:1.6;font-size:13.5px}
+  .tips li b{color:var(--accent)}
+  .settings label{display:flex;justify-content:space-between;align-items:center;gap:10px;
+    font-size:13px;color:var(--muted);margin:8px 0}
+  .settings input[type=number],.settings select{background:var(--panel2);border:1px solid var(--line);
+    color:var(--txt);border-radius:7px;padding:5px 8px;width:96px;font-size:13px}
+  .settings input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
+  .progress{height:8px;background:var(--panel2);border-radius:999px;overflow:hidden;margin-top:10px;display:none}
+  .progress.on{display:block}
+  .progress > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .1s}
+  .status{font-size:12px;color:var(--muted);margin-top:8px;min-height:16px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .sw{width:14px;height:4px;border-radius:2px;display:inline-block}
+  .note{font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:10px;
+    background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px}
+  .tabbar{display:flex;gap:6px;margin-bottom:10px}
+  .tabbar button{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--muted);
+    padding:7px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer}
+  .tabbar button.active{background:var(--accent);color:#04121f;border-color:var(--accent)}
+  .hidden{display:none!important}
+  .kv2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .mini{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px}
+  .mini .k{font-size:11px;color:var(--muted)}
+  .mini .v{font-size:15px;font-weight:800;margin-top:2px}
+  footer{color:var(--muted);font-size:11.5px;text-align:center;margin-top:26px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>⛳ Golf 3D Swing Lab</h1>
+    <span class="badge">グリップ力ベクトル解析</span>
+    <span class="badge">ブラウザ内AI・動画は端末外に出ません</span>
+  </header>
+  <p class="sub">
+    スイング動画をアップロードするだけで、AIが<b>手とクラブの接点（グリップ）</b>を毎フレーム3D追跡し、
+    その運動から<b>合力の向き（3次元ベクトル）</b>を推定して動画上に重ねます。自分のスイングを立体的に見て、改善点を自習できます。
+  </p>
+
+  <div class="grid">
+    <!-- LEFT: stage -->
+    <div>
+      <div class="card">
+        <h2>スイング動画 & 力ベクトル</h2>
+        <div class="stagewrap" id="stage">
+          <video id="vid" playsinline crossorigin="anonymous"></video>
+          <canvas id="overlay"></canvas>
+          <div class="drop" id="drop">
+            <b>▶ 動画をドラッグ＆ドロップ / クリックで選択</b>
+            <small>正面（フェースオン）または飛球線後方（ダウン・ザ・ライン）から、
+            体全体が入る固定カメラの動画が最適です。5〜15秒程度・mp4/mov 推奨。</small>
+            <span class="btn sm">ファイルを選ぶ</span>
+            <input type="file" id="file" accept="video/*" class="hidden" />
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="row">
+            <button class="btn" id="analyzeBtn" disabled>🔎 スイングを解析</button>
+            <button class="btn ghost sm" id="playBtn" disabled>▶ 再生</button>
+            <button class="btn ghost sm" id="loopBtn" disabled>🔁 インパクト前後</button>
+            <span class="status" id="frameLabel"></span>
+          </div>
+          <div class="progress" id="progress"><i id="progressBar"></i></div>
+          <div class="status" id="status">モデルを読み込み中…</div>
+          <input type="range" min="0" max="0" value="0" step="1" class="scrub" id="scrub" disabled />
+          <div class="legend">
+            <span><i class="sw" style="background:var(--force)"></i>合力ベクトル（加速度ベース推定）</span>
+            <span><i class="sw" style="background:var(--accent)"></i>グリップ軌道</span>
+            <span><i class="sw" style="background:var(--good)"></i>骨格トラッキング</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>3D ビュー（グリップ軌道 + 合力）</h2>
+        <div class="three" id="three"></div>
+        <div class="note">
+          白い曲線＝グリップの3D軌道／赤い矢印＝現在フレームの合力の向き。マウスドラッグで回転できます。
+          奥行き（Z）はAI推定のため参考値です。
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: panel -->
+    <div>
+      <div class="card">
+        <div class="tabbar">
+          <button data-tab="metrics" class="active">📊 診断</button>
+          <button data-tab="tips">💡 改善アドバイス</button>
+          <button data-tab="settings">⚙️ 設定</button>
+        </div>
+
+        <div id="tab-metrics">
+          <div class="metric"><span class="k">ピークグリップ速度</span>
+            <span class="v" id="mSpeed">–<small>m/s</small></span></div>
+          <div class="metric"><span class="k">最大合力（推定）</span>
+            <span class="v" id="mForce">–<small>N</small></span></div>
+          <div class="metric"><span class="k">力のピークタイミング <span id="mForceTimePill" class="pill"></span></span>
+            <span class="v" id="mForceTime">–</span></div>
+          <div class="metric"><span class="k">スイングテンポ（切返し:切下し） <span id="mTempoPill" class="pill"></span></span>
+            <span class="v" id="mTempo">–</span></div>
+          <div class="metric"><span class="k">スイングプレーン角 <span id="mPlanePill" class="pill"></span></span>
+            <span class="v" id="mPlane">–<small>°</small></span></div>
+          <div class="metric"><span class="k">インパクト時の力の向き</span>
+            <span class="v" id="mDir">–</span></div>
+          <div class="kv2" style="margin-top:12px">
+            <div class="mini"><div class="k">推定利き手</div><div class="v" id="mHand">–</div></div>
+            <div class="mini"><div class="k">トラッキング成功率</div><div class="v" id="mTrack">–</div></div>
+          </div>
+          <div class="note" id="scoreNote">動画をアップして「スイングを解析」を押すと診断が表示されます。</div>
+        </div>
+
+        <div id="tab-tips" class="hidden">
+          <ul class="tips" id="tipsList">
+            <li>解析後、あなたのスイングデータに基づく改善アドバイスがここに表示されます。</li>
+          </ul>
+        </div>
+
+        <div id="tab-settings" class="hidden settings">
+          <label>身長（cm）<span title="速度・力の実数換算に使用">
+            <input type="number" id="setHeight" value="170" min="120" max="220" step="1"></span></label>
+          <label>クラブ+手元の実効質量（kg）
+            <input type="number" id="setMass" value="0.6" min="0.1" max="3" step="0.05"></label>
+          <label>解析フレームレート（fps）
+            <select id="setFps"><option>24</option><option selected>30</option><option>48</option><option>60</option></select></label>
+          <label>矢印スケール
+            <input type="number" id="setArrow" value="1.0" min="0.2" max="4" step="0.1"></label>
+          <label>骨格を表示<input type="checkbox" id="setSkel" checked></label>
+          <label>グリップ軌道を表示<input type="checkbox" id="setTrail" checked></label>
+          <label>平滑化強度
+            <select id="setSmooth"><option>弱</option><option selected>中</option><option>強</option></select></label>
+          <div class="note">
+            ※ 物理量は単眼動画からの<b>運動学的推定</b>です（F≈m·a）。実測の床反力計・力覚センサーとは異なります。
+            身長・実効質量を実際の値にすると数値の精度が上がります。相対比較・傾向把握に活用してください。
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>使い方</h2>
+        <ol style="margin:0;padding-left:18px;font-size:13px;line-height:1.8;color:var(--muted)">
+          <li>スイング動画をドロップ</li>
+          <li>「スイングを解析」を押す（AIが手・骨格を追跡）</li>
+          <li>矢印＝各瞬間にグリップへ働く合力の向き・大きさ</li>
+          <li>右の診断＆アドバイスで改善点を確認</li>
+          <li>スライダーでコマ送り、インパクト前後をループ再生</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Golf 3D Swing Lab — MediaPipe(手/姿勢3D推定) + Three.js による端末内解析。動画データはサーバーへ送信されません。<br>
+    数値はモノキュラー動画からの推定であり、医療・競技判定用途ではありません。
+  </footer>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { FilesetResolver, HandLandmarker, PoseLandmarker }
+  from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+// ---------- DOM ----------
+const $ = id => document.getElementById(id);
+const vid=$('vid'), overlay=$('overlay'), octx=overlay.getContext('2d');
+const drop=$('drop'), fileInput=$('file'), stage=$('stage');
+const analyzeBtn=$('analyzeBtn'), playBtn=$('playBtn'), loopBtn=$('loopBtn');
+const scrub=$('scrub'), status=$('status'), frameLabel=$('frameLabel');
+const progress=$('progress'), progressBar=$('progressBar');
+
+// ---------- State ----------
+let handLM=null, poseLM=null, modelsReady=false;
+let frames=[];        // per-frame kinematic data
+let analyzed=false, playing=false, loopMode=false, rafId=null;
+let metrics=null;
+const S = { impactIdx:0, topIdx:0, startIdx:0 };
+
+// ---------- Settings ----------
+const settings = ()=>({
+  height:  +$('setHeight').value || 170,
+  mass:    +$('setMass').value || 0.6,
+  fps:     +$('setFps').value || 30,
+  arrow:   +$('setArrow').value || 1,
+  skel:    $('setSkel').checked,
+  trail:   $('setTrail').checked,
+  smooth:  {'弱':1,'中':2,'強':4}[$('setSmooth').value] ?? 2,
+});
+
+// ================= Model load =================
+async function loadModels(){
+  try{
+    const fileset = await FilesetResolver.forVisionTasks(
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+    handLM = await HandLandmarker.createFromOptions(fileset,{
+      baseOptions:{ modelAssetPath:
+        "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+        delegate:"GPU"},
+      numHands:2, runningMode:"VIDEO" });
+    poseLM = await PoseLandmarker.createFromOptions(fileset,{
+      baseOptions:{ modelAssetPath:
+        "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+        delegate:"GPU"},
+      numPoses:1, runningMode:"VIDEO" });
+    modelsReady=true;
+    status.textContent="準備完了。スイング動画をアップロードしてください。";
+  }catch(e){
+    console.error(e);
+    status.textContent="⚠ AIモデルの読み込みに失敗しました。ネット接続を確認して再読み込みしてください。";
+  }
+}
+loadModels();
+
+// ================= File handling =================
+function openFile(f){
+  if(!f || !f.type.startsWith('video')){ status.textContent="⚠ 動画ファイルを選んでください。"; return; }
+  const url=URL.createObjectURL(f);
+  vid.src=url; analyzed=false; frames=[]; metrics=null; resetUI();
+  vid.onloadedmetadata=()=>{
+    sizeCanvas();
+    drop.style.display='none';
+    analyzeBtn.disabled = !modelsReady;
+    status.textContent = modelsReady
+      ? `読み込み完了：${vid.videoWidth}×${vid.videoHeight}, ${vid.duration.toFixed(1)}秒。「スイングを解析」を押してください。`
+      : "AIモデルを読み込み中… 完了までお待ちください。";
+    vid.currentTime=0;
+  };
+}
+drop.addEventListener('click',()=>fileInput.click());
+fileInput.addEventListener('change',e=>openFile(e.target.files[0]));
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag');}));
+drop.addEventListener('drop',e=>openFile(e.dataTransfer.files[0]));
+
+function sizeCanvas(){
+  const r=stage.getBoundingClientRect();
+  overlay.width=r.width; overlay.height=r.height;
+}
+window.addEventListener('resize',()=>{ sizeCanvas(); if(analyzed) drawFrame(+scrub.value); });
+
+function resetUI(){
+  playBtn.disabled=loopBtn.disabled=scrub.disabled=true;
+  progress.classList.remove('on'); frameLabel.textContent='';
+  octx.clearRect(0,0,overlay.width,overlay.height);
+}
+
+// ================= Analysis =================
+function seekTo(t){ return new Promise(res=>{
+  const on=()=>{ vid.removeEventListener('seeked',on); res(); };
+  vid.addEventListener('seeked',on); vid.currentTime=Math.min(t, vid.duration-0.001);
+});}
+
+async function analyze(){
+  if(!modelsReady){ status.textContent="AIモデル準備中です…"; return; }
+  const s=settings();
+  analyzeBtn.disabled=true; playBtn.disabled=loopBtn.disabled=true;
+  progress.classList.add('on'); progressBar.style.width='0%';
+  vid.pause();
+
+  const dur=vid.duration;
+  let n=Math.min(Math.ceil(dur*s.fps), 640);
+  const dt=dur/n;
+  const raw=[]; let tracked=0; let handVotes=0, count=0;
+
+  for(let i=0;i<n;i++){
+    const t=i*dt;
+    await seekTo(t);
+    const tsMs=Math.round(t*1000)+i; // strictly increasing
+    let grip=null, pose=null, hand=null, handedness=null;
+    try{
+      const hr=handLM.detectForVideo(vid, tsMs);
+      const pr=poseLM.detectForVideo(vid, tsMs);
+      grip=gripFromHands(hr);
+      handedness=handedFromResult(hr);
+      if(pr.landmarks && pr.landmarks[0]) pose=pr.landmarks[0];
+      if(hr.landmarks) hand=hr.landmarks;
+      if(!grip && pose) grip=gripFromPose(pose); // fallback: mid-wrist
+    }catch(e){/* skip frame */}
+    if(grip){ tracked++; if(handedness){ handVotes+=handedness; count++; } }
+    raw.push({ t, grip, pose, hand });
+    if(i%3===0){ progressBar.style.width=(100*i/n).toFixed(0)+'%';
+      status.textContent=`解析中… ${i}/${n} フレーム`; await tick(); }
+  }
+  progressBar.style.width='100%';
+
+  // interpolate missing grips
+  fillGaps(raw);
+  // build kinematics
+  frames = buildKinematics(raw, dt, s);
+  computeEvents();
+  metrics = computeMetrics(dt, s, tracked/n, count? (handVotes/count):0);
+  renderMetrics(); renderTips();
+  build3D();
+
+  analyzed=true; analyzeBtn.disabled=false;
+  playBtn.disabled=loopBtn.disabled=scrub.disabled=false;
+  scrub.max=frames.length-1; scrub.value=S.impactIdx;
+  progress.classList.remove('on');
+  status.textContent=`解析完了：${frames.length}フレーム。スライダーでコマ送り、または再生できます。`;
+  await seekTo(frames[S.impactIdx].t); drawFrame(S.impactIdx);
+}
+analyzeBtn.addEventListener('click',analyze);
+const tick=()=>new Promise(r=>requestAnimationFrame(r));
+
+// grip = centroid of both hands near the club (wrist + finger MCPs)
+function gripFromHands(hr){
+  if(!hr.landmarks || !hr.landmarks.length) return null;
+  let sx=0,sy=0,sz=0,c=0;
+  for(const lm of hr.landmarks){
+    for(const idx of [0,5,9,13,17]){ sx+=lm[idx].x; sy+=lm[idx].y; sz+=lm[idx].z; c++; }
+  }
+  return {x:sx/c, y:sy/c, z:sz/c};
+}
+function gripFromPose(p){ // midpoint of wrists 15,16
+  if(!p[15]||!p[16]) return null;
+  return {x:(p[15].x+p[16].x)/2, y:(p[15].y+p[16].y)/2, z:(p[15].z+p[16].z)/2};
+}
+function handedFromResult(hr){
+  if(!hr.handedness || !hr.handedness.length) return null;
+  // vote: which hand is lower on grip → lead hand; simplistic: return +1 right-handed guess
+  return null;
+}
+
+function fillGaps(raw){
+  const n=raw.length;
+  for(let i=0;i<n;i++){
+    if(raw[i].grip) continue;
+    let a=i-1; while(a>=0 && !raw[a].grip) a--;
+    let b=i+1; while(b<n && !raw[b].grip) b++;
+    if(a>=0 && b<n){ const f=(i-a)/(b-a); raw[i].grip=lerp3(raw[a].grip,raw[b].grip,f); }
+    else if(a>=0) raw[i].grip={...raw[a].grip};
+    else if(b<n) raw[i].grip={...raw[b].grip};
+    else raw[i].grip={x:.5,y:.5,z:0};
+  }
+}
+const lerp=(a,b,f)=>a+(b-a)*f;
+const lerp3=(a,b,f)=>({x:lerp(a.x,b.x,f),y:lerp(a.y,b.y,f),z:lerp(a.z,b.z,f)});
+
+// convert normalized→pixels→meters, then velocity/accel/force
+function buildKinematics(raw, dt, s){
+  const W=vid.videoWidth, H=vid.videoHeight;
+  // meters-per-pixel from body height (nose→ankle ≈ 0.87*height)
+  let mpp = estimateMPP(raw, H, s.height);
+  // grip in pixel space
+  const px = raw.map(r=>({ x:r.grip.x*W, y:r.grip.y*H, z:r.grip.z*W, t:r.t,
+                           pose:r.pose, hand:r.hand,
+                           gx:r.grip.x, gy:r.grip.y }));
+  smooth(px, s.smooth);
+  const out=[];
+  for(let i=0;i<px.length;i++){
+    const p=px[i];
+    const pm={x:p.x, y:p.y, z:p.z};
+    // central difference velocity (px/s)
+    const a=px[Math.max(0,i-1)], b=px[Math.min(px.length-1,i+1)];
+    const h=(Math.min(px.length-1,i+1)-Math.max(0,i-1))*dt || dt;
+    const v={x:(b.x-a.x)/h, y:(b.y-a.y)/h, z:(b.z-a.z)/h};
+    out.push({...p, v, mpp});
+  }
+  // acceleration from velocity
+  for(let i=0;i<out.length;i++){
+    const a=out[Math.max(0,i-1)], b=out[Math.min(out.length-1,i+1)];
+    const h=(Math.min(out.length-1,i+1)-Math.max(0,i-1))*dt || dt;
+    const acc={x:(b.v.x-a.v.x)/h, y:(b.v.y-a.v.y)/h, z:(b.v.z-a.v.z)/h};
+    out[i].acc=acc;
+    // meters
+    out[i].speed = Math.hypot(out[i].v.x,out[i].v.y,out[i].v.z)*out[i].mpp;
+    const accMag = Math.hypot(acc.x,acc.y,acc.z)*out[i].mpp;
+    out[i].accMag = accMag;
+    out[i].force = s.mass*accMag; // N (approx)
+    // force direction unit (screen coords: x right, y down, z depth)
+    const m=Math.hypot(acc.x,acc.y,acc.z)||1;
+    out[i].fdir={x:acc.x/m, y:acc.y/m, z:acc.z/m};
+  }
+  return out;
+}
+
+function estimateMPP(raw,H,heightCm){
+  const heights=[];
+  for(const r of raw){
+    const p=r.pose; if(!p) continue;
+    const nose=p[0]; const la=p[27], ra=p[28];
+    if(!nose||!la||!ra) continue;
+    const ankleY=(la.y+ra.y)/2;
+    const dyPx=Math.abs(ankleY-nose.y)*H;
+    if(dyPx>30) heights.push(dyPx);
+  }
+  if(!heights.length) return (heightCm/100)/(0.87* (H*0.6)); // fallback guess
+  heights.sort((a,b)=>a-b);
+  const med=heights[Math.floor(heights.length/2)];
+  const bodyMeters=(heightCm/100)*0.87; // nose→ankle fraction
+  return bodyMeters/med; // meters per pixel
+}
+
+function smooth(arr, passes){
+  for(let p=0;p<passes;p++){
+    const cp=arr.map(a=>({x:a.x,y:a.y,z:a.z}));
+    for(let i=1;i<arr.length-1;i++){
+      arr[i].x=(cp[i-1].x+2*cp[i].x+cp[i+1].x)/4;
+      arr[i].y=(cp[i-1].y+2*cp[i].y+cp[i+1].y)/4;
+      arr[i].z=(cp[i-1].z+2*cp[i].z+cp[i+1].z)/4;
+    }
+  }
+}
+
+// ============ Swing events (top / impact / start) ============
+function computeEvents(){
+  let impactIdx=0, mx=-1;
+  for(let i=0;i<frames.length;i++){ if(frames[i].speed>mx){mx=frames[i].speed;impactIdx=i;} }
+  // top of backswing: local speed minimum before impact (grip nearly stops)
+  let topIdx=0, mn=Infinity;
+  for(let i=Math.floor(impactIdx*0.15);i<impactIdx;i++){
+    if(frames[i].speed<mn){mn=frames[i].speed;topIdx=i;}
+  }
+  // start of takeaway: first frame where speed rises above 10% peak before top
+  let startIdx=0;
+  const th=mx*0.10;
+  for(let i=0;i<topIdx;i++){ if(frames[i].speed>th){startIdx=Math.max(0,i-1);break;} }
+  S.impactIdx=impactIdx; S.topIdx=topIdx; S.startIdx=startIdx;
+}
+
+function computeMetrics(dt,s,trackRate,handVote){
+  const peak=frames[S.impactIdx];
+  let maxF=0, maxFIdx=0;
+  for(let i=0;i<frames.length;i++){ if(frames[i].force>maxF){maxF=frames[i].force;maxFIdx=i;} }
+  const backTime=(S.topIdx-S.startIdx)*dt;
+  const downTime=(S.impactIdx-S.topIdx)*dt || dt;
+  const tempo=backTime/downTime;
+  // swing plane angle from top→impact grip line (screen px, y down)
+  const a=frames[S.topIdx], b=frames[S.impactIdx];
+  let plane=Math.abs(Math.atan2(-(b.y-a.y), (b.x-a.x))*180/Math.PI);
+  if(plane>90) plane=180-plane;
+  // impact force direction label
+  const f=frames[S.impactIdx].fdir;
+  // force peak relative to impact (ms before)
+  const fPeakOffset=(S.impactIdx-maxFIdx)*dt*1000; // + means before impact
+  // handedness: grip moving left→right (screen) during downswing? right-handed golfer face-on → grip goes to left. rough
+  const dx=b.x-a.x;
+  const hand = dx<0 ? '右打ち（推定）':'左打ち（推定）';
+  return {
+    peakSpeed:peak.speed, maxForce:maxF, forcePeakOffset:fPeakOffset,
+    tempo, backTime, downTime, plane, impactDir:f, hand, trackRate,
+  };
+}
+
+// ================= Rendering overlay =================
+function drawFrame(i){
+  i=Math.max(0,Math.min(frames.length-1,i|0));
+  const s=settings();
+  octx.clearRect(0,0,overlay.width,overlay.height);
+  // draw current video frame
+  octx.drawImage(vid,0,0,overlay.width,overlay.height);
+  if(!analyzed){ return; }
+  const sx=overlay.width/vid.videoWidth, sy=overlay.height/vid.videoHeight;
+  const fr=frames[i];
+
+  if(s.skel && fr.pose) drawPose(fr.pose,sx,sy);
+  if(s.trail) drawTrail(i,sx,sy);
+  drawForce(fr,sx,sy,s);
+
+  // labels
+  frameLabel.textContent=`フレーム ${i+1}/${frames.length}　合力 ${fr.force.toFixed(0)} N　速度 ${fr.speed.toFixed(1)} m/s`
+    + (i===S.impactIdx?'　⟵ インパクト':'')
+    + (i===S.topIdx?'　⟵ トップ':'');
+  update3D(i);
+  scrub.value=i;
+}
+
+const POSE_CONN=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],
+  [23,25],[25,27],[24,26],[26,28],[27,31],[28,32]];
+function drawPose(p,sx,sy){
+  octx.lineWidth=3; octx.strokeStyle='rgba(55,214,154,.8)';
+  octx.beginPath();
+  for(const [a,b] of POSE_CONN){ if(!p[a]||!p[b])continue;
+    octx.moveTo(p[a].x*vid.videoWidth*sx, p[a].y*vid.videoHeight*sy);
+    octx.lineTo(p[b].x*vid.videoWidth*sx, p[b].y*vid.videoHeight*sy);}
+  octx.stroke();
+  octx.fillStyle='rgba(55,214,154,.9)';
+  for(const idx of [11,12,13,14,15,16,23,24,25,26,27,28]){ if(!p[idx])continue;
+    octx.beginPath();octx.arc(p[idx].x*vid.videoWidth*sx,p[idx].y*vid.videoHeight*sy,3.5,0,7);octx.fill();}
+}
+
+function drawTrail(cur,sx,sy){
+  octx.lineWidth=2.5;
+  octx.beginPath();
+  for(let i=S.startIdx;i<=Math.min(cur,S.impactIdx+6);i++){
+    const x=frames[i].x*sx, y=frames[i].y*sy;
+    if(i===S.startIdx)octx.moveTo(x,y); else octx.lineTo(x,y);
+  }
+  octx.strokeStyle='rgba(63,182,255,.85)'; octx.stroke();
+}
+
+function drawForce(fr,sx,sy,s){
+  const ox=fr.x*sx, oy=fr.y*sy;
+  // arrow length scales with force; base on max
+  const norm=metrics? Math.min(1.4, fr.force/(metrics.maxForce||1)) : 0.6;
+  const len=(80+120*norm)*s.arrow;
+  // in-plane direction from acceleration (x right, y down). z→arrowhead size + hue
+  let dx=fr.fdir.x, dy=fr.fdir.y;
+  const inPlane=Math.hypot(dx,dy)||1; dx/=inPlane; dy/=inPlane;
+  const ex=ox+dx*len, ey=oy+dy*len;
+  const depth=fr.fdir.z; // negative=toward camera
+  // glow
+  octx.save();
+  octx.shadowColor='rgba(255,77,94,.9)'; octx.shadowBlur=14;
+  octx.strokeStyle=depth<0?'#ff8a5e':'#ff4d5e';
+  octx.fillStyle=octx.strokeStyle;
+  octx.lineWidth=6+6*norm;
+  octx.beginPath(); octx.moveTo(ox,oy); octx.lineTo(ex,ey); octx.stroke();
+  // arrowhead
+  const ang=Math.atan2(ey-oy,ex-ox);
+  const hs=16+14*norm+ (depth<0? 8:0);
+  octx.beginPath();
+  octx.moveTo(ex,ey);
+  octx.lineTo(ex-hs*Math.cos(ang-0.4), ey-hs*Math.sin(ang-0.4));
+  octx.lineTo(ex-hs*Math.cos(ang+0.4), ey-hs*Math.sin(ang+0.4));
+  octx.closePath(); octx.fill();
+  octx.restore();
+  // grip marker
+  octx.fillStyle='#fff'; octx.beginPath(); octx.arc(ox,oy,6,0,7); octx.fill();
+  octx.strokeStyle='#ff4d5e'; octx.lineWidth=3; octx.beginPath(); octx.arc(ox,oy,9,0,7); octx.stroke();
+  // depth hint text
+  octx.fillStyle='rgba(255,255,255,.85)'; octx.font='12px system-ui';
+  octx.fillText(depth<-0.03?'⊙ 手前向き':depth>0.03?'⊗ 奥向き':'', ox+12, oy-12);
+}
+
+// ================= Playback =================
+function play(){
+  if(playing){ stopPlay(); return; }
+  playing=true; playBtn.textContent='⏸ 停止';
+  let i=loopMode? Math.max(0,S.topIdx-4): 0;
+  const endI=loopMode? Math.min(frames.length-1,S.impactIdx+10): frames.length-1;
+  const step=async()=>{
+    if(!playing) return;
+    await seekTo(frames[i].t); drawFrame(i);
+    i++;
+    if(i>endI){ if(loopMode){ i=Math.max(0,S.topIdx-4); } else { stopPlay(); return; } }
+    rafId=setTimeout(step, 1000/12); // slow-mo review
+  };
+  step();
+}
+function stopPlay(){ playing=false; playBtn.textContent='▶ 再生'; clearTimeout(rafId); }
+playBtn.addEventListener('click',()=>{ loopMode=false; play(); });
+loopBtn.addEventListener('click',()=>{ loopMode=true; if(playing)stopPlay(); play(); });
+scrub.addEventListener('input',async e=>{ stopPlay(); const i=+e.target.value;
+  await seekTo(frames[i].t); drawFrame(i); });
+
+// ================= Metrics UI =================
+function pill(el,cls,txt){ el.className='pill '+cls; el.textContent=txt; }
+function renderMetrics(){
+  const m=metrics;
+  $('mSpeed').innerHTML=`${m.peakSpeed.toFixed(1)}<small>m/s</small>`;
+  $('mForce').innerHTML=`${m.maxForce.toFixed(0)}<small>N</small>`;
+  const off=m.forcePeakOffset;
+  $('mForceTime').textContent = off>=0? `インパクト ${off.toFixed(0)}ms 前` : `インパクト ${(-off).toFixed(0)}ms 後`;
+  pill($('mForceTimePill'), (off>=-20&&off<=120)?'good':'warn', (off>=-20&&off<=120)?'理想的':'要調整');
+  $('mTempo').textContent=`${m.tempo.toFixed(1)} : 1`;
+  const tGood=Math.abs(m.tempo-3)<=0.8;
+  pill($('mTempoPill'), tGood?'good':(Math.abs(m.tempo-3)<=1.5?'warn':'bad'), tGood?'◎ 3:1に近い':'要改善');
+  $('mPlane').innerHTML=`${m.plane.toFixed(0)}<small>°</small>`;
+  const pGood=m.plane>=45&&m.plane<=60;
+  pill($('mPlanePill'), pGood?'good':'warn', pGood?'標準':(m.plane<45?'フラット':'スティープ'));
+  const f=m.impactDir;
+  $('mDir').textContent=dirLabel(f);
+  $('mHand').textContent=m.hand;
+  $('mTrack').textContent=(m.trackRate*100).toFixed(0)+'%';
+  let sn=`ピーク速度 ${m.peakSpeed.toFixed(1)} m/s、最大合力 ${m.maxForce.toFixed(0)} N。`;
+  if(m.trackRate<0.6) sn+=' ※ トラッキング成功率が低め。明るく・体全体が写る固定カメラ動画だと精度が上がります。';
+  $('scoreNote').textContent=sn;
+}
+function dirLabel(f){
+  const parts=[];
+  parts.push(f.y<-0.15?'上方':f.y>0.15?'下方':'水平');
+  parts.push(f.x>0.15?'右':f.x<-0.15?'左':'');
+  parts.push(f.z<-0.15?'/手前':f.z>0.15?'/奥':'');
+  return parts.filter(Boolean).join('');
+}
+
+// ================= Tips =================
+function renderTips(){
+  const m=metrics, tips=[];
+  // tempo
+  if(Math.abs(m.tempo-3)>0.8){
+    if(m.tempo<3) tips.push(`<b>切り返しが急いでいます</b>（テンポ ${m.tempo.toFixed(1)}:1）。理想は約3:1。トップで一瞬“間”を作り、バックスイングをゆったり取ると、切り下しで力を溜められます。`);
+    else tips.push(`<b>ダウンスイングが緩んでいます</b>（テンポ ${m.tempo.toFixed(1)}:1）。トップから一気に加速する意識で、下半身リードの切り返しを試しましょう。`);
+  } else tips.push(`<b>テンポは理想的（${m.tempo.toFixed(1)}:1）</b>。この“間”を維持しつつ再現性を高めましょう。`);
+  // plane
+  if(m.plane>60) tips.push(`<b>スイングプレーンがスティープ（${m.plane.toFixed(0)}°）</b>。クラブが立ちやすくアウトサイドイン／ダフリの傾向。トップで手を少し低く、右肘を体側に引く意識でシャローに。`);
+  else if(m.plane<45) tips.push(`<b>プレーンがフラット（${m.plane.toFixed(0)}°）</b>。インサイドに引き込みすぎるとフックや詰まりの原因に。少し縦の始動を意識しましょう。`);
+  else tips.push(`<b>プレーン角は標準域（${m.plane.toFixed(0)}°）</b>。良い軌道です。`);
+  // force timing
+  if(m.forcePeakOffset<-20) tips.push(`<b>力のピークがインパクト後（${(-m.forcePeakOffset).toFixed(0)}ms後）</b>。当たってから力むと減速します。インパクト手前で最大加速するよう、リリースを少し早めに。`);
+  else if(m.forcePeakOffset>150) tips.push(`<b>力のピークが早すぎ（インパクト${m.forcePeakOffset.toFixed(0)}ms前）</b>。手元が早く減速し“キャスティング”気味。ため（ラグ）を保ち、インパクト直前まで力を残しましょう。`);
+  else tips.push(`<b>力のピーク位置は良好</b>。インパクト直前に合力が最大＝効率的にエネルギーが伝わっています。`);
+  // impact direction
+  const f=m.impactDir;
+  if(f.y>0.3) tips.push(`インパクトで合力が<b>下向き</b>成分大。突っ込み／体の沈み込みに注意。軸を保って回転主体のスイングを。`);
+  if(Math.abs(f.z)>0.3) tips.push(`奥行き方向の力が大きめ＝<b>前後の重心移動</b>が強め。インパクトで頭の位置を残すと安定します。`);
+  // speed encouragement
+  tips.push(`ピークグリップ速度は <b>${m.peakSpeed.toFixed(1)} m/s</b>。設定でクラブ質量・身長を実値にすると数値がより正確になります。スライダーでトップ〜インパクトをコマ送りし、矢印の向きの変化を確認しましょう。`);
+  $('tipsList').innerHTML=tips.map(t=>`<li>${t}</li>`).join('');
+}
+
+// ================= 3D view =================
+let three={};
+function init3D(){
+  const el=$('three'); const w=el.clientWidth, h=el.clientHeight;
+  const scene=new THREE.Scene(); scene.background=new THREE.Color(0x08101e);
+  const cam=new THREE.PerspectiveCamera(50,w/h,0.1,100); cam.position.set(2.4,1.4,2.8);
+  const rnd=new THREE.WebGLRenderer({antialias:true}); rnd.setSize(w,h); rnd.setPixelRatio(devicePixelRatio);
+  el.innerHTML=''; el.appendChild(rnd.domElement);
+  const ctrl=new OrbitControls(cam,rnd.domElement); ctrl.enableDamping=true; ctrl.target.set(0,0.2,0);
+  scene.add(new THREE.AmbientLight(0xffffff,0.7));
+  const dl=new THREE.DirectionalLight(0xffffff,0.8); dl.position.set(3,5,2); scene.add(dl);
+  const grid=new THREE.GridHelper(4,16,0x2a3a5c,0x1a2740); scene.add(grid);
+  const axes=new THREE.AxesHelper(0.8); scene.add(axes);
+  three={scene,cam,rnd,ctrl,el,trail:null,arrow:null,gripDot:null};
+  (function loop(){ requestAnimationFrame(loop); ctrl.update(); rnd.render(scene,cam); })();
+}
+function build3D(){
+  if(!three.scene) init3D();
+  const sc=three.scene;
+  if(three.trail){ sc.remove(three.trail); }
+  // build normalized trajectory in 3D (screen x, -y up, z depth) centered/scaled
+  const pts=[]; const xs=[],ys=[],zs=[];
+  for(let i=S.startIdx;i<=Math.min(S.impactIdx+8,frames.length-1);i++){
+    xs.push(frames[i].gx); ys.push(frames[i].y/vid.videoHeight); zs.push(frames[i].z/vid.videoWidth);
+  }
+  const cx=avg(xs),cy=avg(ys),cz=avg(zs);
+  const idxMap=[];
+  for(let i=S.startIdx;i<=Math.min(S.impactIdx+8,frames.length-1);i++){
+    const p=new THREE.Vector3((frames[i].gx-cx)*3, -(frames[i].y/vid.videoHeight-cy)*3, (frames[i].z/vid.videoWidth-cz)*3);
+    pts.push(p); idxMap.push(i);
+  }
+  const g=new THREE.BufferGeometry().setFromPoints(pts);
+  three.trail=new THREE.Line(g,new THREE.LineBasicMaterial({color:0xffffff}));
+  sc.add(three.trail);
+  three.center={cx,cy,cz}; three.idxMap=idxMap;
+  if(!three.gripDot){
+    three.gripDot=new THREE.Mesh(new THREE.SphereGeometry(0.05,16,16),
+      new THREE.MeshStandardMaterial({color:0x3fb6ff,emissive:0x1b6fb0}));
+    sc.add(three.gripDot);
+  }
+  update3D(S.impactIdx);
+}
+function update3D(i){
+  if(!three.scene||!three.center) return;
+  const {cx,cy,cz}=three.center;
+  const fr=frames[i];
+  const pos=new THREE.Vector3((fr.gx-cx)*3, -(fr.y/vid.videoHeight-cy)*3, (fr.z/vid.videoWidth-cz)*3);
+  three.gripDot.position.copy(pos);
+  if(three.arrow){ three.scene.remove(three.arrow); }
+  const dir=new THREE.Vector3(fr.fdir.x, -fr.fdir.y, fr.fdir.z).normalize();
+  const norm=metrics? Math.min(1.5, fr.force/(metrics.maxForce||1)):0.6;
+  three.arrow=new THREE.ArrowHelper(dir,pos,0.5+0.9*norm,0xff4d5e,0.2+0.15*norm,0.14+0.1*norm);
+  three.scene.add(three.arrow);
+}
+const avg=a=>a.reduce((s,v)=>s+v,0)/(a.length||1);
+
+// ================= Tabs =================
+document.querySelectorAll('.tabbar button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.tabbar button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    for(const t of ['metrics','tips','settings'])
+      $('tab-'+t).classList.toggle('hidden', t!==b.dataset.tab);
+    if(b.dataset.tab==='settings') setTimeout(()=>{ if(three.rnd){} },0);
+  });
+});
+// re-render when settings change
+['setArrow','setSkel','setTrail','setMass','setHeight','setSmooth'].forEach(id=>{
+  $(id).addEventListener('change',()=>{ if(analyzed) drawFrame(+scrub.value); });
+});
+</script>
+</body>
+</html>

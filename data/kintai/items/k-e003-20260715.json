@@ -1,0 +1,15 @@
+{
+  "id": "k-e003-20260715",
+  "employeeId": "e003",
+  "employeeName": "高橋 美咲",
+  "date": "2026-07-15",
+  "workType": "出勤",
+  "businessTrip": false,
+  "startTime": "09:30",
+  "endTime": "18:30",
+  "breakMinutes": 45,
+  "workedMinutes": 495,
+  "status": "承認済",
+  "submittedTo": "e005",
+  "approvedBy": "Seo"
+}

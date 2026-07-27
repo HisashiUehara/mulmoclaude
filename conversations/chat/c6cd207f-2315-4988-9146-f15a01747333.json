@@ -1,0 +1,9 @@
+{
+  "roleId": "general",
+  "startedAt": "2026-07-22T21:49:06.100Z",
+  "firstUserMessage": "/voice-nav こんにちは",
+  "origin": "skill",
+  "userQueryCount": 1,
+  "claudeSessionId": "d866f7ef-5f98-4374-b66f-92ea089a6f3c",
+  "hasUnread": false
+}

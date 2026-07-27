@@ -1,0 +1,9 @@
+{
+  "roleId": "personal",
+  "startedAt": "2026-07-25T00:58:45.883Z",
+  "firstUserMessage": "新しいCollection「WeeklyReport」を作成してください。\nAnthropic Skill spec準拠で .claude/skills/weekly-report/ に SKILL.md を配置します。\n\n# 目的\n施工業者の週次レポート(日本語)を、テナント向け英文レポートに変換する。\nアーキテクチャは AI → DSL → engine。AIは翻訳のみ、転記と書式はコード、\n承認は人間(私)が行う。\n\n# ワークフロー(6段)\n1. 人間: 元ファイル2つをインプット(業者レポート + テナント用テンプレート)\n2. コード: テンプレートのフォーマット(フォント種類・サイズ・配置)を抽出\n3. コード: 業者レポートから原文テキストを抜き取り、JSON化\n4. AI: 翻訳し、以下のスキーマでJSONを出力\n5. 人間: 日英を横並びで確認・承認(ここで必ず停止)\n6. コード: 承認済みJSONのみをテンプレートに流し込み、完成ファイルを出力\n\n# DSLスキーマ\n{\n  \"items\": [\n    {\n      \"id\": \"001\",\n      \"source_location\": \"シート名/セル or ページ/要素の参照\",\n      \"原文\": \"...\",\n      \"訳文\": \"...\",\n      \"confidence\": \"high | low\"\n    }\n  ]\n}\nconfidenceがlowの項目は確認画面で強調表示すること。\n\n# 制約\n- 実データはまだ使わない。まずダミーの業者レポートとテンプレートを\n  自分で作成し、それでE2Eを通すこと(NDA確認が完了するまで)\n- ステップ5の承認をスキップする自動実行モードは作らないこと\n\n# 実装手順(各段階で停止して報告)\nStage 1: SKILL.md + DSLスキーマ定義 → 停止、私が確認\nStage 2: ステップ2-3のエンジン(抽出・JSON化)+ ダミーデータ → 停止\nStage 3: ステップ4のAI翻訳 → 停止\nStage 4: ステップ5の確認UI(日英横並び、low強調、承認ボタン)→ 停止\nStage 5: ステップ6の流し込みエンジン、E2Eテスト → 完了報告\n\nまずStage 1のみ実施し、停止して報告してください。",
+  "userQueryCount": 6,
+  "claudeSessionId": "af46d798-9d26-4847-b23b-95b17921436f",
+  "hasUnread": false,
+  "isBookmarked": true
+}

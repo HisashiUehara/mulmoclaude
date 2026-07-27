@@ -1,0 +1,57 @@
+{
+  "title": "MS Project スケジュール",
+  "icon": "view_timeline",
+  "dataPath": "data/skills/msp-studio/items",
+  "primaryKey": "id",
+  "displayField": "title",
+  "kanbanField": "status",
+  "calendarField": "startDate",
+  "calendarEndField": "finishDate",
+  "fields": {
+    "id": { "type": "string", "label": "ID", "primary": true, "required": true },
+    "title": { "type": "string", "label": "プロジェクト名", "required": true },
+    "category": {
+      "type": "enum",
+      "label": "分類",
+      "values": ["内装・建築", "IT・システム", "イベント", "社内プロジェクト", "その他"],
+      "default": "社内プロジェクト"
+    },
+    "status": {
+      "type": "enum",
+      "label": "ステータス",
+      "values": ["下書き", "作業中", "確定"],
+      "default": "下書き"
+    },
+    "done": { "type": "toggle", "label": "確定", "field": "status", "onValue": "確定", "offValue": "作業中" },
+    "startDate": { "type": "date", "label": "開始日" },
+    "finishDate": { "type": "date", "label": "完了日" },
+    "workingDays": { "type": "number", "label": "所要営業日" },
+    "taskCount": { "type": "number", "label": "タスク数" },
+    "milestoneCount": { "type": "number", "label": "マイルストーン数" },
+    "hoursPerDay": { "type": "number", "label": "1日の作業時間", "default": 8 },
+    "tasks": {
+      "type": "table",
+      "label": "タスク一覧 (WBS)",
+      "of": {
+        "tid": { "type": "number", "label": "ID" },
+        "name": { "type": "string", "label": "タスク名" },
+        "level": { "type": "number", "label": "レベル" },
+        "days": { "type": "number", "label": "日数" },
+        "preds": { "type": "string", "label": "先行" },
+        "res": { "type": "string", "label": "リソース" }
+      }
+    },
+    "app": { "type": "file", "label": "ビルダーを開く" },
+    "notes": { "type": "text", "label": "メモ" },
+    "updatedAt": { "type": "date", "label": "更新日" }
+  },
+  "views": [
+    {
+      "id": "studio",
+      "label": "MSP Studio を開く",
+      "icon": "rocket_launch",
+      "file": "views/launcher.html",
+      "capabilities": ["read"]
+    }
+  ]
+}

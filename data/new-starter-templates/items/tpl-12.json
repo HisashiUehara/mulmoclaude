@@ -1,0 +1,11 @@
+{
+  "id": "tpl-12",
+  "seq": 12,
+  "phase": "初日",
+  "category": "初日オリエン",
+  "task": "物品一式の受け渡しと受領サイン",
+  "defaultOwnerRole": "人事担当",
+  "dueOffsetDays": 0,
+  "version": 1,
+  "active": "有効"
+}

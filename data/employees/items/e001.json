@@ -1,0 +1,9 @@
+{
+  "id": "e001",
+  "name": "佐藤 花子",
+  "department": "開発部",
+  "role": "一般社員",
+  "supervisorId": "e004",
+  "hourlyWage": 2500,
+  "email": "sato@example.co.jp"
+}

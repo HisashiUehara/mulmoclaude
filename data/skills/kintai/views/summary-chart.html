@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+      :root {
+        --bar: #4f46e5;
+        --line: #f59e0b;
+        --ink: #1e293b;
+        --muted: #64748b;
+        --border: #e2e8f0;
+        --bg: #f8fafc;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 16px;
+        color: var(--ink);
+        background: #fff;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+      }
+      h1 {
+        font-size: 17px;
+        margin: 0;
+        flex: 1;
+      }
+      select,
+      input {
+        font: inherit;
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--ink);
+      }
+      label.ctl {
+        font-size: 13px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .card {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+        margin-bottom: 16px;
+        background: #fff;
+      }
+      .kpis {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .kpi {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: var(--bg);
+      }
+      .kpi .lbl {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .kpi .val {
+        font-size: 20px;
+        font-weight: 700;
+        margin-top: 2px;
+      }
+      .chart-wrap {
+        position: relative;
+        height: 340px;
+      }
+      h2 {
+        font-size: 14px;
+        margin: 0 0 10px;
+      }
+      .trip-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 4px;
+      }
+      .chip {
+        font-size: 13px;
+        background: #fef3c7;
+        color: #92400e;
+        border: 1px solid #fde68a;
+        border-radius: 999px;
+        padding: 4px 10px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 7px 8px;
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+      }
+      th {
+        color: var(--muted);
+        font-weight: 600;
+      }
+      tr.trip td:first-child::after {
+        content: " ✈";
+      }
+      button.approve {
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+        border: 1px solid #16a34a;
+        color: #fff;
+        background: #16a34a;
+        border-radius: 7px;
+        padding: 4px 12px;
+      }
+      button.approve:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .link {
+        color: var(--bar);
+        cursor: pointer;
+        text-decoration: underline;
+      }
+      .empty {
+        color: var(--muted);
+        font-size: 13px;
+        padding: 8px 0;
+      }
+      .err {
+        color: #b91c1c;
+        font-size: 13px;
+      }
+      .foot {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>勤怠 集計グラフ（従業員別・月別）</h1>
+      <label class="ctl">月 <select id="month"></select></label>
+      <label class="ctl">承認者名 <input id="approver" placeholder="任意" size="8" /></label>
+    </header>
+
+    <div id="root"><div class="empty">読み込み中…</div></div>
+
+    <script>
+      const { token, dataUrl } = window.__MC_VIEW;
+      const FIELDS = "employeeName,date,workType,businessTrip,workedMinutes,workedHours,dailyPay,status";
+      const readUrl = dataUrl + "?fields=" + encodeURIComponent(FIELDS);
+      const yen = new Intl.NumberFormat("ja-JP", { style: "currency", currency: "JPY", maximumFractionDigits: 0 });
+      let chart = null;
+      let selectedMonth = null; // "YYYY-MM"
+
+      const monthKey = (d) => (d ? String(d).slice(0, 7) : null);
+      const round1 = (n) => Math.round(n * 10) / 10;
+
+      async function read() {
+        const res = await fetch(readUrl, { headers: { Authorization: "Bearer " + token } });
+        if (!res.ok) throw new Error("HTTP " + res.status + ": " + (await res.text()));
+        return (await res.json()).items;
+      }
+
+      async function approve(id, btn) {
+        btn.disabled = true;
+        btn.textContent = "承認中…";
+        const approver = document.getElementById("approver").value.trim();
+        const row = { id, status: "承認済" };
+        if (approver) row.approvedBy = approver;
+        try {
+          const res = await fetch(dataUrl, {
+            method: "PUT",
+            headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+            body: JSON.stringify({ items: [row], mode: "merge" }),
+          });
+          if (!res.ok) throw new Error("HTTP " + res.status + ": " + (await res.text()));
+          const { rejected } = await res.json();
+          if (rejected && rejected.length) {
+            alert("承認できませんでした: " + (rejected[0].problem || "不明なエラー"));
+            btn.disabled = false;
+            btn.textContent = "承認";
+          }
+          // success → onChange fires and re-renders
+        } catch (e) {
+          alert("通信エラー: " + e.message);
+          btn.disabled = false;
+          btn.textContent = "承認";
+        }
+      }
+
+      function aggregate(items, month) {
+        const approved = items.filter((it) => it.status === "承認済" && monthKey(it.date) === month);
+        const byEmp = new Map();
+        for (const it of approved) {
+          const name = it.employeeName || "(未設定)";
+          const e = byEmp.get(name) || { name, minutes: 0, pay: 0, trips: 0 };
+          e.minutes += Number(it.workedMinutes) || 0;
+          e.pay += Number(it.dailyPay) || 0;
+          if (it.businessTrip) e.trips += 1;
+          byEmp.set(name, e);
+        }
+        return [...byEmp.values()].sort((a, b) => b.minutes - a.minutes);
+      }
+
+      function drawChart(rows) {
+        const ctx = document.getElementById("chart");
+        if (chart) chart.destroy();
+        chart = new Chart(ctx, {
+          data: {
+            labels: rows.map((r) => (r.trips > 0 ? r.name + " ✈" : r.name)),
+            datasets: [
+              {
+                type: "bar",
+                label: "実働時間 (h)",
+                data: rows.map((r) => round1(r.minutes / 60)),
+                backgroundColor: "rgba(79,70,229,0.75)",
+                borderRadius: 6,
+                yAxisID: "y",
+                order: 2,
+              },
+              {
+                type: "line",
+                label: "賃金 (¥)",
+                data: rows.map((r) => Math.round(r.pay)),
+                borderColor: "#f59e0b",
+                backgroundColor: "#f59e0b",
+                borderWidth: 2,
+                tension: 0.3,
+                pointRadius: 4,
+                yAxisID: "y1",
+                order: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
+            plugins: {
+              legend: { position: "top" },
+              tooltip: {
+                callbacks: {
+                  label: (c) => (c.dataset.yAxisID === "y1" ? "賃金: " + yen.format(c.parsed.y) : "実働: " + c.parsed.y + " h"),
+                },
+              },
+            },
+            scales: {
+              y: { position: "left", title: { display: true, text: "実働時間 (h)" }, beginAtZero: true },
+              y1: {
+                position: "right",
+                title: { display: true, text: "賃金 (¥)" },
+                beginAtZero: true,
+                grid: { drawOnChartArea: false },
+                ticks: { callback: (v) => "¥" + Number(v).toLocaleString("ja-JP") },
+              },
+            },
+          },
+        });
+      }
+
+      function pendingTable(items, month) {
+        const pending = items
+          .filter((it) => it.status === "申請中" && monthKey(it.date) === month)
+          .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+        if (!pending.length) return '<div class="empty">この月に承認待ちの勤怠はありません。</div>';
+        const rows = pending
+          .map((it) => {
+            const h = it.workedMinutes ? round1(it.workedMinutes / 60) + " h" : "—";
+            const pay = it.dailyPay != null ? yen.format(it.dailyPay) : "—";
+            return (
+              '<tr class="' +
+              (it.businessTrip ? "trip" : "") +
+              '"><td class="link" data-id="' +
+              it.id +
+              '">' +
+              (it.employeeName || "(未設定)") +
+              "</td><td>" +
+              (it.date || "") +
+              "</td><td>" +
+              (it.workType || "") +
+              "</td><td>" +
+              h +
+              "</td><td>" +
+              pay +
+              '</td><td><button class="approve" data-approve="' +
+              it.id +
+              '">承認</button></td></tr>'
+            );
+          })
+          .join("");
+        return (
+          '<table><thead><tr><th>氏名</th><th>勤務日</th><th>区分</th><th>実働</th><th>日額賃金</th><th></th></tr></thead><tbody>' +
+          rows +
+          "</tbody></table>"
+        );
+      }
+
+      function render(items) {
+        // month dropdown
+        const months = [...new Set(items.map((it) => monthKey(it.date)).filter(Boolean))].sort((a, b) => b.localeCompare(a));
+        const sel = document.getElementById("month");
+        if (!selectedMonth || !months.includes(selectedMonth)) selectedMonth = months[0] || null;
+        sel.innerHTML = months.map((m) => '<option value="' + m + '"' + (m === selectedMonth ? " selected" : "") + ">" + m + "</option>").join("");
+
+        const root = document.getElementById("root");
+        if (!selectedMonth) {
+          root.innerHTML = '<div class="empty">勤怠データがありません。</div>';
+          return;
+        }
+
+        const rows = aggregate(items, selectedMonth);
+        const totalH = round1(rows.reduce((s, r) => s + r.minutes, 0) / 60);
+        const totalPay = rows.reduce((s, r) => s + r.pay, 0);
+        const tripDays = rows.reduce((s, r) => s + r.trips, 0);
+        const tripChips = rows
+          .filter((r) => r.trips > 0)
+          .map((r) => '<span class="chip">✈ ' + r.name + " ×" + r.trips + "日</span>")
+          .join("");
+
+        root.innerHTML =
+          '<div class="kpis">' +
+          '<div class="kpi"><div class="lbl">対象従業員</div><div class="val">' +
+          rows.length +
+          " 名</div></div>" +
+          '<div class="kpi"><div class="lbl">合計実働時間</div><div class="val">' +
+          totalH +
+          " h</div></div>" +
+          '<div class="kpi"><div class="lbl">合計賃金</div><div class="val">' +
+          yen.format(totalPay) +
+          "</div></div>" +
+          '<div class="kpi"><div class="lbl">出張日数</div><div class="val">' +
+          tripDays +
+          " 日</div></div>" +
+          "</div>" +
+          '<div class="card"><h2>' +
+          selectedMonth +
+          " の実働時間・賃金（承認済のみ）</h2>" +
+          (rows.length ? '<div class="chart-wrap"><canvas id="chart"></canvas></div>' : '<div class="empty">この月に承認済の勤怠はありません。</div>') +
+          (tripChips ? '<div class="trip-chips">' + tripChips + "</div>" : "") +
+          '<div class="foot">✈ は出張日を含む従業員。棒＝実働時間 / 折れ線＝賃金。</div>' +
+          "</div>" +
+          '<div class="card"><h2>承認待ち（申請中）— この月</h2>' +
+          pendingTable(items, selectedMonth) +
+          '<div class="foot">承認するとグラフの集計に反映されます。氏名クリックで明細を開きます。</div>' +
+          "</div>";
+
+        if (rows.length) drawChart(rows);
+
+        root.querySelectorAll("button.approve").forEach((b) => {
+          b.onclick = () => approve(b.getAttribute("data-approve"), b);
+        });
+        root.querySelectorAll(".link[data-id]").forEach((el) => {
+          el.onclick = () => window.__MC_VIEW.openItem(el.getAttribute("data-id"));
+        });
+      }
+
+      async function refresh() {
+        try {
+          const items = await read();
+          render(items);
+        } catch (e) {
+          document.getElementById("root").innerHTML = '<div class="err">読み込みに失敗しました: ' + e.message + "</div>";
+        }
+      }
+
+      document.getElementById("month").addEventListener("change", (e) => {
+        selectedMonth = e.target.value;
+        refresh();
+      });
+
+      refresh();
+      window.__MC_VIEW.onChange(() => refresh());
+    </script>
+  </body>
+</html>

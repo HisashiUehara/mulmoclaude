@@ -1,0 +1,14 @@
+{
+  "id": "integrated-system-test",
+  "title": "IST（統合稼働試験）",
+  "category": "コミッショニング・試験",
+  "phase": "コミッショニング",
+  "summary": "電気・空調・監視を統合し、実負荷相当のロードバンクで障害シナリオを模擬検証する最終試験。",
+  "detail": "## ISTの位置づけ\n\n- コミッショニング L1〜L5 の最終段階（L5相当）。\n- 商用電源喪失→発電機切替→UPSブリッジなど障害シナリオを実測。\n- ロードバンクで実負荷を模擬し、温度上昇・切替時間・アラームを成績書に記録。",
+  "tags": "Cx,試験,ロードバンク",
+  "keywords": "IST, Integrated Systems Test, 統合稼働試験, Level5",
+  "importance": "高",
+  "status": "確認済み",
+  "source": "",
+  "createdAt": "2026-07-11"
+}

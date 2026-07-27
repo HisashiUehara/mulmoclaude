@@ -1,0 +1,12 @@
+{
+  "id": "taro-yamada-03__1784337000000__owner",
+  "at": "2026-07-18T10:10",
+  "actor": "佐藤 花子",
+  "starter": "山田 太郎",
+  "taskId": "taro-yamada-03",
+  "taskName": "配布グループ・Teamsチャネルへの追加",
+  "templateTaskId": "tpl-03",
+  "field": "owner",
+  "fromValue": "佐藤 花子",
+  "toValue": "鈴木 次郎"
+}

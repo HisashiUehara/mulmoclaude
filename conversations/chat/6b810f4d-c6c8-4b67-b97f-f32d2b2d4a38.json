@@ -1,0 +1,8 @@
+{
+  "roleId": "general",
+  "startedAt": "2026-07-18T12:14:52.254Z",
+  "firstUserMessage": "I want to add a custom view to the \"従業員マスタ\" collection. Ask me what I want to see or edit, then author the HTML view file at data/skills/employees/views/your-view.html and register it in data/skills/employees/schema.json under `views[]` (capabilities [\"read\"] for a read-only view, [\"read\",\"write\"] if it edits records). Follow the custom-view help for the data contract.",
+  "userQueryCount": 1,
+  "claudeSessionId": "26f0f289-c268-4688-a942-cb37f7e9331b",
+  "hasUnread": false
+}

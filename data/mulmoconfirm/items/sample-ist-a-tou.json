@@ -1,0 +1,80 @@
+{
+  "id": "sample-ist-a-tou",
+  "title": "【サンプル】IST試験成績書 確認（A棟）",
+  "status": "照合済",
+  "purpose": "IST（統合システム試験）成績書が試験要領書の合否基準を満たしているかを確認する",
+  "criteria": [
+    {
+      "item": "絶縁抵抗値",
+      "expected": "≥ 1.0 MΩ",
+      "source": "試験要領書 §4.2 表4-1"
+    },
+    {
+      "item": "接地抵抗",
+      "expected": "≤ 10 Ω",
+      "source": "試験要領書 §4.3"
+    },
+    {
+      "item": "試験実施日",
+      "expected": "2026-06-01〜06-30 の範囲内",
+      "source": "工程表 Rev.C"
+    }
+  ],
+  "targets": [
+    {
+      "name": "IST成績書_A棟.pdf",
+      "path": "data/attachments/2026/07/sample-placeholder.pdf",
+      "kind": "試験成績書PDF"
+    }
+  ],
+  "checks": [
+    {
+      "criterion": "絶縁抵抗値",
+      "expected": "≥ 1.0 MΩ",
+      "actual": "1.5 MΩ",
+      "aiVerdict": "pass",
+      "evidence": "成績書 p.3 測定結果表 行2",
+      "humanVerdict": "未判断",
+      "note": ""
+    },
+    {
+      "criterion": "接地抵抗",
+      "expected": "≤ 10 Ω",
+      "actual": "12 Ω",
+      "aiVerdict": "fail",
+      "evidence": "成績書 p.4 測定結果表 行5",
+      "humanVerdict": "未判断",
+      "note": "基準超過"
+    },
+    {
+      "criterion": "試験実施日",
+      "expected": "2026-06-01〜06-30 の範囲内",
+      "actual": "記載なし",
+      "aiVerdict": "unclear",
+      "evidence": "",
+      "humanVerdict": "未判断",
+      "note": "実施日欄が空欄で判定不能。根拠がないため unclear に固定"
+    }
+  ],
+  "planApprovedBy": "上原",
+  "auditLog": [
+    {
+      "when": "2026-07-11 10:00",
+      "who": "AI",
+      "action": "計画起案",
+      "detail": "目的・基準3項目（出典つき）・対象1件を起案"
+    },
+    {
+      "when": "2026-07-11 10:15",
+      "who": "上原",
+      "action": "計画承認",
+      "detail": "基準3項目を承認し照合を許可"
+    },
+    {
+      "when": "2026-07-11 10:20",
+      "who": "AI",
+      "action": "照合実行",
+      "detail": "3項目照合 → pass1 / fail1 / unclear1。根拠なしの実施日は unclear に固定"
+    }
+  ]
+}

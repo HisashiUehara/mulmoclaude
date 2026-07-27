@@ -1,0 +1,9 @@
+{
+  "id": "e003",
+  "name": "高橋 美咲",
+  "department": "営業部",
+  "role": "一般社員",
+  "supervisorId": "e005",
+  "hourlyWage": 2300,
+  "email": "takahashi@example.co.jp"
+}

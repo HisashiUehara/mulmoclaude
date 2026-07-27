@@ -1,0 +1,114 @@
+{
+  "title": "RFIAssist",
+  "icon": "fact_check",
+  "dataPath": "data/rfi-assist/items",
+  "primaryKey": "id",
+  "fields": {
+    "id": { "type": "string", "label": "ID", "primary": true, "required": true },
+    "title": { "type": "string", "label": "案件名", "required": true },
+    "rfiId": { "type": "string", "label": "RFI-ID（DSL rfi_id と一致）" },
+    "status": {
+      "type": "enum",
+      "label": "ステータス（9段）",
+      "required": true,
+      "values": [
+        "依頼受領",
+        "依頼理解(L1)",
+        "資料収集",
+        "不足依頼(L2)",
+        "要点整理(L3)",
+        "差込",
+        "ドラフト確認(L4)",
+        "送信準備(L5)",
+        "ACC提出",
+        "完了"
+      ]
+    },
+    "requestBody": {
+      "type": "text",
+      "label": "依頼内容（受領した原文・ステップ1のインプット）"
+    },
+    "loops": {
+      "type": "table",
+      "label": "ループ部品の状態（L1〜L5）",
+      "of": {
+        "loopId": { "type": "string", "label": "ループID" },
+        "name": { "type": "string", "label": "名称" },
+        "judge": { "type": "enum", "label": "判定者", "values": ["自分", "相手"] },
+        "loopCount": { "type": "number", "label": "周回数" },
+        "state": { "type": "enum", "label": "状態", "values": ["未開始", "進行中", "OK", "NG"] },
+        "aiNotes": { "type": "text", "label": "AI提示の判定材料（差分・候補・不明点）" }
+      }
+    },
+    "collectedDocs": {
+      "type": "table",
+      "label": "収集書類（ステップ3）",
+      "of": {
+        "docId": { "type": "string", "label": "書類ID" },
+        "name": { "type": "string", "label": "書類名" },
+        "sourceFolder": { "type": "string", "label": "検索元フォルダ" },
+        "path": { "type": "string", "label": "ファイル（ワークスペース相対パス）" },
+        "state": { "type": "enum", "label": "状態", "values": ["必要", "収集済", "不足"] }
+      }
+    },
+    "dslDrafts": {
+      "type": "table",
+      "label": "DSL受け渡し記録（依頼文・ドラフト）",
+      "of": {
+        "draftId": { "type": "string", "label": "ドラフトID" },
+        "phase": {
+          "type": "enum",
+          "label": "phase",
+          "values": ["understand", "collect", "draft", "review", "submit"]
+        },
+        "loopCount": { "type": "number", "label": "周回数" },
+        "宛先": { "type": "string", "label": "宛先" },
+        "件名": { "type": "string", "label": "件名" },
+        "本文": { "type": "text", "label": "本文" },
+        "添付": { "type": "text", "label": "添付（パスをカンマ区切り）" },
+        "aiNotes": { "type": "text", "label": "ai_notes（判定材料）" },
+        "approved": { "type": "boolean", "label": "承認（人間のみ true）" },
+        "approvedBy": { "type": "string", "label": "承認者" },
+        "approvedAt": { "type": "string", "label": "承認日時" }
+      }
+    },
+    "outputFiles": {
+      "type": "table",
+      "label": "engine出力ファイル（送信可能な完成物）",
+      "of": {
+        "fileId": { "type": "string", "label": "出力ID" },
+        "kind": {
+          "type": "enum",
+          "label": "種別",
+          "values": ["不足依頼", "お客様送信", "ACC提出"]
+        },
+        "path": { "type": "string", "label": "出力ファイル（ワークスペース相対パス）" },
+        "note": { "type": "string", "label": "備考" }
+      }
+    },
+    "approvedBy": {
+      "type": "string",
+      "label": "最終承認者（人間）",
+      "when": { "field": "status", "in": ["ACC提出", "完了"] }
+    },
+    "approvedAt": {
+      "type": "date",
+      "label": "最終承認日",
+      "when": { "field": "status", "in": ["ACC提出", "完了"] }
+    },
+    "auditLog": {
+      "type": "table",
+      "label": "証跡（全プロセスの記録）",
+      "of": {
+        "when": { "type": "string", "label": "日時" },
+        "who": { "type": "string", "label": "実行者（AI/人間/コード）" },
+        "stage": { "type": "string", "label": "ステップ" },
+        "detail": { "type": "string", "label": "内容" }
+      }
+    }
+  },
+  "displayField": "title",
+  "kanbanField": "status",
+  "completionField": "status",
+  "completionDoneValues": ["完了"]
+}

@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        --fail: #dc2626;
+        --fail-bg: #fef2f2;
+        --unclear: #d97706;
+        --unclear-bg: #fffbeb;
+        --pass: #16a34a;
+        --pass-bg: #f0fdf4;
+        --line: #e2e8f0;
+        --ink: #1e293b;
+        --muted: #64748b;
+      }
+      * { box-sizing: border-box; }
+      body {
+        font-family: system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif;
+        margin: 0;
+        padding: 16px;
+        color: var(--ink);
+        background: #f8fafc;
+      }
+      h1 { font-size: 16px; margin: 0 0 4px; }
+      .sub { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+      .bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      select, button {
+        font: inherit;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 6px 10px;
+        background: #fff;
+        color: var(--ink);
+      }
+      button.primary {
+        background: #1e293b;
+        color: #fff;
+        border-color: #1e293b;
+        cursor: pointer;
+      }
+      button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+      .banner {
+        background: #eef2ff;
+        border: 1px solid #c7d2fe;
+        color: #3730a3;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 12px;
+        margin-bottom: 12px;
+      }
+      .counts { display: flex; gap: 8px; margin-left: auto; }
+      .pill {
+        font-size: 12px;
+        border-radius: 999px;
+        padding: 3px 10px;
+        font-weight: 600;
+      }
+      .pill.fail { background: var(--fail-bg); color: var(--fail); }
+      .pill.unclear { background: var(--unclear-bg); color: var(--unclear); }
+      .pill.pass { background: var(--pass-bg); color: var(--pass); }
+      table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; }
+      th, td {
+        border-bottom: 1px solid var(--line);
+        padding: 8px 10px;
+        font-size: 13px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th { background: #f1f5f9; color: var(--muted); font-weight: 600; white-space: nowrap; }
+      tr[data-v="fail"] { background: var(--fail-bg); }
+      tr[data-v="unclear"] { background: var(--unclear-bg); }
+      .verdict { font-weight: 700; }
+      .verdict.fail { color: var(--fail); }
+      .verdict.unclear { color: var(--unclear); }
+      .verdict.pass { color: var(--pass); }
+      .warn { color: var(--fail); font-size: 11px; display: block; margin-top: 2px; }
+      .ev-empty { color: var(--unclear); font-style: italic; }
+      .err { color: var(--fail); }
+      .foot { color: var(--muted); font-size: 12px; margin-top: 10px; }
+      .hverdict.undecided { border-color: var(--unclear); background: var(--unclear-bg); }
+    </style>
+  </head>
+  <body>
+    <h1>差分テーブル — MulmoConfirm</h1>
+    <p class="sub">
+      fail → unclear → pass の順に表示。<b>最終判断は人間のみ</b>が行い、確定は自動で証跡に記録されます。
+    </p>
+    <div class="banner">
+      AI は候補（AI判定）までしか出せません。各行の「最終判断」を人間が決め、すべて判断したら「証跡を確定」できます。
+      根拠のない pass はルール違反として警告表示します。
+    </div>
+    <div class="bar">
+      <label>確認案件：<select id="pick"></select></label>
+      <button id="finalize" class="primary" title="全行を人間が判断したら確定できます">証跡を確定する</button>
+      <div class="counts" id="counts"></div>
+    </div>
+    <div id="root">読み込み中…</div>
+    <p class="foot" id="foot"></p>
+
+    <script>
+      const { token, dataUrl } = window.__MC_VIEW;
+      const FIELDS = "title,status,checks,auditLog,confirmedAt";
+      const authRead = { Authorization: "Bearer " + token };
+      const authWrite = { Authorization: "Bearer " + token, "Content-Type": "application/json" };
+      const ORDER = { fail: 0, unclear: 1, pass: 2 };
+      const HUMAN_OPTS = ["未判断", "承認", "否認", "保留", "要再照合"];
+      let cache = [];
+      let currentId = null;
+
+      function nowStamp() {
+        const d = new Date();
+        const p = (n) => String(n).padStart(2, "0");
+        return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+      }
+      function today() {
+        const d = new Date();
+        const p = (n) => String(n).padStart(2, "0");
+        return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+      }
+      function esc(s) {
+        return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      }
+
+      async function load() {
+        const url = dataUrl + "?fields=" + encodeURIComponent(FIELDS);
+        const res = await fetch(url, { headers: authRead });
+        if (!res.ok) throw new Error("読み込み失敗 (" + res.status + "): " + (await res.text()));
+        cache = (await res.json()).items || [];
+        if (!cache.some((r) => r.id === currentId)) currentId = cache.length ? cache[0].id : null;
+        renderPicker();
+        renderTable();
+      }
+
+      function renderPicker() {
+        const pick = document.getElementById("pick");
+        pick.innerHTML = cache
+          .map((r) => '<option value="' + esc(r.id) + '"' + (r.id === currentId ? " selected" : "") + ">" + esc(r.title || r.id) + " 〔" + esc(r.status || "") + "〕</option>")
+          .join("");
+        pick.onchange = () => { currentId = pick.value; renderTable(); };
+      }
+
+      function sortedChecks(rec) {
+        const rows = (rec.checks || []).map((c, i) => ({ ...c, _i: i }));
+        rows.sort((a, b) => (ORDER[a.aiVerdict] ?? 9) - (ORDER[b.aiVerdict] ?? 9));
+        return rows;
+      }
+
+      function renderTable() {
+        const root = document.getElementById("root");
+        const counts = document.getElementById("counts");
+        const foot = document.getElementById("foot");
+        const finalize = document.getElementById("finalize");
+        const rec = cache.find((r) => r.id === currentId);
+        if (!rec) { root.innerHTML = "<p>確認案件がありません。</p>"; counts.innerHTML = ""; finalize.disabled = true; foot.textContent = ""; return; }
+
+        const rows = sortedChecks(rec);
+        const tally = { fail: 0, unclear: 0, pass: 0 };
+        rows.forEach((r) => { if (tally[r.aiVerdict] != null) tally[r.aiVerdict]++; });
+        counts.innerHTML =
+          '<span class="pill fail">fail ' + tally.fail + "</span>" +
+          '<span class="pill unclear">unclear ' + tally.unclear + "</span>" +
+          '<span class="pill pass">pass ' + tally.pass + "</span>";
+
+        const undecided = rows.filter((r) => !r.humanVerdict || r.humanVerdict === "未判断").length;
+        const done = rec.status === "証跡確定";
+        finalize.disabled = done || rows.length === 0 || undecided > 0;
+        finalize.textContent = done ? "証跡確定済み" : undecided > 0 ? "未判断 " + undecided + " 件（人間の判断待ち）" : "証跡を確定する";
+        finalize.onclick = () => finalizeRecord(rec);
+
+        const head =
+          "<tr><th>基準項目</th><th>期待値</th><th>実測値</th><th>判定(AI)</th><th>根拠箇所</th><th>最終判断(人間)</th><th>メモ</th></tr>";
+        const body = rows
+          .map((r) => {
+            const v = r.aiVerdict || "";
+            const noEvidencePass = v === "pass" && !String(r.evidence || "").trim();
+            const ev = String(r.evidence || "").trim()
+              ? esc(r.evidence)
+              : '<span class="ev-empty">根拠なし</span>';
+            const hv = r.humanVerdict || "未判断";
+            const sel =
+              '<select class="hverdict' + (hv === "未判断" ? " undecided" : "") + '" data-row="' + r._i + '"' + (done ? " disabled" : "") + ">" +
+              HUMAN_OPTS.map((o) => '<option' + (o === hv ? " selected" : "") + ">" + o + "</option>").join("") +
+              "</select>";
+            return (
+              '<tr data-v="' + esc(v) + '">' +
+              "<td>" + esc(r.criterion) + "</td>" +
+              "<td>" + esc(r.expected) + "</td>" +
+              "<td>" + esc(r.actual) + "</td>" +
+              '<td><span class="verdict ' + esc(v) + '">' + esc(v || "—") + "</span>" +
+              (noEvidencePass ? '<span class="warn">⚠ 根拠なしの pass（要再照合）</span>' : "") + "</td>" +
+              "<td>" + ev + "</td>" +
+              "<td>" + sel + "</td>" +
+              "<td>" + esc(r.note) + "</td>" +
+              "</tr>"
+            );
+          })
+          .join("");
+        root.innerHTML = "<table>" + head + body + "</table>";
+        root.querySelectorAll("select.hverdict").forEach((s) => {
+          s.onchange = () => setHumanVerdict(rec, Number(s.dataset.row), s.value);
+        });
+        foot.textContent = "証跡（記録）: " + ((rec.auditLog || []).length) + " 件。ステータス: " + (rec.status || "");
+      }
+
+      async function put(body) {
+        const res = await fetch(dataUrl, { method: "PUT", headers: authWrite, body: JSON.stringify(body) });
+        if (!res.ok) throw new Error("保存失敗 (" + res.status + "): " + (await res.text()));
+        const { rejected } = await res.json();
+        if (rejected && rejected.length) throw new Error(rejected[0].problem || "保存が拒否されました");
+      }
+
+      async function setHumanVerdict(rec, rowIdx, value) {
+        try {
+          const checks = (rec.checks || []).map((c) => ({ ...c }));
+          if (!checks[rowIdx]) return;
+          checks[rowIdx].humanVerdict = value;
+          const criterion = checks[rowIdx].criterion || "(行" + (rowIdx + 1) + ")";
+          const audit = (rec.auditLog || []).concat([
+            { when: nowStamp(), who: "人間(差分ビュー)", action: "最終判断", detail: criterion + " → " + value },
+          ]);
+          await put({ items: [{ id: rec.id, checks, auditLog: audit }], mode: "merge" });
+        } catch (e) {
+          document.getElementById("foot").innerHTML = '<span class="err">' + esc(e.message) + "</span>";
+        }
+      }
+
+      async function finalizeRecord(rec) {
+        const rows = rec.checks || [];
+        const undecided = rows.filter((r) => !r.humanVerdict || r.humanVerdict === "未判断").length;
+        if (undecided > 0) {
+          alert("未判断が " + undecided + " 件あります。すべて人間が判断してから確定してください（unclear の握りつぶし防止）。");
+          return;
+        }
+        if (!confirm("この確認案件を『証跡確定』にします。よろしいですか？")) return;
+        try {
+          const audit = (rec.auditLog || []).concat([
+            { when: nowStamp(), who: "人間(差分ビュー)", action: "証跡確定", detail: "全 " + rows.length + " 行を人間が判断し確定" },
+          ]);
+          await put({ items: [{ id: rec.id, status: "証跡確定", confirmedAt: today(), auditLog: audit }], mode: "merge" });
+        } catch (e) {
+          document.getElementById("foot").innerHTML = '<span class="err">' + esc(e.message) + "</span>";
+        }
+      }
+
+      load().catch((e) => {
+        document.getElementById("root").innerHTML = '<span class="err">' + esc(e.message) + "</span>";
+      });
+      window.__MC_VIEW.onChange(() => load().catch(() => {}));
+    </script>
+  </body>
+</html>

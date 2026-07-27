@@ -1,0 +1,5 @@
+{
+  "script-src":  ["https://maps.googleapis.com", "https://maps.gstatic.com"],
+  "img-src":     ["https://maps.googleapis.com", "https://maps.gstatic.com"],
+  "connect-src": ["https://maps.googleapis.com"]
+}

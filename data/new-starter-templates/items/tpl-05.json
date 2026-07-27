@@ -1,0 +1,12 @@
+{
+  "id": "tpl-05",
+  "seq": 5,
+  "phase": "入社前",
+  "category": "アカウント・IT関係",
+  "task": "勤怠・経費・出張申請アプリのアカウント発行とライセンス割当",
+  "defaultOwnerRole": "人事担当",
+  "requestTo": "IT部門",
+  "dueOffsetDays": -7,
+  "version": 2,
+  "active": "有効"
+}

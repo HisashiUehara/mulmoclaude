@@ -1,0 +1,41 @@
+{
+  "title": "MulmoNavi",
+  "icon": "navigation",
+  "dataPath": "data/skills/voice-nav/items",
+  "primaryKey": "id",
+  "displayField": "name",
+  "kanbanField": "category",
+  "fields": {
+    "id": { "type": "string", "label": "ID", "primary": true, "required": true },
+    "name": { "type": "string", "label": "行き先名", "required": true },
+    "query": { "type": "string", "label": "検索クエリ", "description": "アプリで検索する語（未指定なら行き先名を使用）" },
+    "category": {
+      "type": "enum",
+      "label": "分類",
+      "values": ["お気に入り", "履歴", "自宅・職場", "登山・アウトドア", "その他"],
+      "default": "お気に入り"
+    },
+    "mode": { "type": "enum", "label": "移動手段", "values": ["車", "徒歩"], "default": "車" },
+    "area": { "type": "string", "label": "エリア・メモ" },
+    "distance": { "type": "string", "label": "距離" },
+    "duration": { "type": "string", "label": "所要時間" },
+    "lastUsed": { "type": "date", "label": "最終利用日" },
+    "notes": { "type": "text", "label": "メモ" }
+  },
+  "views": [
+    {
+      "id": "launcher",
+      "label": "MulmoNavi を起動",
+      "icon": "navigation",
+      "file": "views/launcher.html",
+      "capabilities": ["read"]
+    },
+    {
+      "id": "phone",
+      "label": "MulmoNavi（スマホ）",
+      "icon": "smartphone",
+      "target": "mobile",
+      "file": "views/phone.html"
+    }
+  ]
+}

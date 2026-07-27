@@ -1,0 +1,194 @@
+{
+  "$mulmocast": {
+    "version": "1.1"
+  },
+  "canvasSize": {
+    "width": 1280,
+    "height": 720
+  },
+  "speechParams": {
+    "speakers": {
+      "Narrator": {
+        "displayName": {
+          "ja": "ナレーター"
+        },
+        "voiceId": "Leda",
+        "speechOptions": {
+          "instruction": "明るくてやさしい、絵本を読み聞かせるような口調で。むずかしい言葉もわくわく楽しく、ゆっくりはっきり話してください。"
+        },
+        "provider": "gemini"
+      }
+    }
+  },
+  "imageParams": {
+    "provider": "google",
+    "model": "gemini-3.1-flash-image-preview",
+    "style": "cute kawaii chibi illustration, soft pastel colors, rounded shapes, gentle outlines, storybook picture-book style, warm and friendly",
+    "images": {
+      "mimi": {
+        "type": "imagePrompt",
+        "prompt": "A small round friendly robot mascot named Mimi, pastel mint-blue body, big shiny curious eyes, tiny antenna with a glowing dot, short stubby arms, always looking excited and asking questions"
+      },
+      "sensei": {
+        "type": "imagePrompt",
+        "prompt": "A gentle cat professor named Sensei, fluffy cream-colored fur, small round glasses, wearing a tiny knitted vest, holding a little pointer stick, calm and kind smile"
+      },
+      "dcchan": {
+        "type": "imagePrompt",
+        "prompt": "A cute anthropomorphized data center building character named DC-chan, a chubby friendly building with big eyes and a smile, tiny server-rack windows glowing softly, little cooling-fan cheeks, pastel gray and blue"
+      }
+    }
+  },
+  "movieParams": {
+    "provider": "google",
+    "model": "veo-3.1-generate",
+    "transition": {
+      "type": "fade",
+      "duration": 0.5
+    }
+  },
+  "soundEffectParams": {
+    "provider": "replicate"
+  },
+  "audioParams": {
+    "introPadding": 1,
+    "padding": 0.3,
+    "closingPadding": 0.8,
+    "outroPadding": 1,
+    "bgmVolume": 0.2,
+    "audioVolume": 1,
+    "suppressSpeech": false
+  },
+  "title": "データセンターってなぁに？ ～AI時代の電気とお金のおはなし～",
+  "description": "好奇心いっぱいのロボット・ミミと、やさしいネコ先生が、データセンターの仕組み・電力・建設コスト・AIビジネスの経済をかわいく解説する入門動画。",
+  "lang": "ja",
+  "beats": [
+    {
+      "speaker": "Narrator",
+      "text": "こんにちは！ 今日は、ロボットのミミと、ネコのせんせいといっしょに、「データセンター」の世界をのぞいてみましょう。",
+      "imageNames": [
+        "mimi",
+        "sensei"
+      ],
+      "imagePrompt": "Mimi the robot and Sensei the cat professor waving hello together in a bright cozy study room, floating question marks and sparkles around them, welcoming opening scene"
+    },
+    {
+      "speaker": "Narrator",
+      "text": "データセンターは、たくさんのサーバーをあつめて、二十四時間、三百六十五日、ぜったいに止めないようにお世話する、とくべつな建物なんだって。",
+      "imageNames": [
+        "dcchan",
+        "mimi"
+      ],
+      "imagePrompt": "DC-chan the building character standing proudly, rows of glowing server racks inside, a clock and calendar showing 24/7, Mimi looking up in awe"
+    },
+    {
+      "speaker": "Narrator",
+      "text": "なかみは大きく四つ。電気の系統、冷やす冷却の系統、つなぐ通信の系統、そしてまもるセキュリティ。ぜんぶそろって、はじめてIT が止まらないんだよ。",
+      "imageNames": [
+        "sensei",
+        "dcchan"
+      ],
+      "imagePrompt": "Sensei the cat pointing a stick at four cute pastel icons floating around DC-chan: a lightning bolt for power, a snowflake for cooling, a network globe, and a shield for security"
+    },
+    {
+      "speaker": "Narrator",
+      "text": "いま、世界じゅうで、およそ三十二ギガワットぶんのデータセンターが建設中。大きな建物なら何百こぶんもの、とてつもない量なんだ。",
+      "imageNames": [
+        "mimi",
+        "dcchan"
+      ],
+      "imagePrompt": "A world map with many tiny cute data center buildings popping up like sprouts, a big number 32GW glowing in the sky, Mimi zooming around with wide eyes"
+    },
+    {
+      "speaker": "Narrator",
+      "text": "でも、こまったことに、電気がたりない！ だからみんな、自分で発電したり、原子力を使ったり、いろんな工夫をがんばっているんだって。",
+      "imageNames": [
+        "sensei",
+        "mimi"
+      ],
+      "imagePrompt": "Sensei and Mimi looking at a droopy power outlet with a worried face, then pointing at cute solutions: a small gas generator, a tiny nuclear symbol, and a battery, hopeful mood"
+    },
+    {
+      "speaker": "Narrator",
+      "text": "たとえば東京では、使える電気も、いる電気も、どちらもおよそ五十三ギガワット。ぎりぎりの綱わたり。夏はとくにハラハラなんだよ。",
+      "imageNames": [
+        "dcchan",
+        "mimi"
+      ],
+      "imagePrompt": "A cute balance scale with a power plant on one side and a city with DC-chan on the other, perfectly balanced and wobbling, Mimi holding its breath nervously, summer sun above"
+    },
+    {
+      "speaker": "Narrator",
+      "text": "建物を建てるには、長い時間がかかる機械もあるんだ。変圧器や発電機は、注文してから届くまで何ヶ月も。これをエル・エル・イー、長納期機器っていうよ。",
+      "imageNames": [
+        "sensei",
+        "dcchan"
+      ],
+      "imagePrompt": "A cute delivery truck slowly carrying a giant transformer with a long calendar trail behind it, Sensei checking a schedule chart, DC-chan waiting patiently"
+    },
+    {
+      "speaker": "Narrator",
+      "text": "建てるお金の中身を見ると、電気まわりの設備だけで、なんと全体の三割から四割。データセンターは、まさに電気のかたまりなんだね。",
+      "imageNames": [
+        "mimi",
+        "sensei"
+      ],
+      "imagePrompt": "A cute round pie chart made of pastel slices, the electrical slices glowing and biggest, Mimi and Sensei pointing at it with a lightbulb above their heads"
+    },
+    {
+      "speaker": "Narrator",
+      "text": "貸し方にも二つある。みんなで少しずつ借りる「コロケーション」と、一社だけのために建てる「ビルド・トゥ・スーツ」。おうちの借り方みたいだね。",
+      "imageNames": [
+        "dcchan",
+        "mimi"
+      ],
+      "imagePrompt": "Two cute buildings side by side: one is an apartment with many small tenants peeking from windows, the other a single custom house with one happy tenant, DC-chan explaining cheerfully"
+    },
+    {
+      "speaker": "Narrator",
+      "text": "お金には、建てるときの初期費用キャペックスと、動かしつづける運営費オペックスがあってね。オペックスでいちばん大きいのは、やっぱり電気代なんだ。",
+      "imageNames": [
+        "sensei",
+        "mimi"
+      ],
+      "imagePrompt": "Two cute piggy banks labeled with a hammer for build-cost and a gear for running-cost, a big electricity bill sticking out of the running-cost one, Sensei and Mimi counting coins"
+    },
+    {
+      "speaker": "Narrator",
+      "text": "たとえば四十メガワットの建物ひとつで、毎月なんと十四億円のお支払い！ その中では、エイチ百というAI用のチップが、およそ二万から二万五千こも動いているんだって。",
+      "imageNames": [
+        "dcchan",
+        "mimi"
+      ],
+      "imagePrompt": "DC-chan surrounded by a huge glowing pile of cute GPU chips, a giant yen coin floating with the number, Mimi's jaw dropping in amazement, sparkles everywhere"
+    },
+    {
+      "speaker": "Narrator",
+      "text": "そのお金をかせぐには、チャットのサブスクや、使ったぶんだけのAPI課金。じつはこの建物ひとつで、何百万人ぶんものAIの裏側をささえているんだよ。",
+      "imageNames": [
+        "mimi",
+        "sensei"
+      ],
+      "imagePrompt": "A giant cute cloud with a friendly AI face connected to millions of tiny happy user icons by glowing lines, Mimi and Sensei riding the cloud, warm crowd of people below"
+    },
+    {
+      "speaker": "Narrator",
+      "text": "AI のお仕事は二つ。たくさん勉強してかしこくなる「学習」と、質問に答える「推論」。工場を作るのが学習、製品を出荷するのが推論、っておぼえてね。",
+      "imageNames": [
+        "sensei",
+        "dcchan"
+      ],
+      "imagePrompt": "A cute factory being built on the left labeled study, and cute products being shipped out on a conveyor on the right labeled answering, Sensei pointing between them, DC-chan smiling"
+    },
+    {
+      "speaker": "Narrator",
+      "text": "電気と、お金と、たくさんの計算。それをそっとささえているのが、データセンターくん。今日ちょっぴり、その気もちがわかったね。またいっしょに学ぼうね！",
+      "imageNames": [
+        "mimi",
+        "sensei",
+        "dcchan"
+      ],
+      "imagePrompt": "Mimi, Sensei, and DC-chan all together holding hands in a warm sunset glow, floating hearts and stars, a cozy heartwarming closing group scene"
+    }
+  ]
+}

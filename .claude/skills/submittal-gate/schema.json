@@ -1,0 +1,133 @@
+{
+  "title": "SubmittalGate",
+  "icon": "verified",
+  "dataPath": "data/submittal-gate/items",
+  "primaryKey": "id",
+  "fields": {
+    "id": { "type": "string", "label": "ID", "primary": true, "required": true },
+    "title": { "type": "string", "label": "案件名（Submittal対象）", "required": true },
+    "submittalId": { "type": "string", "label": "Submittal-ID（DSL submittal_id と一致）" },
+    "gate": {
+      "type": "enum",
+      "label": "現在のゲート",
+      "values": ["my_gate", "client_gate"]
+    },
+    "status": {
+      "type": "enum",
+      "label": "ステータス（12段）",
+      "required": true,
+      "values": [
+        "書類受領",
+        "要件照合",
+        "修正依頼(L1)",
+        "修正版確認(L2)",
+        "ACC提出",
+        "お客様コメント(L3)",
+        "問題点確認",
+        "ゼネコン修正依頼(L4)",
+        "修正版照合",
+        "確認承認(L5)",
+        "ACC再提出",
+        "結果報告(L6)",
+        "完了"
+      ]
+    },
+    "requiredDocs": {
+      "type": "table",
+      "label": "受領書類（ステップ1・ゼネコンから上がる必要書類）",
+      "of": {
+        "docId": { "type": "string", "label": "書類ID" },
+        "name": { "type": "string", "label": "書類名" },
+        "revision": { "type": "string", "label": "版" },
+        "path": { "type": "string", "label": "ファイル（ワークスペース相対パス）" },
+        "receivedAt": { "type": "string", "label": "受領日時" }
+      }
+    },
+    "diffTable": {
+      "type": "table",
+      "label": "要件照合の差分（ステップ2・DSL diff[] を保存。材料のみ、判定は人間）",
+      "of": {
+        "diffId": { "type": "string", "label": "差分ID" },
+        "loopCount": { "type": "number", "label": "照合回" },
+        "項目": { "type": "string", "label": "項目" },
+        "要件": { "type": "string", "label": "要件（OPR等の値）" },
+        "提出内容": { "type": "string", "label": "提出内容" },
+        "差分": { "type": "text", "label": "差分（材料）" },
+        "sourceReq": { "type": "string", "label": "要件根拠（requirements/内の出典）" }
+      }
+    },
+    "loops": {
+      "type": "table",
+      "label": "ループ部品の状態（L1〜L6・二重ゲート）",
+      "of": {
+        "loopId": { "type": "string", "label": "ループID" },
+        "name": { "type": "string", "label": "名称" },
+        "gate": { "type": "enum", "label": "ゲート", "values": ["my_gate", "client_gate"] },
+        "judge": { "type": "enum", "label": "判定者", "values": ["私", "ゼネコン", "お客様"] },
+        "loopCount": { "type": "number", "label": "周回数" },
+        "state": { "type": "enum", "label": "状態", "values": ["未開始", "進行中", "OK", "NG"] },
+        "aiNotes": { "type": "text", "label": "AI提示の判定材料（差分・不明点）" }
+      }
+    },
+    "dslDrafts": {
+      "type": "table",
+      "label": "DSL受け渡し記録（依頼文・報告ドラフト）",
+      "of": {
+        "draftId": { "type": "string", "label": "ドラフトID" },
+        "gate": { "type": "enum", "label": "ゲート", "values": ["my_gate", "client_gate"] },
+        "phase": {
+          "type": "enum",
+          "label": "phase",
+          "values": ["check", "revise", "submit", "respond", "report"]
+        },
+        "loopCount": { "type": "number", "label": "周回数" },
+        "宛先": { "type": "string", "label": "宛先" },
+        "本文": { "type": "text", "label": "本文" },
+        "添付": { "type": "text", "label": "添付（パスをカンマ区切り）" },
+        "aiNotes": { "type": "text", "label": "ai_notes（判定材料）" },
+        "approved": { "type": "boolean", "label": "承認（人間のみ true）" },
+        "approvedBy": { "type": "string", "label": "承認者" },
+        "approvedAt": { "type": "string", "label": "承認日時" }
+      }
+    },
+    "outputFiles": {
+      "type": "table",
+      "label": "engine出力ファイル（送信可能な完成物）",
+      "of": {
+        "fileId": { "type": "string", "label": "出力ID" },
+        "kind": {
+          "type": "enum",
+          "label": "種別",
+          "values": ["修正依頼", "ACC提出", "ゼネコン修正依頼", "ACC再提出", "結果報告"]
+        },
+        "path": { "type": "string", "label": "出力ファイル（ワークスペース相対パス）" },
+        "note": { "type": "string", "label": "備考" }
+      }
+    },
+    "approvedBy": {
+      "type": "string",
+      "label": "最終承認者（人間）",
+      "when": { "field": "status", "in": ["結果報告(L6)", "完了"] }
+    },
+    "approvedAt": {
+      "type": "date",
+      "label": "最終承認日",
+      "when": { "field": "status", "in": ["結果報告(L6)", "完了"] }
+    },
+    "auditLog": {
+      "type": "table",
+      "label": "証跡（全プロセスの記録）",
+      "of": {
+        "when": { "type": "string", "label": "日時" },
+        "who": { "type": "string", "label": "実行者（AI/人間/コード）" },
+        "gate": { "type": "string", "label": "ゲート" },
+        "stage": { "type": "string", "label": "ステップ" },
+        "detail": { "type": "string", "label": "内容" }
+      }
+    }
+  },
+  "displayField": "title",
+  "kanbanField": "status",
+  "completionField": "status",
+  "completionDoneValues": ["完了"]
+}

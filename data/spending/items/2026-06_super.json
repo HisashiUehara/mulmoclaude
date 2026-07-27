@@ -1,0 +1,29 @@
+{
+  "id": "2026-06_super",
+  "month": "2026-06",
+  "periodLabel": "5/16〜6/15",
+  "category": "スーパー",
+  "amount": 24404,
+  "merchants": [
+    {
+      "name": "まいばすけっと",
+      "amount": 9993
+    },
+    {
+      "name": "マルエツ",
+      "amount": 4789
+    },
+    {
+      "name": "ライフ",
+      "amount": 3246
+    },
+    {
+      "name": "ヨークマート",
+      "amount": 2810
+    },
+    {
+      "name": "その他",
+      "amount": 3566
+    }
+  ]
+}

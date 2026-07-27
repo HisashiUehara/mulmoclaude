@@ -1,0 +1,14 @@
+{
+  "id": "pue-basics",
+  "title": "PUE（電力使用効率）の基礎",
+  "category": "省エネ・環境",
+  "phase": "全般",
+  "summary": "データセンター全体の消費電力をIT機器の消費電力で割った指標。1.0に近いほど効率的。",
+  "detail": "## PUE = 総消費電力 / IT機器消費電力\n\n- 業界平均はおよそ1.5前後、最新の大規模DCで1.1〜1.2。\n- 空調・冷却の効率化が改善の主因。\n- 関連指標: WUE（水使用効率）, CUE（炭素使用効率）。",
+  "tags": "指標,効率,空調",
+  "keywords": "PUE, Power Usage Effectiveness, 電力効率",
+  "importance": "高",
+  "status": "確認済み",
+  "source": "The Green Grid",
+  "createdAt": "2026-07-11"
+}

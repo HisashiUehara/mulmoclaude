@@ -1,0 +1,90 @@
+{
+  "title": "MulmoConfirm",
+  "icon": "fact_check",
+  "dataPath": "data/mulmoconfirm/items",
+  "primaryKey": "id",
+  "fields": {
+    "id": { "type": "string", "label": "ID", "primary": true, "required": true },
+    "title": { "type": "string", "label": "確認案件", "required": true },
+    "status": {
+      "type": "enum",
+      "label": "ステータス",
+      "required": true,
+      "values": ["起案中", "計画承認済", "照合済", "証跡確定"]
+    },
+    "purpose": { "type": "text", "label": "目的（何のために確認するか）" },
+    "criteria": {
+      "type": "table",
+      "label": "基準（何と照らすか・出典つき）",
+      "of": {
+        "item": { "type": "string", "label": "基準項目" },
+        "expected": { "type": "string", "label": "期待値" },
+        "source": { "type": "string", "label": "出典" }
+      }
+    },
+    "targets": {
+      "type": "table",
+      "label": "対象（確認するファイル群）",
+      "of": {
+        "name": { "type": "string", "label": "ファイル" },
+        "path": { "type": "string", "label": "パス" },
+        "kind": { "type": "string", "label": "種別" }
+      }
+    },
+    "checks": {
+      "type": "table",
+      "label": "照合（差分テーブル）",
+      "of": {
+        "criterion": { "type": "string", "label": "基準項目" },
+        "expected": { "type": "string", "label": "期待値" },
+        "actual": { "type": "string", "label": "実測値" },
+        "aiVerdict": { "type": "enum", "label": "判定(AI)", "values": ["pass", "fail", "unclear"] },
+        "evidence": { "type": "string", "label": "根拠箇所" },
+        "humanVerdict": {
+          "type": "enum",
+          "label": "最終判断(人間)",
+          "values": ["未判断", "承認", "否認", "保留", "要再照合"]
+        },
+        "note": { "type": "string", "label": "判断メモ" }
+      }
+    },
+    "planApprovedBy": {
+      "type": "string",
+      "label": "計画承認者",
+      "when": { "field": "status", "in": ["計画承認済", "照合済", "証跡確定"] }
+    },
+    "confirmedBy": {
+      "type": "string",
+      "label": "証跡確定者",
+      "when": { "field": "status", "in": ["証跡確定"] }
+    },
+    "confirmedAt": {
+      "type": "date",
+      "label": "証跡確定日",
+      "when": { "field": "status", "in": ["証跡確定"] }
+    },
+    "auditLog": {
+      "type": "table",
+      "label": "証跡（全プロセスの記録）",
+      "of": {
+        "when": { "type": "string", "label": "日時" },
+        "who": { "type": "string", "label": "実行者" },
+        "action": { "type": "string", "label": "操作" },
+        "detail": { "type": "string", "label": "内容" }
+      }
+    }
+  },
+  "displayField": "title",
+  "kanbanField": "status",
+  "completionField": "status",
+  "completionDoneValues": ["証跡確定"],
+  "views": [
+    {
+      "id": "difftable",
+      "label": "差分テーブル",
+      "icon": "difference",
+      "file": "views/diff-table.html",
+      "capabilities": ["read", "write"]
+    }
+  ]
+}

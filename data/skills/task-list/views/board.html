@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --border: #e2e8f0;
+        --text: #1e293b;
+        --muted: #64748b;
+        --accent: #4f46e5;
+        --accent-soft: #eef2ff;
+        --green: #16a34a;
+        --red: #dc2626;
+      }
+      * { box-sizing: border-box; }
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 16px;
+        background: var(--bg);
+        color: var(--text);
+        font-size: 13px;
+      }
+      h1 { font-size: 17px; margin: 0 0 12px; }
+      .tabs { display: flex; gap: 6px; margin-bottom: 14px; border-bottom: 2px solid var(--border); }
+      .tab {
+        padding: 8px 16px; cursor: pointer; border: none; background: none;
+        font-size: 13px; color: var(--muted); font-weight: 600;
+        border-bottom: 2px solid transparent; margin-bottom: -2px;
+      }
+      .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+      .tab .badge {
+        display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 6px;
+        border-radius: 9px; background: var(--accent-soft); color: var(--accent);
+        font-size: 11px; line-height: 18px; text-align: center;
+      }
+      .panel { display: none; }
+      .panel.active { display: block; }
+
+      table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; }
+      th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: middle; }
+      th { background: #f1f5f9; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+      tr:last-child td { border-bottom: none; }
+      tr:hover td { background: #fafbff; }
+      .title-cell { font-weight: 600; cursor: pointer; }
+      .title-cell:hover { color: var(--accent); text-decoration: underline; }
+      .muted { color: var(--muted); }
+
+      .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+      .cat-submittal { background: #dbeafe; color: #1e40af; }
+      .cat-RFI { background: #fef3c7; color: #92400e; }
+      .cat-drawing { background: #e0e7ff; color: #3730a3; }
+      .cat-vendor { background: #dcfce7; color: #166534; }
+      .cat-report { background: #fce7f3; color: #9d174d; }
+      .cat-other { background: #f1f5f9; color: #475569; }
+      .pri-high { background: #fee2e2; color: #991b1b; }
+      .pri-mid { background: #fef9c3; color: #854d0e; }
+      .pri-low { background: #f0fdf4; color: #166534; }
+
+      select {
+        font-size: 12px; padding: 4px 6px; border: 1px solid var(--border);
+        border-radius: 6px; background: #fff; color: var(--text); cursor: pointer;
+      }
+      .btn {
+        padding: 5px 12px; border-radius: 6px; border: none; cursor: pointer;
+        font-size: 12px; font-weight: 600; margin-right: 6px;
+      }
+      .btn-approve { background: var(--green); color: #fff; }
+      .btn-reject { background: #fff; color: var(--red); border: 1px solid var(--red); }
+      .btn-ghost { background: #fff; color: var(--muted); border: 1px solid var(--border); }
+      .btn:hover { opacity: .9; }
+
+      .empty { padding: 32px; text-align: center; color: var(--muted); background: var(--card); border-radius: 8px; }
+      .err { color: var(--red); padding: 12px; }
+      .cand-summary { color: var(--muted); font-size: 12px; margin-top: 3px; max-width: 480px; }
+
+      .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .chart-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+      .chart-card h2 { font-size: 13px; margin: 0 0 10px; color: var(--muted); }
+      .chart-wrap { position: relative; height: 240px; }
+      .stat-row { display: flex; gap: 12px; margin-bottom: 16px; }
+      .stat { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+      .stat .n { font-size: 22px; font-weight: 700; }
+      .stat .l { font-size: 11px; color: var(--muted); }
+      @media (max-width: 640px) { .charts { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <h1>Task一覧表</h1>
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-tab="list">一覧表<span class="badge" id="badge-list">0</span></button>
+      <button class="tab" data-tab="cand">候補<span class="badge" id="badge-cand">0</span></button>
+      <button class="tab" data-tab="chart">集計</button>
+    </div>
+    <div class="panel active" id="panel-list"></div>
+    <div class="panel" id="panel-cand"></div>
+    <div class="panel" id="panel-chart"></div>
+
+    <script>
+      const { token, dataUrl } = window.__MC_VIEW;
+      const FIELDS = "title,summary,category,assignee,due_date,priority,status,approval,msp_file,source,received_date";
+      const CATS = ["submittal", "RFI", "drawing", "vendor", "report", "other"];
+      const STATUSES = ["open", "in progress", "done"];
+      const authHeaders = { Authorization: "Bearer " + token, "Content-Type": "application/json" };
+      let charts = {};
+
+      const esc = (s) =>
+        String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+      async function read() {
+        const url = dataUrl + "?fields=" + encodeURIComponent(FIELDS);
+        const res = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+        if (!res.ok) throw new Error("読み込み失敗 (" + res.status + "): " + (await res.text()));
+        return (await res.json()).items || [];
+      }
+
+      async function write(row) {
+        const res = await fetch(dataUrl, {
+          method: "PUT",
+          headers: authHeaders,
+          body: JSON.stringify({ items: [row], mode: "merge" }),
+        });
+        if (!res.ok) {
+          alert("保存失敗 (" + res.status + "): " + (await res.text()));
+          return false;
+        }
+        const { rejected } = await res.json();
+        if (rejected && rejected.length) {
+          alert("保存できませんでした: " + (rejected[0].problem || JSON.stringify(rejected[0])));
+          return false;
+        }
+        return true;
+      }
+
+      function catChip(c) {
+        return '<span class="chip cat-' + esc(c) + '">' + esc(c || "—") + "</span>";
+      }
+      function priChip(p) {
+        return '<span class="chip pri-' + esc(p) + '">' + esc(p || "—") + "</span>";
+      }
+
+      // ---------- 一覧表（承認済み・Excelライク） ----------
+      function renderList(items) {
+        const rows = items.filter((r) => r.approval === "approved");
+        document.getElementById("badge-list").textContent = rows.length;
+        const el = document.getElementById("panel-list");
+        if (!rows.length) {
+          el.innerHTML = '<div class="empty">承認済みのTaskはまだありません。<br>「候補」タブで抽出結果を承認してください。</div>';
+          return;
+        }
+        rows.sort((a, b) => (a.due_date || "9999").localeCompare(b.due_date || "9999"));
+        el.innerHTML =
+          '<table><thead><tr><th>Task名</th><th>カテゴリ</th><th>担当者</th><th>期限</th><th>優先度</th><th>ステータス</th><th>MSP</th></tr></thead><tbody>' +
+          rows
+            .map(
+              (r) =>
+                "<tr>" +
+                '<td class="title-cell" data-open="' + esc(r.id) + '">' + esc(r.title) + "</td>" +
+                "<td>" + catChip(r.category) + "</td>" +
+                '<td>' + (r.assignee ? esc(r.assignee) : '<span class="muted">—</span>') + "</td>" +
+                '<td>' + (r.due_date ? esc(r.due_date) : '<span class="muted">—</span>') + "</td>" +
+                "<td>" + priChip(r.priority) + "</td>" +
+                "<td>" +
+                '<select data-status="' + esc(r.id) + '">' +
+                STATUSES.map((s) => '<option value="' + s + '"' + (r.status === s ? " selected" : "") + ">" + s + "</option>").join("") +
+                "</select></td>" +
+                "<td>" +
+                (r.msp_file
+                  ? '<span class="chip cat-drawing" data-open="' + esc(r.id) + '" style="cursor:pointer" title="' + esc(r.msp_file) + '">📎 工程表</span>'
+                  : '<span class="muted">—</span>') +
+                "</td></tr>",
+            )
+            .join("") +
+          "</tbody></table>";
+
+        el.querySelectorAll("[data-open]").forEach((n) =>
+          n.addEventListener("click", () => window.__MC_VIEW.openItem(n.dataset.open, "edit")),
+        );
+        el.querySelectorAll("[data-status]").forEach((sel) =>
+          sel.addEventListener("change", async () => {
+            sel.disabled = true;
+            await write({ id: sel.dataset.status, status: sel.value });
+            sel.disabled = false;
+          }),
+        );
+      }
+
+      // ---------- 候補（承認キュー） ----------
+      function renderCand(items) {
+        const rows = items.filter((r) => r.approval === "candidate");
+        document.getElementById("badge-cand").textContent = rows.length;
+        const el = document.getElementById("panel-cand");
+        if (!rows.length) {
+          el.innerHTML = '<div class="empty">承認待ちの候補はありません。<br>文章を貼り付けてTaskを抽出すると、ここに候補が並びます。</div>';
+          return;
+        }
+        rows.sort((a, b) => (b.received_date || "").localeCompare(a.received_date || ""));
+        el.innerHTML =
+          '<table><thead><tr><th>Task名</th><th>カテゴリ</th><th>担当者</th><th>期限</th><th>優先度</th><th>操作</th></tr></thead><tbody>' +
+          rows
+            .map(
+              (r) =>
+                "<tr>" +
+                '<td><div class="title-cell" data-open="' + esc(r.id) + '">' + esc(r.title) + "</div>" +
+                (r.summary ? '<div class="cand-summary">' + esc(r.summary) + "</div>" : "") +
+                (r.source ? '<div class="cand-summary">出典: ' + esc(r.source) + "</div>" : "") +
+                "</td>" +
+                "<td>" + catChip(r.category) + "</td>" +
+                '<td>' + (r.assignee ? esc(r.assignee) : '<span class="muted">—</span>') + "</td>" +
+                '<td>' + (r.due_date ? esc(r.due_date) : '<span class="muted">—</span>') + "</td>" +
+                "<td>" + priChip(r.priority) + "</td>" +
+                "<td>" +
+                '<button class="btn btn-approve" data-approve="' + esc(r.id) + '">承認</button>' +
+                '<button class="btn btn-reject" data-reject="' + esc(r.id) + '">却下</button>' +
+                "</td></tr>",
+            )
+            .join("") +
+          "</tbody></table>";
+
+        el.querySelectorAll("[data-open]").forEach((n) =>
+          n.addEventListener("click", () => window.__MC_VIEW.openItem(n.dataset.open, "edit")),
+        );
+        const act = async (btn, approval) => {
+          btn.disabled = true;
+          const ok = await write({ id: btn.dataset.approve || btn.dataset.reject, approval });
+          if (!ok) btn.disabled = false;
+        };
+        el.querySelectorAll("[data-approve]").forEach((b) => b.addEventListener("click", () => act(b, "approved")));
+        el.querySelectorAll("[data-reject]").forEach((b) => b.addEventListener("click", () => act(b, "rejected")));
+      }
+
+      // ---------- 集計（承認済みのみ） ----------
+      function tally(rows, key) {
+        const m = new Map();
+        for (const r of rows) {
+          const k = r[key] || "(未設定)";
+          m.set(k, (m.get(k) || 0) + 1);
+        }
+        return m;
+      }
+
+      function renderChart(items) {
+        const rows = items.filter((r) => r.approval === "approved");
+        const el = document.getElementById("panel-chart");
+        const open = rows.filter((r) => r.status !== "done").length;
+        const done = rows.filter((r) => r.status === "done").length;
+        const high = rows.filter((r) => r.priority === "high").length;
+        el.innerHTML =
+          '<div class="stat-row">' +
+          '<div class="stat"><div class="n">' + rows.length + '</div><div class="l">承認済みTask</div></div>' +
+          '<div class="stat"><div class="n">' + open + '</div><div class="l">未完了</div></div>' +
+          '<div class="stat"><div class="n">' + done + '</div><div class="l">完了</div></div>' +
+          '<div class="stat"><div class="n">' + high + '</div><div class="l">高優先度</div></div>' +
+          "</div>" +
+          '<div class="charts">' +
+          '<div class="chart-card"><h2>カテゴリ別</h2><div class="chart-wrap"><canvas id="c-cat"></canvas></div></div>' +
+          '<div class="chart-card"><h2>担当者別</h2><div class="chart-wrap"><canvas id="c-asg"></canvas></div></div>' +
+          "</div>";
+
+        if (!rows.length) {
+          el.querySelector(".charts").innerHTML = '<div class="empty">承認済みTaskがないため集計できません。</div>';
+          return;
+        }
+
+        const catMap = tally(rows, "category");
+        const catLabels = CATS.filter((c) => catMap.has(c));
+        Object.values(charts).forEach((c) => c && c.destroy());
+        charts = {};
+        charts.cat = new Chart(document.getElementById("c-cat"), {
+          type: "bar",
+          data: {
+            labels: catLabels,
+            datasets: [{ label: "件数", data: catLabels.map((c) => catMap.get(c)), backgroundColor: "#4f46e5", borderRadius: 4 }],
+          },
+          options: barOpts(),
+        });
+
+        const asgMap = tally(rows, "assignee");
+        const asgLabels = [...asgMap.keys()].sort((a, b) => asgMap.get(b) - asgMap.get(a));
+        charts.asg = new Chart(document.getElementById("c-asg"), {
+          type: "bar",
+          data: {
+            labels: asgLabels,
+            datasets: [{ label: "件数", data: asgLabels.map((a) => asgMap.get(a)), backgroundColor: "#16a34a", borderRadius: 4 }],
+          },
+          options: barOpts(),
+        });
+      }
+
+      function barOpts() {
+        return {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+        };
+      }
+
+      // ---------- tabs ----------
+      document.getElementById("tabs").addEventListener("click", (e) => {
+        const btn = e.target.closest(".tab");
+        if (!btn) return;
+        document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t === btn));
+        document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("active", p.id === "panel-" + btn.dataset.tab));
+      });
+
+      async function render() {
+        try {
+          const items = await read();
+          renderList(items);
+          renderCand(items);
+          renderChart(items);
+        } catch (e) {
+          document.getElementById("panel-list").innerHTML = '<div class="err">' + esc(e.message) + "</div>";
+        }
+      }
+
+      render();
+      window.__MC_VIEW.onChange(() => render());
+    </script>
+  </body>
+</html>

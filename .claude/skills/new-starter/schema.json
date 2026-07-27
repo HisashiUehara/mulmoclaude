@@ -1,0 +1,165 @@
+{
+  "title": "New Starter オンボーディング",
+  "icon": "person_add",
+  "dataPath": "data/new-starter/items",
+  "primaryKey": "id",
+  "fields": {
+    "id": {
+      "type": "string",
+      "label": "ID",
+      "primary": true,
+      "required": true
+    },
+    "starter": {
+      "type": "string",
+      "label": "新入社員",
+      "required": true
+    },
+    "startDate": {
+      "type": "date",
+      "label": "入社日"
+    },
+    "phase": {
+      "type": "enum",
+      "label": "フェーズ",
+      "required": true,
+      "values": [
+        "入社前",
+        "初日",
+        "最初の1週間〜1ヶ月"
+      ]
+    },
+    "category": {
+      "type": "enum",
+      "label": "カテゴリ",
+      "values": [
+        "アカウント・IT関係",
+        "物品",
+        "事務手続き",
+        "初日オリエン",
+        "研修・フォロー"
+      ]
+    },
+    "task": {
+      "type": "string",
+      "label": "タスク",
+      "required": true
+    },
+    "detail": {
+      "type": "text",
+      "label": "補足"
+    },
+    "owner": {
+      "type": "string",
+      "label": "担当者"
+    },
+    "requestTo": {
+      "type": "string",
+      "label": "依頼先"
+    },
+    "status": {
+      "type": "enum",
+      "label": "ステータス",
+      "required": true,
+      "values": [
+        "未着手",
+        "対応中",
+        "完了",
+        "保留・N/A"
+      ]
+    },
+    "done": {
+      "type": "toggle",
+      "label": "完了",
+      "field": "status",
+      "onValue": "完了",
+      "offValue": "未着手"
+    },
+    "dueDate": {
+      "type": "date",
+      "label": "期限"
+    },
+    "memo": {
+      "type": "text",
+      "label": "メモ"
+    },
+    "templateTaskId": {
+      "type": "ref",
+      "label": "テンプレ由来",
+      "to": "new-starter-templates"
+    },
+    "templateVersion": {
+      "type": "number",
+      "label": "同期済テンプレ版"
+    },
+    "overridden": {
+      "type": "boolean",
+      "label": "テンプレから変更(保護)"
+    },
+    "templateSyncState": {
+      "type": "enum",
+      "label": "テンプレ同期状態",
+      "values": [
+        "同期済",
+        "保護によりスキップ"
+      ]
+    },
+    "history": {
+      "type": "table",
+      "label": "変更履歴",
+      "of": {
+        "at": {
+          "type": "datetime",
+          "label": "日時"
+        },
+        "actor": {
+          "type": "string",
+          "label": "操作者"
+        },
+        "field": {
+          "type": "enum",
+          "label": "項目",
+          "values": [
+            "status",
+            "owner",
+            "dueDate",
+            "template"
+          ]
+        },
+        "from": {
+          "type": "string",
+          "label": "変更前"
+        },
+        "to": {
+          "type": "string",
+          "label": "変更後"
+        }
+      }
+    }
+  },
+  "collectionActions": [
+    {
+      "id": "propagate-template",
+      "label": "テンプレ改訂を全員へ反映",
+      "icon": "sync",
+      "kind": "chat",
+      "role": "office",
+      "template": "templates/propagate.md"
+    }
+  ],
+  "displayField": "task",
+  "calendarField": "dueDate",
+  "kanbanField": "status",
+  "views": [
+    {
+      "id": "tracker",
+      "label": "Action Tracker",
+      "icon": "track_changes",
+      "file": "views/tracker.html",
+      "capabilities": [
+        "read",
+        "write"
+      ]
+    }
+  ]
+}

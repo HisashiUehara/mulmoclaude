@@ -1,0 +1,13 @@
+{
+  "id": "2026-06_medical",
+  "month": "2026-06",
+  "periodLabel": "5/16〜6/15",
+  "category": "医療",
+  "amount": 5160,
+  "merchants": [
+    {
+      "name": "さくら内科クリニック品川",
+      "amount": 5160
+    }
+  ]
+}

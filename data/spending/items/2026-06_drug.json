@@ -1,0 +1,25 @@
+{
+  "id": "2026-06_drug",
+  "month": "2026-06",
+  "periodLabel": "5/16〜6/15",
+  "category": "ドラッグストア",
+  "amount": 19002,
+  "merchants": [
+    {
+      "name": "クスリの福太郎",
+      "amount": 8186
+    },
+    {
+      "name": "スギ薬局",
+      "amount": 5248
+    },
+    {
+      "name": "サンドラッグ",
+      "amount": 3339
+    },
+    {
+      "name": "その他",
+      "amount": 2229
+    }
+  ]
+}

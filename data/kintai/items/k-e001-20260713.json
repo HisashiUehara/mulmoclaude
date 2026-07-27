@@ -1,0 +1,15 @@
+{
+  "id": "k-e001-20260713",
+  "employeeId": "e001",
+  "employeeName": "佐藤 花子",
+  "date": "2026-07-13",
+  "workType": "出勤",
+  "businessTrip": false,
+  "startTime": "09:00",
+  "endTime": "18:00",
+  "breakMinutes": 60,
+  "workedMinutes": 480,
+  "status": "承認済",
+  "submittedTo": "e004",
+  "approvedBy": "田中 健太"
+}

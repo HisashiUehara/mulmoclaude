@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>不毛会議Bot — AIが不毛な議論を代わりに戦い抜きます</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --panel2: #1c232d;
+    --line: #2a3441;
+    --accent: #58a6ff;
+    --accent2: #f78166;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --danger: #f85149;
+    --ok: #3fb950;
+    --warn: #d29922;
+  }
+  body {
+    font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif;
+    background: linear-gradient(160deg,#0b0e13,#11161d);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 16px;
+  }
+  .app {
+    width: 100%;
+    max-width: 860px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 32px);
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  header {
+    padding: 16px 20px;
+    background: linear-gradient(135deg,#1a2230,#141a22);
+    border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 19px; letter-spacing: .02em; }
+  header p { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+
+  .stats {
+    display: flex;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--panel2);
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  .stat {
+    flex: 1;
+    min-width: 120px;
+    background: #10151c;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 10px;
+  }
+  .stat .k { font-size: 10.5px; color: var(--muted); letter-spacing: .04em; }
+  .stat .v { font-size: 17px; font-weight: 700; margin-top: 2px; }
+  .meter-wrap { height: 6px; background:#0a0e13; border-radius: 4px; margin-top:6px; overflow:hidden;}
+  .meter-bar { height:100%; width:0%; background: linear-gradient(90deg,#3fb950,#d29922,#f85149); transition: width .5s;}
+
+  .chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scroll-behavior: smooth;
+  }
+  .msg { display: flex; gap: 10px; max-width: 88%; animation: pop .25s ease; }
+  @keyframes pop { from { opacity:0; transform: translateY(8px);} to {opacity:1; transform:none;} }
+  .msg .avatar {
+    width: 38px; height: 38px; border-radius: 50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size: 20px; flex-shrink:0;
+    background: var(--panel2); border:1px solid var(--line);
+  }
+  .msg .bubble {
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    border-radius: 4px 14px 14px 14px;
+    padding: 10px 13px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .msg .name { font-size: 11px; color: var(--muted); margin-bottom: 3px; font-weight:600;}
+  .msg.system { align-self: center; max-width: 96%; }
+  .msg.system .bubble {
+    background: transparent; border: 1px dashed var(--line);
+    color: var(--muted); font-size: 12px; text-align:center;
+    border-radius: 10px;
+  }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .msg.user .bubble {
+    background: #1f3a5f; border-color:#2d5a8f;
+    border-radius: 14px 4px 14px 14px;
+  }
+  .typing .bubble { color: var(--muted); font-style: italic; }
+  .dot { animation: blink 1.2s infinite; }
+  .dot:nth-child(2){animation-delay:.2s;} .dot:nth-child(3){animation-delay:.4s;}
+  @keyframes blink { 0%,60%,100%{opacity:.25;} 30%{opacity:1;} }
+
+  .presets { padding: 10px 16px 0; }
+  .presets .label { font-size:11px; color:var(--muted); margin-bottom:6px;}
+  .chips { display:flex; gap:8px; flex-wrap:wrap; }
+  .chip {
+    background:#10151c; border:1px solid var(--line); color:var(--text);
+    padding:6px 11px; border-radius:20px; font-size:12px; cursor:pointer;
+    transition:.15s;
+  }
+  .chip:hover { background:#1c2733; border-color: var(--accent); }
+
+  .composer {
+    padding: 12px 16px 16px;
+    border-top: 1px solid var(--line);
+    background: var(--panel2);
+  }
+  .composer .row { display:flex; gap:8px; }
+  textarea {
+    flex:1; resize:none; background:#0c1017; border:1px solid var(--line);
+    color:var(--text); border-radius:12px; padding:11px 13px; font-size:14px;
+    font-family: inherit; height: 46px; max-height:120px;
+  }
+  textarea:focus { outline:none; border-color: var(--accent); }
+  button.send {
+    background: var(--accent); color:#04101f; border:none; border-radius:12px;
+    padding: 0 18px; font-weight:700; cursor:pointer; font-size:14px;
+    transition:.15s;
+  }
+  button.send:hover { background:#79b8ff; }
+  .actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .actions button {
+    background:#10151c; border:1px solid var(--line); color:var(--muted);
+    padding:6px 12px; border-radius:20px; font-size:12px; cursor:pointer;
+  }
+  .actions button:hover { color:var(--text); border-color:var(--accent2); }
+  .persona-pick { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;}
+  .persona {
+    font-size:11px; padding:5px 9px; border-radius:8px; cursor:pointer;
+    border:1px solid var(--line); background:#10151c;
+  }
+  .persona.on { border-color:var(--accent2); background:#2a1c17; color:var(--accent2);}
+  ::-webkit-scrollbar{width:8px;} ::-webkit-scrollbar-thumb{background:#2a3441;border-radius:4px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>🌵 不毛会議Bot</h1>
+    <p>あなたの代わりに、AIたちが永遠に結論の出ない議論を戦い抜きます。お好きなだけ煽ってください。</p>
+  </header>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="k">会議経過時間</div>
+      <div class="v" id="stat-time">0分00秒</div>
+    </div>
+    <div class="stat">
+      <div class="k">決定事項</div>
+      <div class="v" id="stat-decisions">0 件</div>
+    </div>
+    <div class="stat">
+      <div class="k">不毛度</div>
+      <div class="v" id="stat-meter">0%</div>
+      <div class="meter-wrap"><div class="meter-bar" id="meter"></div></div>
+    </div>
+  </div>
+
+  <div class="chat" id="chat"></div>
+
+  <div class="presets">
+    <div class="label">🔥 定番の不毛な議題（クリックで投入）</div>
+    <div class="chips" id="chips"></div>
+  </div>
+
+  <div class="composer">
+    <div class="persona-pick" id="personas"></div>
+    <div class="row">
+      <textarea id="input" placeholder="議題や意見を入力…（例：会議室の予約ルールを見直すべきでは？）"></textarea>
+      <button class="send" id="send">投入</button>
+    </div>
+    <div class="actions">
+      <button id="act-derail">💨 論点をずらす</button>
+      <button id="act-mochikaeri">📦 いったん持ち帰る</button>
+      <button id="act-conclude">✅ 結論を出す（無理）</button>
+      <button id="act-reset">🔄 会議をリセット</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const chat = document.getElementById('chat');
+  const input = document.getElementById('input');
+
+  const bots = [
+    { id:'kacho', name:'論点ずらし課長', emo:'🙄' },
+    { id:'bucho', name:'とりあえず持ち帰る部長', emo:'📦' },
+    { id:'ojisan', name:'前例主義おじさん', emo:'📜' },
+    { id:'consul', name:'横文字コンサル', emo:'💼' },
+    { id:'houmu', name:'心配性の法務', emo:'⚖️' },
+    { id:'wakate', name:'空気読む若手', emo:'😅' },
+  ];
+  let active = new Set(bots.map(b=>b.id));
+
+  const openers = ["いや","うーん","そもそもですね","ちょっといいですか","確認なんですけど","私の理解では","念のため申し上げると","率直に言うと"];
+
+  const lines = {
+    kacho: [
+      "それより前に、そもそもこの議論の目的って全員で握れてます？",
+      "論点が2つ混ざってる気がするので、一旦整理しませんか（整理しない）。",
+      "その話、来月のキックオフでまとめて話した方がいいのでは？",
+      "枝葉の議論に入る前に、大きな方向性から決めましょうよ。",
+      "それ本質じゃないですよね。もっと本質的な話をしましょう（本質は言わない）。",
+      "誰がボールを持つか、まずそこを決めないと前に進まないですよ。",
+      "いや、その前提が正しいかどうかから疑った方がいいと思うんですよね。",
+    ],
+    bucho: [
+      "うん、いい議論だね。じゃあこれは一旦持ち帰らせてもらえる？",
+      "方向性は分かった。あとは各自よしなにやっといて（誰もやらない）。",
+      "この件は上と握ってから改めて、ということで。",
+      "重要な論点だから、慎重に、時間をかけて検討しよう。",
+      "みんなの意見は分かった。ただ、腹落ちはしてないかな。",
+      "資料にまとめて、次回のアジェンダに入れといてくれる？",
+      "スピード感を持って、ゆっくり丁寧に進めよう。",
+    ],
+    ojisan: [
+      "去年も同じ議論しましたよね？結局そのままだった気がしますが。",
+      "前例がないので、まずは前例を作るための議論から必要ですね。",
+      "昔このやり方で失敗してるんですよ。詳細は覚えてないですけど。",
+      "そもそも今までこれで回ってきたわけですし、変える必要あります？",
+      "5年前の議事録どこかにあったはずなんで、探してから話しません？",
+      "うちの会社の文化に合うかどうか、って観点も大事ですよ。",
+      "他部署がどう思うかも考えないと、勝手に決められないですよ。",
+    ],
+    consul: [
+      "ここはアジャイルにクイックにPoC回して、ファクトベースで判断しましょう。",
+      "つまりイシューはそこじゃなくて、もっと上流のペインですよね。",
+      "一旦、論点をMECEに切って、優先度をつけて可視化しません？",
+      "これはローンチ後にKPIモニタリングしてPDCA回す前提の話かと。",
+      "本質的なバリューは何か、というWhyから握り直すべきですね。",
+      "ステークホルダーのアラインメントをまず取りにいきましょう。",
+      "要はレバレッジが効くところにリソースをアロケーションする、と。",
+    ],
+    houmu: [
+      "念のため、それってコンプラ的に問題ないか確認が必要ですね。",
+      "リスクが読み切れないので、いったん保守的に判断すべきかと。",
+      "万が一のことを考えると、書面で残しておく必要があります。",
+      "その運用、監査で指摘される可能性ゼロじゃないですよね？",
+      "前例がない分、後で責任の所在が曖昧になるのが心配です。",
+      "念のため関係部署全部に一言入れておいた方が安全です（30部署）。",
+      "決めるのは構いませんが、決めた責任は誰が取るんですか？",
+    ],
+    wakate: [
+      "あ、はい…えっと、みなさんがそれでいいなら僕も大丈夫です…！",
+      "すみません、議事録取ってるんですけど今のどう書けばいいですか…",
+      "（何も決まってないけど）とても勉強になります…！",
+      "あの、そろそろ次の予定の時間なんですけど…あ、続けてで大丈夫です！",
+      "えっと、結局この件は誰がやる感じでしたっけ…？",
+      "お、おっしゃる通りだと思います…！（誰の意見にも頷く）",
+      "会議室あと5分で次の人来ちゃうんですけど…延長します？",
+    ],
+  };
+
+  const derails = [
+    "ところで、その話ってDX的にはどう位置づけられるんですかね？",
+    "そういえば全然関係ないんですけど、会議室の空調寒くないですか。",
+    "一回、そもそも論に立ち返っていいですか？",
+    "その前に、用語の定義を揃えませんか。「検討」って何を指してます？",
+    "ちょっと視座を上げて、経営目線で見てみましょうよ。",
+  ];
+
+  const topics = [
+    "会議室の予約ルールを見直すべきでは？",
+    "Slackの絵文字リアクションは業務か",
+    "社内文書はタメ口か敬語か",
+    "経費のレシートは糊付けかホチキスか",
+    "会議でカメラはオンかオフか",
+    "議事録は誰が取るべきか",
+    "全社メールの署名の統一",
+    "「お疲れ様です」は必要か",
+    "会議は30分か60分か",
+  ];
+
+  let decisions = 0, meter = 0, seconds = 0, running = false;
+  const pick = a => a[Math.floor(Math.random()*a.length)];
+  const meterEl = document.getElementById('meter');
+  const setMeter = v => {
+    meter = Math.max(0, Math.min(100, v));
+    meterEl.style.width = meter+'%';
+    document.getElementById('stat-meter').textContent = Math.round(meter)+'%';
+  };
+
+  setInterval(()=>{
+    if(!running) return;
+    seconds++;
+    const m = Math.floor(seconds/60), s = seconds%60;
+    document.getElementById('stat-time').textContent = m+'分'+String(s).padStart(2,'0')+'秒';
+  }, 1000);
+
+  const sleep = ms => new Promise(r=>setTimeout(r,ms));
+  function scrollDown(){ chat.scrollTop = chat.scrollHeight; }
+
+  function addMsg(kind, {name, emo, text}={}){
+    const el = document.createElement('div');
+    el.className = 'msg '+kind;
+    if(kind==='system'){
+      el.innerHTML = `<div class="bubble">${text}</div>`;
+    } else if(kind==='user'){
+      el.innerHTML = `<div class="avatar">🙋</div><div><div class="bubble">${text}</div></div>`;
+    } else {
+      el.innerHTML = `<div class="avatar">${emo}</div><div><div class="name">${name}</div><div class="bubble">${text}</div></div>`;
+    }
+    chat.appendChild(el); scrollDown();
+    return el;
+  }
+
+  function typingBubble(bot){
+    const el = document.createElement('div');
+    el.className = 'msg bot typing';
+    el.innerHTML = `<div class="avatar">${bot.emo}</div><div><div class="name">${bot.name}</div><div class="bubble">入力中<span class="dot">・</span><span class="dot">・</span><span class="dot">・</span></div></div>`;
+    chat.appendChild(el); scrollDown();
+    return el;
+  }
+
+  function botLine(bot){
+    const base = pick(lines[bot.id]);
+    return (Math.random()<.5 ? pick(openers)+'、' : '') + base;
+  }
+
+  async function debate(rounds){
+    const pool = bots.filter(b=>active.has(b.id));
+    if(pool.length===0){ addMsg('system',{text:'⚠️ 参加者が0人です。下のキャラを選んでください。'}); return; }
+    running = true;
+    let last = null;
+    for(let i=0;i<rounds;i++){
+      let bot = pick(pool);
+      if(pool.length>1){ while(bot===last) bot = pick(pool); }
+      last = bot;
+      const t = typingBubble(bot);
+      await sleep(600 + Math.random()*700);
+      t.remove();
+      addMsg('bot', {name:bot.name, emo:bot.emo, text: botLine(bot)});
+      setMeter(meter + 6 + Math.random()*8);
+      await sleep(250);
+    }
+    if(Math.random()<.5){
+      addMsg('system',{text:'📋 このラウンドの決定事項： <b>特になし</b>（継続審議）'});
+    }
+  }
+
+  async function submit(text){
+    text = (text||'').trim();
+    if(!text) return;
+    addMsg('user', {text});
+    input.value='';
+    await sleep(300);
+    await debate(3 + Math.floor(Math.random()*3));
+  }
+
+  document.getElementById('send').onclick = ()=>submit(input.value);
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); submit(input.value); }
+  });
+
+  document.getElementById('act-derail').onclick = async ()=>{
+    const pool = bots.filter(b=>active.has(b.id));
+    const bot = pool.length? pick(pool) : bots[0];
+    const t = typingBubble(bot); await sleep(500); t.remove();
+    addMsg('bot',{name:bot.name, emo:bot.emo, text: pick(derails)});
+    setMeter(meter+10);
+  };
+  document.getElementById('act-mochikaeri').onclick = ()=>{
+    const b = bots.find(x=>x.id==='bucho');
+    addMsg('bot',{name:b.name, emo:b.emo, text:'よし、この件は一旦"持ち帰り"ということで。次回また元気に議論しましょう。'});
+    addMsg('system',{text:'📦 議題が持ち帰られました。行方は不明です。'});
+    setMeter(meter+12);
+  };
+  document.getElementById('act-conclude').onclick = async ()=>{
+    addMsg('system',{text:'⏳ 結論を出そうとしています…'});
+    await sleep(900);
+    const outcomes = ['いったん持ち越し','次回改めて議論','各自で認識合わせ（誰も合わせない）','一度上に確認','PoCしてから判断','関係部署にヒアリングしてから'];
+    addMsg('system',{text:'✅ <b>結論：'+pick(outcomes)+'</b> 　…つまり何も決まっていません。'});
+    decisions++;
+    document.getElementById('stat-decisions').textContent = decisions+' 件';
+    setMeter(Math.max(0, meter-3));
+  };
+  document.getElementById('act-reset').onclick = ()=>{
+    chat.innerHTML=''; decisions=0; seconds=0; running=false; setMeter(0);
+    document.getElementById('stat-decisions').textContent='0 件';
+    document.getElementById('stat-time').textContent='0分00秒';
+    boot();
+  };
+
+  const chips = document.getElementById('chips');
+  topics.forEach(t=>{
+    const c = document.createElement('div');
+    c.className='chip'; c.textContent=t;
+    c.onclick = ()=>submit(t);
+    chips.appendChild(c);
+  });
+
+  const pbox = document.getElementById('personas');
+  bots.forEach(b=>{
+    const el = document.createElement('div');
+    el.className='persona on';
+    el.textContent = b.emo+' '+b.name;
+    el.onclick = ()=>{
+      if(active.has(b.id)){ active.delete(b.id); el.classList.remove('on'); }
+      else { active.add(b.id); el.classList.add('on'); }
+    };
+    pbox.appendChild(el);
+  });
+
+  function boot(){
+    addMsg('system',{text:'🌵 <b>不毛会議Bot</b> にようこそ。議題を入力するか、下の定番議題を選ぶと会議が始まります。決して結論は出ません。安心してお任せください。'});
+  }
+  boot();
+})();
+</script>
+</body>
+</html>

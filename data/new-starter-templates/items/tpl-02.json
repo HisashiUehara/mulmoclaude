@@ -1,0 +1,13 @@
+{
+  "id": "tpl-02",
+  "seq": 2,
+  "phase": "入社前",
+  "category": "アカウント・IT関係",
+  "task": "全社共通SharePointサイトへのアクセス確認",
+  "detail": "各Projectサイトへはここから遷移できるため、必要なProjectサイトの権限付与も併せて依頼",
+  "defaultOwnerRole": "人事担当",
+  "requestTo": "IT部門",
+  "dueOffsetDays": -10,
+  "version": 1,
+  "active": "有効"
+}

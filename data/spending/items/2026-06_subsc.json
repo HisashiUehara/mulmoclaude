@@ -1,0 +1,41 @@
+{
+  "id": "2026-06_subsc",
+  "month": "2026-06",
+  "periodLabel": "5/16〜6/15",
+  "category": "サブスク・デジタル",
+  "amount": 30840,
+  "merchants": [
+    {
+      "name": "Microsoft 365",
+      "amount": 21300
+    },
+    {
+      "name": "Adobe",
+      "amount": 3850
+    },
+    {
+      "name": "ゴーアプリ",
+      "amount": 2050
+    },
+    {
+      "name": "Amazon Downloads",
+      "amount": 980
+    },
+    {
+      "name": "Netflix",
+      "amount": 890
+    },
+    {
+      "name": "まぐまぐ",
+      "amount": 880
+    },
+    {
+      "name": "Amazonプライム",
+      "amount": 600
+    },
+    {
+      "name": "Google Play",
+      "amount": 290
+    }
+  ]
+}

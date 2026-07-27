@@ -234,6 +234,26 @@ const HOST_API_ROUTES = {
     modelDownload: "/api/transcribe/model/download",
   },
 
+  // Text-to-speech proxy (OpenAI). Keeps the OpenAI key server-side; the
+  // browser never sees it. Guarded by a TTS-scoped view token (aud:"tts"),
+  // NOT the global bearer — the standalone voice-nav app tab carries no
+  // bearer. See server/api/routes/tts.ts.
+  tts: {
+    speech: "/api/tts",
+  },
+
+  // Conversational LLM proxy for the voice-nav app (OpenAI chat completions).
+  // Keeps the OpenAI key server-side. Guarded by a nav-chat-scoped view token
+  // (aud:"nav-chat"), NOT the global bearer. See server/api/routes/navChat.ts.
+  navChat: {
+    chat: "/api/nav-chat",
+    // POST → mint BOTH the tts + nav-chat scoped tokens for the voice-nav app.
+    // Guarded by same-origin (loopback) instead of a data view-token, so the
+    // standalone app tab can self-provision without the launcher's fragment
+    // handoff. Bearer-exempt (the tab has none); NOT same-origin-exempt.
+    selfTokens: "/api/nav-view-tokens",
+  },
+
   // Plugin-owned endpoints that don't follow a single naming pattern.
   // Names match the plugin tool name or the short verb the plugin uses.
   plugins: {
@@ -369,6 +389,15 @@ const HOST_API_ROUTES = {
      *  Guarded by the scoped view token (NOT the global bearer); exempt from
      *  the global bearer + CSRF middleware. See server/api/auth/viewToken.ts. */
     viewData: "/api/collections/:slug/view-data",
+    /** POST → mint a TTS-scoped token (aud:"tts") for a view that already holds
+     *  a data view-token. Guarded by `requireViewToken("read")`; exempt from the
+     *  global bearer + CSRF middleware. Used by the voice-nav launcher to hand a
+     *  scoped token to the standalone app tab via URL fragment. */
+    ttsToken: "/api/collections/:slug/tts-token",
+    /** POST → mint a nav-chat-scoped token (aud:"nav-chat") for a view that
+     *  already holds a data view-token. Guarded by `requireViewToken("read")`;
+     *  exempt from the global bearer + CSRF middleware. Same handoff as ttsToken. */
+    navChatToken: "/api/collections/:slug/nav-chat-token",
     /** POST → invoke a `kind: "mutate"` action from a custom view (body:
      *  { itemId, params? }) → { written, itemId, item }. Requires the `write`
      *  capability on the view token; mutate kind ONLY — a view token must

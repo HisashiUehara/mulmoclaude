@@ -1,0 +1,11 @@
+{
+  "id": "tpl-19",
+  "seq": 19,
+  "phase": "最初の1週間〜1ヶ月",
+  "category": "研修・フォロー",
+  "task": "1on1の設定、メンター/バディの割当",
+  "defaultOwnerRole": "配属PJマネージャー",
+  "dueOffsetDays": 14,
+  "version": 1,
+  "active": "有効"
+}

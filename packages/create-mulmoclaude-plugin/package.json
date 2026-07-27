@@ -3,9 +3,7 @@
   "version": "0.1.0",
   "description": "Scaffold a new MulmoClaude runtime plugin: `npx create-mulmoclaude-plugin <name>`.",
   "type": "module",
-  "bin": {
-    "create-mulmoclaude-plugin": "./dist/index.js"
-  },
+  "bin": "./dist/index.js",
   "files": [
     "dist",
     "README.md"

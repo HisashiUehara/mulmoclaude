@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+      :root {
+        --bg: #f6f7fb;
+        --card: #ffffff;
+        --ink: #1e293b;
+        --muted: #64748b;
+        --line: #e2e8f0;
+        --brand: #4f46e5;
+        --brand-soft: #eef2ff;
+        --ok: #16a34a;
+        --ok-soft: #dcfce7;
+        --warn: #d97706;
+        --warn-soft: #fef3c7;
+        --bad: #dc2626;
+        --bad-soft: #fee2e2;
+      }
+      * { box-sizing: border-box; }
+      body {
+        font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+        margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+      }
+      .wrap { max-width: 1080px; margin: 0 auto; padding: 16px; }
+      /* Header */
+      .topbar {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+        background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+        padding: 14px 16px; margin-bottom: 14px;
+      }
+      .topbar h1 { font-size: 17px; margin: 0; display: flex; align-items: center; gap: 8px; }
+      .topbar .spacer { flex: 1; }
+      .who { display: flex; align-items: center; gap: 8px; }
+      .who label { font-size: 12px; color: var(--muted); }
+      select, input, button { font: inherit; }
+      select, input[type="text"], input[type="date"], input[type="number"] {
+        border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; background: #fff; color: var(--ink);
+      }
+      .rolechip { font-size: 12px; padding: 3px 10px; border-radius: 999px; font-weight: 600; }
+      .role-一般社員 { background: #e0e7ff; color: #3730a3; }
+      .role-上司 { background: var(--warn-soft); color: #92400e; }
+      .role-人事 { background: #cffafe; color: #0e7490; }
+      /* Tabs */
+      .tabs { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+      .tab {
+        border: 1px solid var(--line); background: var(--card); color: var(--muted);
+        border-radius: 10px; padding: 9px 16px; cursor: pointer; font-weight: 600; font-size: 14px;
+        display: flex; align-items: center; gap: 6px;
+      }
+      .tab.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+      .tab .badge { background: var(--bad); color:#fff; border-radius: 999px; font-size: 11px; padding: 0 6px; min-width: 18px; text-align:center; }
+      .tab.active .badge { background: #fff; color: var(--brand); }
+      /* Cards */
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+      .card h2 { font-size: 15px; margin: 0 0 12px; display:flex; align-items:center; gap:8px; }
+      .card h2 .sub { font-size: 12px; color: var(--muted); font-weight: 400; }
+      .muted { color: var(--muted); }
+      /* Punch */
+      .punch { display: flex; gap: 12px; flex-wrap: wrap; align-items: stretch; }
+      .punch button {
+        flex: 1; min-width: 150px; border: none; border-radius: 12px; padding: 18px; cursor: pointer;
+        font-size: 16px; font-weight: 700; color: #fff; display:flex; flex-direction:column; gap:4px; align-items:center;
+      }
+      .punch .in { background: linear-gradient(135deg,#4f46e5,#6366f1); }
+      .punch .out { background: linear-gradient(135deg,#0891b2,#06b6d4); }
+      .punch button:disabled { opacity: .45; cursor: not-allowed; }
+      .punch .t { font-size: 12px; font-weight: 500; opacity: .9; }
+      .clock { font-variant-numeric: tabular-nums; }
+      /* Form grid */
+      .fgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: end; }
+      .field { display: flex; flex-direction: column; gap: 4px; }
+      .field label { font-size: 12px; color: var(--muted); }
+      .btn { border: 1px solid var(--brand); background: var(--brand); color: #fff; border-radius: 9px; padding: 8px 16px; cursor: pointer; font-weight: 600; }
+      .btn.ghost { background: #fff; color: var(--brand); }
+      .btn.sm { padding: 5px 11px; font-size: 13px; }
+      .btn.ok { background: var(--ok); border-color: var(--ok); }
+      .btn.bad { background: var(--bad); border-color: var(--bad); }
+      .btn.gray { background:#fff; color: var(--muted); border-color: var(--line); }
+      .btn:disabled { opacity:.5; cursor:not-allowed; }
+      /* Table */
+      table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+      th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+      th { color: var(--muted); font-weight: 600; font-size: 12px; background: #fafbff; }
+      td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+      tr:hover td { background: #fafbff; }
+      .st { font-size: 12px; padding: 2px 9px; border-radius: 999px; font-weight: 600; }
+      .st-下書き { background: #f1f5f9; color: #475569; }
+      .st-申請中 { background: var(--warn-soft); color: #92400e; }
+      .st-承認済 { background: var(--ok-soft); color: #166534; }
+      .st-否認 { background: var(--bad-soft); color: #991b1b; }
+      .pill { font-size: 11px; padding: 1px 7px; border-radius: 6px; background: var(--brand-soft); color: var(--brand); margin-left: 4px; }
+      .pill.trip { background: #fff7ed; color: #c2410c; }
+      .empty { text-align: center; color: var(--muted); padding: 26px; }
+      .kpis { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 12px; margin-bottom: 14px; }
+      .kpi { background: var(--card); border:1px solid var(--line); border-radius: 12px; padding: 14px; }
+      .kpi .v { font-size: 24px; font-weight: 700; }
+      .kpi .l { font-size: 12px; color: var(--muted); }
+      .row-actions { display:flex; gap:6px; }
+      .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #111827; color:#fff; padding: 10px 18px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity .25s; pointer-events:none; z-index: 50; }
+      .toast.show { opacity: 1; }
+      .note-inline { font-size: 12px; color: var(--muted); }
+      .lock { background: var(--brand-soft); border:1px solid #c7d2fe; color:#3730a3; border-radius:10px; padding:10px 12px; font-size:13px; margin-bottom:12px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="topbar">
+        <h1>🕒 勤怠管理</h1>
+        <div class="spacer"></div>
+        <div class="who">
+          <label>ログイン中（ロール切替）</label>
+          <select id="userSel"></select>
+          <span id="roleChip" class="rolechip"></span>
+        </div>
+      </div>
+      <div class="tabs" id="tabs"></div>
+      <div id="panel"></div>
+    </div>
+    <div class="toast" id="toast"></div>
+
+    <script>
+      // ── 従業員マスタ（employees コレクションのミラー。社員を増やしたらここも更新）
+      const ROSTER = [
+        { id: "e001", name: "佐藤 花子", dept: "開発部", role: "一般社員", supervisorId: "e004", wage: 2500 },
+        { id: "e002", name: "鈴木 一郎", dept: "開発部", role: "一般社員", supervisorId: "e004", wage: 2400 },
+        { id: "e003", name: "高橋 美咲", dept: "営業部", role: "一般社員", supervisorId: "e005", wage: 2300 },
+        { id: "e004", name: "田中 健太", dept: "開発部", role: "上司", supervisorId: "e006", wage: 3800 },
+        { id: "e005", name: "伊藤 直樹", dept: "営業部", role: "上司", supervisorId: "e006", wage: 3700 },
+        { id: "e006", name: "渡辺 由美", dept: "人事部", role: "人事", supervisorId: null, wage: 4000 },
+      ];
+      const EMP = Object.fromEntries(ROSTER.map((e) => [e.id, e]));
+      const STD_MIN = 480; // 所定労働 8h
+      const WORK_TYPES = ["出勤", "有給休暇", "欠勤", "休日"];
+
+      const { token, dataUrl } = window.__MC_VIEW;
+      const FIELDS = "employeeId,employeeName,date,workType,businessTrip,startTime,endTime,breakMinutes,workedMinutes,workedHours,dailyPay,status,submittedTo,approvedBy,rejectReason,note";
+      const authGet = { Authorization: "Bearer " + token };
+      const authPut = { Authorization: "Bearer " + token, "Content-Type": "application/json" };
+
+      let ALL = [];
+      let uid = "e001";
+      let tab = "self";
+
+      // ── helpers
+      const pad = (n) => String(n).padStart(2, "0");
+      const nowHM = () => { const d = new Date(); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+      const todayISO = () => { const d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
+      const hm2min = (s) => { if (!s || !/^\d{1,2}:\d{2}$/.test(s)) return null; const [h, m] = s.split(":").map(Number); return h * 60 + m; };
+      const worked = (st, en, br) => { const a = hm2min(st), b = hm2min(en); if (a == null || b == null) return 0; let d = b - a; if (d < 0) d += 1440; return Math.max(0, d - (Number(br) || 0)); };
+      const h1 = (min) => (Math.round(((Number(min) || 0) / 60) * 10) / 10).toFixed(1);
+      const yen = (n) => "¥" + Math.round(Number(n) || 0).toLocaleString("ja-JP");
+      const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const supName = (e) => (e && e.supervisorId && EMP[e.supervisorId] ? EMP[e.supervisorId].name : "—");
+      const payOf = (r) => { if (r.dailyPay != null && r.dailyPay !== "") return Number(r.dailyPay); const w = EMP[r.employeeId] ? EMP[r.employeeId].wage : 0; return ((Number(r.workedMinutes) || 0) / 60) * w; };
+
+      function toast(msg) {
+        const t = document.getElementById("toast");
+        t.textContent = msg; t.classList.add("show");
+        clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("show"), 2200);
+      }
+
+      async function fetchAll() {
+        const url = dataUrl + "?fields=" + encodeURIComponent(FIELDS);
+        const res = await fetch(url, { headers: authGet });
+        if (!res.ok) throw new Error("HTTP " + res.status + ": " + (await res.text()));
+        ALL = (await res.json()).items || [];
+      }
+
+      async function putItem(row, mode) {
+        const res = await fetch(dataUrl, { method: "PUT", headers: authPut, body: JSON.stringify({ items: [row], mode: mode || "merge" }) });
+        if (!res.ok) { toast("保存失敗: HTTP " + res.status); return false; }
+        const { rejected } = await res.json();
+        if (rejected && rejected.length) { toast("拒否: " + (rejected[0].problem || "不明")); return false; }
+        await fetchAll();
+        render();
+        return true;
+      }
+
+      // ── which tabs the current user may see
+      function visibleTabs() {
+        const me = EMP[uid];
+        const t = [{ id: "self", label: "自分の勤怠", icon: "🙋" }];
+        const isApprover = me.role === "上司" || me.role === "人事" || ALL.some((r) => r.submittedTo === uid);
+        if (isApprover) {
+          const pending = ALL.filter((r) => r.submittedTo === uid && r.status === "申請中").length;
+          t.push({ id: "approve", label: "承認", icon: "✅", badge: pending });
+        }
+        if (me.role === "人事") t.push({ id: "hr", label: "人事管理", icon: "📊" });
+        return t;
+      }
+
+      // ── render header / tabs
+      function renderHeader() {
+        const sel = document.getElementById("userSel");
+        sel.innerHTML = ROSTER.map((e) => `<option value="${e.id}"${e.id === uid ? " selected" : ""}>${esc(e.name)}（${esc(e.dept)}）</option>`).join("");
+        const me = EMP[uid];
+        const chip = document.getElementById("roleChip");
+        chip.textContent = me.role; chip.className = "rolechip role-" + me.role;
+      }
+      function renderTabs() {
+        const tabs = visibleTabs();
+        if (!tabs.some((t) => t.id === tab)) tab = "self";
+        document.getElementById("tabs").innerHTML = tabs
+          .map((t) => `<div class="tab ${t.id === tab ? "active" : ""}" data-tab="${t.id}">${t.icon} ${t.label}${t.badge ? `<span class="badge">${t.badge}</span>` : ""}</div>`)
+          .join("");
+      }
+
+      // ── SELF panel
+      function renderSelf() {
+        const me = EMP[uid];
+        const today = todayISO();
+        const todayRec = ALL.find((r) => r.employeeId === uid && r.date === today);
+        const punchedIn = todayRec && todayRec.startTime;
+        const punchedOut = todayRec && todayRec.endTime;
+        const mine = ALL.filter((r) => r.employeeId === uid).sort((a, b) => (a.date < b.date ? 1 : -1));
+
+        const punch = `
+          <div class="card">
+            <h2>⏱ 打刻 <span class="sub">${today}（本日）／ 現在 <span class="clock" id="clk">${nowHM()}</span></span></h2>
+            <div class="punch">
+              <button class="in" data-act="punchIn" ${punchedIn ? "disabled" : ""}>
+                出勤打刻 <span class="t">${punchedIn ? "済 " + esc(todayRec.startTime) : "タップで始業を記録"}</span>
+              </button>
+              <button class="out" data-act="punchOut" ${!punchedIn || punchedOut ? "disabled" : ""}>
+                退勤打刻 <span class="t">${punchedOut ? "済 " + esc(todayRec.endTime) : "タップで終業を記録"}</span>
+              </button>
+            </div>
+            <p class="note-inline" style="margin:10px 2px 0">承認申請先の上司：<b>${esc(supName(me))}</b>${me.supervisorId ? "" : "（上位承認者なし）"}</p>
+          </div>`;
+
+        const form = `
+          <div class="card">
+            <h2>📝 勤怠を入力／修正</h2>
+            <div class="fgrid">
+              <div class="field"><label>勤務日</label><input type="date" id="f_date" value="${today}"></div>
+              <div class="field"><label>勤務区分</label><select id="f_type">${WORK_TYPES.map((w) => `<option>${w}</option>`).join("")}</select></div>
+              <div class="field"><label>始業</label><input type="text" id="f_start" placeholder="09:00"></div>
+              <div class="field"><label>終業</label><input type="text" id="f_end" placeholder="18:00"></div>
+              <div class="field"><label>休憩(分)</label><input type="number" id="f_break" value="60" min="0" step="5"></div>
+              <div class="field"><label>出張</label><select id="f_trip"><option value="false">なし</option><option value="true">あり</option></select></div>
+              <div class="field" style="grid-column:1/-1"><label>備考</label><input type="text" id="f_note" placeholder="任意"></div>
+            </div>
+            <div style="margin-top:12px"><button class="btn" data-act="saveDay">下書き保存</button> <span class="note-inline">※ 保存後、下の一覧から上司へ「申請」できます</span></div>
+          </div>`;
+
+        const rows = mine.length
+          ? mine
+              .map((r) => {
+                const canApply = r.status === "下書き" || r.status === "否認";
+                const ot = r.workType === "出勤" ? Math.max(0, (Number(r.workedMinutes) || 0) - STD_MIN) : 0;
+                return `<tr>
+                  <td>${esc(r.date)}</td>
+                  <td>${esc(r.workType)}${r.businessTrip ? '<span class="pill trip">出張</span>' : ""}</td>
+                  <td>${esc(r.startTime || "—")} 〜 ${esc(r.endTime || "—")}</td>
+                  <td class="num">${h1(r.workedMinutes)}h${ot > 0 ? `<span class="pill">残${h1(ot)}</span>` : ""}</td>
+                  <td><span class="st st-${r.status}">${esc(r.status)}</span>${r.status === "否認" && r.rejectReason ? `<div class="note-inline">理由: ${esc(r.rejectReason)}</div>` : ""}</td>
+                  <td class="row-actions">
+                    <button class="btn sm ${canApply ? "" : "gray"}" data-act="apply" data-id="${r.id}" ${canApply && me.supervisorId ? "" : "disabled"}>申請</button>
+                    <button class="btn sm ghost" data-act="edit" data-id="${r.id}">編集</button>
+                  </td>
+                </tr>`;
+              })
+              .join("")
+          : `<tr><td colspan="6" class="empty">まだ勤怠がありません。上のフォームから入力してください。</td></tr>`;
+
+        return (
+          punch +
+          form +
+          `<div class="card"><h2>📋 自分の勤怠一覧 <span class="sub">${esc(me.name)}</span></h2>
+            <div style="overflow:auto"><table><thead><tr><th>勤務日</th><th>区分</th><th>時間</th><th class="num">実働</th><th>承認状況</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table></div>
+          </div>`
+        );
+      }
+
+      // ── APPROVE panel
+      function renderApprove() {
+        const me = EMP[uid];
+        const pending = ALL.filter((r) => r.submittedTo === uid && r.status === "申請中").sort((a, b) => (a.date < b.date ? -1 : 1));
+        const done = ALL.filter((r) => r.submittedTo === uid && (r.status === "承認済" || r.status === "否認")).sort((a, b) => (a.date < b.date ? 1 : -1));
+
+        const lock = `<div class="lock">🔒 この「承認」画面は <b>上司（承認者）本人</b>だけが操作できます。表示中の申請は <b>${esc(me.name)}</b> 宛のものです。</div>`;
+
+        const pRows = pending.length
+          ? pending
+              .map((r) => {
+                const ot = r.workType === "出勤" ? Math.max(0, (Number(r.workedMinutes) || 0) - STD_MIN) : 0;
+                return `<tr>
+                  <td><b>${esc(r.employeeName)}</b><div class="note-inline">${esc(EMP[r.employeeId] ? EMP[r.employeeId].dept : "")}</div></td>
+                  <td>${esc(r.date)}</td>
+                  <td>${esc(r.workType)}${r.businessTrip ? '<span class="pill trip">出張</span>' : ""}</td>
+                  <td>${esc(r.startTime || "—")} 〜 ${esc(r.endTime || "—")}<div class="note-inline">休憩 ${Number(r.breakMinutes) || 0}分</div></td>
+                  <td class="num">${h1(r.workedMinutes)}h${ot > 0 ? `<span class="pill">残${h1(ot)}</span>` : ""}</td>
+                  <td>${esc(r.note || "")}</td>
+                  <td class="row-actions">
+                    <button class="btn sm ok" data-act="approve" data-id="${r.id}">承認</button>
+                    <button class="btn sm bad" data-act="reject" data-id="${r.id}">否認</button>
+                  </td>
+                </tr>`;
+              })
+              .join("")
+          : `<tr><td colspan="7" class="empty">承認待ちの申請はありません 🎉</td></tr>`;
+
+        const dRows = done.length
+          ? done
+              .map(
+                (r) => `<tr>
+                  <td>${esc(r.employeeName)}</td><td>${esc(r.date)}</td>
+                  <td class="num">${h1(r.workedMinutes)}h</td>
+                  <td><span class="st st-${r.status}">${esc(r.status)}</span></td>
+                  <td>${esc(r.status === "否認" ? r.rejectReason || "" : r.approvedBy || "")}</td>
+                </tr>`,
+              )
+              .join("")
+          : `<tr><td colspan="5" class="empty">まだ処理履歴はありません</td></tr>`;
+
+        return (
+          lock +
+          `<div class="card"><h2>📨 承認待ち <span class="sub">${pending.length} 件</span></h2>
+            <div style="overflow:auto"><table><thead><tr><th>従業員</th><th>勤務日</th><th>区分</th><th>時間</th><th class="num">実働</th><th>備考</th><th>操作</th></tr></thead><tbody>${pRows}</tbody></table></div>
+          </div>
+          <div class="card"><h2>🗂 処理履歴</h2>
+            <div style="overflow:auto"><table><thead><tr><th>従業員</th><th>勤務日</th><th class="num">実働</th><th>結果</th><th>承認者/理由</th></tr></thead><tbody>${dRows}</tbody></table></div>
+          </div>`
+        );
+      }
+
+      // ── HR panel
+      let chart;
+      function renderHR() {
+        const approved = ALL.filter((r) => r.status === "承認済");
+        // month options
+        const months = [...new Set(ALL.map((r) => (r.date || "").slice(0, 7)).filter(Boolean))].sort().reverse();
+        if (!renderHR._m || !months.includes(renderHR._m)) renderHR._m = months[0] || todayISO().slice(0, 7);
+        const m = renderHR._m;
+        const inM = approved.filter((r) => (r.date || "").startsWith(m));
+
+        // aggregate per employee
+        const agg = {};
+        for (const r of inM) {
+          const a = (agg[r.employeeId] = agg[r.employeeId] || { name: r.employeeName, dept: EMP[r.employeeId] ? EMP[r.employeeId].dept : "", days: 0, min: 0, ot: 0, paid: 0, trips: 0, pay: 0 });
+          if (r.workType === "出勤") { a.days++; a.min += Number(r.workedMinutes) || 0; a.ot += Math.max(0, (Number(r.workedMinutes) || 0) - STD_MIN); }
+          if (r.workType === "有給休暇") a.paid++;
+          if (r.businessTrip) a.trips++;
+          a.pay += payOf(r);
+        }
+        const list = Object.entries(agg).map(([id, a]) => ({ id, ...a })).sort((x, y) => y.pay - x.pay);
+        const totPay = list.reduce((s, a) => s + a.pay, 0);
+        const totMin = list.reduce((s, a) => s + a.min, 0);
+        const totOt = list.reduce((s, a) => s + a.ot, 0);
+        const approvedPeople = new Set(inM.map((r) => r.employeeId)).size;
+
+        const lock = `<div class="lock">🔒 この「人事管理」画面は <b>人事部</b>だけが閲覧できます。承認済みの勤怠のみを給与計算・集計に使用します。</div>`;
+        const monthSel = `<select id="hrMonth">${months.map((x) => `<option value="${x}"${x === m ? " selected" : ""}>${x}</option>`).join("")}</select>`;
+
+        const kpis = `<div class="kpis">
+          <div class="kpi"><div class="v">${approvedPeople}</div><div class="l">承認済み従業員数</div></div>
+          <div class="kpi"><div class="v">${inM.length}</div><div class="l">承認済みレコード数</div></div>
+          <div class="kpi"><div class="v">${h1(totMin)}h</div><div class="l">総実働時間</div></div>
+          <div class="kpi"><div class="v">${h1(totOt)}h</div><div class="l">総時間外</div></div>
+          <div class="kpi"><div class="v">${yen(totPay)}</div><div class="l">給与総額（概算）</div></div>
+        </div>`;
+
+        const payRows = list.length
+          ? list
+              .map(
+                (a) => `<tr>
+                  <td><b>${esc(a.name)}</b></td><td>${esc(a.dept)}</td>
+                  <td class="num">${yen(EMP[a.id] ? EMP[a.id].wage : 0)}</td>
+                  <td class="num">${a.days}</td>
+                  <td class="num">${a.paid}</td>
+                  <td class="num">${a.trips}</td>
+                  <td class="num">${h1(a.min)}h</td>
+                  <td class="num">${h1(a.ot)}h</td>
+                  <td class="num"><b>${yen(a.pay)}</b></td>
+                </tr>`,
+              )
+              .join("")
+          : `<tr><td colspan="9" class="empty">${m} に承認済みの勤怠がありません</td></tr>`;
+
+        const html =
+          lock +
+          `<div class="card"><h2>💴 給与計算表 <span class="sub">対象月 ${monthSel} ／ 承認済みのみ・所定8h/日</span></h2>
+            ${kpis}
+            <div style="overflow:auto"><table>
+              <thead><tr><th>従業員</th><th>部署</th><th class="num">時給</th><th class="num">出勤日</th><th class="num">有給</th><th class="num">出張</th><th class="num">実働</th><th class="num">時間外</th><th class="num">支給額</th></tr></thead>
+              <tbody>${payRows}</tbody>
+            </table></div>
+            <div style="margin-top:12px"><button class="btn ghost sm" data-act="csv">📤 月次CSVを書き出す（チャットに依頼）</button>
+            <span class="note-inline">※ 残業代の割増（法定条件）は本フェーズ未実装。時間外は表示のみ。</span></div>
+          </div>
+          <div class="card"><h2>📈 承認済み勤怠グラフ <span class="sub">${m} ／ 承認された人を一元管理</span></h2>
+            <div style="height:320px"><canvas id="hrChart"></canvas></div>
+          </div>`;
+
+        // draw chart after DOM insert
+        setTimeout(() => drawChart(list), 0);
+        return html;
+      }
+
+      function drawChart(list) {
+        const el = document.getElementById("hrChart");
+        if (!el || typeof Chart === "undefined") return;
+        if (chart) chart.destroy();
+        chart = new Chart(el, {
+          type: "bar",
+          data: {
+            labels: list.map((a) => a.name),
+            datasets: [
+              { label: "実働(h)", data: list.map((a) => Math.round((a.min / 60) * 10) / 10), backgroundColor: "#4f46e5", borderRadius: 6, yAxisID: "y" },
+              { label: "時間外(h)", data: list.map((a) => Math.round((a.ot / 60) * 10) / 10), backgroundColor: "#f59e0b", borderRadius: 6, yAxisID: "y" },
+              { label: "支給額(¥)", data: list.map((a) => Math.round(a.pay)), backgroundColor: "#10b981", borderRadius: 6, yAxisID: "y1", type: "bar" },
+            ],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: "bottom" }, title: { display: false } },
+            scales: {
+              y: { position: "left", title: { display: true, text: "時間 (h)" }, beginAtZero: true },
+              y1: { position: "right", title: { display: true, text: "支給額 (¥)" }, beginAtZero: true, grid: { drawOnChartArea: false } },
+            },
+          },
+        });
+      }
+
+      // ── main render
+      function render() {
+        renderHeader();
+        renderTabs();
+        const panel = document.getElementById("panel");
+        if (tab === "approve") panel.innerHTML = renderApprove();
+        else if (tab === "hr") panel.innerHTML = renderHR();
+        else panel.innerHTML = renderSelf();
+      }
+
+      // ── actions
+      async function actPunchIn() {
+        const id = "k-" + uid + "-" + todayISO().replace(/-/g, "");
+        const me = EMP[uid];
+        await putItem({ id, employeeId: uid, employeeName: me.name, date: todayISO(), workType: "出勤", businessTrip: false, startTime: nowHM(), breakMinutes: 60, workedMinutes: 0, status: "下書き" }, "upsert");
+        toast("出勤を打刻しました");
+      }
+      async function actPunchOut() {
+        const today = todayISO();
+        const rec = ALL.find((r) => r.employeeId === uid && r.date === today);
+        if (!rec || !rec.startTime) return toast("先に出勤打刻をしてください");
+        const en = nowHM();
+        const wm = worked(rec.startTime, en, rec.breakMinutes);
+        await putItem({ id: rec.id, endTime: en, workedMinutes: wm }, "merge");
+        toast("退勤を打刻しました（実働 " + h1(wm) + "h）");
+      }
+      async function actSaveDay() {
+        const date = document.getElementById("f_date").value;
+        if (!date) return toast("勤務日を選んでください");
+        const type = document.getElementById("f_type").value;
+        const start = document.getElementById("f_start").value.trim();
+        const end = document.getElementById("f_end").value.trim();
+        const brk = Number(document.getElementById("f_break").value) || 0;
+        const trip = document.getElementById("f_trip").value === "true";
+        const note = document.getElementById("f_note").value.trim();
+        const me = EMP[uid];
+        const id = "k-" + uid + "-" + date.replace(/-/g, "");
+        const wm = type === "出勤" ? worked(start, end, brk) : 0;
+        const row = { id, employeeId: uid, employeeName: me.name, date, workType: type, businessTrip: trip, workedMinutes: wm, status: "下書き", note };
+        if (type === "出勤") { row.startTime = start; row.endTime = end; row.breakMinutes = brk; }
+        if (await putItem(row, "upsert")) toast("下書きを保存しました");
+      }
+      async function actEdit(id) {
+        const r = ALL.find((x) => x.id === id);
+        if (!r) return;
+        tab = "self"; renderTabs();
+        document.getElementById("panel").innerHTML = renderSelf();
+        const set = (k, v) => { const el = document.getElementById(k); if (el) el.value = v; };
+        set("f_date", r.date); set("f_type", r.workType); set("f_start", r.startTime || ""); set("f_end", r.endTime || "");
+        set("f_break", r.breakMinutes != null ? r.breakMinutes : 60); set("f_trip", r.businessTrip ? "true" : "false"); set("f_note", r.note || "");
+        document.getElementById("f_date").scrollIntoView({ behavior: "smooth", block: "center" });
+        toast("フォームに読み込みました。編集して「下書き保存」");
+      }
+      async function actApply(id) {
+        const r = ALL.find((x) => x.id === id);
+        const me = EMP[uid];
+        if (!me.supervisorId) return toast("承認者（上司）が設定されていません");
+        await putItem({ id, status: "申請中", submittedTo: me.supervisorId, rejectReason: "" }, "merge");
+        toast(EMP[me.supervisorId].name + " へ承認申請しました");
+      }
+      async function actApprove(id) {
+        await putItem({ id, status: "承認済", approvedBy: EMP[uid].name }, "merge");
+        toast("承認しました");
+      }
+      async function actReject(id) {
+        const reason = window.prompt("否認理由を入力してください", "");
+        if (reason === null) return;
+        await putItem({ id, status: "否認", rejectReason: reason || "（理由なし）" }, "merge");
+        toast("否認しました");
+      }
+      function actCsv() {
+        const m = renderHR._m;
+        window.__MC_VIEW.startChat(
+          "勤怠管理（kintai）コレクションの " + m + " の承認済みレコードを集計し、従業員ごとに『氏名, 部署, 出勤日数, 有給日数, 出張日数, 実働時間, 時間外時間, 支給額』を計算して、CSVファイル（artifacts/spreadsheets 配下）に書き出してください。時給は従業員マスタ（employees）を参照。承認済み（status=承認済）のみ対象。",
+        );
+        toast("チャットにCSV出力を依頼しました");
+      }
+
+      // ── events
+      document.getElementById("userSel").addEventListener("change", (e) => { uid = e.target.value; tab = "self"; render(); });
+      document.getElementById("tabs").addEventListener("click", (e) => { const t = e.target.closest(".tab"); if (t) { tab = t.dataset.tab; render(); } });
+      document.getElementById("panel").addEventListener("click", (e) => {
+        const b = e.target.closest("[data-act]");
+        if (!b) return;
+        const id = b.dataset.id;
+        const map = { punchIn: actPunchIn, punchOut: actPunchOut, saveDay: actSaveDay, apply: () => actApply(id), edit: () => actEdit(id), approve: () => actApprove(id), reject: () => actReject(id), csv: actCsv };
+        const fn = map[b.dataset.act];
+        if (fn) fn();
+      });
+      document.getElementById("panel").addEventListener("change", (e) => {
+        if (e.target.id === "hrMonth") { renderHR._m = e.target.value; document.getElementById("panel").innerHTML = renderHR(); }
+      });
+      // live clock
+      setInterval(() => { const c = document.getElementById("clk"); if (c) c.textContent = nowHM(); }, 15000);
+
+      // ── boot
+      fetchAll().then(render).catch((e) => {
+        document.getElementById("panel").innerHTML = '<div class="card"><p class="empty">読み込みに失敗しました: ' + esc(e.message) + "</p></div>";
+      });
+      window.__MC_VIEW.onChange(() => fetchAll().then(render).catch(() => {}));
+    </script>
+  </body>
+</html>

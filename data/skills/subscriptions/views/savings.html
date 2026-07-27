@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+      :root {
+        --bg: #f6f8fb;
+        --card: #ffffff;
+        --ink: #0f172a;
+        --muted: #64748b;
+        --line: #e5e9f0;
+        --green: #16a34a;
+        --green-d: #15803d;
+        --amber: #d97706;
+        --blue: #2563eb;
+        --red: #dc2626;
+      }
+      * { box-sizing: border-box; }
+      body {
+        font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      h1 { font-size: 19px; margin: 0 0 2px; }
+      .lead { font-size: 12px; color: var(--muted); margin: 0 0 18px; }
+
+      .hero { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+      @media (max-width: 640px) { .hero { grid-template-columns: 1fr; } }
+      .kpi { border-radius: 16px; padding: 18px; color: #fff; position: relative; overflow: hidden; }
+      .kpi.save { background: linear-gradient(135deg, #16a34a, #059669); }
+      .kpi.year { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+      .kpi.keep { background: linear-gradient(135deg, #334155, #0f172a); }
+      .kpi .cap { font-size: 12px; opacity: 0.9; margin-bottom: 6px; }
+      .kpi .big { font-size: 30px; font-weight: 800; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
+      .kpi .note { font-size: 11px; opacity: 0.9; margin-top: 8px; }
+      .kpi .emoji { position: absolute; right: 14px; top: 12px; font-size: 30px; opacity: 0.35; }
+
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(15,23,42,0.04); }
+      .card h2 { font-size: 14px; margin: 0 0 14px; display: flex; align-items: center; gap: 6px; }
+
+      .charts { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: center; }
+      @media (max-width: 720px) { .charts { grid-template-columns: 1fr; } }
+      .chart-box { position: relative; }
+      .donut-box { height: 240px; }
+      .rank-box { height: 360px; }
+      .chart-title { font-size: 12px; color: var(--muted); margin: 0 0 8px; text-align: center; }
+      .center-num { position: absolute; top: 42%; left: 0; right: 0; text-align: center; pointer-events: none; }
+      .center-num .cn-big { font-size: 20px; font-weight: 800; color: var(--green-d); font-variant-numeric: tabular-nums; }
+      .center-num .cn-cap { font-size: 10px; color: var(--muted); }
+
+      .ba-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+      .ba-row .lbl { width: 92px; font-size: 12px; color: var(--muted); }
+      .track { flex: 1; background: #eef2f7; border-radius: 8px; height: 26px; position: relative; overflow: hidden; }
+      .fill { height: 100%; border-radius: 8px; display: flex; align-items: center; padding: 0 10px; color: #fff; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .fill.before { background: #94a3b8; }
+      .fill.after { background: linear-gradient(90deg, #16a34a, #059669); }
+
+      .prog-wrap { margin-top: 6px; }
+      .prog { background: #eef2f7; border-radius: 999px; height: 14px; overflow: hidden; }
+      .prog > div { height: 100%; background: linear-gradient(90deg, #22c55e, #15803d); border-radius: 999px; transition: width 0.4s; }
+      .prog-cap { font-size: 12px; color: var(--muted); margin-top: 8px; }
+      .prog-cap b { color: var(--green-d); }
+
+      ul { list-style: none; margin: 0; padding: 0; }
+      .task { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+      .task .head { display: flex; align-items: center; gap: 12px; }
+      .chk { width: 22px; height: 22px; border: 2px solid var(--amber); border-radius: 6px; flex: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 14px; background: #fff; }
+      .chk.done { background: var(--green); border-color: var(--green); }
+      .task .nm { font-weight: 700; flex: 1; }
+      .task .amt { font-variant-numeric: tabular-nums; color: var(--amber); font-weight: 700; }
+      .task.isdone .nm { text-decoration: line-through; color: var(--muted); }
+      .task.isdone .amt { color: var(--green-d); }
+      .task .how { font-size: 12px; color: var(--muted); margin: 8px 0 0 34px; white-space: pre-wrap; line-height: 1.6; }
+      .task .link { margin-left: 34px; margin-top: 6px; font-size: 12px; }
+      .task .link a { color: var(--blue); cursor: pointer; }
+
+      .grp { margin-top: 6px; }
+      .grp h3 { font-size: 12px; color: var(--muted); margin: 12px 0 6px; }
+      .li { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
+      .pill { font-size: 10px; padding: 2px 8px; border-radius: 999px; font-weight: 700; }
+      .pill.keep { background: #e2e8f0; color: #334155; }
+      .pill.plan { background: #fef3c7; color: #92400e; }
+      .pill.done { background: #dcfce7; color: #166534; }
+      .li .nm { flex: 1; }
+      .li .g { color: var(--muted); font-size: 11px; }
+      .li .amt { font-variant-numeric: tabular-nums; font-weight: 600; }
+      .li.zero .amt { color: var(--muted); font-weight: 400; }
+      .empty { color: var(--muted); font-size: 13px; }
+      .err { color: var(--red); font-size: 13px; }
+      .yen { font-variant-numeric: tabular-nums; }
+    </style>
+  </head>
+  <body>
+    <h1>🐷 サブスク断捨離 — 節約ダッシュボード</h1>
+    <p class="lead" id="lead">読み込み中…</p>
+
+    <div class="hero">
+      <div class="kpi save"><span class="emoji">💰</span><div class="cap">月間削減額</div><div class="big" id="kSaveM">—</div><div class="note" id="kSaveNote"></div></div>
+      <div class="kpi year"><span class="emoji">📅</span><div class="cap">年間削減額</div><div class="big" id="kSaveY">—</div><div class="note">解約をすべて完了した場合</div></div>
+      <div class="kpi keep"><span class="emoji">🔁</span><div class="cap">継続中の月額（After）</div><div class="big" id="kKeep">—</div><div class="note" id="kKeepNote"></div></div>
+    </div>
+
+    <div class="card">
+      <h2>📊 お金の流れ（月額）</h2>
+      <div class="charts">
+        <div>
+          <p class="chart-title">ステータス別の内訳</p>
+          <div class="chart-box donut-box">
+            <canvas id="donut"></canvas>
+            <div class="center-num"><div class="cn-big" id="donutCenter">—</div><div class="cn-cap">削減額/月</div></div>
+          </div>
+        </div>
+        <div>
+          <p class="chart-title">サービス別コスト（色＝ステータス）</p>
+          <div class="chart-box rank-box"><canvas id="rank"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📉 Before → After（月額）</h2>
+      <div class="ba-row"><div class="lbl">見直し前</div><div class="track"><div class="fill before" id="barBefore">—</div></div></div>
+      <div class="ba-row"><div class="lbl">見直し後</div><div class="track"><div class="fill after" id="barAfter">—</div></div></div>
+      <div class="prog-wrap">
+        <div class="prog"><div id="progBar" style="width:0%"></div></div>
+        <div class="prog-cap" id="progCap"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>✅ 解約タスク（チェックで貯金に反映）</h2>
+      <ul id="tasks"></ul>
+      <div class="empty" id="tasksEmpty" style="display:none">残っている解約タスクはありません。全部完了、おつかれさまでした！🎉</div>
+    </div>
+
+    <div class="card">
+      <h2>📋 サブスク一覧</h2>
+      <div id="groups"></div>
+    </div>
+
+    <script>
+      const yen = (n) => "¥" + Math.round(Number(n) || 0).toLocaleString("ja-JP");
+      const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const { token, dataUrl } = window.__MC_VIEW;
+      const auth = { Authorization: "Bearer " + token, "Content-Type": "application/json" };
+      const readUrl = dataUrl + "?fields=" + encodeURIComponent("name,group,status,monthlyCost,billing,rawCost,howto");
+
+      let rows = [];
+      async function load() {
+        const res = await fetch(readUrl, { headers: { Authorization: "Bearer " + token } });
+        if (!res.ok) throw new Error("HTTP " + res.status + ": " + (await res.text()));
+        rows = (await res.json()).items || [];
+      }
+
+      const sum = (arr) => arr.reduce((s, r) => s + (Number(r.monthlyCost) || 0), 0);
+
+      const STATUS_COLOR = { "継続": "#334155", "解約予定": "#d97706", "解約済み": "#16a34a" };
+      let donutChart = null, rankChart = null;
+
+      function renderCharts(keep, plan, done, totalSave) {
+        // Doughnut: monthly cost split by status
+        const dLabels = ["継続（維持）", "解約予定（見込み削減）", "解約済み（達成削減）"];
+        const dData = [sum(keep), sum(plan), sum(done)];
+        const dColor = ["#334155", "#d97706", "#16a34a"];
+        document.getElementById("donutCenter").textContent = yen(sum(plan) + sum(done));
+        const dCfg = {
+          type: "doughnut",
+          data: { labels: dLabels, datasets: [{ data: dData, backgroundColor: dColor, borderColor: "#fff", borderWidth: 2 }] },
+          options: {
+            responsive: true, maintainAspectRatio: false, cutout: "66%",
+            plugins: {
+              legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 10 }, padding: 8 } },
+              tooltip: { callbacks: { label: (c) => " " + c.label + ": " + yen(c.parsed) + " /月" } },
+            },
+          },
+        };
+        if (donutChart) { donutChart.data = dCfg.data; donutChart.update(); } else donutChart = new Chart(document.getElementById("donut"), dCfg);
+
+        // Horizontal bar: services ranked by monthly cost, colored by status
+        const ranked = rows.filter((r) => Number(r.monthlyCost) > 0).sort((a, b) => (Number(b.monthlyCost) || 0) - (Number(a.monthlyCost) || 0));
+        const rCfg = {
+          type: "bar",
+          data: {
+            labels: ranked.map((r) => r.name),
+            datasets: [{
+              data: ranked.map((r) => Number(r.monthlyCost) || 0),
+              backgroundColor: ranked.map((r) => STATUS_COLOR[r.status] || "#94a3b8"),
+              borderRadius: 5,
+            }],
+          },
+          options: {
+            indexAxis: "y", responsive: true, maintainAspectRatio: false,
+            scales: {
+              x: { ticks: { callback: (v) => "¥" + (v / 1000) + "k" }, grid: { color: "#eef2f7" } },
+              y: { ticks: { font: { size: 11 } }, grid: { display: false } },
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: (c) => " " + yen(c.parsed.x) + " /月（" + (ranked[c.dataIndex].status) + "）" } },
+            },
+          },
+        };
+        if (rankChart) { rankChart.data = rCfg.data; rankChart.update(); } else rankChart = new Chart(document.getElementById("rank"), rCfg);
+      }
+
+      async function markDone(id, toDone) {
+        const status = toDone ? "解約済み" : "解約予定";
+        try {
+          const res = await fetch(dataUrl, {
+            method: "PUT",
+            headers: auth,
+            body: JSON.stringify({ items: [{ id, status }], mode: "merge" }),
+          });
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          const { rejected } = await res.json();
+          if (rejected && rejected.length) { alert(rejected[0].problem || "更新できませんでした"); return; }
+        } catch (e) {
+          alert("更新に失敗しました: " + e.message);
+          return;
+        }
+        await load();
+        render();
+      }
+
+      function render() {
+        const keep = rows.filter((r) => r.status === "継続");
+        const plan = rows.filter((r) => r.status === "解約予定");
+        const done = rows.filter((r) => r.status === "解約済み");
+
+        const before = sum(rows);
+        const after = sum(keep);
+        const achieved = sum(done);
+        const pending = sum(plan);
+        const totalSave = achieved + pending;
+
+        document.getElementById("lead").textContent =
+          "登録 " + rows.length + " 件 / 継続 " + keep.length + " ・ 解約予定 " + plan.length + " ・ 解約済み " + done.length + " 件。解約タスクをチェックすると貯金額が増えます。";
+
+        document.getElementById("kSaveM").textContent = yen(totalSave);
+        document.getElementById("kSaveNote").innerHTML = "達成 " + yen(achieved) + " ＋ 見込み " + yen(pending);
+        document.getElementById("kSaveY").textContent = yen(totalSave * 12);
+        document.getElementById("kKeep").textContent = yen(after);
+        document.getElementById("kKeepNote").textContent = "見直し前は " + yen(before) + " /月";
+
+        renderCharts(keep, plan, done, totalSave);
+
+        // Before / After bars (width relative to before)
+        const base = Math.max(before, 1);
+        document.getElementById("barBefore").style.width = "100%";
+        document.getElementById("barBefore").textContent = yen(before) + " /月";
+        const afterEl = document.getElementById("barAfter");
+        afterEl.style.width = Math.max((after / base) * 100, 12) + "%";
+        afterEl.textContent = yen(after) + " /月";
+
+        // progress = achieved / totalSave
+        const pct = totalSave ? Math.round((achieved / totalSave) * 100) : 100;
+        document.getElementById("progBar").style.width = pct + "%";
+        document.getElementById("progCap").innerHTML = plan.length
+          ? "削減達成 <b>" + pct + "%</b>（" + yen(achieved) + " 達成）— あと " + plan.length + " 件の解約で <b>年 " + yen(pending * 12) + "</b> 追加で貯まります。"
+          : "🎉 予定していた解約はすべて完了。<b>年 " + yen(totalSave * 12) + "</b> の削減を達成！";
+
+        // tasks (解約予定 + 解約済み の最近分も見せる)
+        const taskRows = rows.filter((r) => r.status === "解約予定" || r.status === "解約済み");
+        taskRows.sort((a, b) => (a.status === b.status ? (Number(b.monthlyCost) || 0) - (Number(a.monthlyCost) || 0) : a.status === "解約予定" ? -1 : 1));
+        const tasksEl = document.getElementById("tasks");
+        document.getElementById("tasksEmpty").style.display = taskRows.length ? "none" : "block";
+        tasksEl.innerHTML = taskRows
+          .map((r) => {
+            const isDone = r.status === "解約済み";
+            return (
+              '<li class="task ' + (isDone ? "isdone" : "") + '">' +
+              '<div class="head">' +
+              '<div class="chk ' + (isDone ? "done" : "") + '" data-id="' + esc(r.id) + '" data-done="' + isDone + '">' + (isDone ? "✓" : "") + "</div>" +
+              '<span class="nm">' + esc(r.name) + "</span>" +
+              '<span class="amt">' + (isDone ? "−" : "") + yen(r.monthlyCost) + " /月</span>" +
+              "</div>" +
+              (r.howto ? '<div class="how">' + esc(r.howto) + "</div>" : "") +
+              '<div class="link"><a data-open="' + esc(r.id) + '">詳細を開く →</a></div>' +
+              "</li>"
+            );
+          })
+          .join("");
+
+        // grouped full list
+        const order = { 継続: "keep", 解約予定: "plan", 解約済み: "done" };
+        const groupsEl = document.getElementById("groups");
+        groupsEl.innerHTML = ["継続", "解約予定", "解約済み"]
+          .map((st) => {
+            const list = rows.filter((r) => r.status === st).sort((a, b) => (Number(b.monthlyCost) || 0) - (Number(a.monthlyCost) || 0));
+            if (!list.length) return "";
+            const subtotal = sum(list);
+            return (
+              '<div class="grp"><h3>' + st + "（" + list.length + "件・" + yen(subtotal) + "/月）</h3><ul>" +
+              list
+                .map(
+                  (r) =>
+                    '<li class="li ' + (Number(r.monthlyCost) ? "" : "zero") + '">' +
+                    '<span class="pill ' + order[st] + '">' + st + "</span>" +
+                    '<span class="nm">' + esc(r.name) + ' <span class="g">' + esc(r.group) + (r.billing ? " ・" + esc(r.billing) : "") + "</span></span>" +
+                    '<span class="amt">' + (Number(r.monthlyCost) ? yen(r.monthlyCost) + " /月" : "課金なし") + "</span></li>",
+                )
+                .join("") +
+              "</ul></div>"
+            );
+          })
+          .join("");
+
+        tasksEl.onclick = (e) => {
+          const chk = e.target.closest(".chk");
+          if (chk) { markDone(chk.dataset.id, chk.dataset.done !== "true"); return; }
+          const op = e.target.closest("[data-open]");
+          if (op) window.__MC_VIEW.openItem(op.dataset.open);
+        };
+        groupsEl.onclick = (e) => {
+          const li = e.target.closest(".li");
+          if (!li) return;
+        };
+      }
+
+      load().then(render).catch((e) => {
+        document.getElementById("lead").innerHTML = '<span class="err">読み込みに失敗しました: ' + e.message + "</span>";
+      });
+      window.__MC_VIEW.onChange(() => load().then(render).catch(() => {}));
+    </script>
+  </body>
+</html>

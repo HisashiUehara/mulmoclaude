@@ -1,0 +1,16 @@
+{
+  "id": "taro-yamada-11",
+  "starter": "山田 太郎",
+  "startDate": "2026-08-01",
+  "phase": "入社前",
+  "category": "事務手続き",
+  "task": "名刺の発注",
+  "owner": "田中 一郎",
+  "requestTo": "総務",
+  "status": "未着手",
+  "dueDate": "2026-07-28",
+  "templateTaskId": "tpl-11",
+  "templateVersion": 1,
+  "overridden": false,
+  "templateSyncState": "同期済"
+}

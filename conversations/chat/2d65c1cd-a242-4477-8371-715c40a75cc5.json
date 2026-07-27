@@ -1,0 +1,8 @@
+{
+  "roleId": "general",
+  "startedAt": "2026-07-19T13:21:00.499Z",
+  "firstUserMessage": "text-rest\nゴルフを3Dで解析するアプリを作って。そのアプリにスイング動画をuploadするだけで, 動画中に三次元の力の向きをクラブと人間の手の接点, つまりグリップに表示して, 使用者は自身のゴルフ動画からスイングをどう改善すべきか自習できるものにして",
+  "userQueryCount": 1,
+  "claudeSessionId": "f8056b24-7e87-4644-bb37-116ffaf0df3f",
+  "hasUnread": false
+}

@@ -1,0 +1,12 @@
+{
+  "id": "k-e001-20260716",
+  "employeeId": "e001",
+  "employeeName": "佐藤 花子",
+  "date": "2026-07-16",
+  "workType": "出勤",
+  "businessTrip": false,
+  "startTime": "09:00",
+  "breakMinutes": 0,
+  "workedMinutes": 0,
+  "status": "下書き"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "task-20260710-003",
+  "title": "照明器具ベンダーの見積再取得",
+  "summary": "照明器具の仕様変更に伴い、ベンダーから再見積を取得する。担当・期限は本文に記載なし。",
+  "category": "vendor",
+  "priority": "low",
+  "status": "open",
+  "approval": "candidate",
+  "source": "email",
+  "received_date": "2026-07-10"
+}

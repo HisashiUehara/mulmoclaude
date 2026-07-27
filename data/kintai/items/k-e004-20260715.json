@@ -1,0 +1,14 @@
+{
+  "id": "k-e004-20260715",
+  "employeeId": "e004",
+  "employeeName": "田中 健太",
+  "date": "2026-07-15",
+  "workType": "出勤",
+  "businessTrip": false,
+  "startTime": "09:00",
+  "endTime": "18:00",
+  "breakMinutes": 60,
+  "workedMinutes": 480,
+  "status": "申請中",
+  "submittedTo": "e006"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "tpl-01",
+  "seq": 1,
+  "phase": "入社前",
+  "category": "アカウント・IT関係",
+  "task": "Microsoftアカウント作成",
+  "detail": "メールアドレス、Teams、SharePointアクセス権",
+  "defaultOwnerRole": "人事担当",
+  "requestTo": "IT部門",
+  "dueOffsetDays": -14,
+  "version": 1,
+  "active": "有効"
+}

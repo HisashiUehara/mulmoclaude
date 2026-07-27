@@ -1,0 +1,11 @@
+{
+  "id": "tpl-10",
+  "seq": 10,
+  "phase": "入社前",
+  "category": "事務手続き",
+  "task": "ロッカーの確保",
+  "defaultOwnerRole": "総務担当",
+  "dueOffsetDays": -12,
+  "version": 1,
+  "active": "有効"
+}

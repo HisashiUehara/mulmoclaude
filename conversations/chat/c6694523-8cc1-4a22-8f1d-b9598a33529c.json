@@ -1,0 +1,8 @@
+{
+  "roleId": "office",
+  "startedAt": "2026-07-04T14:48:46.363Z",
+  "firstUserMessage": "私は会社のOffice Manager をしています。毎日社員から会社のManual に関する問い合わせが大量に来るので、それを自動化するアプリを作って欲しい。",
+  "userQueryCount": 2,
+  "claudeSessionId": "d57ca2aa-0321-4400-b49f-29605287ef52",
+  "hasUnread": false
+}

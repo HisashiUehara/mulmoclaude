@@ -1,0 +1,96 @@
+{
+  "$mulmocast": {
+    "version": "1.1"
+  },
+  "canvasSize": {
+    "width": 1280,
+    "height": 720
+  },
+  "speechParams": {
+    "speakers": {
+      "ナビ": {
+        "displayName": {
+          "ja": "ナビ",
+          "en": "Navi"
+        },
+        "voiceId": "Aoede",
+        "provider": "gemini"
+      }
+    }
+  },
+  "imageParams": {
+    "provider": "google",
+    "model": "gemini-3.1-flash-image-preview"
+  },
+  "movieParams": {
+    "provider": "google",
+    "model": "veo-3.1-generate"
+  },
+  "soundEffectParams": {
+    "provider": "replicate"
+  },
+  "audioParams": {
+    "introPadding": 1,
+    "padding": 0.3,
+    "closingPadding": 0.8,
+    "outroPadding": 1,
+    "bgmVolume": 0.2,
+    "audioVolume": 1,
+    "suppressSpeech": false
+  },
+  "title": "ゆるかわ解説！データセンターってなに？",
+  "description": "データセンター業界の要点を、ゆるかわマスコットたちが解説する日本語ハイライト動画。GPU・電力・学習と推論・お金の話をやさしく紹介し、『40MW棟＝ChatGPT数百万人分』でしめくくる約2〜3分の絵コンテ。",
+  "lang": "ja",
+  "beats": [
+    {
+      "speaker": "ナビ",
+      "text": "こんにちは！今日はみんなが毎日使うインターネットやAIの、ひみつの心臓「データセンター」を、ゆるっとかわいく解説していくよ！",
+      "imagePrompt": "Cute chibi 3D-rendered mascot style, soft matte pastel colors, rounded squishy shapes, glossy big sparkly eyes, gentle soft studio lighting, clean pastel sky-blue background, Pixar-like kawaii, wholesome and adorable. A friendly rounded mint-blue server-rack mascot named Server-kun with tiny blinking LED lights and a cheerful face, waving hello. Above it floats a cute title banner. A little glowing cloud and sparkles around. Cozy and inviting."
+    },
+    {
+      "speaker": "ナビ",
+      "text": "データセンターは、たくさんのサーバーを集めて、二十四時間三百六十五日、絶対に止めずに動かし続ける専用の建物なんだ。いわば『ITを止めないためのインフラのかたまり』だよ。",
+      "imagePrompt": "Cute chibi 3D mascot style, soft pastel colors, rounded squishy shapes, glossy sparkly eyes, soft studio lighting, kawaii Pixar-like, adorable. A big cute pastel building shaped like a friendly face, glowing warmly, filled with rows of tiny smiling mint-blue server-rack mascots standing neatly in rows inside. A little clock and sparkling stars floating around, indicating 24/7 always-on. Wholesome, cozy, storybook feel."
+    },
+    {
+      "speaker": "ナビ",
+      "text": "中身は大きく四つ。電気を届ける電力系、熱をひやす冷却系、データを運ぶ通信系、そして守るセキュリティ系。みんなで力を合わせてサーバーを支えているよ。",
+      "imagePrompt": "Cute chibi 3D mascot style, soft pastel colors, rounded shapes, glossy sparkly eyes, soft lighting, kawaii, adorable. Four cute little mascot friends standing together in a row: a yellow lightning-bolt battery mascot (power), a light-blue snowflake-fan mascot (cooling), a green glowing fiber-cable mascot (network), and a pink shield mascot with a cute lock face (security). They hold hands protectively around a small happy mint-blue server-rack mascot in the center. Pastel background, sparkles, wholesome team spirit."
+    },
+    {
+      "speaker": "ナビ",
+      "text": "AI時代の主役はGPUちゃん。えいちいちまるまる、みたいな高性能チップは一台数千万円！でもすっごく熱くなるから、最近は水でひえひえに冷やす『液冷』が欠かせないんだ。",
+      "imagePrompt": "Cute chibi 3D mascot style, soft pastel colors, rounded squishy shapes, glossy big sparkly eyes, soft lighting, kawaii, adorable. A small glowing green computer-chip mascot named GPU-chan with rosy blushing cheeks, looking hot and sweating cutely with tiny steam puffs, sitting happily in a clear tub of cool blue water with rubber-duck vibes (liquid cooling). Little price-tag sparkle and gentle water splashes. Pastel mint background, wholesome and funny."
+    },
+    {
+      "speaker": "ナビ",
+      "text": "今、世界ではおよそ三十二ギガワットぶんのデータセンターが同時に建設中！みんながこぞって作るから、電気の取り合いになるくらいの大ブームなんだよ。",
+      "imagePrompt": "Cute chibi 3D mascot style, soft pastel colors, rounded shapes, glossy sparkly eyes, soft lighting, kawaii, adorable. A bustling tiny pastel construction site on a green globe: many cute construction-crane mascots and hard-hat server mascots building rows of small glowing data-center buildings all over the world map. Little sparkles, dust puffs, and a cheerful boom-town energy. Earth curve visible, soft blue sky background, wholesome."
+    },
+    {
+      "speaker": "ナビ",
+      "text": "でも電気はむげんじゃない。たとえば東京圏では、使える電気とほしい電気がほぼぎりぎり。夏の予備率はたった〇・九パーセントの見通しで、みんなハラハラなんだ。",
+      "imagePrompt": "Cute chibi 3D mascot style, soft pastel colors, rounded shapes, glossy sparkly eyes, soft lighting, kawaii, adorable. A cute yellow battery mascot sweating nervously, almost empty with just a tiny sliver of charge left, balancing carefully on a tightrope. A worried but adorable expression. A tiny gauge nearby pointing near empty. Soft pastel orange sunset background, gentle tension, wholesome and a little comedic."
+    },
+    {
+      "speaker": "ナビ",
+      "text": "AIには二つの仕事があるよ。『学習』は工場と金型を作ること、『推論』はその工場から製品を出荷すること。ChatGPTのお返事一回一回は、ぜんぶ推論なんだ。",
+      "imagePrompt": "Cute chibi 3D mascot style, soft pastel colors, rounded shapes, glossy sparkly eyes, soft lighting, kawaii, adorable. Split cozy scene: on the left, cute robot mascots building a pastel toy factory with molds and gears (training); on the right, the finished cute factory happily shipping little glowing gift boxes on a conveyor belt to smiling customers (inference). A friendly arrow connecting them. Wholesome, storybook, pastel background."
+    },
+    {
+      "speaker": "ナビ",
+      "text": "さて、お金の話。四十メガワットのデータセンター一棟で、施設の支払いはなんと毎月およそ十四億円！これは建物や設備の初期投資、キャペックスと、毎月の運営費、オペックスから成り立っているよ。",
+      "imagePrompt": "Cute chibi 3D mascot style, soft pastel colors, rounded shapes, glossy sparkly eyes, soft lighting, kawaii, adorable. A cute pastel data-center building mascot standing proudly next to an enormous adorable pink piggy bank overflowing with gold coins and cute yen-symbol tokens. Tiny mascots pushing coins into it. Sparkles and floating coin icons. Wholesome, slightly awe-struck expressions, pastel background."
+    },
+    {
+      "speaker": "ナビ",
+      "text": "じゃあその十四億円、なにで元を取るの？答えはずばり、ChatGPTのようなサービスの利用者。ぜんぶ足すと、たった一棟で有料会員およそ三百万から五百万人分の裏側を支えている計算になるんだ。すごい！",
+      "imagePrompt": "Cute chibi 3D mascot style, soft pastel colors, rounded shapes, glossy sparkly eyes, soft lighting, kawaii, adorable. Heroic centerpiece: one glowing pastel data-center building mascot in the center, radiating warm light, surrounded by a vast happy crowd of millions of tiny adorable chibi people looking at their phones with heart and chat-bubble icons floating up. Sense of huge scale, sparkles, sunrise glow. Awe-inspiring yet cute, wholesome, pastel sky background."
+    },
+    {
+      "speaker": "ナビ",
+      "text": "というわけで、データセンターはAI時代のかくれた心臓。電気とお金とチップの、大きな挑戦が詰まっているんだ。今日もどこかで、サーバーくんたちがけなげにがんばっているよ。またね！",
+      "imagePrompt": "Cute chibi 3D mascot style, soft pastel colors, rounded squishy shapes, glossy big sparkly eyes, soft warm lighting, kawaii Pixar-like, adorable. Group finale: the mint-blue Server-kun, green GPU-chan, yellow battery mascot, snowflake-fan mascot, and shield mascot all standing together waving goodbye in front of a glowing pastel data-center building shaped like a gentle heart. Confetti and sparkles, warm sunset sky. Heartwarming, cheerful send-off, wholesome."
+    }
+  ]
+}

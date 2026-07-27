@@ -1,0 +1,94 @@
+{
+  "_meta": {
+    "note": "ゴールドペアのDSL実体。全StageのE2E期待値（正解参照）。実データではなく、レイアウト・粒度・文体を再現しデータ（エリア名・型番・数値）を全て架空に差し替えたサニタイズ済みサンプル。対になる完成物は ../gold/ideal-report.md。",
+    "source_kind": "excel",
+    "fictional": true,
+    "pair": "ideal-report.md"
+  },
+  "items": [
+    {
+      "id": "001",
+      "source_location": "週報/B2",
+      "原文": "週次進捗報告書",
+      "訳文": "Weekly Progress Report",
+      "confidence": "high"
+    },
+    {
+      "id": "002",
+      "source_location": "週報/B3",
+      "原文": "グリーンフィールド・データセンター 内装工事",
+      "訳文": "Greenfield Data Center Interior Fit-Out",
+      "confidence": "high"
+    },
+    {
+      "id": "003",
+      "source_location": "週報/B4",
+      "原文": "報告週：第14週（2026年7月20日〜7月24日）",
+      "訳文": "Reporting week: Week 14 (Jul 20 – Jul 24, 2026)",
+      "confidence": "high"
+    },
+    {
+      "id": "004",
+      "source_location": "週報/B5",
+      "原文": "施工会社：架空建設株式会社",
+      "訳文": "Contractor: Fictional Construction Co., Ltd.",
+      "confidence": "high"
+    },
+    {
+      "id": "005",
+      "source_location": "週報/B7",
+      "原文": "全体進捗率 62%（前週比 +5%）",
+      "訳文": "Overall progress: 62% (+5% week-over-week)",
+      "confidence": "high"
+    },
+    {
+      "id": "006",
+      "source_location": "週報/B10",
+      "原文": "Aゾーン 2階 電気室：配電盤 XR-4000 の据付が完了。二次側結線は 40% 完了。",
+      "訳文": "Zone A, Level 2 Electrical Room: Installation of switchboard XR-4000 completed. Secondary-side wiring 40% complete.",
+      "confidence": "low"
+    },
+    {
+      "id": "007",
+      "source_location": "週報/B11",
+      "原文": "Bゾーン サーバルーム：OAフロア敷設 85%。H形鋼の支持架台にセットアンカーを打設中。",
+      "訳文": "Zone B, Server Room: Raised access floor 85% installed. Setting anchor bolts for the H-beam support frames.",
+      "confidence": "low"
+    },
+    {
+      "id": "008",
+      "source_location": "週報/B12",
+      "原文": "空調：CRACユニット CR-220（冷却能力 60kW）3台のうち2台を搬入・仮置き。",
+      "訳文": "HVAC: 2 of 3 CRAC units CR-220 (60 kW cooling capacity) delivered and temporarily positioned.",
+      "confidence": "low"
+    },
+    {
+      "id": "009",
+      "source_location": "週報/B14",
+      "原文": "来週予定：二次側結線の完了、およびCRAC残1台の搬入・据付を予定。",
+      "訳文": "Next week: Complete secondary-side wiring and deliver/install the remaining CRAC unit.",
+      "confidence": "high"
+    },
+    {
+      "id": "010",
+      "source_location": "週報/B16",
+      "原文": "課題：Bゾーンの梁貫通スリーブ位置が意匠図と不整合。RFI-072 にて確認中。",
+      "訳文": "Issue: Beam-penetration sleeve locations in Zone B conflict with the architectural drawings. Under review via RFI-072.",
+      "confidence": "low"
+    },
+    {
+      "id": "011",
+      "source_location": "週報/B18",
+      "原文": "安全：無災害継続日数 128日。7月22日に全体安全パトロールを実施。",
+      "訳文": "Safety: 128 consecutive accident-free days. Site-wide safety patrol conducted on Jul 22.",
+      "confidence": "high"
+    },
+    {
+      "id": "012",
+      "source_location": "週報/B20",
+      "原文": "備考：テナント立会検査は第16週を想定。日程は別途調整。",
+      "訳文": "Note: Tenant witness inspection is anticipated in Week 16; the schedule will be coordinated separately.",
+      "confidence": "high"
+    }
+  ]
+}

@@ -73,7 +73,7 @@ import { releaseOrphanedCalendarToken, syncCalendarForCollection } from "@mulmoc
 import { calendarRefreshBody, type CollectionRefreshBody as RefreshResponse } from "./collectionCalendarRefresh.js";
 import { manageCollection } from "../../agent/mcp-tools/manageCollection.js";
 import { dispatchAgentAction, runningAgentActions } from "./collectionAgentActions.js";
-import { clampCapabilities, mintViewToken, requireViewToken } from "../auth/viewToken.js";
+import { clampCapabilities, mintNavChatToken, mintTtsToken, mintViewToken, requireViewToken } from "../auth/viewToken.js";
 import { csvParam, extractRecord, parseCapabilities, parseListParam, stringParam } from "./collectionParams.js";
 
 const router = Router();
@@ -922,6 +922,38 @@ router.post(API_ROUTES.collections.viewToken, async (req: Request<{ slug: string
     log.warn("collections", "view-token mint failed", { slug: req.params.slug, error: errorMessage(err) });
     serverError(res, errorMessage(err));
   }
+});
+
+// Mint a TTS-scoped token (aud:"tts") for a caller that already holds a valid
+// data view-token for this slug. Guarded by `requireViewToken("read")` — the
+// launcher presents its own scoped token — and exempt from the global bearer +
+// CSRF middleware (same as view-data). The minted token authorizes ONLY the
+// /api/tts proxy; it can never read this collection's records. The launcher
+// hands it to the standalone app tab via URL fragment.
+router.options(API_ROUTES.collections.ttsToken, viewDataCors, (_req: Request, res: Response) => {
+  res.status(204).end();
+});
+router.post(API_ROUTES.collections.ttsToken, viewDataCors, requireViewToken("read"), (req: Request<{ slug: string }>, res: Response) => {
+  const minted = mintTtsToken(req.params.slug);
+  if (!minted) {
+    serverError(res, "tts token unavailable (server not ready)");
+    return;
+  }
+  res.json({ token: minted.token, exp: minted.exp });
+});
+
+// Mint a nav-chat-scoped token (aud:"nav-chat"). Same guard/exemption/handoff
+// as the TTS mint above; authorizes ONLY the /api/nav-chat LLM proxy.
+router.options(API_ROUTES.collections.navChatToken, viewDataCors, (_req: Request, res: Response) => {
+  res.status(204).end();
+});
+router.post(API_ROUTES.collections.navChatToken, viewDataCors, requireViewToken("read"), (req: Request<{ slug: string }>, res: Response) => {
+  const minted = mintNavChatToken(req.params.slug);
+  if (!minted) {
+    serverError(res, "nav-chat token unavailable (server not ready)");
+    return;
+  }
+  res.json({ token: minted.token, exp: minted.exp });
 });
 
 // Scoped read: enriched records (getItems). Guarded by the view token only

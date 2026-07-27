@@ -1,0 +1,33 @@
+{
+  "id": "2026-06_dining",
+  "month": "2026-06",
+  "periodLabel": "5/16〜6/15",
+  "category": "外食・カフェ",
+  "amount": 40874,
+  "merchants": [
+    {
+      "name": "プロント",
+      "amount": 10692
+    },
+    {
+      "name": "日高屋",
+      "amount": 3730
+    },
+    {
+      "name": "さぼちゃん",
+      "amount": 3900
+    },
+    {
+      "name": "マクドナルド",
+      "amount": 2690
+    },
+    {
+      "name": "松屋",
+      "amount": 2040
+    },
+    {
+      "name": "その他",
+      "amount": 17822
+    }
+  ]
+}

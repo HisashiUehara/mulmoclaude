@@ -3,9 +3,7 @@
   "version": "1.6.0",
   "description": "MulmoClaude — GUI-chat with Claude Code + long-term memory. One command to start.",
   "type": "module",
-  "bin": {
-    "mulmoclaude": "bin/mulmoclaude.js"
-  },
+  "bin": "bin/mulmoclaude.js",
   "scripts": {
     "postinstall": "node bin/fix-node-pty-perms.mjs",
     "prepack": "node bin/prepare-dist.js",

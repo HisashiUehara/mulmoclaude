@@ -1,0 +1,8 @@
+{
+  "id": "car",
+  "name": "車",
+  "category": "乗り物",
+  "priority": "中",
+  "status": "ほしい",
+  "notes": "車。メーカー・車種・予算は要検討"
+}

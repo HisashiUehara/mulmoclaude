@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "submittal-gate.dsl.schema.json",
+  "title": "SubmittalGate Handoff DSL",
+  "description": "AI → DSL → engine アーキテクチャの中間表現。Submittal(お客様承認が必要な物品・仕様)の承認獲得を、私のゲート(my_gate)とお客様のゲート(client_gate)の二重ゲートで進める。AIは diff(要件との差分材料)と content(依頼/報告の下書き)のみを埋め、approved は絶対に true にしない(承認は人間)。照合・書式・送信可能ファイル出力は engine(コード)が担う。approved:false のオブジェクトは後続ステップに流してはならない。RFIAssist のループ部品を判定者(私/ゼネコン/お客様)とゲートを差し替えて再利用する。",
+  "type": "object",
+  "required": ["submittal_id", "gate", "phase", "loop_count", "diff", "content", "approved"],
+  "additionalProperties": false,
+  "properties": {
+    "submittal_id": {
+      "type": "string",
+      "description": "Submittal案件の識別子。コレクションレコードの submittalId と一致させる。",
+      "examples": ["SUB-2026-007"]
+    },
+    "gate": {
+      "type": "string",
+      "enum": ["my_gate", "client_gate"],
+      "description": "二重ゲートのどちら側の受け渡しか。my_gate=私(社内)が判定するゲート(ステップ2-5, L1/L2)。client_gate=お客様が最終判定するゲート(ステップ6-12, L3/L4/L5/L6)。"
+    },
+    "phase": {
+      "type": "string",
+      "enum": ["check", "revise", "submit", "respond", "report"],
+      "description": "この受け渡しがどの局面か。check=要件照合/差分整理, revise=修正依頼ドラフト, submit=ACC提出パッケージ, respond=お客様コメント受領/対応, report=関係者向け結果報告。"
+    },
+    "loop_count": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "この局面のループ部品が何周目か(1始まり)。NG判定でもう一周するたびに +1。"
+    },
+    "diff": {
+      "type": "array",
+      "description": "要件定義(OPR等)と提出内容を照合した差分材料。AIは材料を並べるだけで OK/NG は判定しない。判定は人間。空配列可(差分なし)。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "項目": { "type": "string", "description": "照合対象の項目名(例: ケーブル径, コネクタ型式)。" },
+          "要件": { "type": "string", "description": "要件定義側の値・条件。" },
+          "提出内容": { "type": "string", "description": "提出書類側の値・内容。" },
+          "差分": { "type": "string", "description": "両者の相違点の説明(材料のみ。良し悪しの判定はしない)。" }
+        },
+        "required": ["項目", "要件", "提出内容", "差分"]
+      }
+    },
+    "content": {
+      "type": "object",
+      "description": "AIが作成した依頼文/報告文の下書き本体。engine が送信可能ファイルに流し込む対象。",
+      "additionalProperties": false,
+      "properties": {
+        "宛先": { "type": "string", "description": "依頼/送信/報告の宛先(ゼネコン担当・お客様・関係者など)。" },
+        "本文": { "type": "string", "description": "本文ドラフト(無加工の下書き)。" },
+        "添付": {
+          "type": "array",
+          "description": "添付予定ファイルのワークスペース相対パスの配列。無ければ空配列。",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["宛先", "本文", "添付"]
+    },
+    "approved": {
+      "type": "boolean",
+      "description": "人間の承認フラグ。AIは常に false のまま出力する。true にできるのは人間だけ。approved:false のオブジェクトを engine の後続ステップに渡すことは禁止。"
+    }
+  }
+}

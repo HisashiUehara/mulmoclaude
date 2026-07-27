@@ -107,11 +107,27 @@ function buildCsp(connectSrc: string, imgSelf: string, cdns: readonly string[], 
   return directives.join("; ");
 }
 
-export function buildHtmlPreviewCsp(origin?: string, cdns: readonly string[] = HTML_PREVIEW_CSP_ALLOWED_CDNS, extra: CspExtraHosts = {}): string {
-  // Block XHR / fetch / WebSocket so previews can't phone home or
-  // exfiltrate anything the inline scripts happen to compute (unless the
-  // user opts hosts into connect-src via config).
-  return buildCsp("'none'", origin ?? "'self'", cdns, "", "", extra);
+export function buildHtmlPreviewCsp(
+  origin?: string,
+  cdns: readonly string[] = HTML_PREVIEW_CSP_ALLOWED_CDNS,
+  extra: CspExtraHosts = {},
+  // Default `'none'` blocks XHR / fetch / WebSocket so previews can't phone home
+  // or exfiltrate anything the inline scripts compute (unless the user opts
+  // hosts into connect-src via config). The `/artifacts/html` document header
+  // passes `'self'` so a served page can reach the SAME-origin API (e.g. the
+  // voice-nav /api/tts proxy); still no third-party host, so no off-origin
+  // exfil. The print + srcdoc-wrap callers keep the `'none'` default.
+  connectSrc = "'none'",
+  // Default `""` omits `media-src`, so `<audio>`/`<video>` stay locked under
+  // `default-src 'none'`. The `/artifacts/html` document header passes
+  // `"blob: data:"` so a served page can PLAY audio it built locally — e.g. the
+  // voice-nav app plays the OpenAI-TTS mp3 fetched from /api/tts via a
+  // `blob:`/`data:` URL. Only same-origin/inline media keywords (no `https:`
+  // host), so no off-origin exfil channel opens. Print + srcdoc callers keep it
+  // omitted (locked).
+  mediaSrc = "",
+): string {
+  return buildCsp(connectSrc, origin ?? "'self'", cdns, "", mediaSrc, extra);
 }
 
 /**

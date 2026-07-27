@@ -1,0 +1,10 @@
+{
+  "id": "ms365",
+  "name": "Microsoft 365",
+  "group": "エンタメ・生活",
+  "status": "継続",
+  "monthlyCost": 1775,
+  "billing": "年払月割",
+  "rawCost": "年所21,300円の月割",
+  "howto": "年払（実質月約1,775円）。"
+}

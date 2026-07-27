@@ -1,0 +1,13 @@
+{
+  "id": "2026-06_split",
+  "month": "2026-06",
+  "periodLabel": "5/16〜6/15",
+  "category": "分割払い",
+  "amount": 4401,
+  "merchants": [
+    {
+      "name": "Google Payment Splitit",
+      "amount": 4401
+    }
+  ]
+}

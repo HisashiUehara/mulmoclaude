@@ -1,0 +1,11 @@
+{
+  "id": "tpl-07",
+  "seq": 7,
+  "phase": "入社前",
+  "category": "物品",
+  "task": "PC、携帯、充電器",
+  "defaultOwnerRole": "総務担当",
+  "dueOffsetDays": -3,
+  "version": 1,
+  "active": "有効"
+}

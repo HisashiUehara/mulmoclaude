@@ -1,0 +1,12 @@
+{
+  "id": "tpl-16",
+  "seq": 16,
+  "phase": "初日",
+  "category": "初日オリエン",
+  "task": "SharePointの案内",
+  "detail": "全社共通サイトの構成、各Projectサイトへの遷移方法、就業規則・社内規定・テンプレート類の場所",
+  "defaultOwnerRole": "人事担当",
+  "dueOffsetDays": 0,
+  "version": 1,
+  "active": "有効"
+}

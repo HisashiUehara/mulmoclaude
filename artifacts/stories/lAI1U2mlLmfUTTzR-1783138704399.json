@@ -1,0 +1,187 @@
+{
+  "$mulmocast": {
+    "version": "1.1"
+  },
+  "canvasSize": {
+    "width": 1280,
+    "height": 720
+  },
+  "speechParams": {
+    "speakers": {
+      "Momo": {
+        "displayName": {
+          "ja": "ももちゃん"
+        },
+        "voiceId": "Aoede",
+        "provider": "gemini"
+      }
+    }
+  },
+  "imageParams": {
+    "provider": "google",
+    "model": "gemini-3.1-flash-image-preview"
+  },
+  "movieParams": {
+    "provider": "google",
+    "model": "veo-3.1-generate"
+  },
+  "soundEffectParams": {
+    "provider": "replicate"
+  },
+  "audioParams": {
+    "introPadding": 1,
+    "padding": 0.3,
+    "closingPadding": 0.8,
+    "outroPadding": 1,
+    "bgmVolume": 0.2,
+    "audioVolume": 1,
+    "suppressSpeech": false
+  },
+  "title": "データセンターのひみつ 〜AIを支える巨大インフラ〜",
+  "description": "データセンターとAIインフラの基礎を、かわいいマスコットが解説するやさしい入門動画",
+  "lang": "ja",
+  "beats": [
+    {
+      "speaker": "Momo",
+      "text": "こんにちは！ももだよ。今日はね、AIを支える『データセンター』のひみつを、いっしょに見ていこう〜！",
+      "imagePrompt": "Kawaii chibi mascot, a round fluffy white cat-robot with big sparkly eyes and tiny antenna, waving happily, standing in front of a cute pastel-colored data center building, soft pink and mint background, storybook illustration style, adorable, warm lighting"
+    },
+    {
+      "speaker": "Momo",
+      "text": "データセンターはね、たくさんのサーバーを24時間365日、止めずに動かし続ける専用のおうちなんだよ。ITを止めないための、インフラのかたまり！",
+      "imagePrompt": "Cute cross-section of a pastel data center building like a dollhouse, rows of tiny smiling server racks with blinking lights, kawaii style, soft colors, chibi cat-robot mascot pointing at the servers, warm cozy illustration"
+    },
+    {
+      "speaker": "Momo",
+      "text": "中身は大きく4つの系統でできてるの。電力・冷却・通信・セキュリティ。この4人組がチームでサーバーを守ってるんだ！",
+      "image": {
+        "type": "textSlide",
+        "slide": {
+          "title": "データセンター 4つの系統",
+          "bullets": [
+            "⚡ 電力系（受変電・UPS・発電機）",
+            "❄️ 冷却系（チラー・空調・液冷）",
+            "🌐 通信系（光ファイバー・MMR）",
+            "🛡️ セキュリティ・防災系"
+          ]
+        }
+      }
+    },
+    {
+      "speaker": "Momo",
+      "text": "いま世界では、なんと約32ギガワットぶんのデータセンターが建設中！大型キャンパス何百個ぶんもの、すごいスーパーサイクルが起きてるんだよ〜。",
+      "image": {
+        "type": "chart",
+        "title": "建設中のデータセンター容量（GW）",
+        "chartData": {
+          "type": "bar",
+          "data": {
+            "labels": [
+              "2024年",
+              "2025年",
+              "2030年予測(稼働中)"
+            ],
+            "datasets": [
+              {
+                "label": "容量 (GW)",
+                "data": [
+                  15,
+                  32,
+                  200
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "speaker": "Momo",
+      "text": "でも困ったことに、電気が足りない！だからみんな、自分で発電したり、原子力を使ったり、電気の使いかたを工夫して頑張ってるんだ。",
+      "imagePrompt": "Kawaii chibi cat-robot mascot looking a little worried but determined, surrounded by cute renewable energy icons: tiny solar panels, a smiling wind turbine, a little battery with a face, a friendly power plant, pastel colors, storybook style, hopeful mood"
+    },
+    {
+      "speaker": "Momo",
+      "text": "たとえば東京エリアの電気は、供給も需要もだいたい5,300万キロワットでギリギリなの。夏の予備率はたった0.9%になる予測もあって、ドキドキだよ。",
+      "image": {
+        "type": "chart",
+        "title": "東京エリアの電力バランス（万kW）",
+        "chartData": {
+          "type": "bar",
+          "data": {
+            "labels": [
+              "供給力",
+              "最大需要"
+            ],
+            "datasets": [
+              {
+                "label": "電力 (万kW)",
+                "data": [
+                  5400,
+                  5396
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "speaker": "Momo",
+      "text": "データセンターを建てるお金の内訳もおもしろいよ。なんと電気まわりの設備だけで、全体の3〜4割！電気ってほんとに大事なんだね〜。",
+      "image": {
+        "type": "chart",
+        "title": "建設コストの内訳（ざっくり）",
+        "chartData": {
+          "type": "pie",
+          "data": {
+            "labels": [
+              "電気系(受変電・発電・UPS)",
+              "冷却・機械",
+              "建築躯体",
+              "通信・防災・その他",
+              "土地・PM・試験"
+            ],
+            "datasets": [
+              {
+                "label": "割合",
+                "data": [
+                  35,
+                  18,
+                  13,
+                  12,
+                  22
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "speaker": "Momo",
+      "text": "AIには2つのお仕事があるの。『学習』は工場と金型をつくること、『推論』は製品を出荷すること。ChatGPTの返事1回1回が、推論なんだよ！",
+      "image": {
+        "type": "textSlide",
+        "slide": {
+          "title": "学習 と 推論 のちがい",
+          "bullets": [
+            "🏭 学習(Training)＝工場と金型をつくる（一発勝負の巨大投資）",
+            "📦 推論(Inference)＝製品を出荷する（返事1回1回）",
+            "🔮 2027年ごろ、推論が学習を追い越す予測！"
+          ]
+        }
+      }
+    },
+    {
+      "speaker": "Momo",
+      "text": "40メガワットのデータセンター1棟は、毎月14億円もかかるの。でもその裏側では、なんと数百万人ぶんのChatGPTが動いてるんだって！すごい！",
+      "imagePrompt": "Kawaii chibi cat-robot mascot standing proudly next to a giant glowing pastel server tower, surrounded by hundreds of tiny happy user icons floating like bubbles, cute money and heart sparkles, pastel pink mint sky, magical storybook style, sense of scale and wonder"
+    },
+    {
+      "speaker": "Momo",
+      "text": "データセンターは、AIとわたしたちの毎日を、しずかに支えてくれてるんだね。今日はいっしょに学んでくれてありがとう！またね〜！",
+      "imagePrompt": "Kawaii chibi white cat-robot mascot waving goodbye with a big happy smile, sitting on top of a cute pastel data center building at sunset, warm golden and pink sky, tiny stars appearing, heartwarming storybook illustration, cozy and adorable"
+    }
+  ]
+}

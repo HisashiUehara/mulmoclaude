@@ -1,0 +1,29 @@
+{
+  "title": "Guy Kawasaki's Remarkable People",
+  "icon": "podcasts",
+  "dataPath": "data/feeds/guy-kawasaki-remarkable",
+  "primaryKey": "id",
+  "displayField": "title",
+  "fields": {
+    "id": { "type": "string", "label": "ID", "primary": true },
+    "title": { "type": "string", "label": "Episode" },
+    "published": { "type": "date", "label": "Published" },
+    "duration": { "type": "string", "label": "Duration" },
+    "audio": { "type": "string", "label": "Audio" },
+    "summary": { "type": "markdown", "label": "Summary" }
+  },
+  "ingest": {
+    "kind": "rss",
+    "url": "https://feeds.captivate.fm/guy-kawasakis-remarkable/",
+    "schedule": "daily",
+    "idFrom": "guid",
+    "map": {
+      "id": "guid",
+      "title": "title",
+      "published": "pubDate",
+      "duration": "itunes:duration",
+      "audio": "enclosure.@_url",
+      "summary": "description"
+    }
+  }
+}

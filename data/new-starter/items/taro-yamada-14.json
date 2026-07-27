@@ -1,0 +1,25 @@
+{
+  "id": "taro-yamada-14",
+  "starter": "山田 太郎",
+  "startDate": "2026-08-01",
+  "phase": "初日",
+  "category": "初日オリエン",
+  "task": "管理アプリの使い方説明",
+  "detail": "勤怠の打刻方法、経費・出張申請のフロー、承認者が誰か",
+  "owner": "佐藤 花子",
+  "status": "未着手",
+  "dueDate": "2026-08-01",
+  "templateTaskId": "tpl-14",
+  "templateVersion": 2,
+  "overridden": false,
+  "templateSyncState": "同期済",
+  "history": [
+    {
+      "at": "2026-07-18T12:00",
+      "actor": "テンプレ反映",
+      "field": "template",
+      "from": "管理アプリの使い方説明(v1)",
+      "to": "管理アプリの使い方説明（勤怠・経費・出張・座席予約）(v2)"
+    }
+  ]
+}

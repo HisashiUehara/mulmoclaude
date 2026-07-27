@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --panel2:#273449; --line:#334155;
+    --txt:#e2e8f0; --muted:#94a3b8; --accent:#3b82f6; --accent2:#22c55e; --crit:#ef4444;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif;
+    padding:20px;min-height:100vh}
+  .wrap{max-width:860px;margin:0 auto}
+  .hero{background:linear-gradient(135deg,#1e3a8a,#2563eb);border:1px solid #3b5bbf;
+    border-radius:18px;padding:22px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .hero .row{display:flex;align-items:center;gap:14px}
+  .hero .icon{width:56px;height:56px;flex:0 0 auto;border-radius:14px;background:#0e1b31;
+    display:grid;place-items:center;font-size:30px}
+  .hero h1{margin:0;font-size:22px}
+  .hero p{margin:6px 0 0;color:#c7d2fe;font-size:13px;line-height:1.5}
+  .btns{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap}
+  .launch{border:none;cursor:pointer;background:var(--accent2);color:#04231a;font-weight:800;font-size:15px;
+    border-radius:12px;padding:14px 20px;display:flex;align-items:center;gap:8px}
+  .launch.alt{background:#fff;color:#1e3a8a}
+  .launch:active{transform:scale(.98)}
+  .hint{color:#c7d2fe;font-size:12px;margin:12px 2px 0;line-height:1.5}
+
+  .sec{margin-top:26px}
+  .sec h2{font-size:14px;color:var(--muted);margin:0 0 12px;font-weight:600;letter-spacing:.02em}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 15px;
+    display:flex;flex-direction:column;gap:8px;cursor:pointer;transition:.15s}
+  .card:hover{border-color:var(--accent);background:var(--panel2)}
+  .card .top{display:flex;align-items:center;gap:8px}
+  .card .nm{font-weight:700;font-size:15px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .card .go{font-size:17px;color:var(--accent2)}
+  .card .meta{display:flex;flex-wrap:wrap;gap:6px}
+  .tag{font-size:11px;border-radius:999px;padding:2px 9px;background:var(--panel2);
+    border:1px solid var(--line);color:var(--muted)}
+  .tag.cat{color:#c7d2fe;border-color:#3b5bbf}
+  .tag.st-confirmed{color:#bbf7d0;border-color:#166534;background:#052e16}
+  .tag.st-progress{color:#fde68a;border-color:#854d0e;background:#3a2c07}
+  .card .dates{color:var(--muted);font-size:12px}
+  .empty{color:var(--muted);font-size:13px;border:1px dashed var(--line);border-radius:12px;
+    padding:20px;text-align:center;line-height:1.7}
+  .err{color:#fca5a5;font-size:13px}
+  .edit{margin-left:auto;font-size:11px;color:var(--muted);border:1px solid var(--line);
+    border-radius:8px;padding:3px 9px;background:transparent;cursor:pointer}
+  .edit:hover{color:var(--txt);border-color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div class="row">
+      <div class="icon">📊</div>
+      <div>
+        <h1>MSP Studio</h1>
+        <p>Build a Microsoft&nbsp;Project schedule (WBS, dependencies, Gantt), export a real <b>.xml</b> you can open in MS&nbsp;Project — and learn how it all works in the Learn tab.</p>
+      </div>
+    </div>
+    <div class="btns">
+      <button class="launch" id="openApp">🛠️ Open Builder</button>
+      <button class="launch alt" id="openLearn">🎓 Open Learn mode</button>
+    </div>
+    <div class="hint">Click a saved schedule below to open it pre-loaded in the builder, ready to edit or export.</div>
+  </div>
+
+  <div class="sec">
+    <h2>SAVED SCHEDULES</h2>
+    <div id="list"><div class="empty">Loading…</div></div>
+  </div>
+</div>
+
+<script>
+const APP_PATH = "/artifacts/html/2026/07/msp-studio.html";
+const { token, dataUrl } = window.__MC_VIEW;
+
+function b64url(obj){
+  const s = btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+  return s.replace(/\+/g,'-').replace(/\//g,'_');
+}
+function appUrl(item, learn){
+  const base = new URL(APP_PATH, dataUrl).href;
+  const params = new URLSearchParams();
+  if(item && Array.isArray(item.tasks) && item.tasks.length){
+    params.set("data", b64url({
+      name: item.title || item.id,
+      start: item.startDate || "",
+      hours: item.hoursPerDay || 8,
+      tasks: item.tasks.map(t=>({ id:t.tid, name:t.name, level:t.level, days:t.days, preds:t.preds||"", res:t.res||"" }))
+    }));
+  }
+  if(learn) params.set("view","learn");
+  const s = params.toString();
+  return s ? base+"?"+s : base;
+}
+function openApp(item, learn){ window.open(appUrl(item, learn), "_blank", "noopener"); }
+
+document.getElementById("openApp").onclick = ()=>openApp(null,false);
+document.getElementById("openLearn").onclick = ()=>openApp(null,true);
+
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function stTag(s){
+  if(s==="確定") return '<span class="tag st-confirmed">確定</span>';
+  if(s==="作業中") return '<span class="tag st-progress">作業中</span>';
+  return '<span class="tag">'+esc(s||"下書き")+'</span>';
+}
+
+function cardHtml(it){
+  const tags=[stTag(it.status)];
+  if(it.category) tags.push('<span class="tag cat">'+esc(it.category)+'</span>');
+  if(it.taskCount) tags.push('<span class="tag">'+esc(it.taskCount)+' tasks</span>');
+  if(it.workingDays) tags.push('<span class="tag">'+esc(it.workingDays)+' days</span>');
+  const dates = (it.startDate||it.finishDate)
+    ? '<div class="dates">'+esc(it.startDate||"?")+' → '+esc(it.finishDate||"?")+'</div>' : '';
+  return '<div class="card" data-id="'+esc(it.id)+'">'
+    + '<div class="top"><span class="nm">'+esc(it.title||it.id)+'</span>'
+    + '<button class="edit" data-edit="'+esc(it.id)+'">詳細</button>'
+    + '<span class="go">➜</span></div>'
+    + dates
+    + '<div class="meta">'+tags.join('')+'</div>'
+    + '</div>';
+}
+
+async function render(){
+  const box=document.getElementById("list");
+  try{
+    const res = await fetch(dataUrl, { headers:{ Authorization:"Bearer "+token } });
+    if(!res.ok){ const d=await res.text(); throw new Error("HTTP "+res.status+": "+d); }
+    const { items } = await res.json();
+    if(!items || !items.length){
+      box.className="";
+      box.innerHTML = '<div class="empty">No saved schedules yet.<br>Open the builder, create a plan, then ask in chat:<br>「このスケジュールをコレクションに保存して」</div>';
+      return;
+    }
+    const order={ "作業中":0,"下書き":1,"確定":2 };
+    items.sort((a,b)=>(order[a.status]??9)-(order[b.status]??9) || String(a.title||"").localeCompare(String(b.title||"")));
+    box.className="grid";
+    box.innerHTML = items.map(cardHtml).join("");
+    box.querySelectorAll(".card").forEach(el=>{
+      el.addEventListener("click",e=>{
+        if(e.target.closest("[data-edit]")) return;
+        const it = items.find(x=>x.id===el.dataset.id);
+        if(it) openApp(it,false);
+      });
+    });
+    box.querySelectorAll("[data-edit]").forEach(b=>{
+      b.addEventListener("click",e=>{ e.stopPropagation(); window.__MC_VIEW.openItem(b.dataset.edit); });
+    });
+  }catch(err){
+    box.className="";
+    box.innerHTML='<div class="err">Failed to load: '+esc(err.message)+'</div>';
+  }
+}
+render();
+window.__MC_VIEW.onChange(()=>render());
+</script>
+</body>
+</html>

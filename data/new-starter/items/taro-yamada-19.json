@@ -1,0 +1,16 @@
+{
+  "id": "taro-yamada-19",
+  "starter": "山田 太郎",
+  "startDate": "2026-08-01",
+  "phase": "最初の1週間〜1ヶ月",
+  "category": "研修・フォロー",
+  "task": "1on1の設定、メンター/バディの割当",
+  "owner": "配属PJマネージャー",
+  "status": "未着手",
+  "dueDate": "2026-08-15",
+  "templateTaskId": "tpl-19",
+  "templateVersion": 1,
+  "overridden": false,
+  "templateSyncState": "同期済",
+  "memo": "メンター候補: 鈴木さん"
+}

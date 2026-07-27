@@ -1,0 +1,12 @@
+{
+  "id": "tpl-06",
+  "seq": 6,
+  "phase": "入社前",
+  "category": "アカウント・IT関係",
+  "task": "座席予約アプリのアカウント発行と利用権限付与",
+  "defaultOwnerRole": "人事担当",
+  "requestTo": "IT部門",
+  "dueOffsetDays": -7,
+  "version": 1,
+  "active": "有効"
+}

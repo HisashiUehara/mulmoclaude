@@ -1,0 +1,12 @@
+{
+  "id": "tpl-08",
+  "seq": 8,
+  "phase": "入社前",
+  "category": "物品",
+  "task": "PPE（ヘルメット、安全靴、ベスト等）",
+  "detail": "サイズ確認が必要なので事前にヒアリング",
+  "defaultOwnerRole": "総務担当",
+  "dueOffsetDays": -7,
+  "version": 1,
+  "active": "有効"
+}

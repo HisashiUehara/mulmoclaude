@@ -1,0 +1,329 @@
+{
+  "entries": [
+    {
+      "id": "bc17ad45-ef52-4014-a44b-bfb599363664",
+      "pluginPkg": "todo",
+      "severity": "urgent",
+      "lifecycle": "action",
+      "title": "サブスク断捨離: Claude APIクレジット",
+      "navigateTarget": "/collections/subscriptions?selected=claude-api",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "collection-completion:subscriptions:claude-api",
+        "kind": "todo",
+        "priority": "high",
+        "action": {
+          "type": "navigate",
+          "target": {
+            "view": "collections",
+            "slug": "subscriptions",
+            "itemId": "claude-api"
+          }
+        }
+      },
+      "createdAt": "2026-07-06T22:23:16.742Z",
+      "terminalType": "cleared",
+      "terminalAt": "2026-07-06T22:36:21.202Z"
+    },
+    {
+      "id": "01579f91-e421-4031-b123-d093289dbaef",
+      "pluginPkg": "todo",
+      "severity": "urgent",
+      "lifecycle": "action",
+      "title": "サブスク断捨離: GO プレミアム",
+      "navigateTarget": "/collections/subscriptions?selected=go-premium",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "collection-completion:subscriptions:go-premium",
+        "kind": "todo",
+        "priority": "high",
+        "action": {
+          "type": "navigate",
+          "target": {
+            "view": "collections",
+            "slug": "subscriptions",
+            "itemId": "go-premium"
+          }
+        }
+      },
+      "createdAt": "2026-07-06T22:23:16.741Z",
+      "terminalType": "cleared",
+      "terminalAt": "2026-07-06T22:27:02.928Z"
+    },
+    {
+      "id": "c766e097-bc81-435c-ac2d-a7f172224d03",
+      "pluginPkg": "todo",
+      "severity": "nudge",
+      "lifecycle": "action",
+      "title": "ほしい物リスト（Seo）: 指輪",
+      "navigateTarget": "/collections/wishlist-seo?selected=ring",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "collection-completion:wishlist-seo:ring",
+        "kind": "todo",
+        "priority": "normal",
+        "action": {
+          "type": "navigate",
+          "target": {
+            "view": "collections",
+            "slug": "wishlist-seo",
+            "itemId": "ring"
+          }
+        }
+      },
+      "createdAt": "2026-07-05T08:21:12.312Z",
+      "terminalType": "cleared",
+      "terminalAt": "2026-07-05T13:38:17.564Z"
+    },
+    {
+      "id": "7b89fcd1-6186-43d8-be1e-bddaf4514995",
+      "pluginPkg": "todo",
+      "severity": "nudge",
+      "lifecycle": "action",
+      "title": "ほしい物リスト（Seo）: 車",
+      "navigateTarget": "/collections/wishlist-seo?selected=car",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "collection-completion:wishlist-seo:car",
+        "kind": "todo",
+        "priority": "normal",
+        "action": {
+          "type": "navigate",
+          "target": {
+            "view": "collections",
+            "slug": "wishlist-seo",
+            "itemId": "car"
+          }
+        }
+      },
+      "createdAt": "2026-07-05T08:21:12.312Z",
+      "terminalType": "cleared",
+      "terminalAt": "2026-07-05T13:38:17.561Z"
+    },
+    {
+      "id": "5a1333e9-201a-4d52-933a-dd82c486c6ca",
+      "pluginPkg": "todo",
+      "severity": "nudge",
+      "lifecycle": "action",
+      "title": "ほしい物リスト（Seo）: 犬",
+      "navigateTarget": "/collections/wishlist-seo?selected=dog",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "collection-completion:wishlist-seo:dog",
+        "kind": "todo",
+        "priority": "normal",
+        "action": {
+          "type": "navigate",
+          "target": {
+            "view": "collections",
+            "slug": "wishlist-seo",
+            "itemId": "dog"
+          }
+        }
+      },
+      "createdAt": "2026-07-05T08:21:12.311Z",
+      "terminalType": "cleared",
+      "terminalAt": "2026-07-05T13:38:17.557Z"
+    },
+    {
+      "id": "b0179112-5f8e-4e35-a1b7-994a5e48c442",
+      "pluginPkg": "todo",
+      "severity": "nudge",
+      "lifecycle": "action",
+      "title": "ほしい物リスト（Seo）: 家",
+      "navigateTarget": "/collections/wishlist-seo?selected=house",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "collection-completion:wishlist-seo:house",
+        "kind": "todo",
+        "priority": "normal",
+        "action": {
+          "type": "navigate",
+          "target": {
+            "view": "collections",
+            "slug": "wishlist-seo",
+            "itemId": "house"
+          }
+        }
+      },
+      "createdAt": "2026-07-05T08:21:12.310Z",
+      "terminalType": "cleared",
+      "terminalAt": "2026-07-05T13:38:17.553Z"
+    },
+    {
+      "id": "8772d3ce-2030-41b0-b77c-94cc8401492e",
+      "pluginPkg": "todo",
+      "severity": "nudge",
+      "lifecycle": "action",
+      "title": "ほしい物リスト（Seo）: 宝石",
+      "navigateTarget": "/collections/wishlist-seo?selected=jewelry",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "collection-completion:wishlist-seo:jewelry",
+        "kind": "todo",
+        "priority": "normal",
+        "action": {
+          "type": "navigate",
+          "target": {
+            "view": "collections",
+            "slug": "wishlist-seo",
+            "itemId": "jewelry"
+          }
+        }
+      },
+      "createdAt": "2026-07-05T08:21:12.310Z",
+      "terminalType": "cleared",
+      "terminalAt": "2026-07-05T13:38:17.547Z"
+    },
+    {
+      "id": "b0d9c2f2-4af1-4d86-9b24-055b651ee64a",
+      "pluginPkg": "todo",
+      "severity": "nudge",
+      "lifecycle": "action",
+      "title": "ほしい物リスト（Seo）: 時計（Rolex）",
+      "navigateTarget": "/collections/wishlist-seo?selected=rolex-watch",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "collection-completion:wishlist-seo:rolex-watch",
+        "kind": "todo",
+        "priority": "normal",
+        "action": {
+          "type": "navigate",
+          "target": {
+            "view": "collections",
+            "slug": "wishlist-seo",
+            "itemId": "rolex-watch"
+          }
+        }
+      },
+      "createdAt": "2026-07-05T08:21:12.309Z",
+      "terminalType": "cleared",
+      "terminalAt": "2026-07-05T13:38:17.541Z"
+    },
+    {
+      "id": "59f0caed-ace6-45a4-a239-c5d25ef9bf7d",
+      "pluginPkg": "todo",
+      "severity": "nudge",
+      "lifecycle": "action",
+      "title": "ほしい物リスト: 財布",
+      "navigateTarget": "/collections/wishlist?selected=wallet",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "collection-completion:wishlist:wallet",
+        "kind": "todo",
+        "priority": "normal",
+        "action": {
+          "type": "navigate",
+          "target": {
+            "view": "collections",
+            "slug": "wishlist",
+            "itemId": "wallet"
+          }
+        }
+      },
+      "createdAt": "2026-07-05T08:14:43.390Z",
+      "terminalType": "cleared",
+      "terminalAt": "2026-07-05T13:38:17.533Z"
+    },
+    {
+      "id": "66006bc3-03d7-44e5-8e75-32def4e00e28",
+      "pluginPkg": "todo",
+      "severity": "nudge",
+      "lifecycle": "action",
+      "title": "ほしい物リスト: ビジネスバッグ",
+      "navigateTarget": "/collections/wishlist?selected=business-bag",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "collection-completion:wishlist:business-bag",
+        "kind": "todo",
+        "priority": "normal",
+        "action": {
+          "type": "navigate",
+          "target": {
+            "view": "collections",
+            "slug": "wishlist",
+            "itemId": "business-bag"
+          }
+        }
+      },
+      "createdAt": "2026-07-05T08:14:43.390Z",
+      "terminalType": "cleared",
+      "terminalAt": "2026-07-05T13:38:17.529Z"
+    },
+    {
+      "id": "d632f020-1820-4683-b0e2-5455966085fa",
+      "pluginPkg": "todo",
+      "severity": "nudge",
+      "lifecycle": "action",
+      "title": "ほしい物リスト: MacBook Pro M5",
+      "navigateTarget": "/collections/wishlist?selected=macbook-pro-m5",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "collection-completion:wishlist:macbook-pro-m5",
+        "kind": "todo",
+        "priority": "normal",
+        "action": {
+          "type": "navigate",
+          "target": {
+            "view": "collections",
+            "slug": "wishlist",
+            "itemId": "macbook-pro-m5"
+          }
+        }
+      },
+      "createdAt": "2026-07-05T08:14:43.390Z",
+      "terminalType": "cleared",
+      "terminalAt": "2026-07-05T13:38:17.521Z"
+    },
+    {
+      "id": "617bde6c-f667-416c-874e-57b0f92c0441",
+      "pluginPkg": "todo",
+      "severity": "nudge",
+      "lifecycle": "action",
+      "title": "ほしい物リスト: MacBook Air M5 32GB",
+      "navigateTarget": "/collections/wishlist?selected=macbook-air-m5-32gb",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "collection-completion:wishlist:macbook-air-m5-32gb",
+        "kind": "todo",
+        "priority": "normal",
+        "action": {
+          "type": "navigate",
+          "target": {
+            "view": "collections",
+            "slug": "wishlist",
+            "itemId": "macbook-air-m5-32gb"
+          }
+        }
+      },
+      "createdAt": "2026-07-05T08:14:43.390Z",
+      "terminalType": "cleared",
+      "terminalAt": "2026-07-05T13:38:17.489Z"
+    },
+    {
+      "id": "a7e11683-ec54-4ed0-b839-63902435161e",
+      "pluginPkg": "todo",
+      "severity": "nudge",
+      "lifecycle": "action",
+      "title": "ほしい物リスト: 登山用のバッグ",
+      "navigateTarget": "/collections/wishlist?selected=hiking-bag",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "collection-completion:wishlist:hiking-bag",
+        "kind": "todo",
+        "priority": "normal",
+        "action": {
+          "type": "navigate",
+          "target": {
+            "view": "collections",
+            "slug": "wishlist",
+            "itemId": "hiking-bag"
+          }
+        }
+      },
+      "createdAt": "2026-07-05T08:14:43.390Z",
+      "terminalType": "cleared",
+      "terminalAt": "2026-07-05T13:38:17.469Z"
+    }
+  ]
+}

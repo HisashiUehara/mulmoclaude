@@ -1,0 +1,12 @@
+{
+  "books": [
+    {
+      "id": "book-e59db62e",
+      "name": "Transportation",
+      "currency": "JPY",
+      "country": "JP",
+      "fiscalYearEnd": 12,
+      "createdAt": "2026-07-04T02:56:25.457Z"
+    }
+  ]
+}

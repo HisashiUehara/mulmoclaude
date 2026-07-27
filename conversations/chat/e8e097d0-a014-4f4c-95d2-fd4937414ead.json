@@ -1,0 +1,8 @@
+{
+  "roleId": "general",
+  "startedAt": "2026-07-16T20:14:46.680Z",
+  "firstUserMessage": "I want to add a custom view to the \"勤怠管理\" collection. Ask me what I want to see or edit, then author the HTML view file at data/skills/kintai/views/your-view.html and register it in data/skills/kintai/schema.json under `views[]` (capabilities [\"read\"] for a read-only view, [\"read\",\"write\"] if it edits records). Follow the custom-view help for the data contract.",
+  "userQueryCount": 2,
+  "claudeSessionId": "78fb8f90-99f1-465f-80c9-b27ee6c40cb3",
+  "hasUnread": false
+}

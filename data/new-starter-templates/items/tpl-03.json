@@ -1,0 +1,12 @@
+{
+  "id": "tpl-03",
+  "seq": 3,
+  "phase": "入社前",
+  "category": "アカウント・IT関係",
+  "task": "配布グループ・Teamsチャネルへの追加",
+  "defaultOwnerRole": "人事担当",
+  "requestTo": "IT部門",
+  "dueOffsetDays": -8,
+  "version": 1,
+  "active": "有効"
+}

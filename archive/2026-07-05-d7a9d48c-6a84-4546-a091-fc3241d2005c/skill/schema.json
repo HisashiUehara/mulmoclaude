@@ -1,0 +1,40 @@
+{
+  "title": "ほしい物リスト（Seo）",
+  "icon": "favorite",
+  "dataPath": "data/wishlist-seo/items",
+  "primaryKey": "id",
+  "fields": {
+    "id": { "type": "string", "label": "ID", "primary": true, "required": true },
+    "name": { "type": "string", "label": "品名", "required": true },
+    "category": {
+      "type": "enum",
+      "label": "カテゴリ",
+      "values": ["乗り物", "不動産", "ペット", "時計・宝飾", "その他"]
+    },
+    "priority": {
+      "type": "enum",
+      "label": "優先度",
+      "values": ["高", "中", "低"]
+    },
+    "price": { "type": "money", "label": "価格(概算)", "currency": "JPY" },
+    "status": {
+      "type": "enum",
+      "label": "ステータス",
+      "values": ["ほしい", "検討中", "購入済み"],
+      "required": true
+    },
+    "purchased": {
+      "type": "toggle",
+      "label": "購入済み",
+      "field": "status",
+      "onValue": "購入済み",
+      "offValue": "ほしい"
+    },
+    "url": { "type": "string", "label": "商品URL/リンク" },
+    "notes": { "type": "text", "label": "メモ" }
+  },
+  "displayField": "name",
+  "kanbanField": "status",
+  "completionField": "status",
+  "completionDoneValues": ["購入済み"]
+}

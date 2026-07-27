@@ -1,0 +1,12 @@
+{
+  "id": "tpl-13",
+  "seq": 13,
+  "phase": "初日",
+  "category": "初日オリエン",
+  "task": "PC初期セットアップ支援",
+  "detail": "MFA設定、VPN、プリンタ",
+  "defaultOwnerRole": "人事担当",
+  "dueOffsetDays": 0,
+  "version": 1,
+  "active": "有効"
+}

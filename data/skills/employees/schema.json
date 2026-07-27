@@ -1,0 +1,17 @@
+{
+  "title": "従業員マスタ",
+  "icon": "badge",
+  "dataPath": "data/employees/items",
+  "primaryKey": "id",
+  "displayField": "name",
+  "kanbanField": "role",
+  "fields": {
+    "id": { "type": "string", "label": "社員ID", "primary": true, "required": true },
+    "name": { "type": "string", "label": "氏名", "required": true },
+    "department": { "type": "string", "label": "部署" },
+    "role": { "type": "enum", "label": "区分", "values": ["一般社員", "上司", "人事"], "required": true },
+    "supervisorId": { "type": "ref", "to": "employees", "label": "承認者（上司）" },
+    "hourlyWage": { "type": "money", "label": "時給", "currency": "JPY" },
+    "email": { "type": "email", "label": "メール" }
+  }
+}

@@ -1,0 +1,974 @@
+{
+  "entries": {
+    "abfc182c-3829-4cac-b3e5-48f70b16bc47": {
+      "id": "abfc182c-3829-4cac-b3e5-48f70b16bc47",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-04T02:22:39.540Z"
+    },
+    "e652d219-1417-4324-9af6-c0f16cf9d9ec": {
+      "id": "e652d219-1417-4324-9af6-c0f16cf9d9ec",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "whisper-server not installed",
+      "body": "whisper-server not found — some features are disabled. Install whisper-server and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:whisper",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "whisper-server"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "whisper-server"
+          }
+        }
+      },
+      "createdAt": "2026-07-04T02:22:39.540Z"
+    },
+    "48ef8753-988f-4b58-9a67-3b14a1c27ddb": {
+      "id": "48ef8753-988f-4b58-9a67-3b14a1c27ddb",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-04T04:15:39.606Z"
+    },
+    "41c85aca-9aa5-4c44-be23-346059be3111": {
+      "id": "41c85aca-9aa5-4c44-be23-346059be3111",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "whisper-server not installed",
+      "body": "whisper-server not found — some features are disabled. Install whisper-server and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:whisper",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "whisper-server"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "whisper-server"
+          }
+        }
+      },
+      "createdAt": "2026-07-04T04:15:39.606Z"
+    },
+    "8bde9332-6b9b-40e0-a236-32edb4f05afb": {
+      "id": "8bde9332-6b9b-40e0-a236-32edb4f05afb",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-06T11:54:50.235Z"
+    },
+    "43964397-e798-4c92-a934-75e28890efa0": {
+      "id": "43964397-e798-4c92-a934-75e28890efa0",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "whisper-server not installed",
+      "body": "whisper-server not found — some features are disabled. Install whisper-server and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:whisper",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "whisper-server"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "whisper-server"
+          }
+        }
+      },
+      "createdAt": "2026-07-06T11:54:50.235Z"
+    },
+    "b196ccc3-1c54-41c3-a11d-a7b5417ae0c3": {
+      "id": "b196ccc3-1c54-41c3-a11d-a7b5417ae0c3",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-06T12:25:06.254Z"
+    },
+    "f91e5773-a12a-4da5-8dc1-aaed23226fa9": {
+      "id": "f91e5773-a12a-4da5-8dc1-aaed23226fa9",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "whisper-server not installed",
+      "body": "whisper-server not found — some features are disabled. Install whisper-server and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:whisper",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "whisper-server"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "whisper-server"
+          }
+        }
+      },
+      "createdAt": "2026-07-06T12:25:06.254Z"
+    },
+    "39740675-af3c-4a60-8a2c-403fae818819": {
+      "id": "39740675-af3c-4a60-8a2c-403fae818819",
+      "pluginPkg": "todo",
+      "severity": "urgent",
+      "lifecycle": "action",
+      "title": "サブスク断捨離: Amazonプライム",
+      "navigateTarget": "/collections/subscriptions?selected=amazon-prime",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "collection-completion:subscriptions:amazon-prime",
+        "kind": "todo",
+        "priority": "high",
+        "action": {
+          "type": "navigate",
+          "target": {
+            "view": "collections",
+            "slug": "subscriptions",
+            "itemId": "amazon-prime"
+          }
+        }
+      },
+      "createdAt": "2026-07-06T22:23:16.742Z"
+    },
+    "904e8f94-2179-4b49-a007-035740f7b8a1": {
+      "id": "904e8f94-2179-4b49-a007-035740f7b8a1",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-07T12:37:52.035Z"
+    },
+    "27456148-bbb9-4480-bfbf-76165eb04004": {
+      "id": "27456148-bbb9-4480-bfbf-76165eb04004",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "whisper-server not installed",
+      "body": "whisper-server not found — some features are disabled. Install whisper-server and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:whisper",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "whisper-server"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "whisper-server"
+          }
+        }
+      },
+      "createdAt": "2026-07-07T12:37:52.035Z"
+    },
+    "853c02ba-0c3d-4295-98df-2098e937bad1": {
+      "id": "853c02ba-0c3d-4295-98df-2098e937bad1",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-07T14:08:15.980Z"
+    },
+    "5d491d98-4547-4161-8c72-ae9ba156f857": {
+      "id": "5d491d98-4547-4161-8c72-ae9ba156f857",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "whisper-server not installed",
+      "body": "whisper-server not found — some features are disabled. Install whisper-server and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:whisper",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "whisper-server"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "whisper-server"
+          }
+        }
+      },
+      "createdAt": "2026-07-07T14:08:15.980Z"
+    },
+    "c69e3706-6507-45ac-98ad-c411249faf62": {
+      "id": "c69e3706-6507-45ac-98ad-c411249faf62",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-08T10:56:47.366Z"
+    },
+    "02199f1c-84db-45b5-9fbd-0ecaaaf1ed4b": {
+      "id": "02199f1c-84db-45b5-9fbd-0ecaaaf1ed4b",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "whisper-server not installed",
+      "body": "whisper-server not found — some features are disabled. Install whisper-server and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:whisper",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "whisper-server"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "whisper-server"
+          }
+        }
+      },
+      "createdAt": "2026-07-08T10:56:47.367Z"
+    },
+    "c89acd00-9d1d-4434-a6d8-ef21f2c621c7": {
+      "id": "c89acd00-9d1d-4434-a6d8-ef21f2c621c7",
+      "pluginPkg": "todo",
+      "severity": "nudge",
+      "lifecycle": "action",
+      "title": "MulmoConfirm: 【サンプル】IST試験成績書 確認（A棟）",
+      "navigateTarget": "/collections/mulmoconfirm?selected=sample-ist-a-tou",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "collection-completion:mulmoconfirm:sample-ist-a-tou",
+        "kind": "todo",
+        "priority": "normal",
+        "action": {
+          "type": "navigate",
+          "target": {
+            "view": "collections",
+            "slug": "mulmoconfirm",
+            "itemId": "sample-ist-a-tou"
+          }
+        }
+      },
+      "createdAt": "2026-07-11T03:38:07.129Z"
+    },
+    "d1157f75-3a42-4a2c-a61e-de7509e60ab4": {
+      "id": "d1157f75-3a42-4a2c-a61e-de7509e60ab4",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-12T05:42:06.888Z"
+    },
+    "663adeef-df5f-46e9-9d6b-aa913111c7ae": {
+      "id": "663adeef-df5f-46e9-9d6b-aa913111c7ae",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "whisper-server not installed",
+      "body": "whisper-server not found — some features are disabled. Install whisper-server and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:whisper",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "whisper-server"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "whisper-server"
+          }
+        }
+      },
+      "createdAt": "2026-07-12T05:42:06.889Z"
+    },
+    "113fe9b3-8bf8-4d47-9bb9-d0bbaf7cb662": {
+      "id": "113fe9b3-8bf8-4d47-9bb9-d0bbaf7cb662",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-12T14:13:13.480Z"
+    },
+    "0ace4706-a183-4b24-826b-55f4b0d79a74": {
+      "id": "0ace4706-a183-4b24-826b-55f4b0d79a74",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "whisper-server not installed",
+      "body": "whisper-server not found — some features are disabled. Install whisper-server and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:whisper",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "whisper-server"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "whisper-server"
+          }
+        }
+      },
+      "createdAt": "2026-07-12T14:13:13.481Z"
+    },
+    "dbb09e54-b87e-4de8-aece-6b183de6e3a7": {
+      "id": "dbb09e54-b87e-4de8-aece-6b183de6e3a7",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-12T22:44:47.673Z"
+    },
+    "d2f968b5-426f-47cc-88ce-f71412a214db": {
+      "id": "d2f968b5-426f-47cc-88ce-f71412a214db",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "whisper-server not installed",
+      "body": "whisper-server not found — some features are disabled. Install whisper-server and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:whisper",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "whisper-server"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "whisper-server"
+          }
+        }
+      },
+      "createdAt": "2026-07-12T22:44:47.673Z"
+    },
+    "9f6a396b-3ed8-47a7-a51e-5996a3238a32": {
+      "id": "9f6a396b-3ed8-47a7-a51e-5996a3238a32",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-12T23:30:32.034Z"
+    },
+    "e21a05dd-f9a3-4754-9a09-089b0bb32f44": {
+      "id": "e21a05dd-f9a3-4754-9a09-089b0bb32f44",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "whisper-server not installed",
+      "body": "whisper-server not found — some features are disabled. Install whisper-server and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:whisper",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "whisper-server"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "whisper-server"
+          }
+        }
+      },
+      "createdAt": "2026-07-12T23:30:32.034Z"
+    },
+    "6c5aedb8-91ea-4069-bcca-b563874daa5b": {
+      "id": "6c5aedb8-91ea-4069-bcca-b563874daa5b",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-15T11:05:33.651Z"
+    },
+    "68700020-2ed4-40a8-96f2-0b1de5c5939f": {
+      "id": "68700020-2ed4-40a8-96f2-0b1de5c5939f",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "whisper-server not installed",
+      "body": "whisper-server not found — some features are disabled. Install whisper-server and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:whisper",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "whisper-server"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "whisper-server"
+          }
+        }
+      },
+      "createdAt": "2026-07-15T11:05:33.651Z"
+    },
+    "8b80d463-aa1d-400a-a102-66b5907cc172": {
+      "id": "8b80d463-aa1d-400a-a102-66b5907cc172",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-15T23:04:58.689Z"
+    },
+    "d219802d-27e9-40c8-9b91-870a74262aa0": {
+      "id": "d219802d-27e9-40c8-9b91-870a74262aa0",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "whisper-server not installed",
+      "body": "whisper-server not found — some features are disabled. Install whisper-server and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:whisper",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "whisper-server"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "whisper-server"
+          }
+        }
+      },
+      "createdAt": "2026-07-15T23:04:58.690Z"
+    },
+    "126f98da-00cb-4447-95c7-1e374e99f6f0": {
+      "id": "126f98da-00cb-4447-95c7-1e374e99f6f0",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-26T02:41:56.936Z"
+    },
+    "f12007fb-4dbf-40a6-afcf-d36f8d916e44": {
+      "id": "f12007fb-4dbf-40a6-afcf-d36f8d916e44",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-26T02:49:25.821Z"
+    },
+    "17828c1b-4536-4191-b14e-c48cc5d79f25": {
+      "id": "17828c1b-4536-4191-b14e-c48cc5d79f25",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-26T07:36:56.975Z"
+    },
+    "e5d95073-20a4-401c-b9a0-3be701fafd11": {
+      "id": "e5d95073-20a4-401c-b9a0-3be701fafd11",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-26T08:52:20.737Z"
+    },
+    "691f27a2-61eb-44cb-aab4-0def009bcfa7": {
+      "id": "691f27a2-61eb-44cb-aab4-0def009bcfa7",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-26T09:36:56.460Z"
+    },
+    "d4dc542c-4fa3-4eec-8ca7-0f7ecf1feaa7": {
+      "id": "d4dc542c-4fa3-4eec-8ca7-0f7ecf1feaa7",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-26T10:27:11.923Z"
+    },
+    "6e2bedf2-3a25-4e8f-b359-07f3a743b52a": {
+      "id": "6e2bedf2-3a25-4e8f-b359-07f3a743b52a",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-26T13:11:23.685Z"
+    }
+  }
+}

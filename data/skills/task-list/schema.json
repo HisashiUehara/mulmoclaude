@@ -1,0 +1,108 @@
+{
+  "title": "Task一覧表",
+  "icon": "checklist",
+  "dataPath": "data/task-list/items",
+  "primaryKey": "id",
+  "fields": {
+    "id": {
+      "type": "string",
+      "label": "ID",
+      "primary": true,
+      "required": true
+    },
+    "title": {
+      "type": "string",
+      "label": "Task名",
+      "required": true
+    },
+    "summary": {
+      "type": "text",
+      "label": "要約"
+    },
+    "category": {
+      "type": "enum",
+      "label": "カテゴリ",
+      "required": true,
+      "values": [
+        "submittal",
+        "RFI",
+        "drawing",
+        "vendor",
+        "report",
+        "other"
+      ]
+    },
+    "assignee": {
+      "type": "string",
+      "label": "担当者"
+    },
+    "due_date": {
+      "type": "date",
+      "label": "期限"
+    },
+    "priority": {
+      "type": "enum",
+      "label": "優先度",
+      "required": true,
+      "values": [
+        "high",
+        "mid",
+        "low"
+      ]
+    },
+    "status": {
+      "type": "enum",
+      "label": "ステータス",
+      "required": true,
+      "values": [
+        "open",
+        "in progress",
+        "done"
+      ]
+    },
+    "done": {
+      "type": "toggle",
+      "label": "完了",
+      "field": "status",
+      "onValue": "done",
+      "offValue": "open"
+    },
+    "approval": {
+      "type": "enum",
+      "label": "承認",
+      "required": true,
+      "values": [
+        "candidate",
+        "approved",
+        "rejected"
+      ]
+    },
+    "msp_file": {
+      "type": "file",
+      "label": "MSP工程表"
+    },
+    "source": {
+      "type": "string",
+      "label": "出典"
+    },
+    "received_date": {
+      "type": "date",
+      "label": "受信日"
+    }
+  },
+  "displayField": "title",
+  "calendarField": "due_date",
+  "kanbanField": "status",
+  "views": [
+    {
+      "id": "board",
+      "label": "Task管理",
+      "icon": "table_view",
+      "file": "views/board.html",
+      "capabilities": [
+        "read",
+        "write"
+      ]
+    }
+  ]
+}

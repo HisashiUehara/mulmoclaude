@@ -1,0 +1,11 @@
+{
+  "id": "tpl-11",
+  "seq": 11,
+  "phase": "入社前",
+  "category": "事務手続き",
+  "task": "名刺の発注",
+  "defaultOwnerRole": "総務担当",
+  "dueOffsetDays": -4,
+  "version": 1,
+  "active": "有効"
+}

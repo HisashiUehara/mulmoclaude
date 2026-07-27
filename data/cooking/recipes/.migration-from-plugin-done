@@ -1,0 +1,9 @@
+# Migration sentinel — recipe-book-plugin → data/cooking/recipes/ (#1286)
+
+# Run at: 2026-07-04T02:22:39.523Z
+# Result: no legacy source found
+
+# The presence of this file marks the legacy-plugin migration as done.
+# Delete it to force a re-run on next server boot (use with care: the
+# migration is non-overwriting, so re-running on a workspace that has
+# diverged from the legacy snapshot won't silently clobber hand-edits).

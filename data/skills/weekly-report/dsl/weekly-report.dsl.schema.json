@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "weekly-report.dsl.schema.json",
+  "title": "WeeklyReport Translation DSL",
+  "description": "AI → DSL → engine アーキテクチャの中間表現。AIは翻訳のみを行い、この形のJSONを出力する。転記・書式はengine(コード)が担い、承認は人間が行う。",
+  "type": "object",
+  "required": ["items"],
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "type": "array",
+      "description": "業者レポートから抽出した原文テキスト単位の翻訳項目リスト。",
+      "items": {
+        "type": "object",
+        "required": ["id", "source_location", "原文", "訳文", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "項目ID（ゼロ埋め連番など。例: \"001\"）。抽出engineが採番し、翻訳・流し込みで同一IDを保持する。",
+            "examples": ["001", "002"]
+          },
+          "source_location": {
+            "type": "string",
+            "description": "原文の出所参照。Excelは \"シート名/セル\"（例: \"週報/B3\"）、PDF/Docは \"ページ/要素\"（例: \"p1/見出し\"）。流し込み時の転記先特定にも使う。",
+            "examples": ["週報/B3", "p1/見出し"]
+          },
+          "原文": {
+            "type": "string",
+            "description": "抽出された日本語の原文テキスト（無加工）。"
+          },
+          "訳文": {
+            "type": "string",
+            "description": "AIが出力した英訳。抽出段階では空文字、翻訳段階で埋める。"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": ["high", "low"],
+            "description": "翻訳の確信度。lowの項目は確認画面(ステップ5)で強調表示する。専門用語・固有名詞・曖昧表現・数値単位の解釈が絡む場合はlowにする。"
+          }
+        }
+      }
+    }
+  }
+}

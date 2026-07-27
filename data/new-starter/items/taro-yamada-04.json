@@ -1,0 +1,18 @@
+{
+  "id": "taro-yamada-04",
+  "starter": "山田 太郎",
+  "startDate": "2026-08-01",
+  "phase": "入社前",
+  "category": "アカウント・IT関係",
+  "task": "PC・携帯のキッティング依頼",
+  "detail": "納期があるので早めに",
+  "owner": "佐藤 花子",
+  "requestTo": "IT部門",
+  "status": "完了",
+  "dueDate": "2026-07-14",
+  "memo": "納期2週間。7/28着予定",
+  "templateTaskId": "tpl-04",
+  "templateVersion": 1,
+  "overridden": false,
+  "templateSyncState": "同期済"
+}

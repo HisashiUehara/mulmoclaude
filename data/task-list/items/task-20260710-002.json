@@ -1,0 +1,13 @@
+{
+  "id": "task-20260710-002",
+  "title": "空調ダクト干渉に関するRFI回答",
+  "summary": "3階の空調ダクトと梁の干渉についてRFI-042を発行済み。設計側の回答待ち、来週中に確認。",
+  "category": "RFI",
+  "assignee": "佐藤",
+  "due_date": "2026-07-17",
+  "priority": "mid",
+  "status": "open",
+  "approval": "candidate",
+  "source": "email",
+  "received_date": "2026-07-10"
+}

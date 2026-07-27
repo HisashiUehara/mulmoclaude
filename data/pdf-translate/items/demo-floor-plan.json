@@ -1,0 +1,11 @@
+{
+  "id": "demo-floor-plan",
+  "title": "一階平面図 (デモ)",
+  "status": "レビュー",
+  "sourcePdf": "data/pdf-translate/sources/demo-floor-plan.pdf",
+  "outputPdf": "artifacts/documents/2026/07/demo-floor-plan-annotated.pdf",
+  "annotationCount": 2,
+  "pageCount": 1,
+  "notes": "デモ用サンプル。図面名と注記を英訳し赤字でオーバーレイ。実際の図面PDFを添付して「図面名を英訳して」等と指示すると新しいジョブが作れます。",
+  "updatedAt": "2026-07-05"
+}

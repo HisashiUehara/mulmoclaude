@@ -1,0 +1,21 @@
+{
+  "title": "New Starter テンプレート",
+  "icon": "article",
+  "dataPath": "data/new-starter-templates/items",
+  "primaryKey": "id",
+  "fields": {
+    "id": { "type": "string", "label": "ID", "primary": true, "required": true },
+    "seq": { "type": "number", "label": "順序" },
+    "phase": { "type": "enum", "label": "フェーズ", "values": ["入社前", "初日", "最初の1週間〜1ヶ月"], "required": true },
+    "category": { "type": "enum", "label": "カテゴリ", "values": ["アカウント・IT関係", "物品", "事務手続き", "初日オリエン", "研修・フォロー"] },
+    "task": { "type": "string", "label": "タスク", "required": true },
+    "detail": { "type": "text", "label": "補足" },
+    "defaultOwnerRole": { "type": "string", "label": "既定担当ロール" },
+    "requestTo": { "type": "string", "label": "依頼先" },
+    "dueOffsetDays": { "type": "number", "label": "期限オフセット(入社日基準・日)" },
+    "version": { "type": "number", "label": "版", "required": true },
+    "active": { "type": "enum", "label": "状態", "values": ["有効", "廃止"], "required": true }
+  },
+  "displayField": "task",
+  "kanbanField": "phase"
+}

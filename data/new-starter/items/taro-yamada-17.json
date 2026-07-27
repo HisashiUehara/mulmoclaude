@@ -1,0 +1,15 @@
+{
+  "id": "taro-yamada-17",
+  "starter": "山田 太郎",
+  "startDate": "2026-08-01",
+  "phase": "初日",
+  "category": "初日オリエン",
+  "task": "チーム紹介、オフィスツアー、緊急連絡先の共有",
+  "owner": "配属PJマネージャー",
+  "status": "未着手",
+  "dueDate": "2026-08-01",
+  "templateTaskId": "tpl-17",
+  "templateVersion": 1,
+  "overridden": false,
+  "templateSyncState": "同期済"
+}
