@@ -556,10 +556,29 @@ function playBlob(blob, onStart){
   });
 }
 
+/* ---- 読み上げ用の表記正規化（問題4: TTSの読み間違い対策） ----
+   全発話が通る共通経路(tts)で1回だけ適用。文言を作る場所ごとの対応漏れを防ぐ。
+   ・時刻 21:34 / 07:05 → 「21時34分」「7時5分」（ゼロ埋め解除、分00は「N時」）
+   ・距離 9.2 km / 230 m → 「9.2キロ」「230メートル」（ja のみ、単位を仮名化）
+   画面表示(バブル/比較パネル)は元の表記のまま。ここは音声に渡す文字列だけ変換する。*/
+function normalizeForSpeech(text){
+  let s = text==null ? "" : String(text);
+  if(S.lang!=="ja") return s;   // en は "21:34" 等をブラウザTTSが自然に読むため変換しない
+  s = s.replace(/(\d{1,2}):(\d{2})(?!\d)/g, (m,h,mi)=>{
+    const H=parseInt(h,10), M=parseInt(mi,10);
+    if(H>23||M>59) return m;                 // 時刻でなければそのまま
+    return M===0 ? `${H}時` : `${H}時${M}分`;
+  });
+  s = s.replace(/(\d+(?:\.\d+)?)\s*km\b/gi, "$1キロ");
+  s = s.replace(/(\d+)\s*m\b/gi, "$1メートル");
+  return s;
+}
+
 /* ---- 読み上げキュー（直列化）: 発話が重ならないよう1つずつ順に再生する ---- */
 let _ttsQueue=[], _ttsBusy=false;
 // 読み上げ入口。実際の再生は pumpTts が1件ずつ直列に処理する。
-function tts(text, opts){ _ttsQueue.push([text, opts]); pumpTts(); }
+// ※ ここで normalizeForSpeech を掛けるのが唯一の共通経路（OpenAI/内蔵の両TTS・IDBキャッシュ鍵も正規化後）。
+function tts(text, opts){ _ttsQueue.push([normalizeForSpeech(text), opts]); pumpTts(); }
 async function pumpTts(){
   if(_ttsBusy) return;
   _ttsBusy=true;
