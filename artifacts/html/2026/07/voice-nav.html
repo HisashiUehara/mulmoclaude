@@ -1168,6 +1168,7 @@ async function navChatReply(userText, fallbackType){
       if(!res.ok) throw new Error("http "+res.status);
       const data=await res.json();   // 封筒 {intent, actions, say}（後方互換: intent のみでも可）
       if(data && (data.intent || data.actions)){
+        checkSayNumbers((data.intent&&data.intent.say)||data.say);   // 問題1(保険): 数字ズレ検知
         if(data.actions) dispatchActions(data.actions);       // 経路以外（記憶/音楽/削除確認）
         if(data.intent) await applyRouteIntent(data.intent);  // 経路＋say読み上げ
         else if(data.say) botSay(String(data.say));
@@ -1382,7 +1383,7 @@ function dispatchActions(actions){
       case "remember":   console.log("[MulmoNavi ACTION] remember (saved server-side)", {key:a.key}); break;
       case "recall":     console.log("[MulmoNavi ACTION] recall (in say)", {count:a.count}); break;
       case "forget":     armForget(a.key); break;  // item6: 削除は声で確認（問題4: タイムアウト付き）
-      case "forget_done":console.log("[MulmoNavi ACTION] forget_done", {removed:a.removed}); S.pendingForget=null; break;
+      case "forget_done":console.log("[MulmoNavi ACTION] forget_done", {removed:a.removed}); console.log("[MulmoNavi ACTION] forget-key", {requested:a.requested, storedKeys:a.storedKeys||[]}); cancelForget("forget-done"); break;   // 問題2: 照合診断
       case "play_music": if(a.mood) toast((S.lang==="ja"?"🎵 音楽（準備中）：":"🎵 Music (coming soon): ")+a.mood); console.log("[MulmoNavi ACTION] play_music", {mood:a.mood}); break;
       default:           console.log("[MulmoNavi ACTION] degraded", {type:a.type, reason:"unknown type"});  // item7
     }
@@ -1589,9 +1590,44 @@ function buildNavContext(){
   if(S.destName) ctx.dest=S.destName;
   const rem=routeRemaining();
   if(rem){ ctx.remainKm=rem.km; ctx.etaMin=rem.etaMin; }
+  ctx.route=buildRouteState();   // 問題1: 経路の現在状態（実測値）を毎ターン注入し数字の捏造を防ぐ
   const recent=S.history.slice(0,-1).slice(-6).map(h=>({[h.role]:h.text}));
   if(recent.length) ctx.recent=recent;
   return ctx;
+}
+// 問題1: LLMに渡す経路の現在状態。実測(compare)のみ。未計算は computed:false で明示する。
+function buildRouteState(){
+  const c=S.compare||{};
+  const road=(x)=> x ? { km:+(x.dist/1000).toFixed(1), min:durMin(x.dur), eta:etaClock(x.dur) } : null;
+  const via=(S.routeIntent&&Array.isArray(S.routeIntent.via))
+    ? S.routeIntent.via.map(v=> typeof v==="string"?v:(v&&v.query)||"").filter(Boolean) : [];
+  return {
+    destName: S.destName||null,
+    originName: S.originOverride ? (S.originName||"出発地") : "現在地",
+    originIsCurrent: !S.originOverride,
+    chosen: S.roadChosen ? (S.avoidHighways?"local":"hwy") : null,
+    via,
+    computed: !!(c.hwy||c.local),
+    hwy: road(c.hwy),
+    local: road(c.local)
+  };
+}
+// 問題1(保険): LLMのsayに含まれる所要/到着の数字が実測とズレていたら検知ログ（上書きはしない）。
+function _etaToMin(s){ const p=String(s).split(":"); return (parseInt(p[0],10)||0)*60+(parseInt(p[1],10)||0); }
+function checkSayNumbers(say){
+  const c=S.compare;
+  if(!say||typeof say!=="string"||!c||!(c.hwy||c.local)) return;   // 実測が無ければ検証不可
+  const actualMin=[c.hwy&&durMin(c.hwy.dur), c.local&&durMin(c.local.dur)].filter(v=>typeof v==="number");
+  const actualEta=[c.hwy&&etaClock(c.hwy.dur), c.local&&etaClock(c.local.dur)].filter(Boolean);
+  const timeRe=/(\d{1,2})[:時](\d{1,2})\s*分?/g; const etas=[]; let m;
+  while((m=timeRe.exec(say))) etas.push(parseInt(m[1],10)+":"+String(parseInt(m[2],10)).padStart(2,"0"));
+  const dm=say.replace(timeRe,"").match(/(\d{1,3})\s*分/);   // 時刻表現を除いた「◯分」＝所要
+  if(dm){ const said=parseInt(dm[1],10);
+    if(actualMin.length && !actualMin.some(a=>Math.abs(a-said)<=1))
+      console.log("[MulmoNavi SAY] numeric-mismatch", {kind:"min", said, actual:actualMin}); }
+  for(const e of etas){ const said=_etaToMin(e);
+    if(actualEta.length && !actualEta.some(a=>Math.abs(_etaToMin(a)-said)<=2))
+      console.log("[MulmoNavi SAY] numeric-mismatch", {kind:"eta", said:e, actual:actualEta}); }
 }
 function routeRemaining(){
   if(!S.steps || !S.steps.length) return null;

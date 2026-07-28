@@ -65,13 +65,22 @@ export async function addMemory(raw: { key?: unknown; value?: unknown; kind?: un
   return trimmed;
 }
 
-/** Remove entries matching `key` (exact or substring both ways). Deletion is the
- *  ONLY confirmed op (item 6) — callers gate this behind a voice confirmation. */
+/** Exact, or (needle ≥2 chars) substring both ways. Used for both key and value. */
+function fieldMatches(field: string, needle: string): boolean {
+  if (field === needle) return true;
+  if (needle.length < 2) return false;
+  return field.includes(needle) || needle.includes(field);
+}
+
+/** Remove entries matching `key` against BOTH the stored key AND value (exact or
+ *  fuzzy). The LLM's `forget` argument usually paraphrases the *content* ("下道")
+ *  rather than the stored key ("道種の好み"), so key-only matching missed it.
+ *  Deletion is the ONLY confirmed op (item 6) — gated behind a voice confirm. */
 export async function removeMemory(key: string): Promise<{ removed: MemoryEntry[]; entries: MemoryEntry[] }> {
   const needle = (key || "").trim();
   if (!needle) return { removed: [], entries: readMemory() };
   const entries = readMemory();
-  const removed = entries.filter((entry) => entry.key === needle || entry.key.includes(needle) || needle.includes(entry.key));
+  const removed = entries.filter((entry) => fieldMatches(entry.key, needle) || fieldMatches(entry.value, needle));
   const kept = entries.filter((entry) => !removed.includes(entry));
   if (removed.length) await writeJsonAtomic(memoryPath(), { entries: kept });
   return { removed, entries: kept };

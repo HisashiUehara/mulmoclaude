@@ -569,12 +569,63 @@ const ENVELOPE_SYSTEM_PROMPT_BASE = [
   "- forget: 特定の記憶を忘れてほしい時、その key（削除は後で確認される）。",
   "- play_music: 音楽リクエストの気分。",
   "【say】ドライバーへの短い一言（context.lang, 記号なし, 1文）。say は常に必ず返すこと（無言は許容しない。道種変更なら『下道で49分、21時21分着です』のように所要と到着時刻を入れる）。",
+  "【数字の厳守】距離・所要時間・到着時刻は、下の【経路の現在状態】に提供された値だけを使う。値が提供されていない項目は数字を言わず『まだ計算していません』と答える。推測で数字を作らない。現在選択中の道種と違う道種の数字を混同しない。",
   "【記憶の活用】下の記憶を前提に応答する。『いつものところ』は記憶の place。道種の好みが下道なら avoidHighways=true を既定に。",
 ].join("\n");
 
-function intentSystemPrompt(): string {
+/** Safe scalar → string (objects/arrays/null render empty, never "[object Object]"). */
+function scalar(value: unknown, fallback = ""): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return fallback;
+}
+
+/** One road line for the route-state block, e.g. "高速: 12.3km / 35分 / 21:40着". */
+function roadLine(label: string, road: unknown): string | null {
+  if (!road || typeof road !== "object") return null;
+  const rec = road as { km?: unknown; min?: unknown; eta?: unknown };
+  return `${label}: ${scalar(rec.km, "?")}km / ${scalar(rec.min, "?")}分 / ${scalar(rec.eta, "?")}着`;
+}
+
+/** Render the client's live route state (context.route) into a strict, factual
+ *  prompt block (問題1). Absent/uncomputed → an explicit "not computed" notice so
+ *  the LLM says "まだ計算していません" instead of inventing distances/ETAs. */
+function formatRouteStateForPrompt(context: unknown): string {
+  const raw = context && typeof context === "object" ? (context as Record<string, unknown>).route : null;
+  if (!raw || typeof raw !== "object")
+    return "【経路の現在状態】まだ経路を計算していません。距離・所要時間・到着時刻は言わず『まだ計算していません』と答えること。";
+  const route = raw as Record<string, unknown>;
+  const via =
+    Array.isArray(route.via) && route.via.length
+      ? route.via
+          .map((place) => scalar(place))
+          .filter(Boolean)
+          .join("、")
+      : "なし";
+  const chosen = route.chosen === "local" ? "下道" : route.chosen === "hwy" ? "高速" : "未選択";
+  const origin = route.originIsCurrent ? "現在地" : scalar(route.originName, "指定地");
+  const lines = [
+    "【経路の現在状態（この値だけを使う。推測で数字を作らない）】",
+    `目的地: ${scalar(route.destName, "未設定")}`,
+    `出発地: ${origin}`,
+    `経由地: ${via}`,
+    `選択中の道種: ${chosen}`,
+  ];
+  if (!route.computed) {
+    lines.push("距離・所要・到着: まだ計算していません（数字を作らない）");
+    return lines.join("\n");
+  }
+  const hwy = roadLine("高速", route.hwy);
+  const local = roadLine("下道", route.local);
+  if (hwy) lines.push(hwy);
+  if (local) lines.push(local);
+  return lines.join("\n");
+}
+
+function intentSystemPrompt(context: unknown): string {
   const mem = formatMemoryForPrompt(readMemory());
-  return mem ? `${ENVELOPE_SYSTEM_PROMPT_BASE}\n\n${mem}` : ENVELOPE_SYSTEM_PROMPT_BASE;
+  const route = formatRouteStateForPrompt(context);
+  return [ENVELOPE_SYSTEM_PROMPT_BASE, route, mem].filter(Boolean).join("\n\n");
 }
 
 const ROUTE_INTENT_TOOL = {
@@ -699,7 +750,7 @@ async function callOpenAIEnvelope(
         tools: [ROUTE_INTENT_TOOL],
         tool_choice: "auto",
         messages: [
-          { role: "system", content: intentSystemPrompt() },
+          { role: "system", content: intentSystemPrompt(context) },
           { role: "user", content: buildUserContent(message, context) },
         ],
       }),
@@ -738,13 +789,25 @@ async function parseEnvelopeResponse(raw: unknown, nowMs: number): Promise<{ env
 
 /** mode:"intent" handler. Confirmed forget executes the deletion; otherwise the
  *  LLM produces a memory-aware envelope. Split out to keep the route short. */
+/** Voice for a confirmed-forget outcome, distinguishing "no memory at all" from
+ *  "key didn't match" (問題2). */
+function forgetSay(removedCount: number, totalCount: number, requested: string): string {
+  if (removedCount) return "記憶を消しました。";
+  if (!totalCount) return "まだ何も覚えていないので、消すものはありません。";
+  return `「${requested}」に合う記憶が見つかりませんでした。`;
+}
+
 async function handleIntentMode(req: Request<object, unknown, NavChatBody>, res: Response, key: string, message: string): Promise<void> {
   // 削除確認後の実行（クライアントが声で確認済み → confirmForget で削除実行）。M3 item6。
   if (typeof req.body.confirmForget === "string" && req.body.confirmForget.trim()) {
-    const { removed } = await removeMemory(req.body.confirmForget.trim());
-    const say = removed.length ? "記憶を消しました。" : "その記憶は見つかりませんでした。";
+    const requested = req.body.confirmForget.trim();
+    const before = readMemory();
+    const storedKeys = before.map((entry) => entry.key);
+    const { removed } = await removeMemory(requested);
+    log.info("nav-chat", "forget", { requested, storedKeys, removed: removed.length }); // 問題2: 照合診断
+    const say = forgetSay(removed.length, before.length, requested);
     res.setHeader("Cache-Control", "no-store");
-    res.json({ intent: { say }, actions: [{ type: "forget_done", removed: removed.length }], say });
+    res.json({ intent: { say }, actions: [{ type: "forget_done", removed: removed.length, requested, storedKeys }], say });
     return;
   }
   const result = await callOpenAIEnvelope(key, message, req.body.context, Date.now());
