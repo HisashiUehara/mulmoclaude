@@ -997,6 +997,34 @@
         }
       },
       "createdAt": "2026-07-27T12:13:40.818Z"
+    },
+    "8078a717-0bb0-452e-846f-75e307c86200": {
+      "id": "8078a717-0bb0-452e-846f-75e307c86200",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-27T23:16:36.846Z"
     }
   }
 }

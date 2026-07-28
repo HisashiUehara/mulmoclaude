@@ -1073,9 +1073,9 @@ function handleInput(raw){
   // 記憶の削除確認中（item6: 削除は必ず声で確認）
   if(S.pendingForget){
     const d=classifyConfirm(t);
-    if(d==="yes"){ const key=S.pendingForget.key; S.pendingForget=null; confirmForget(key); return; }
-    if(d==="no"||d==="cancel"){ S.pendingForget=null; botSay(S.lang==="ja"?"消すのはやめました。":"Kept it."); return; }
-    S.pendingForget=null;   // それ以外は破棄して通常処理へ
+    if(d==="yes"){ const key=S.pendingForget.key; if(S.pendingForget.timer)clearTimeout(S.pendingForget.timer); S.pendingForget=null; confirmForget(key); return; }
+    if(d==="no"||d==="cancel"){ cancelForget("declined"); botSay(S.lang==="ja"?"消すのはやめました。":"Kept it."); return; }
+    cancelForget("superseded");   // それ以外は破棄して通常処理へ
   }
   // 高速（有料道路）を使うかの確認中は最優先で解釈
   if(S.pendingRoad){
@@ -1288,37 +1288,68 @@ async function applyRouteIntent(intent){
   console.log("[MulmoNavi INTENT] merged", JSON.stringify(merged), "diff", JSON.stringify(diff), "gen", gen);
   const say = (intent && typeof intent.say==="string") ? intent.say.trim() : "";
   const navChanged = diff.length>0;
+  if(navChanged) cancelForget("superseded-by-intent");   // 問題4: 別の意図が来たら削除確認を破棄
   if(!navChanged){
+    // 問題1-3: 完全無反応を避ける。sayがあれば喋り、無ければ短い相槌/状態確認。
     console.log("[MulmoNavi INTENT] action=noop gen", gen);
-    if(say) botSay(say);
+    botSay(say || noopReply());
     updateOriginUI();
     return;
+  }
+  // 問題2: prefer だけの変更は、地名解決の前にキャッシュ再描画で片付ける（Placesの無駄呼び出し回避）。
+  const onlyPrefer = diff.length===1 && diff[0]==="prefer";
+  if(onlyPrefer && S.compare && (S.compare.hwy || S.compare.local)){
+    S.avoidHighways=!!merged.prefer.avoidHighways; S.avoidTolls=!!merged.prefer.avoidTolls; S.roadChosen=true;
+    const preferLocal=!!S.avoidHighways;
+    const chosen = preferLocal ? (S.compare.local||S.compare.hwy) : (S.compare.hwy||S.compare.local);
+    if(chosen){
+      let setOk=true; try{ S.dirRenderer.setDirections(chosen.res); }catch(e){ setOk=false; }
+      S.route=chosen.res.routes[0]; S.steps=S.route.legs.flatMap(l=>l.steps); S.curStep=0; S.lastSpokenStep=-1; renderSteps(); updateCompareUI();
+      logRouteApplied(chosen, preferLocal, true, gen, setOk);   // 問題3: ROUTE applied（掃除リスト1）
+      console.log("[MulmoNavi INTENT] prefer-only → re-render from cache (no geocode) gen", gen);
+      botSay(say || preferredLine(chosen, preferLocal), true, {cache:false});   // 問題1-2: sayに依存せず必ず発話
+      return;
+    }
   }
   try{
     await resolveIntentToState(merged, gen, diff.indexOf("prefer")>=0);
     if(gen!==S.intentSeq){ console.log("[MulmoNavi INTENT] superseded gen", gen); return; }   // item8 後勝ち
     updateOriginUI();
     if(!S.destination){ console.log("[MulmoNavi INTENT] action=noop(no destination) gen", gen); botSay(say||T().needDest); return; }
-    // item(e): 変化が prefer だけで既に2本の比較を持っているなら、再計算せず描画だけ切替
-    // （比較の数値を維持したまま高速↔下道を切り替える）。
-    const onlyPrefer = diff.length===1 && diff[0]==="prefer";
-    if(onlyPrefer && S.compare && (S.compare.hwy || S.compare.local)){
-      const preferLocal=!!S.avoidHighways;
-      const chosen = preferLocal ? (S.compare.local||S.compare.hwy) : (S.compare.hwy||S.compare.local);
-      if(chosen){
-        try{ S.dirRenderer.setDirections(chosen.res); }catch(e){}
-        S.route=chosen.res.routes[0]; S.steps=S.route.legs.flatMap(l=>l.steps); S.curStep=0; S.lastSpokenStep=-1; renderSteps(); updateCompareUI();
-        console.log("[MulmoNavi INTENT] prefer-only → re-render from cache gen", gen);
-        if(say) botSay(say, true);
-        return;
-      }
-    }
     console.log("[MulmoNavi INTENT] action=buildRoutePair gen", gen);
     await buildRoutePair(gen, say);   // await: 内部throwを握りつぶさず下のcatchで拾う
   }catch(e){
     console.log("[MulmoNavi INTENT] resolve error", e&&e.message);
     botSay(say||cannedFor("chat"));
   }
+}
+// 問題1: prefer-only 等で say が無いとき、キャッシュ済みの数字から必ず文言を組み立てる。
+function preferredLine(info, preferLocal){
+  if(!info) return T().chat;
+  const ja=S.lang==="ja";
+  return ja ? `${preferLocal?"下道":"高速"}で${durMin(info.dur)}分、${etaClock(info.dur)}着です。`
+            : `${preferLocal?"Local roads":"Highway"} ${durMin(info.dur)} min, arriving ${etaClock(info.dur)}.`;
+}
+// 問題1-3: diff空の noop でも短い相槌/状態確認を返す（完全無反応を避ける）。
+function noopReply(){
+  if(S.destName) return S.lang==="ja" ? `${S.destName}へ向かっています。` : `Heading to ${S.destName}.`;
+  return T().chat;
+}
+// 問題3: 描画した側(chosen)の診断を1行で出す（buildRoutePair / prefer-only 共通）。
+function _coord(x){ if(!x) return {lat:null,lng:null}; try{ return {lat: typeof x.lat==="function"?x.lat():x.lat, lng: typeof x.lng==="function"?x.lng():x.lng}; }catch(e){ return {lat:"err",lng:"err"}; } }
+function logRouteApplied(info, preferLocal, wasReroute, gen, setOk){
+  const originLatLng = S.originOverride || (S.me ? {lat:S.me.lat,lng:S.me.lng} : null);
+  const o=_coord(originLatLng), d=_coord(S.destination);
+  console.log("[MulmoNavi ROUTE] applied", {
+    seq:gen, chosen: preferLocal?"local":"hwy",
+    originName: S.originOverride?(S.originName||null):"current", originIsCurrent: !S.originOverride, originLat:o.lat, originLng:o.lng,
+    destName:S.destName, destLat:d.lat, destLng:d.lng,
+    distM: info?info.dist:null, timeS: info?info.dur:null, avoidHighways:!!S.avoidHighways, reroute:!!wasReroute,
+    setDirections: setOk!==false,
+    rendererHasMap: (function(){try{return !!(S.dirRenderer.getMap&&S.dirRenderer.getMap());}catch(e){return "err";}})(),
+    rendererMapIsAppMap: (function(){try{return S.dirRenderer.getMap()===S.map;}catch(e){return "err";}})(),
+    navOn:S.navOn
+  });
 }
 /* ============================ M3: アクション ディスパッチャ ============================
    封筒(envelope)の actions を type ごとに振り分ける。記憶(remember/recall)はサーバーで
@@ -1331,12 +1362,27 @@ function dispatchActions(actions){
     switch(a.type){
       case "remember":   console.log("[MulmoNavi ACTION] remember (saved server-side)", {key:a.key}); break;
       case "recall":     console.log("[MulmoNavi ACTION] recall (in say)", {count:a.count}); break;
-      case "forget":     S.pendingForget={ key:a.key }; console.log("[MulmoNavi ACTION] forget → 声で確認", {key:a.key}); break;  // item6: 削除は確認
+      case "forget":     armForget(a.key); break;  // item6: 削除は声で確認（問題4: タイムアウト付き）
       case "forget_done":console.log("[MulmoNavi ACTION] forget_done", {removed:a.removed}); S.pendingForget=null; break;
       case "play_music": if(a.mood) toast((S.lang==="ja"?"🎵 音楽（準備中）：":"🎵 Music (coming soon): ")+a.mood); console.log("[MulmoNavi ACTION] play_music", {mood:a.mood}); break;
       default:           console.log("[MulmoNavi ACTION] degraded", {type:a.type, reason:"unknown type"});  // item7
     }
   }
+}
+// 問題4: 削除確認を武装（30秒タイムアウト付き）。放置で自動破棄し、後の「はい」で
+// 無関係な記憶が消える事故を防ぐ。
+const FORGET_TIMEOUT_MS = 30000;
+function armForget(key){
+  cancelForget("re-armed");
+  S.pendingForget = { key, timer: setTimeout(()=>cancelForget("timeout"), FORGET_TIMEOUT_MS) };
+  console.log("[MulmoNavi ACTION] forget → 声で確認", {key});
+}
+// 問題4: 削除確認を破棄（タイムアウト/別の意図/拒否）。forget-cancelled をログ。
+function cancelForget(reason){
+  if(!S.pendingForget) return;
+  try{ if(S.pendingForget.timer) clearTimeout(S.pendingForget.timer); }catch(e){}
+  S.pendingForget=null;
+  console.log("[MulmoNavi ACTION] forget-cancelled", {reason});
 }
 // item6: 削除は声で確認済み → confirmForget を送りサーバーで実行。
 async function confirmForget(key){
@@ -1871,12 +1917,14 @@ async function buildRoutePair(intentGen, sayFallback){
     // item5: 描画は prefer.avoidHighways に一致する方（無ければ成功した方）
     const preferLocal=!!S.avoidHighways;
     const chosen = preferLocal ? (iLocal||iHwy) : (iHwy||iLocal);
-    try{ S.dirRenderer.setDirections(chosen.res); }catch(e){ console.log("[MulmoNavi PAIR] setDirections threw", e&&e.message); }
+    const wasReroute = !!S.route;
+    let setOk=true; try{ S.dirRenderer.setDirections(chosen.res); }catch(e){ setOk=false; console.log("[MulmoNavi PAIR] setDirections threw", e&&e.message); }
     S.route=chosen.res.routes[0];
     S.steps=S.route.legs.flatMap(l=>l.steps);
     S.curStep=0; S.lastSpokenStep=-1; renderSteps();
     S.compare={ hwy:iHwy, local:iLocal };
     updateCompareUI();
+    logRouteApplied(chosen, preferLocal, wasReroute, intentGen, setOk);   // 問題3: 描画側の診断1行
     announceCompare(iHwy, iLocal, sayFallback);   // item8: 片道で両方の数字
   }catch(e){
     console.log("[MulmoNavi PAIR] FAILED", { which:"pair", status:"THROW", error:(e&&e.message)||String(e) });
@@ -1959,6 +2007,7 @@ function resetNavState(){
   S.destination=null; S.destName=""; S.waypoints=[];
   S.avoidHighways=false; S.avoidTolls=false;
   S.route=null; S.roadChosen=false; S.pendingRoad=false;
+  if(typeof cancelForget==="function") cancelForget("reset");   // 問題4: 削除確認も破棄
   S.compare=null; if(typeof updateCompareUI==="function") updateCompareUI();   // 比較パネルも消す
   updateOriginUI();
   if(typeof renderSteps==="function") renderSteps();
