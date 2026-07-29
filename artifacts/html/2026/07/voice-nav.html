@@ -602,14 +602,18 @@ const ECHO_GUARD_MS = 3500;
 async function speakOne(text, opts){
   if(!S.tts) return;
   S._botText = text;   // バージイン用: 今読み上げている文（自分のエコー判定に使う）
+  // エコー修正(2): 「発話予定の全文」を再生開始時点で _echoBuf に投入する。こうすると
+  // interimバージインで途中STOPされ botText がクリアされても、続きの final を isLateEcho で
+  // 弾ける（STOPの有無に依存しないエコー判定）。終了/STOP時に at を更新して窓を延長する。
+  if(!S._echoBuf) S._echoBuf=[];
+  const echoEntry = { text, at: Date.now() };
+  S._echoBuf.push(echoEntry);
+  if(S._echoBuf.length>5) S._echoBuf.shift();
   try{
     await speakOneInner(text, opts);
   } finally {
     S._botText = "";
-    // 発話“終了”時刻で直近bot発話を記録 → 以後 ECHO_GUARD_MS 窓で遅延エコーを弾く
-    if(!S._echoBuf) S._echoBuf=[];
-    S._echoBuf.push({ text, at: Date.now() });
-    if(S._echoBuf.length>5) S._echoBuf.shift();
+    echoEntry.at = Date.now();   // 発話終了/STOP時点に窓をリフレッシュ（以後 ECHO_GUARD_MS 有効）
   }
 }
 async function speakOneInner(text, opts){
@@ -674,6 +678,18 @@ function isEchoLight(transcript){
   const bot=norm(S._botText), t=norm(transcript);
   if(!bot || !t || t.length<4) return false;   // 短い声は止める側（エコー扱いしない）
   return bot.includes(t);                       // botに完全包含される時だけ明確なエコー
+}
+// エコー修正(1): interim バージインを抑止すべきか判定。null=抑止しない(バージインOK)、
+// 文字列=抑止理由。安全即応ワード(ストップ/ミュート/リピート等)は絶対に抑止しない(条件4)。
+//  - 自分の発話の部分文字列(substr) → 自TTSのエコー → 抑止
+//  - 短すぎる断片(BARGE_MIN_LEN 未満) → エコー冒頭の可能性が高い → 抑止
+const BARGE_MIN_LEN = 5;
+function bargeSuppressReason(t){
+  if(layer1Safety(t)) return null;                 // 条件4: 安全語は最速で止める（抑止しない）
+  const clean=String(t||"").replace(/[\s、。,.!！?？「」]/g,"");
+  if(clean.length < BARGE_MIN_LEN) return "too-short";
+  if(echoDebug(t).substr) return "substr";         // 自TTSの部分文字列
+  return null;
 }
 // [TEMP-BARGEIN] 診断用: isEcho の内訳（部分一致か / 文字重なり率）を返す（検証後に削除）
 function echoDebug(transcript){
@@ -750,7 +766,13 @@ function buildRecog(){
       // AI発話中に、明確なエコーでない声を interim の時点で拾ったら、final を待たず
       // 即座に TTS を止める。1発話につき1回だけ（S._barged）。誤爆はログで後調整。
       if(speaking && nowMs>=ignoreUntil && !isEchoLight(t)){
-        if(!S._barged){
+        // エコー修正(1): 自TTSの部分文字列/短すぎる断片は STOP@interim を発動しない
+        // （安全語は bargeSuppressReason が null を返すので従来通り即停止）。
+        const sup = bargeSuppressReason(t);
+        if(sup){
+          const dbg=echoDebug(t);
+          console.log("[MulmoNavi ECHO] suppressed", { reason:sup, transcript:t, tLen:dbg.tLen, substr:dbg.substr });
+        }else if(!S._barged){
           S._barged=true; flushTts();
           console.log("[MulmoNavi BARGEIN] STOP@"+(res.isFinal?"final":"interim"), { transcript:t, ...echoDebug(t) });
         }
