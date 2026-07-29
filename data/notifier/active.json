@@ -997,6 +997,146 @@
         }
       },
       "createdAt": "2026-07-27T12:13:40.818Z"
+    },
+    "8078a717-0bb0-452e-846f-75e307c86200": {
+      "id": "8078a717-0bb0-452e-846f-75e307c86200",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-27T23:16:36.846Z"
+    },
+    "f8b81e9c-e881-41c7-8d80-5800503c6372": {
+      "id": "f8b81e9c-e881-41c7-8d80-5800503c6372",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-28T11:54:39.187Z"
+    },
+    "3539d041-65e7-4192-8826-53f0abcbd03b": {
+      "id": "3539d041-65e7-4192-8826-53f0abcbd03b",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-28T12:15:53.087Z"
+    },
+    "308d2043-35ea-4962-8f16-62f36bb21fa7": {
+      "id": "308d2043-35ea-4962-8f16-62f36bb21fa7",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-28T12:32:47.492Z"
+    },
+    "843c1894-33cc-48bf-b15d-7ce78da1f2bd": {
+      "id": "843c1894-33cc-48bf-b15d-7ce78da1f2bd",
+      "pluginPkg": "host",
+      "severity": "nudge",
+      "lifecycle": "fyi",
+      "title": "docker not installed",
+      "body": "docker not found — some features are disabled. Install docker and restart MulmoClaude.",
+      "pluginData": {
+        "legacy": true,
+        "legacyId": "optional-dep-missing:docker",
+        "kind": "system",
+        "priority": "normal",
+        "action": {
+          "type": "none"
+        },
+        "i18n": {
+          "titleKey": "optionalDeps.titleNotFound",
+          "titleParams": {
+            "command": "docker"
+          },
+          "bodyKey": "optionalDeps.notFound",
+          "bodyParams": {
+            "command": "docker"
+          }
+        }
+      },
+      "createdAt": "2026-07-29T00:01:48.466Z"
     }
   }
 }

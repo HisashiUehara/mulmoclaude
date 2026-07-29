@@ -556,10 +556,29 @@ function playBlob(blob, onStart){
   });
 }
 
+/* ---- 読み上げ用の表記正規化（問題4: TTSの読み間違い対策） ----
+   全発話が通る共通経路(tts)で1回だけ適用。文言を作る場所ごとの対応漏れを防ぐ。
+   ・時刻 21:34 / 07:05 → 「21時34分」「7時5分」（ゼロ埋め解除、分00は「N時」）
+   ・距離 9.2 km / 230 m → 「9.2キロ」「230メートル」（ja のみ、単位を仮名化）
+   画面表示(バブル/比較パネル)は元の表記のまま。ここは音声に渡す文字列だけ変換する。*/
+function normalizeForSpeech(text){
+  let s = text==null ? "" : String(text);
+  if(S.lang!=="ja") return s;   // en は "21:34" 等をブラウザTTSが自然に読むため変換しない
+  s = s.replace(/(\d{1,2}):(\d{2})(?!\d)/g, (m,h,mi)=>{
+    const H=parseInt(h,10), M=parseInt(mi,10);
+    if(H>23||M>59) return m;                 // 時刻でなければそのまま
+    return M===0 ? `${H}時` : `${H}時${M}分`;
+  });
+  s = s.replace(/(\d+(?:\.\d+)?)\s*km\b/gi, "$1キロ");
+  s = s.replace(/(\d+)\s*m\b/gi, "$1メートル");
+  return s;
+}
+
 /* ---- 読み上げキュー（直列化）: 発話が重ならないよう1つずつ順に再生する ---- */
 let _ttsQueue=[], _ttsBusy=false;
 // 読み上げ入口。実際の再生は pumpTts が1件ずつ直列に処理する。
-function tts(text, opts){ _ttsQueue.push([text, opts]); pumpTts(); }
+// ※ ここで normalizeForSpeech を掛けるのが唯一の共通経路（OpenAI/内蔵の両TTS・IDBキャッシュ鍵も正規化後）。
+function tts(text, opts){ _ttsQueue.push([normalizeForSpeech(text), opts]); pumpTts(); }
 async function pumpTts(){
   if(_ttsBusy) return;
   _ttsBusy=true;
@@ -1070,6 +1089,13 @@ function handleInput(raw){
   _lastSubmit={text:t, at:now};
   flushTts();   // 新しいユーザー発話 → 進行中の読み上げを止めキューを空に（重なり防止）
   addMsg(t,"user"); $("text").value="";
+  // 記憶の削除確認中（item6: 削除は必ず声で確認）
+  if(S.pendingForget){
+    const d=classifyConfirm(t);
+    if(d==="yes"){ const key=S.pendingForget.key; if(S.pendingForget.timer)clearTimeout(S.pendingForget.timer); S.pendingForget=null; confirmForget(key); return; }
+    if(d==="no"||d==="cancel"){ cancelForget("declined"); botSay(S.lang==="ja"?"消すのはやめました。":"Kept it."); return; }
+    cancelForget("superseded");   // それ以外は破棄して通常処理へ
+  }
   // 高速（有料道路）を使うかの確認中は最優先で解釈
   if(S.pendingRoad){
     const r=classifyRoad(t);
@@ -1140,8 +1166,18 @@ async function navChatReply(userText, fallbackType){
       console.log("[MulmoNavi] path=intent");
       const res=await post({ mode:"intent" });
       if(!res.ok) throw new Error("http "+res.status);
-      const data=await res.json();
-      if(data && data.intent){ await applyRouteIntent(data.intent); return; }
+      const data=await res.json();   // 封筒 {intent, actions, say}（後方互換: intent のみでも可）
+      if(data && (data.intent || data.actions)){
+        // 問題1/2: 実測が無いのに数値を含む say は捏造 → 安全文言に差し替え（検知だけでなく遮断）。
+        const willCompute=!!(data.intent && data.intent.destination);
+        const safeSay=guardSay((data.intent&&data.intent.say)||data.say, willCompute);
+        if(data.intent && typeof data.intent.say==="string") data.intent.say=safeSay;
+        if(typeof data.say==="string") data.say=safeSay;
+        if(data.actions) dispatchActions(data.actions);       // 経路以外（記憶/音楽/削除確認）
+        if(data.intent) await applyRouteIntent(data.intent);  // 経路＋say読み上げ
+        else if(data.say) botSay(String(data.say));
+        return;
+      }
       botSay(cannedFor(fallbackType)); return;
     }
     // ── 旧経路（差分ツール／ストリーミング）残置（USE_INTENT=false で有効・ロールバック用）──
@@ -1276,37 +1312,114 @@ async function applyRouteIntent(intent){
   console.log("[MulmoNavi INTENT] merged", JSON.stringify(merged), "diff", JSON.stringify(diff), "gen", gen);
   const say = (intent && typeof intent.say==="string") ? intent.say.trim() : "";
   const navChanged = diff.length>0;
+  if(navChanged) cancelForget("superseded-by-intent");   // 問題4: 別の意図が来たら削除確認を破棄
   if(!navChanged){
+    // 問題1-3: 完全無反応を避ける。sayがあれば喋り、無ければ短い相槌/状態確認。
     console.log("[MulmoNavi INTENT] action=noop gen", gen);
-    if(say) botSay(say);
+    botSay(say || noopReply());
     updateOriginUI();
     return;
+  }
+  // 問題2: prefer だけの変更は、地名解決の前にキャッシュ再描画で片付ける（Placesの無駄呼び出し回避）。
+  const onlyPrefer = diff.length===1 && diff[0]==="prefer";
+  if(onlyPrefer && S.compare && (S.compare.hwy || S.compare.local)){
+    S.avoidHighways=!!merged.prefer.avoidHighways; S.avoidTolls=!!merged.prefer.avoidTolls; S.roadChosen=true;
+    const preferLocal=!!S.avoidHighways;
+    const chosen = preferLocal ? (S.compare.local||S.compare.hwy) : (S.compare.hwy||S.compare.local);
+    if(chosen){
+      let setOk=true; try{ S.dirRenderer.setDirections(chosen.res); }catch(e){ setOk=false; }
+      S.route=chosen.res.routes[0]; S.steps=S.route.legs.flatMap(l=>l.steps); S.curStep=0; S.lastSpokenStep=-1; renderSteps(); updateCompareUI();
+      logRouteApplied(chosen, preferLocal, true, gen, setOk);   // 問題3: ROUTE applied（掃除リスト1）
+      console.log("[MulmoNavi INTENT] prefer-only → re-render from cache (no geocode) gen", gen);
+      botSay(say || preferredLine(chosen, preferLocal), true, {cache:false});   // 問題1-2: sayに依存せず必ず発話
+      return;
+    }
   }
   try{
     await resolveIntentToState(merged, gen, diff.indexOf("prefer")>=0);
     if(gen!==S.intentSeq){ console.log("[MulmoNavi INTENT] superseded gen", gen); return; }   // item8 後勝ち
     updateOriginUI();
     if(!S.destination){ console.log("[MulmoNavi INTENT] action=noop(no destination) gen", gen); botSay(say||T().needDest); return; }
-    // item(e): 変化が prefer だけで既に2本の比較を持っているなら、再計算せず描画だけ切替
-    // （比較の数値を維持したまま高速↔下道を切り替える）。
-    const onlyPrefer = diff.length===1 && diff[0]==="prefer";
-    if(onlyPrefer && S.compare && (S.compare.hwy || S.compare.local)){
-      const preferLocal=!!S.avoidHighways;
-      const chosen = preferLocal ? (S.compare.local||S.compare.hwy) : (S.compare.hwy||S.compare.local);
-      if(chosen){
-        try{ S.dirRenderer.setDirections(chosen.res); }catch(e){}
-        S.route=chosen.res.routes[0]; S.steps=S.route.legs.flatMap(l=>l.steps); S.curStep=0; S.lastSpokenStep=-1; renderSteps(); updateCompareUI();
-        console.log("[MulmoNavi INTENT] prefer-only → re-render from cache gen", gen);
-        if(say) botSay(say, true);
-        return;
-      }
-    }
     console.log("[MulmoNavi INTENT] action=buildRoutePair gen", gen);
     await buildRoutePair(gen, say);   // await: 内部throwを握りつぶさず下のcatchで拾う
   }catch(e){
     console.log("[MulmoNavi INTENT] resolve error", e&&e.message);
     botSay(say||cannedFor("chat"));
   }
+}
+// 問題1: prefer-only 等で say が無いとき、キャッシュ済みの数字から必ず文言を組み立てる。
+function preferredLine(info, preferLocal){
+  if(!info) return T().chat;
+  const ja=S.lang==="ja";
+  return ja ? `${preferLocal?"下道":"高速"}で${durMin(info.dur)}分、${etaClock(info.dur)}着です。`
+            : `${preferLocal?"Local roads":"Highway"} ${durMin(info.dur)} min, arriving ${etaClock(info.dur)}.`;
+}
+// 問題1-3: diff空の noop でも短い相槌/状態確認を返す（完全無反応を避ける）。
+function noopReply(){
+  if(S.destName) return S.lang==="ja" ? `${S.destName}へ向かっています。` : `Heading to ${S.destName}.`;
+  return T().chat;
+}
+// 問題3: 描画した側(chosen)の診断を1行で出す（buildRoutePair / prefer-only 共通）。
+function _coord(x){ if(!x) return {lat:null,lng:null}; try{ return {lat: typeof x.lat==="function"?x.lat():x.lat, lng: typeof x.lng==="function"?x.lng():x.lng}; }catch(e){ return {lat:"err",lng:"err"}; } }
+function logRouteApplied(info, preferLocal, wasReroute, gen, setOk){
+  const originLatLng = S.originOverride || (S.me ? {lat:S.me.lat,lng:S.me.lng} : null);
+  const o=_coord(originLatLng), d=_coord(S.destination);
+  console.log("[MulmoNavi ROUTE] applied", {
+    seq:gen, chosen: preferLocal?"local":"hwy",
+    originName: S.originOverride?(S.originName||null):"current", originIsCurrent: !S.originOverride, originLat:o.lat, originLng:o.lng,
+    destName:S.destName, destLat:d.lat, destLng:d.lng,
+    distM: info?info.dist:null, timeS: info?info.dur:null, avoidHighways:!!S.avoidHighways, reroute:!!wasReroute,
+    setDirections: setOk!==false,
+    rendererHasMap: (function(){try{return !!(S.dirRenderer.getMap&&S.dirRenderer.getMap());}catch(e){return "err";}})(),
+    rendererMapIsAppMap: (function(){try{return S.dirRenderer.getMap()===S.map;}catch(e){return "err";}})(),
+    navOn:S.navOn
+  });
+}
+/* ============================ M3: アクション ディスパッチャ ============================
+   封筒(envelope)の actions を type ごとに振り分ける。記憶(remember/recall)はサーバーで
+   実行済み・say に反映済みなのでログのみ。forget は声で確認してから削除（item6）。
+   未知の type は無視してログに残す（LLMが将来別typeを返しても壊れない・item2/7）。 */
+function dispatchActions(actions){
+  if(!Array.isArray(actions)) return;
+  for(const a of actions){
+    if(!a || typeof a.type!=="string"){ console.log("[MulmoNavi ACTION] degraded", {type:a&&a.type, reason:"no type"}); continue; }
+    switch(a.type){
+      case "remember":   console.log("[MulmoNavi ACTION] remember (saved server-side)", {key:a.key}); break;
+      case "recall":     console.log("[MulmoNavi ACTION] recall (in say)", {count:a.count}); break;
+      case "forget":     armForget(a.key); break;  // item6: 削除は声で確認（問題4: タイムアウト付き）
+      case "forget_done":console.log("[MulmoNavi ACTION] forget_done", {removed:a.removed}); console.log("[MulmoNavi ACTION] forget-key", {requested:a.requested, storedKeys:a.storedKeys||[]}); cancelForget("forget-done"); break;   // 問題2: 照合診断
+      case "play_music": if(a.mood) toast((S.lang==="ja"?"🎵 音楽（準備中）：":"🎵 Music (coming soon): ")+a.mood); console.log("[MulmoNavi ACTION] play_music", {mood:a.mood}); break;
+      default:           console.log("[MulmoNavi ACTION] degraded", {type:a.type, reason:"unknown type"});  // item7
+    }
+  }
+}
+// 問題4: 削除確認を武装（30秒タイムアウト付き）。放置で自動破棄し、後の「はい」で
+// 無関係な記憶が消える事故を防ぐ。
+const FORGET_TIMEOUT_MS = 30000;
+function armForget(key){
+  cancelForget("re-armed");
+  S.pendingForget = { key, timer: setTimeout(()=>cancelForget("timeout"), FORGET_TIMEOUT_MS) };
+  console.log("[MulmoNavi ACTION] forget → 声で確認", {key});
+}
+// 問題4: 削除確認を破棄（タイムアウト/別の意図/拒否）。forget-cancelled をログ。
+function cancelForget(reason){
+  if(!S.pendingForget) return;
+  try{ if(S.pendingForget.timer) clearTimeout(S.pendingForget.timer); }catch(e){}
+  S.pendingForget=null;
+  console.log("[MulmoNavi ACTION] forget-cancelled", {reason});
+}
+// item6: 削除は声で確認済み → confirmForget を送りサーバーで実行。
+async function confirmForget(key){
+  if(!S.navChatToken || !S.navChatUrl){ botSay(cannedFor("chat")); return; }
+  try{
+    const res=await fetch(S.navChatUrl,{ method:"POST",
+      headers:{ "Authorization":"Bearer "+S.navChatToken, "Content-Type":"application/json" },
+      body: JSON.stringify({ message:"はい", mode:"intent", confirmForget:key, context: buildNavContext() }) });
+    if(!res.ok) throw new Error("http "+res.status);
+    const data=await res.json();
+    if(data.actions) dispatchActions(data.actions);
+    if(data.intent) await applyRouteIntent(data.intent); else if(data.say) botSay(String(data.say));
+  }catch(e){ botSay(cannedFor("chat")); }
 }
 // item7: #sheet に出発地を表示。"current" は「現在地」。
 function updateOriginUI(){
@@ -1479,11 +1592,89 @@ function buildNavContext(){
               mode: (S.travelMode==="WALKING"?"徒歩":"車"), navOn:S.navOn };
   if(S.townName) ctx.town=S.townName;
   if(S.destName) ctx.dest=S.destName;
-  const rem=routeRemaining();
-  if(rem){ ctx.remainKm=rem.km; ctx.etaMin=rem.etaMin; }
-  const recent=S.history.slice(0,-1).slice(-6).map(h=>({[h.role]:h.text}));
+  // 数字の唯一の源は ctx.route（実測・full route）に一本化する。remainKm/etaMin（残り区間の和）を
+  // 併記すると LLM がそちらの別数字を答え（gen9の"54分"の一因）、guardSay の差し替えとも食い違うため送らない。
+  ctx.route=buildRouteState();   // 問題1: 経路の現在状態（実測値）を毎ターン注入し数字の捏造を防ぐ
+  // 問題3: bot 発話の数値は伏字化して渡す（過去のETA/所要/距離の再利用を防ぐ）。user はそのまま。
+  const recent=S.history.slice(0,-1).slice(-6).map(h=> h.role==="bot" ? {bot:_redactNumbers(h.text)} : {[h.role]:h.text});
   if(recent.length) ctx.recent=recent;
   return ctx;
+}
+// 問題1: LLMに渡す経路の現在状態。実測(compare)のみ。未計算は computed:false で明示する。
+function buildRouteState(){
+  const c=S.compare||{};
+  const road=(x)=> x ? { km:+(x.dist/1000).toFixed(1), min:durMin(x.dur), eta:etaClock(x.dur) } : null;
+  const via=(S.routeIntent&&Array.isArray(S.routeIntent.via))
+    ? S.routeIntent.via.map(v=> typeof v==="string"?v:(v&&v.query)||"").filter(Boolean) : [];
+  return {
+    destName: S.destName||null,
+    originName: S.originOverride ? (S.originName||"出発地") : "現在地",
+    originIsCurrent: !S.originOverride,
+    chosen: S.roadChosen ? (S.avoidHighways?"local":"hwy") : null,
+    via,
+    computed: !!(c.hwy||c.local),
+    hwy: road(c.hwy),
+    local: road(c.local)
+  };
+}
+// 所要/時刻/距離の数値を含むか（時刻 21:21・21時21分／◯分／◯km・◯キロ・◯m）。
+function _hasNumericClaim(say){
+  return /(\d{1,2})[:時]\d{1,2}\s*分?/.test(say) || /\d{1,3}\s*分/.test(say)
+      || /\d+(?:\.\d+)?\s*(?:km|キロメートル|キロ|メートル|m)\b/i.test(say);
+}
+// 会話履歴の bot 発話から数値(時刻/所要/距離)を伏字化して渡す（問題3: 履歴汚染対策）。
+// LLM が過去の「49分」等を「提供された値」と誤認して再利用するのを構造的に断つ。
+function _redactNumbers(t){
+  return String(t||"")
+    .replace(/(\d{1,2})[:時]\d{1,2}\s*分?/g,"（時刻）")
+    .replace(/\d{1,3}\s*分/g,"（所要）")
+    .replace(/\d+(?:\.\d+)?\s*(?:km|キロメートル|キロ|メートル|m)\b/gi,"（距離）");
+}
+// 問題1(照合): 実測(compare)がある時、sayの所要/時刻が実測とズレていたら true（＋検知ログ）。
+// 検出対象は「所要(◯分)」と「時刻(H:MM/H時MM分)」のみ。地名・道路名の数字(3号線/1丁目/首都高6号)は
+// 除外される（号/丁目/番地/駅 等は 分 でも : でも 時 でもないため一致しない）。許容誤差: 所要±1分/時刻±2分。
+function _etaToMin(s){ const p=String(s).split(":"); return (parseInt(p[0],10)||0)*60+(parseInt(p[1],10)||0); }
+function checkSayNumbers(say){
+  const c=S.compare;
+  if(!say||typeof say!=="string"||!c||!(c.hwy||c.local)) return false;   // 実測が無ければ検証不可
+  const actualMin=[c.hwy&&durMin(c.hwy.dur), c.local&&durMin(c.local.dur)].filter(v=>typeof v==="number");
+  const actualEta=[c.hwy&&etaClock(c.hwy.dur), c.local&&etaClock(c.local.dur)].filter(Boolean);
+  const timeRe=/(\d{1,2})[:時](\d{1,2})\s*分?/g; const etas=[]; let m;
+  while((m=timeRe.exec(say))) etas.push(parseInt(m[1],10)+":"+String(parseInt(m[2],10)).padStart(2,"0"));
+  const dm=say.replace(timeRe,"").match(/(\d{1,3})\s*分/);   // 時刻表現を除いた「◯分」＝所要
+  let mismatch=false;
+  if(dm){ const said=parseInt(dm[1],10);
+    if(actualMin.length && !actualMin.some(a=>Math.abs(a-said)<=1)){
+      console.log("[MulmoNavi SAY] numeric-mismatch", {kind:"min", said, actual:actualMin}); mismatch=true; } }
+  for(const e of etas){ const said=_etaToMin(e);
+    if(actualEta.length && !actualEta.some(a=>Math.abs(_etaToMin(a)-said)<=2)){
+      console.log("[MulmoNavi SAY] numeric-mismatch", {kind:"eta", said:e, actual:actualEta}); mismatch=true; } }
+  return mismatch;
+}
+// 選択中の道種の実測 info を返す（差し替え文言用）。
+function _chosenInfo(){ const local=!!S.avoidHighways; return { local, info: local ? (S.compare.local||S.compare.hwy) : (S.compare.hwy||S.compare.local) }; }
+// 問題1/2(検知→遮断): sayの数値が実測と食い違えば、汎用文でなく preferredLine と同じ生成で差し替える。
+//  - computed:true  … mismatch を検知したら実測の chosen から正しい文言へ差し替え（gen9対策）。
+//  - computed:false … 数値を含む say は捏造 → 安全文言へ差し替え。
+function guardSay(say, willCompute){
+  const computed=!!(S.compare && (S.compare.hwy||S.compare.local));
+  if(computed){
+    if(checkSayNumbers(say)){
+      const {local,info}=_chosenInfo();
+      const replaced=preferredLine(info, local);   // 既存の生成ロジックを再利用
+      S._sayReplaced=(S._sayReplaced||0)+1;
+      console.log("[MulmoNavi SAY] replaced", {said:say, replaced, count:S._sayReplaced});
+      return replaced;
+    }
+    return say;
+  }
+  if(say && typeof say==="string" && _hasNumericClaim(say)){
+    console.log("[MulmoNavi SAY] fabricated-when-uncomputed", {said:say});
+    const ja=S.lang==="ja";
+    return willCompute ? (ja?"ルートを調べますね。":"Let me look up the route.")
+                       : (ja?"まだ経路を計算していません。目的地を教えてください。":"I haven't calculated the route yet. Where to?");
+  }
+  return say;
 }
 function routeRemaining(){
   if(!S.steps || !S.steps.length) return null;
@@ -1828,12 +2019,14 @@ async function buildRoutePair(intentGen, sayFallback){
     // item5: 描画は prefer.avoidHighways に一致する方（無ければ成功した方）
     const preferLocal=!!S.avoidHighways;
     const chosen = preferLocal ? (iLocal||iHwy) : (iHwy||iLocal);
-    try{ S.dirRenderer.setDirections(chosen.res); }catch(e){ console.log("[MulmoNavi PAIR] setDirections threw", e&&e.message); }
+    const wasReroute = !!S.route;
+    let setOk=true; try{ S.dirRenderer.setDirections(chosen.res); }catch(e){ setOk=false; console.log("[MulmoNavi PAIR] setDirections threw", e&&e.message); }
     S.route=chosen.res.routes[0];
     S.steps=S.route.legs.flatMap(l=>l.steps);
     S.curStep=0; S.lastSpokenStep=-1; renderSteps();
     S.compare={ hwy:iHwy, local:iLocal };
     updateCompareUI();
+    logRouteApplied(chosen, preferLocal, wasReroute, intentGen, setOk);   // 問題3: 描画側の診断1行
     announceCompare(iHwy, iLocal, sayFallback);   // item8: 片道で両方の数字
   }catch(e){
     console.log("[MulmoNavi PAIR] FAILED", { which:"pair", status:"THROW", error:(e&&e.message)||String(e) });
@@ -1916,6 +2109,7 @@ function resetNavState(){
   S.destination=null; S.destName=""; S.waypoints=[];
   S.avoidHighways=false; S.avoidTolls=false;
   S.route=null; S.roadChosen=false; S.pendingRoad=false;
+  if(typeof cancelForget==="function") cancelForget("reset");   // 問題4: 削除確認も破棄
   S.compare=null; if(typeof updateCompareUI==="function") updateCompareUI();   // 比較パネルも消す
   updateOriginUI();
   if(typeof renderSteps==="function") renderSteps();
