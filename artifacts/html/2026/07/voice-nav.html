@@ -602,14 +602,18 @@ const ECHO_GUARD_MS = 3500;
 async function speakOne(text, opts){
   if(!S.tts) return;
   S._botText = text;   // バージイン用: 今読み上げている文（自分のエコー判定に使う）
+  // エコー修正(2): 「発話予定の全文」を再生開始時点で _echoBuf に投入する。こうすると
+  // interimバージインで途中STOPされ botText がクリアされても、続きの final を isLateEcho で
+  // 弾ける（STOPの有無に依存しないエコー判定）。終了/STOP時に at を更新して窓を延長する。
+  if(!S._echoBuf) S._echoBuf=[];
+  const echoEntry = { text, at: Date.now() };
+  S._echoBuf.push(echoEntry);
+  if(S._echoBuf.length>5) S._echoBuf.shift();
   try{
     await speakOneInner(text, opts);
   } finally {
     S._botText = "";
-    // 発話“終了”時刻で直近bot発話を記録 → 以後 ECHO_GUARD_MS 窓で遅延エコーを弾く
-    if(!S._echoBuf) S._echoBuf=[];
-    S._echoBuf.push({ text, at: Date.now() });
-    if(S._echoBuf.length>5) S._echoBuf.shift();
+    echoEntry.at = Date.now();   // 発話終了/STOP時点に窓をリフレッシュ（以後 ECHO_GUARD_MS 有効）
   }
 }
 async function speakOneInner(text, opts){
@@ -675,6 +679,18 @@ function isEchoLight(transcript){
   if(!bot || !t || t.length<4) return false;   // 短い声は止める側（エコー扱いしない）
   return bot.includes(t);                       // botに完全包含される時だけ明確なエコー
 }
+// エコー修正(1): interim バージインを抑止すべきか判定。null=抑止しない(バージインOK)、
+// 文字列=抑止理由。安全即応ワード(ストップ/ミュート/リピート等)は絶対に抑止しない(条件4)。
+//  - 自分の発話の部分文字列(substr) → 自TTSのエコー → 抑止
+//  - 短すぎる断片(BARGE_MIN_LEN 未満) → エコー冒頭の可能性が高い → 抑止
+const BARGE_MIN_LEN = 5;
+function bargeSuppressReason(t){
+  if(layer1Safety(t)) return null;                 // 条件4: 安全語は最速で止める（抑止しない）
+  const clean=String(t||"").replace(/[\s、。,.!！?？「」]/g,"");
+  if(clean.length < BARGE_MIN_LEN) return "too-short";
+  if(echoDebug(t).substr) return "substr";         // 自TTSの部分文字列
+  return null;
+}
 // [TEMP-BARGEIN] 診断用: isEcho の内訳（部分一致か / 文字重なり率）を返す（検証後に削除）
 function echoDebug(transcript){
   const norm=s=>String(s||"").toLowerCase().replace(/[\s、。,.!！?？「」]/g,"");
@@ -706,6 +722,10 @@ function noteEngine(kind, reason){
 
 /* ============================ 音声認識 (STT / ハンズフリー) ============================ */
 const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
+// 掃除: STTライフサイクル(onstart/onend/restart)は no-speech で高頻度に発火しログを埋める。
+// 5秒に1回だけ出力するスロットル（エラー/watchdog/バージインは従来通り毎回出す）。
+let _sttLogAt=0;
+function sttLog(msg){ const n=Date.now(); if(n-_sttLogAt<5000) return; _sttLogAt=n; console.log(msg); }
 let recog=null;
 let listening=false;    // 実際に認識中か
 let wantListen=false;   // ハンズフリーを継続したいか（ユーザー意図）
@@ -720,12 +740,13 @@ function buildRecog(){
   // interim を有効化：発話が確定する前（喋り始め）に TTS を止められる＝バージインが速い。
   r.interimResults=true; r.maxAlternatives=1;
   r.continuous=true;    // ← 連続認識（ボタンを押し続けなくてよい）
-  r.onstart=()=>{ listening=true; _restarting=false; updateMicUI(); console.log("[MulmoNavi STT] onstart (listening)"); };
+  r.onstart=()=>{ listening=true; _restarting=false; updateMicUI(); sttLog("[MulmoNavi STT] onstart (listening)"); };
   r.onend=()=>{
     listening=false; updateMicUI();
-    console.log("[MulmoNavi STT] onend (wantListen="+wantListen+") → "+(wantListen?"restart":"stay"));
+    sttLog("[MulmoNavi STT] onend (wantListen="+wantListen+") → "+(wantListen?"restart":"stay"));
     // ブラウザは無音/一定時間で勝手に停止するので、意図が続く限り自動再開
-    if(wantListen) scheduleRestart(250);
+    // 掃除: no-speech の連続再起動でログが埋まるため間隔を 250→600ms に緩和（watchdog=2500 が保険）。
+    if(wantListen) scheduleRestart(600);
   };
   r.onerror=e=>{
     console.log("[MulmoNavi STT] onerror:", e && e.error);
@@ -750,7 +771,13 @@ function buildRecog(){
       // AI発話中に、明確なエコーでない声を interim の時点で拾ったら、final を待たず
       // 即座に TTS を止める。1発話につき1回だけ（S._barged）。誤爆はログで後調整。
       if(speaking && nowMs>=ignoreUntil && !isEchoLight(t)){
-        if(!S._barged){
+        // エコー修正(1): 自TTSの部分文字列/短すぎる断片は STOP@interim を発動しない
+        // （安全語は bargeSuppressReason が null を返すので従来通り即停止）。
+        const sup = bargeSuppressReason(t);
+        if(sup){
+          const dbg=echoDebug(t);
+          console.log("[MulmoNavi ECHO] suppressed", { reason:sup, transcript:t, tLen:dbg.tLen, substr:dbg.substr });
+        }else if(!S._barged){
           S._barged=true; flushTts();
           console.log("[MulmoNavi BARGEIN] STOP@"+(res.isFinal?"final":"interim"), { transcript:t, ...echoDebug(t) });
         }
@@ -797,7 +824,7 @@ function scheduleRestart(delay){
     // 新しい final が全て "i < _done" で破棄されて無反応になる（割り込み後に多発）。
     try{ killRecog(recog); }catch(e){}
     recog=buildRecog();
-    try{ recog.start(); console.log("[MulmoNavi STT] restart (fresh recog)"); }
+    try{ recog.start(); sttLog("[MulmoNavi STT] restart (fresh recog)"); }
     catch(e){ console.log("[MulmoNavi STT] restart failed:", e && e.message); _restarting=false; }
   }, delay||300);
 }
@@ -2083,7 +2110,7 @@ function _startNavLoop(){
   unlockAudioOnce();           // 「ナビ開始」タップを使って確実に音声を解錠（スマホ対策）
   requestWakeLock();           // 走行中は画面を消さない（スマホを車載時に有効）
   $("banner").classList.add("show");
-  S.map.setZoom(18); S.map.setTilt?.(45);
+  S.map.setZoom(18);   // 掃除: setTilt(45) は Maps JS 3.65 で45°イメージ廃止につき削除（警告抑止）
   botSay(T().navStart);
   updateBanner(); speakStep(0, true);
   if(navigator.geolocation){
@@ -2096,7 +2123,6 @@ function stopNav(){
   if(S.watchId!=null){navigator.geolocation.clearWatch(S.watchId);S.watchId=null;}
   releaseWakeLock();
   $("banner").classList.remove("show");
-  S.map.setTilt?.(0);
   botSay(T().navStop);
   resetNavState();   // item5: 経路状態を全クリア（次の目的地で高速確認が再度出る＝B-2の副作用解消）
 }
