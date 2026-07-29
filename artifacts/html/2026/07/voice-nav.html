@@ -722,6 +722,10 @@ function noteEngine(kind, reason){
 
 /* ============================ 音声認識 (STT / ハンズフリー) ============================ */
 const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
+// 掃除: STTライフサイクル(onstart/onend/restart)は no-speech で高頻度に発火しログを埋める。
+// 5秒に1回だけ出力するスロットル（エラー/watchdog/バージインは従来通り毎回出す）。
+let _sttLogAt=0;
+function sttLog(msg){ const n=Date.now(); if(n-_sttLogAt<5000) return; _sttLogAt=n; console.log(msg); }
 let recog=null;
 let listening=false;    // 実際に認識中か
 let wantListen=false;   // ハンズフリーを継続したいか（ユーザー意図）
@@ -736,12 +740,13 @@ function buildRecog(){
   // interim を有効化：発話が確定する前（喋り始め）に TTS を止められる＝バージインが速い。
   r.interimResults=true; r.maxAlternatives=1;
   r.continuous=true;    // ← 連続認識（ボタンを押し続けなくてよい）
-  r.onstart=()=>{ listening=true; _restarting=false; updateMicUI(); console.log("[MulmoNavi STT] onstart (listening)"); };
+  r.onstart=()=>{ listening=true; _restarting=false; updateMicUI(); sttLog("[MulmoNavi STT] onstart (listening)"); };
   r.onend=()=>{
     listening=false; updateMicUI();
-    console.log("[MulmoNavi STT] onend (wantListen="+wantListen+") → "+(wantListen?"restart":"stay"));
+    sttLog("[MulmoNavi STT] onend (wantListen="+wantListen+") → "+(wantListen?"restart":"stay"));
     // ブラウザは無音/一定時間で勝手に停止するので、意図が続く限り自動再開
-    if(wantListen) scheduleRestart(250);
+    // 掃除: no-speech の連続再起動でログが埋まるため間隔を 250→600ms に緩和（watchdog=2500 が保険）。
+    if(wantListen) scheduleRestart(600);
   };
   r.onerror=e=>{
     console.log("[MulmoNavi STT] onerror:", e && e.error);
@@ -819,7 +824,7 @@ function scheduleRestart(delay){
     // 新しい final が全て "i < _done" で破棄されて無反応になる（割り込み後に多発）。
     try{ killRecog(recog); }catch(e){}
     recog=buildRecog();
-    try{ recog.start(); console.log("[MulmoNavi STT] restart (fresh recog)"); }
+    try{ recog.start(); sttLog("[MulmoNavi STT] restart (fresh recog)"); }
     catch(e){ console.log("[MulmoNavi STT] restart failed:", e && e.message); _restarting=false; }
   }, delay||300);
 }
@@ -2105,7 +2110,7 @@ function _startNavLoop(){
   unlockAudioOnce();           // 「ナビ開始」タップを使って確実に音声を解錠（スマホ対策）
   requestWakeLock();           // 走行中は画面を消さない（スマホを車載時に有効）
   $("banner").classList.add("show");
-  S.map.setZoom(18); S.map.setTilt?.(45);
+  S.map.setZoom(18);   // 掃除: setTilt(45) は Maps JS 3.65 で45°イメージ廃止につき削除（警告抑止）
   botSay(T().navStart);
   updateBanner(); speakStep(0, true);
   if(navigator.geolocation){
@@ -2118,7 +2123,6 @@ function stopNav(){
   if(S.watchId!=null){navigator.geolocation.clearWatch(S.watchId);S.watchId=null;}
   releaseWakeLock();
   $("banner").classList.remove("show");
-  S.map.setTilt?.(0);
   botSay(T().navStop);
   resetNavState();   // item5: 経路状態を全クリア（次の目的地で高速確認が再度出る＝B-2の副作用解消）
 }
