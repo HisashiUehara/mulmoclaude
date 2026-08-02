@@ -687,11 +687,25 @@ function isEchoLight(transcript){
 //  - 自分の発話の部分文字列(substr) → 自TTSのエコー → 抑止
 //  - 短すぎる断片(BARGE_MIN_LEN 未満) → エコー冒頭の可能性が高い → 抑止
 const BARGE_MIN_LEN = 5;
+const BARGE_RATIO = 0.9;   // 連続部分文字列でなくても文字重なり率がこれ以上ならエコー扱い
+// 空白で区切った各断片が「いずれも自TTSの部分文字列」なら、離れた2箇所を合成したエコー。
+// (echoDebug は空白除去後に判定するため、非連続な合成断片は substr:false になる。案1の本質は
+//  『断片ごとの部分文字列判定』。連続1本の substr 判定とは別に用意する。)
+function echoPartsSubstr(t){
+  const norm=s=>String(s||"").toLowerCase().replace(/[\s、。,.!！?？「」]/g,"");
+  const bot=norm(S._botText); if(!bot) return false;
+  const parts=String(t||"").trim().split(/\s+/).map(norm).filter(p=>p.length>=2);
+  if(parts.length<2) return false;               // 単一断片は既存 substr 判定に任せる
+  return parts.every(p=>bot.includes(p));
+}
 function bargeSuppressReason(t){
   if(layer1Safety(t)) return null;                 // 条件4: 安全語は最速で止める（抑止しない）
   const clean=String(t||"").replace(/[\s、。,.!！?？「」]/g,"");
   if(clean.length < BARGE_MIN_LEN) return "too-short";
-  if(echoDebug(t).substr) return "substr";         // 自TTSの部分文字列
+  const dbg=echoDebug(t);
+  if(dbg.substr) return "substr";                  // 自TTSの連続部分文字列
+  if(echoPartsSubstr(t)) return "substr-parts";    // 案1: 空白合成された断片（各片がエコー）
+  if(dbg.ratio >= BARGE_RATIO) return "high-ratio"; // 案2: 非連続でも文字重なり率が高い
   return null;
 }
 // [TEMP-BARGEIN] 診断用: isEcho の内訳（部分一致か / 文字重なり率）を返す（検証後に削除）
