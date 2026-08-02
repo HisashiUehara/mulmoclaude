@@ -1197,8 +1197,10 @@ $("mic").onclick=toggleMic;
 // true=RouteIntent DSL経路（新）／false=差分ツール経路（旧・ロールバック用・残置）。
 const USE_INTENT = true;
 // B-2a: 経路計算を Routes API に一本化（true）。失敗時は legacy DirectionsService へ自動フォールバック。
-// false でロールバック（従来の Directions経路 + 料金後追い）。描画は engine に依らず現行 Renderer。
+// false でロールバック（従来の Directions経路 + 料金後追い）。
 const USE_ROUTES_UNIFIED = true;
+// B-2b: 描画を自作 Polyline（高速区間の色分け）に置き換え（true）。false で DirectionsRenderer に戻す。
+const USE_CUSTOM_DRAW = true;
 async function navChatReply(userText, fallbackType){
   if(!S.navChatToken || !S.navChatUrl){ botSay(cannedFor(fallbackType)); return; }
   const ctrl=new AbortController();
@@ -1374,7 +1376,7 @@ async function applyRouteIntent(intent){
     const preferLocal=!!S.avoidHighways;
     const chosen = preferLocal ? (S.compare.local||S.compare.hwy) : (S.compare.hwy||S.compare.local);
     if(chosen){
-      let setOk=true; try{ S.dirRenderer.setDirections(chosen.res); }catch(e){ setOk=false; }
+      const setOk = applyDraw(chosen.res, "prefer-cache");   // B-2b: 描画は唯一の入口 applyDraw 経由
       S.route=chosen.res.routes[0]; S.steps=S.route.legs.flatMap(l=>l.steps); S.curStep=0; S.lastSpokenStep=-1; renderSteps(); updateCompareUI();
       logRouteApplied(chosen, preferLocal, true, gen, setOk);   // 問題3: ROUTE applied（掃除リスト1）
       console.log("[MulmoNavi INTENT] prefer-only → re-render from cache (no geocode) gen", gen);
@@ -1942,7 +1944,7 @@ function buildRoute(cb){
       let zBefore=null, cBefore=null;
       try{ zBefore=S.map.getZoom(); const c=S.map.getCenter(); cBefore=c&&(c.lat().toFixed(5)+","+c.lng().toFixed(5)); }catch(e){}
       let setOk=false, hadMap=null;
-      try{ S.dirRenderer.setDirections(res); setOk=true; }catch(e){ console.log("[MulmoNavi ROUTE] setDirections threw:", e && e.message); }
+      setOk = applyDraw(res, "legacy-single");   // B-2b: 描画は applyDraw（USE_CUSTOM_DRAW で drawRoute）
       try{ hadMap = !!(S.dirRenderer.getMap && S.dirRenderer.getMap()); }catch(e){ hadMap="err"; }
       let zAfter=null, cAfter=null;
       try{ zAfter=S.map.getZoom(); const c=S.map.getCenter(); cAfter=c&&(c.lat().toFixed(5)+","+c.lng().toFixed(5)); }catch(e){}
@@ -2120,7 +2122,7 @@ function applyRoutePairResult(pair, tolls, engine, ctx){
   const preferLocal=!!S.avoidHighways;
   const chosen = preferLocal ? (iLocal||iHwy) : (iHwy||iLocal);
   const wasReroute = !!S.route;
-  let setOk=true; try{ S.dirRenderer.setDirections(chosen.res); }catch(e){ setOk=false; console.log("[MulmoNavi PAIR] setDirections threw", e&&e.message); }
+  const setOk = applyDraw(chosen.res, engine);   // B-2b: 描画は唯一の入口 applyDraw 経由
   if(!setOk && engine==="routes-unified") return "setfail";   // 状態未変更のまま legacy 再適用へ
   S.route=chosen.res.routes[0];
   S.steps=S.route.legs.flatMap(l=>l.steps);
@@ -2317,6 +2319,75 @@ async function computeRoutesPairUnified(baseReq){
     computeRoutesUnifiedOne(lib, baseReq, true ).catch(e=>{ console.log("[MulmoNavi ROUTE] unified local FAILED", { error:(e&&e.message)||String(e) }); return null; }),
   ]);
   return { hwy, local };
+}
+
+/* ==================== B-2b: 自作 Polyline 描画（高速区間の色分け） ====================
+   描画の唯一の入口 drawRoute(res)。呼ぶたびに全消し→全描き（差分更新しない）。DirectionsResult
+   (統一アダプタ / legacy いずれも同形)を受け、step 単位で高速/一般道を分けて Polyline 化する。
+   USE_CUSTOM_DRAW=false で DirectionsRenderer に即戻せる。描画物は S.drawn に必ず登録。*/
+const HWY_COLOR   = "#ff8a3d";   // 高速: オレンジ（ダーク地図で一般道の青と明確に判別）
+const LOCAL_COLOR = "#4c8dff";   // 一般道: 現行の青を維持
+function _ensureDrawn(){ if(!S.drawn) S.drawn={ polylines:[], markers:[] }; return S.drawn; }
+// 古い描画物を全消し（setMap(null)）。消した残数を返す（二重描画検知用）。
+function clearDrawn(){
+  const d=_ensureDrawn(); const stale=d.polylines.length + d.markers.length;
+  for(const o of d.polylines){ try{ o.setMap(null); }catch(e){} }
+  for(const m of d.markers){ try{ m.setMap(null); }catch(e){} }
+  d.polylines.length=0; d.markers.length=0;
+  return stale;
+}
+function _addPolyline(path, isHwy){
+  const pl=new google.maps.Polyline({ map:S.map, path,
+    strokeColor:isHwy?HWY_COLOR:LOCAL_COLOR, strokeWeight:7, strokeOpacity:.9, zIndex:isHwy?5:4 });
+  _ensureDrawn().polylines.push(pl);
+}
+// A/B/経由地マーカー。※AdvancedMarkerElement は mapId 必須で、mapId を付けると JS の DARK_STYLE が
+// 無効化される（要 GCP: cloud側ダーク配色 + 本番 mapId）。今回は据置き、legacy Marker で暫定描画。
+function _addMarker(pos, label){
+  if(!pos) return;
+  const mk=new google.maps.Marker({ map:S.map, position:pos, zIndex:10,
+    label: label?{ text:label, color:"#fff", fontWeight:"700" }:undefined });
+  _ensureDrawn().markers.push(mk);
+}
+// 描画の唯一の入口。navOn 中は fitBounds しない（現在地追従を優先）。
+function drawRoute(res, engine){
+  const route = res && res.routes && res.routes[0];
+  const stale = clearDrawn();   // まず全消し
+  if(!route){ console.log("[MulmoNavi DRAW]", { polylines:0, hwySegs:0, localSegs:0, markers:0, fitBounds:false, engine, staleBefore:stale }); return; }
+  // step 単位で高速/一般道を判定し、連続する同クラスをまとめて1本のPolylineに。
+  const steps=(route.legs||[]).flatMap(l=>l.steps||[]);
+  let hwySegs=0, localSegs=0, cur=null;
+  const flush=()=>{ if(cur && cur.path.length>=2){ _addPolyline(cur.path, cur.hwy); if(cur.hwy) hwySegs++; else localSegs++; } cur=null; };
+  for(const st of steps){
+    const path=st.path||[]; if(!path.length) continue;
+    const isHwy=HWY_RE.test(stripHtml(st.instructions||""));   // B-1 の高速判定を step に流用
+    if(!cur || cur.hwy!==isHwy){ flush(); cur={ hwy:isHwy, path:[] }; }
+    for(const p of path) cur.path.push(p);
+  }
+  flush();
+  // step path が無い応答は overview_path を一般道色で1本（描画ゼロを避ける保険）。
+  if(hwySegs+localSegs===0 && route.overview_path && route.overview_path.length>=2){ _addPolyline(route.overview_path, false); localSegs++; }
+  // A(出発)・B(目的地)・経由地マーカー。
+  const legs=route.legs||[];
+  if(legs.length){
+    _addMarker(legs[0].start_location, "A");
+    for(let i=0;i<legs.length-1;i++) _addMarker(legs[i].end_location, "");   // 経由地
+    _addMarker(legs[legs.length-1].end_location, "B");
+  }
+  // fitBounds は drawRoute 内で1回だけ。navOn 中は追従を上書きしないため呼ばない。
+  let didFit=false;
+  if(!S.navOn){
+    let b=route.bounds;
+    if(!b || typeof b.getCenter!=="function"){ b=new google.maps.LatLngBounds(); (route.overview_path||[]).forEach(p=>b.extend(p)); }
+    try{ if(b && (typeof b.isEmpty!=="function" || !b.isEmpty())){ S.map.fitBounds(b, 60); didFit=true; } }catch(e){}
+  }
+  console.log("[MulmoNavi DRAW]", { polylines:_ensureDrawn().polylines.length, hwySegs, localSegs,
+    markers:_ensureDrawn().markers.length, fitBounds:didFit, engine, staleBefore:stale });
+}
+// 描画の切替点: USE_CUSTOM_DRAW なら drawRoute、そうでなければ従来の DirectionsRenderer。
+function applyDraw(res, engine){
+  if(USE_CUSTOM_DRAW){ try{ drawRoute(res, engine); return true; }catch(e){ console.log("[MulmoNavi DRAW] threw", e&&e.message); return false; } }
+  try{ S.dirRenderer.setDirections(res); return true; }catch(e){ console.log("[MulmoNavi ROUTE] setDirections threw:", e&&e.message); return false; }
 }
 // 料金・高速区間を後追い取得して比較UI/シート/音声へ反映（本流に割り込まない）。
 async function fetchTollInfo(originLatLng, baseReq, gen, dirDist){
