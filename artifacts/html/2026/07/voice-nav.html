@@ -1394,6 +1394,7 @@ async function applyRouteIntent(intent){
     if(chosen){
       const setOk = applyDraw(chosen.res, "prefer-cache");   // B-2b: 描画は唯一の入口 applyDraw 経由
       S.route=chosen.res.routes[0]; S.steps=S.route.legs.flatMap(l=>l.steps); S.curStep=0; S.lastSpokenStep=-1; renderSteps(); updateCompareUI();
+      updateHwySeg({ hwy: S.compare.hwy && S.compare.hwy.toll });   // 修正2: 選択に応じ高速区間名を更新/非表示（古い表示の解消）
       logRouteApplied(chosen, preferLocal, true, gen, setOk);   // 問題3: ROUTE applied（掃除リスト1）
       console.log("[MulmoNavi INTENT] prefer-only → re-render from cache (no geocode) gen", gen);
       // 統合: 初回と同じ「選択側+もう一方+料金(キャッシュ)」形式で発話（TOLL再呼び出しなし）。
@@ -2207,9 +2208,10 @@ function stepInstr(step){
 }
 // 高速道路名の抽出。連続する有料区間をまとめて「A → B」形式に。取りこぼしは報告参照。
 const HWY_RE=/(高速|自動車道|首都高速?|阪神高速|名古屋高速|有料道路|expressway|toll)/i;
-// 「首都高速湾岸線」等の路線名を拾う。貪欲(*)にして接尾辞(線/道路/高速等)まで含めた最長名を取る
-// （lazy だと『首都高速』で切れる）。区切りは空白・句読点・括弧。
-const HWY_NAME_RE=/([^\s。、）)]*(?:高速道路|自動車道|有料道路|バイパス|高速|線))/;
+// 「首都高速湾岸線」等の路線名を拾う。貪欲(*)で接尾辞まで含めた最長名を取る（lazyだと『首都高速』で
+// 切れる）。修正1: 接尾辞「線」は車線指示を除くため (?<!車)線 とし『右車線/左車線』を弾く。方向指示
+// （右折/左折/方面等）は路線接尾辞を持たないため元から不一致。区切りは空白・句読点・括弧。
+const HWY_NAME_RE=/([^\s。、）)\/（(]*(?:高速道路|自動車道|有料道路|バイパス|高速|(?<!車)線))/;
 function highwayNames(route){
   const names=[];
   for(const leg of (route&&route.legs)||[]){
@@ -2452,11 +2454,13 @@ function applyTollResult(result, gen){
   updateHwySeg(result);
   announceToll(result);
 }
-// 高速区間名を #sheet に1行表示（高速側の区間名）。
+// 高速区間名を #sheet に1行表示（高速側の区間名）。修正2: 下道選択中は非表示にして
+// 前回の高速経路名が古いまま残るのを防ぐ（毎描画・prefer切替でこの関数を呼び直す）。
 function updateHwySeg(result){
   const el=$("hwySeg"); if(!el) return;
-  const names = (result.hwy && result.hwy.names) || [];
-  if(!names.length){ el.style.display="none"; el.innerHTML=""; return; }
+  const preferLocal = !!S.avoidHighways;
+  const names = (result && result.hwy && result.hwy.names) || [];
+  if(preferLocal || !names.length){ el.style.display="none"; el.innerHTML=""; return; }
   const ja=S.lang==="ja";
   el.innerHTML = `<b>${ja?"高速区間":"Highway"}</b>: `+names.join(" → ");
   el.style.display="block";
