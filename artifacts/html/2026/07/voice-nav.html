@@ -1196,6 +1196,9 @@ $("mic").onclick=toggleMic;
 // トークン未取得・失敗・タイムアウト時は定型文にフォールバック（会話を止めない）。
 // true=RouteIntent DSL経路（新）／false=差分ツール経路（旧・ロールバック用・残置）。
 const USE_INTENT = true;
+// B-2a: 経路計算を Routes API に一本化（true）。失敗時は legacy DirectionsService へ自動フォールバック。
+// false でロールバック（従来の Directions経路 + 料金後追い）。描画は engine に依らず現行 Renderer。
+const USE_ROUTES_UNIFIED = true;
 async function navChatReply(userText, fallbackType){
   if(!S.navChatToken || !S.navChatUrl){ botSay(cannedFor(fallbackType)); return; }
   const ctrl=new AbortController();
@@ -2069,36 +2072,71 @@ async function buildRoutePair(intentGen, sayFallback){
     };
     if(isDriving) baseReq.drivingOptions={ departureTime:new Date(), trafficModel:"bestguess" };   // item3
     const t0=performance.now();
-    // 徒歩は高速/下道の区別が無いので1本のみ（比較UIは出さない）。各Promiseは reject しない。
-    const pair = isDriving ? await Promise.all([ _routeOnce(baseReq,false,"hwy"), _routeOnce(baseReq,true,"local") ])
-                           : [ await _routeOnce(baseReq,false,"hwy"), null ];
+    // B-2a: まず Routes API 統一（経路+料金を同一応答で取得）。失敗/徒歩は legacy Directions へ。
+    let engine="legacy-directions", pair=null, tolls=null;
+    if(USE_ROUTES_UNIFIED && isDriving){
+      try{
+        const uni = await computeRoutesPairUnified(baseReq);
+        if(uni && (uni.hwy || uni.local)){
+          pair=[ uni.hwy&&uni.hwy.res, uni.local&&uni.local.res ];
+          tolls={ hwy:uni.hwy&&uni.hwy.toll, local:uni.local&&uni.local.toll };
+          engine="routes-unified";
+        } else { console.log("[MulmoNavi ROUTE] fallback→legacy", { reason:"unified empty" }); }
+      }catch(e){ console.log("[MulmoNavi ROUTE] fallback→legacy", { reason:(e&&e.message)||String(e) }); }
+    }
+    if(!pair){   // legacy: 徒歩 / 統一OFF / 統一失敗。徒歩は1本のみ。
+      pair = isDriving ? await Promise.all([ _routeOnce(baseReq,false,"hwy"), _routeOnce(baseReq,true,"local") ])
+                       : [ await _routeOnce(baseReq,false,"hwy"), null ];
+      engine="legacy-directions"; tolls=null;
+    }
     const latMs=Math.round(performance.now()-t0);
-    // item2: 後着Intent/ペアに追い越されていたら破棄（二重ガード）
     if(intentGen!==S.intentSeq || pairSeq!==S.routeSeq){ console.log("[MulmoNavi PAIR] stale dropped", {intentGen, curIntent:S.intentSeq, pairSeq, curRoute:S.routeSeq}); return; }
-    const iHwy=routeInfo(pair[0]), iLocal=routeInfo(pair[1]);
-    console.log("[MulmoNavi PAIR] result", { latMs, isDriving,
-      hwy: iHwy?{distM:iHwy.dist,durS:iHwy.dur,traffic:iHwy.usedTraffic,src:iHwy.usedTraffic?"duration_in_traffic":"duration"}:null,
-      local: iLocal?{distM:iLocal.dist,durS:iLocal.dur,traffic:iLocal.usedTraffic}:null });
-    if(!iHwy && !iLocal){ console.log("[MulmoNavi PAIR] both failed"); botSay(sayFallback||T().noRoute); return; }   // item6: 両方失敗のみエラー
-    // item5: 描画は prefer.avoidHighways に一致する方（無ければ成功した方）
-    const preferLocal=!!S.avoidHighways;
-    const chosen = preferLocal ? (iLocal||iHwy) : (iHwy||iLocal);
-    const wasReroute = !!S.route;
-    let setOk=true; try{ S.dirRenderer.setDirections(chosen.res); }catch(e){ setOk=false; console.log("[MulmoNavi PAIR] setDirections threw", e&&e.message); }
-    S.route=chosen.res.routes[0];
-    S.steps=S.route.legs.flatMap(l=>l.steps);
-    S.curStep=0; S.lastSpokenStep=-1; renderSteps();
-    S.compare={ hwy:iHwy, local:iLocal };
-    updateCompareUI();
-    logRouteApplied(chosen, preferLocal, wasReroute, intentGen, setOk);   // 問題3: 描画側の診断1行
-    announceCompare(iHwy, iLocal, sayFallback);   // item8: 片道で両方の数字
-    // B-1: 料金・高速区間を Routes API で「後追い」取得（描画・所要比較には割り込ませない）。
-    // 従来アナウンス→料金取得完了時に補足発話。失敗しても料金欄が「—」のままになるだけ。
-    fetchTollInfo(originLatLng, baseReq, pairSeq, { hwy:iHwy&&iHwy.dist, local:iLocal&&iLocal.dist });
+    console.log("[MulmoNavi ROUTE] engine="+engine, { latMs });   // (3) どちらの経路で動いたか
+    const ctx={ intentGen, pairSeq, originLatLng, baseReq, sayFallback, latMs, isDriving };
+    const applied = applyRoutePairResult(pair, tolls, engine, ctx);
+    // (4) 統一経路の描画(setDirections)が失敗したら legacy に落として再適用（安全網）。
+    if(applied==="setfail"){
+      console.log("[MulmoNavi ROUTE] fallback→legacy", { reason:"setDirections failed on unified" });
+      const lp = isDriving ? await Promise.all([ _routeOnce(baseReq,false,"hwy"), _routeOnce(baseReq,true,"local") ])
+                           : [ await _routeOnce(baseReq,false,"hwy"), null ];
+      if(intentGen!==S.intentSeq || pairSeq!==S.routeSeq) return;
+      applyRoutePairResult(lp, null, "legacy-directions", ctx);
+    }
   }catch(e){
     console.log("[MulmoNavi PAIR] FAILED", { which:"pair", status:"THROW", error:(e&&e.message)||String(e) });
     botSay(sayFallback || T().noRoute);   // 沈黙で終わらせない
   }
+}
+// 経路ペアを描画・比較UI・アナウンスへ反映。戻り値: "ok"|"empty"|"setfail"（統一の描画失敗→呼び側が
+// legacy 再適用）。S.compare の形・アナウンス・#compareBar は engine に依らず不変。
+function applyRoutePairResult(pair, tolls, engine, ctx){
+  const iHwy=routeInfo(pair[0]), iLocal=routeInfo(pair[1]);
+  console.log("[MulmoNavi PAIR] result", { engine, latMs:ctx.latMs, isDriving:ctx.isDriving,
+    hwy: iHwy?{distM:iHwy.dist,durS:iHwy.dur,traffic:iHwy.usedTraffic}:null,
+    local: iLocal?{distM:iLocal.dist,durS:iLocal.dur,traffic:iLocal.usedTraffic}:null });
+  if(!iHwy && !iLocal){ console.log("[MulmoNavi PAIR] both failed"); botSay(ctx.sayFallback||T().noRoute); return "empty"; }
+  // 統一経路は同一応答の料金を即 attach（後追い fetchTollInfo 不要・gapPct=0 で「約」が付かない）。
+  if(tolls){ if(iHwy&&tolls.hwy) iHwy.toll=tolls.hwy; if(iLocal&&tolls.local) iLocal.toll=tolls.local; }
+  const preferLocal=!!S.avoidHighways;
+  const chosen = preferLocal ? (iLocal||iHwy) : (iHwy||iLocal);
+  const wasReroute = !!S.route;
+  let setOk=true; try{ S.dirRenderer.setDirections(chosen.res); }catch(e){ setOk=false; console.log("[MulmoNavi PAIR] setDirections threw", e&&e.message); }
+  if(!setOk && engine==="routes-unified") return "setfail";   // 状態未変更のまま legacy 再適用へ
+  S.route=chosen.res.routes[0];
+  S.steps=S.route.legs.flatMap(l=>l.steps);
+  S.curStep=0; S.lastSpokenStep=-1; renderSteps();
+  S.compare={ hwy:iHwy, local:iLocal };
+  updateCompareUI();
+  logRouteApplied(chosen, preferLocal, wasReroute, ctx.intentGen, setOk);
+  announceCompare(iHwy, iLocal, ctx.sayFallback);   // 統一時は S.compare[side].toll があるので料金入り
+  if(engine==="routes-unified"){
+    S._tollKey=null; S._tollResult=null;   // legacy 料金キャッシュは使わない
+    updateHwySeg({ hwy: iHwy&&iHwy.toll, local: iLocal&&iLocal.toll });   // 高速区間名（同一応答から）
+  } else {
+    // legacy: 料金は Routes API で後追い取得（残置・ロールバック用）。
+    fetchTollInfo(ctx.originLatLng, ctx.baseReq, ctx.pairSeq, { hwy:iHwy&&iHwy.dist, local:iLocal&&iLocal.dist });
+  }
+  return "ok";
 }
 
 /* ==================== B-1: 料金・高速区間の取得（Routes API併用） ====================
@@ -2113,6 +2151,9 @@ const TOLL_TIMEOUT_MS = 4000;
 // 料金は travelAdvisory→route.travelAdvisory.tollInfo / legs→route.legs[i].travelAdvisory.tollInfo、
 // 案内文は legs→route.legs[i].steps[j].instructions で読む。公式の料金例と同じ粒度。
 const TOLL_FIELDS = ["durationMillis","distanceMeters","travelAdvisory","legs"];
+// B-2a: 統一経路は料金fields + 幾何(path)+viewport を要求（公式リファレンスで確定: path=経路の
+// LatLngAltitude配列で polyline描画に使える, viewport=LatLngBounds）。全てトップレベル名。
+const UNIFIED_FIELDS = ["durationMillis","distanceMeters","travelAdvisory","legs","path","viewport"];
 // 経路識別キー（origin/destination/via）。prefer は含めない（両側とも取得しキャッシュするため、
 // prefer 切替＝キャッシュ再描画では呼ばない）。
 function tollRouteKey(originLatLng){
@@ -2205,6 +2246,77 @@ function directionsHighwayNames(dirResult){
     }
   }
   return names;
+}
+
+/* ==================== B-2a: 経路計算の Routes API 統一（互換アダプタ方式） ====================
+   Route.computeRoutes の結果を DirectionsResult 形式へ変換し、既存の DirectionsRenderer /
+   アナウンス / 状態管理をそのまま使う。描画コードは1行も変更しない。失敗時は legacy へ落ちる。*/
+// LatLngAltitude/LatLng(literal or 実体) → google.maps.LatLng。lat/lng はプロパティ(公式)。
+function _toLL(p){
+  if(!p) return null;
+  const la = (typeof p.lat==="function") ? p.lat() : p.lat;
+  const ln = (typeof p.lng==="function") ? p.lng() : p.lng;
+  return (la!=null && ln!=null) ? new google.maps.LatLng(la, ln) : null;
+}
+// Route(routes lib) → DirectionsResult(最小互換)。幾何が無ければ throw（→ legacy へ）。
+// setDirections が使う: routes[0].overview_path / bounds / legs[].steps[].{path,distance,duration,
+// instructions,start_location,end_location}。routeInfo が使う: legs[].distance.value/.duration.value。
+function toDirectionsResult(route, travelMode){
+  const opath=(route.path||[]).map(_toLL).filter(Boolean);
+  if(!opath.length) throw new Error("Routes応答に path(幾何)が無い");   // 描画不能 → fallback
+  const legs=(route.legs||[]).map(leg=>{
+    const steps=(leg.steps||[]).map(st=>{
+      const sp=(st.path||[]).map(_toLL).filter(Boolean);
+      return { travel_mode:travelMode, instructions:st.instructions||"", maneuver:st.maneuver||"",
+        distance:{ value:st.distanceMeters||0, text:fmtDist(st.distanceMeters||0) },
+        duration:{ value:Math.round((st.staticDurationMillis||0)/1000), text:"" },
+        path:sp, start_location: sp[0]||_toLL(st.startLocation), end_location: sp[sp.length-1]||_toLL(st.endLocation) };
+    });
+    const lp=(leg.path||[]).map(_toLL).filter(Boolean);
+    return { distance:{ value:leg.distanceMeters||0, text:fmtDist(leg.distanceMeters||0) },
+      duration:{ value:Math.round((leg.durationMillis||0)/1000), text:"" }, steps,
+      start_location: lp[0]||(steps[0]&&steps[0].start_location)||opath[0],
+      end_location: lp[lp.length-1]||(steps.length&&steps[steps.length-1].end_location)||opath[opath.length-1],
+      start_address:"", end_address:"", via_waypoints:[] };
+  });
+  let bounds=route.viewport;
+  if(!bounds || typeof bounds.getCenter!=="function"){ bounds=new google.maps.LatLngBounds(); opath.forEach(p=>bounds.extend(p)); }
+  return { routes:[{ legs, overview_path:opath, bounds, overview_polyline:{points:""},
+    warnings:[], waypoint_order:[], copyrights:"", summary:"" }], request:{ travelMode }, geocoded_waypoints:[] };
+}
+// 統一経路を1本取得（経路+料金を同一応答から）。{res(DirectionsResult互換), toll, distM} か null。
+async function computeRoutesUnifiedOne(lib, baseReq, avoidHighways){
+  const TollPass=lib.TollPass||{}, Extra=lib.ComputeRoutesExtraComputation||{}, RP=lib.RoutingPreference||{};
+  const via=(S.waypoints||[]).map(w=>({ location:w.loc }));
+  const req={ origin:baseReq.origin, destination:baseReq.destination,
+    intermediates:via.length?via:undefined, travelMode:baseReq.travelMode,
+    routingPreference: RP.TRAFFIC_AWARE || "TRAFFIC_AWARE",
+    routeModifiers:{ avoidHighways:!!avoidHighways, avoidTolls:!!S.avoidTolls,
+      vehicleInfo:{ emissionType:"GASOLINE" }, tollPasses:[ TollPass.JP_ETC || "JP_ETC" ] },
+    extraComputations:[ Extra.TOLLS || "TOLLS" ], fields:UNIFIED_FIELDS };
+  const p=lib.Route.computeRoutes(req);
+  const to=new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout "+TOLL_TIMEOUT_MS+"ms")), TOLL_TIMEOUT_MS));
+  const { routes }=await Promise.race([p, to]);
+  const route=routes&&routes[0]; if(!route) return null;
+  const res=toDirectionsResult(route, baseReq.travelMode);   // throw→上位catch→当該sideはnull
+  const toll={ yen:routeTollYen(route), approx:false, names:highwayNames(route), gapPct:0 };   // 同一経路なので約なし
+  console.log("[MulmoNavi ROUTE] unified-one", { avoidHighways, distM:route.distanceMeters, durMs:route.durationMillis,
+    tollYen:toll.yen, legToll:(route.legs||[]).map(l=>tollYenFrom(l.travelAdvisory&&l.travelAdvisory.tollInfo)),
+    tollPassesSent:[ TollPass.JP_ETC || "JP_ETC" ] });
+  return { res, toll, distM:route.distanceMeters };
+}
+// 高速/下道の2本を統一経路で並列取得。ライブラリ未取得は throw（上位で legacy へ）。
+async function computeRoutesPairUnified(baseReq){
+  const lib=await google.maps.importLibrary("routes");
+  if(!lib || !lib.Route) throw new Error("routes library unavailable");
+  S._tollCalls=(S._tollCalls||0)+1;
+  console.log("[MulmoNavi TOLL] fields-used", UNIFIED_FIELDS);
+  console.log("[MulmoNavi TOLL] call #"+S._tollCalls, { engine:"routes-unified" });
+  const [hwy, local]=await Promise.all([
+    computeRoutesUnifiedOne(lib, baseReq, false).catch(e=>{ console.log("[MulmoNavi ROUTE] unified hwy FAILED", { error:(e&&e.message)||String(e) }); return null; }),
+    computeRoutesUnifiedOne(lib, baseReq, true ).catch(e=>{ console.log("[MulmoNavi ROUTE] unified local FAILED", { error:(e&&e.message)||String(e) }); return null; }),
+  ]);
+  return { hwy, local };
 }
 // 料金・高速区間を後追い取得して比較UI/シート/音声へ反映（本流に割り込まない）。
 async function fetchTollInfo(originLatLng, baseReq, gen, dirDist){
