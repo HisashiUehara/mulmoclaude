@@ -1361,7 +1361,8 @@ async function applyRouteIntent(intent){
       S.route=chosen.res.routes[0]; S.steps=S.route.legs.flatMap(l=>l.steps); S.curStep=0; S.lastSpokenStep=-1; renderSteps(); updateCompareUI();
       logRouteApplied(chosen, preferLocal, true, gen, setOk);   // 問題3: ROUTE applied（掃除リスト1）
       console.log("[MulmoNavi INTENT] prefer-only → re-render from cache (no geocode) gen", gen);
-      botSay(say || preferredLine(chosen, preferLocal), true, {cache:false});   // 問題1-2: sayに依存せず必ず発話
+      // 統合: 初回と同じ「選択側+もう一方+料金(キャッシュ)」形式で発話（TOLL再呼び出しなし）。
+      botSay(say || buildCompareLine(preferLocal), true, {cache:false});
       return;
     }
   }
@@ -1985,12 +1986,31 @@ function routeInfo(res){
 }
 function etaClock(sec){ const dt=new Date(Date.now()+sec*1000); return dt.getHours()+":"+String(dt.getMinutes()).padStart(2,"0"); }
 function durMin(sec){ return Math.round(sec/60); }
-// item8: 片道の1発話で両方の数字を伝える（2往復にしない）。片方のみなら片方だけ。
+// 比較アナウンスの唯一の組み立て（初回=buildRoutePair後 / prefer切替=キャッシュ再描画 の両経路で共用）。
+// 選択中の道種を必ず先頭に置き「選択側(所要+料金+ETA) + もう一方(所要[+料金])」の形にする。
+// 料金はキャッシュ S.compare[side].toll から取得（TOLL再呼び出しはしない）。未取得/無料は料金を省く。
+const _roadWord = (local, ja) => ja ? (local?"下道":"高速") : (local?"Local roads":"Highway");
+function _cmpTollClause(info, ja){
+  const t = info && info.toll;
+  if(!t || typeof t.yen!=="number" || t.yen<=0) return "";   // 未取得(—)/無料 は料金を言わない
+  return ja ? `${t.approx?"約":""}${t.yen}円` : `${t.approx?"about ":""}${t.yen} yen`;
+}
+function buildCompareLine(preferLocal){
+  const c=S.compare||{}; const ja=S.lang==="ja";
+  const chosen = preferLocal ? c.local : c.hwy;
+  const other  = preferLocal ? c.hwy   : c.local;
+  const parts=[];
+  if(chosen){ const tc=_cmpTollClause(chosen, ja);   // 選択側: 所要 + 料金 + ETA
+    parts.push(ja ? `${_roadWord(preferLocal,ja)}で${durMin(chosen.dur)}分${tc?`、${tc}`:""}、${etaClock(chosen.dur)}着です。`
+                  : `${_roadWord(preferLocal,ja)} ${durMin(chosen.dur)} min${tc?`, ${tc}`:""}, arriving ${etaClock(chosen.dur)}.`); }
+  if(other){ const tc=_cmpTollClause(other, ja);      // もう一方: 所要 [+ 料金]（ETAは省く）
+    parts.push(ja ? `${_roadWord(!preferLocal,ja)}なら${durMin(other.dur)}分${tc?`、${tc}`:""}です。`
+                  : `${_roadWord(!preferLocal,ja)} ${durMin(other.dur)} min${tc?`, ${tc}`:""}.`); }
+  return parts.join(ja?"":" ");
+}
+// item8: 初回アナウンス（buildRoutePair後）。統合関数 buildCompareLine を経由。
 function announceCompare(iHwy, iLocal, sayFallback){
-  const ja=S.lang==="ja"; const parts=[];
-  if(iHwy) parts.push(ja? `高速で${durMin(iHwy.dur)}分、${etaClock(iHwy.dur)}着です。` : `Highway ${durMin(iHwy.dur)} min, arriving ${etaClock(iHwy.dur)}.`);
-  if(iLocal) parts.push(ja? `下道なら${durMin(iLocal.dur)}分です。` : `Local roads ${durMin(iLocal.dur)} min.`);
-  const msg=parts.join(ja?"":" ");
+  const msg = buildCompareLine(!!S.avoidHighways);
   botSay(msg || sayFallback || T().routeReady(iHwy?fmtDist(iHwy.dist):"", ""), true, {cache:false});
 }
 // item7: 比較パネル（距離/所要/到着/料金枠）。prefer 側をハイライト。
@@ -2128,17 +2148,18 @@ function highwayNames(route){
   }
   return names;
 }
-// 1本を computeRoutes で取得（タイムアウト付き・reject しない）。{yen,distM,names,fieldDbg} か null。
+// 1本を computeRoutes で取得（タイムアウト付き・reject しない）。検証用の内訳も返す。
 async function computeRouteToll(lib, baseReq, avoidHighways){
   const TollPass = lib.TollPass || {};
   const Extra = lib.ComputeRoutesExtraComputation || {};
   const via = (S.waypoints||[]).map(w=>({ location: w.loc }));
+  const tollPassesSent = [ TollPass.JP_ETC || "JP_ETC" ];   // 送信した tollPasses（JP_ETC適用確認材料）
   const req = {
     origin: baseReq.origin, destination: baseReq.destination,
     intermediates: via.length?via:undefined,
     travelMode: baseReq.travelMode,
     routeModifiers: { avoidHighways:!!avoidHighways, avoidTolls:!!S.avoidTolls,
-      vehicleInfo:{ emissionType:"GASOLINE" }, tollPasses:[ TollPass.JP_ETC || "JP_ETC" ] },
+      vehicleInfo:{ emissionType:"GASOLINE" }, tollPasses:tollPassesSent },
     extraComputations: [ Extra.TOLLS || "TOLLS" ],
     fields: TOLL_FIELDS,
   };
@@ -2149,12 +2170,27 @@ async function computeRouteToll(lib, baseReq, avoidHighways){
   if(!route) return null;
   const yen = routeTollYen(route);
   const names = highwayNames(route);
+  // 検証用: leg ごとの通行料内訳（区間別が取れるか）。
+  const legToll = (route.legs||[]).map(l=>tollYenFrom(l.travelAdvisory&&l.travelAdvisory.tollInfo));
   // item2: 取得できなかったフィールドをログで判別できるように（黙って空を検出）。
   const fieldDbg = { durationMillis:route.durationMillis!=null, distanceMeters:route.distanceMeters!=null,
     routeTollInfo: !!(route.travelAdvisory&&route.travelAdvisory.tollInfo),
     legTollInfo: ((route.legs||[]).some(l=>l.travelAdvisory&&l.travelAdvisory.tollInfo)),
     stepInstr: (route.legs||[]).reduce((n,l)=>n+(l.steps||[]).filter(s=>stepInstr(s)).length,0) };
-  return { yen, distM: route.distanceMeters, names, fieldDbg };
+  return { yen, distM: route.distanceMeters, durMs: route.durationMillis, names, legToll, tollPassesSent, fieldDbg };
+}
+// Directions(既存経路)の steps から高速区間名を抽出（route-compare用）。instructionsはHTML。
+function directionsHighwayNames(dirResult){
+  const route = dirResult && dirResult.routes && dirResult.routes[0];
+  const names=[];
+  for(const leg of (route&&route.legs)||[]){
+    for(const step of leg.steps||[]){
+      const t=stripHtml(step.instructions||""); if(!t || !HWY_RE.test(t)) continue;
+      const m=t.match(HWY_NAME_RE); const name=(m&&m[1]||"").trim();
+      if(name && names[names.length-1]!==name) names.push(name);
+    }
+  }
+  return names;
 }
 // 料金・高速区間を後追い取得して比較UI/シート/音声へ反映（本流に割り込まない）。
 async function fetchTollInfo(originLatLng, baseReq, gen, dirDist){
@@ -2180,11 +2216,17 @@ async function fetchTollInfo(originLatLng, baseReq, gen, dirDist){
     const gapPct = (dm && side.distM) ? +(Math.abs(side.distM-dm)/dm*100).toFixed(1) : null;
     // item4: 距離乖離5%超は料金を「約」表記に（別経路の可能性）。
     const approx = gapPct!=null && gapPct>5;
-    console.log("[MulmoNavi TOLL] result", { tollYen:side.yen, distRoutes:side.distM, distDirections:dm, gapPct });
+    // 検証材料: Routes側の距離・所要、leg別内訳、送信tollPasses（JP_ETC適用確認）も出す。
+    console.log("[MulmoNavi TOLL] result", { tollYen:side.yen, distRoutes:side.distM, durRoutesMs:side.durMs,
+      distDirections:dm, gapPct, legToll:side.legToll, tollPassesSent:side.tollPassesSent });
     console.log("[MulmoNavi TOLL] fields", side.fieldDbg);
     return { yen:side.yen, approx, names:side.names, gapPct };
   };
   const result = { hwy:build(hwy, dirDist&&dirDist.hwy), local:build(local, dirDist&&dirDist.local), latMs };
+  // 経路突き合わせ: Routes API と Directions が同じ高速を通っているか（料金差の原因切り分け）。
+  console.log("[MulmoNavi TOLL] route-compare", {
+    routesHighways: (hwy&&hwy.names)||[],
+    directionsHighways: directionsHighwayNames(S.compare && S.compare.hwy && S.compare.hwy.res) });
   S._tollKey=key; S._tollResult=result;
   console.log("[MulmoNavi TOLL] done", { latMs, calls:S._tollCalls });
   applyTollResult(result, gen);
