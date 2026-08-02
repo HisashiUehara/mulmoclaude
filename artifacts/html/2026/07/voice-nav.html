@@ -995,6 +995,22 @@ window.addEventListener("load", ()=>{ initMaps().catch(e=>{
   });
 }); });
 
+/* ===== 視覚検証ハーネス用フック（?dbg=1 のときだけ有効。本番動作に一切影響しない）=====
+   Playwright 等から音声認識を経由せず経路を駆動してスクショ検証するための入口。
+   __injectUtterance: final相当のテキストを handleInput へ（LLM経由・実パイプライン）。
+   __injectIntent: RouteIntent を applyRouteIntent へ直接（LLM非依存・決定的。描画検証向け）。 */
+(function(){
+  try{
+    if(new URLSearchParams(location.search).get("dbg")!=="1") return;
+    window.__injectUtterance = (text)=>{ handleInput(String(text||"")); return true; };
+    window.__injectIntent = (intent)=>{ applyRouteIntent(intent||{}); return true; };
+    window.__navReady = ()=>({ me:!!S.me, mapReady:!!S.map, dest:S.destName||null,
+      hasCompare:!!(S.compare&&(S.compare.hwy||S.compare.local)),
+      drawn:{ polylines:(S.drawn&&S.drawn.polylines.length)||0, markers:(S.drawn&&S.drawn.markers.length)||0 } });
+    console.log("[MulmoNavi DBG] injection hooks ready (dbg=1)");
+  }catch(e){}
+})();
+
 /* ============================ 現在地 ============================ */
 function startGeolocation(){
   if(!navigator.geolocation){ addMsg(T().locDenied,"sys"); return; }
