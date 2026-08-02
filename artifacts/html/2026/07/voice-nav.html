@@ -2074,7 +2074,11 @@ async function buildRoutePair(intentGen, sayFallback){
    ETCパス: 公式 TollPass enum に JP_ETC / JP_ETC2 が存在（Routes API v2）。ETC割引価格を
    採用するため JP_ETC を指定（未指定だと現金価格）。 */
 const TOLL_TIMEOUT_MS = 4000;
-const TOLL_FIELDS = ["durationMillis","distanceMeters","travelAdvisory.tollInfo","legs.travelAdvisory.tollInfo","legs.steps.navigationInstruction"];
+// JSライブラリ(google.maps.routes.Route)の fields は「トップレベルのプロパティ名のみ」を受け付ける。
+// REST版のドット付きパス(travelAdvisory.tollInfo 等)は却下される（実機で確認）。
+// 料金は travelAdvisory→route.travelAdvisory.tollInfo / legs→route.legs[i].travelAdvisory.tollInfo、
+// 案内文は legs→route.legs[i].steps[j].instructions で読む。公式の料金例と同じ粒度。
+const TOLL_FIELDS = ["durationMillis","distanceMeters","travelAdvisory","legs"];
 // 経路識別キー（origin/destination/via）。prefer は含めない（両側とも取得しキャッシュするため、
 // prefer 切替＝キャッシュ再描画では呼ばない）。
 function tollRouteKey(originLatLng){
@@ -2161,6 +2165,7 @@ async function fetchTollInfo(originLatLng, baseReq, gen, dirDist){
   try{ lib = await google.maps.importLibrary("routes"); if(!lib || !lib.Route) throw new Error("routes library unavailable"); }
   catch(e){ console.log("[MulmoNavi TOLL] FAILED", { status:"IMPORT", error:(e&&e.message)||String(e) }); return; }
   S._tollCalls = (S._tollCalls||0) + 1;
+  console.log("[MulmoNavi TOLL] fields-used", TOLL_FIELDS);   // item4: 採用したfields一覧
   console.log("[MulmoNavi TOLL] call #"+S._tollCalls, { key });
   const t0=performance.now();
   let hwy=null, local=null;
